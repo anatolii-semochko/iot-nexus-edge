@@ -202,6 +202,216 @@ async function walk(
   }
 }
 
+/** Best-effort UTF-8 file read - `null` for a missing file (every file
+ * this module reads is optional per-DN content, not a sync requirement),
+ * rethrows anything else (a real I/O error shouldn't look like "this DN
+ * just doesn't have one"). */
+async function readTextIfExists(file: string): Promise<string | null> {
+  try {
+    return await readFile(file, "utf-8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+}
+
+async function readYamlIfExists<T>(file: string): Promise<T | null> {
+  const raw = await readTextIfExists(file);
+  if (raw === null) return null;
+  return parseYaml(raw) as T;
+}
+
+interface SafetyFile {
+  forbidden?: unknown[];
+}
+
+interface EdgexDeviceProfile {
+  manufacturer?: string;
+  model?: string;
+  labels?: string[];
+  deviceResources?: {
+    name?: string;
+    description?: string;
+    properties?: { valueType?: string; readWrite?: string };
+  }[];
+}
+
+interface NodeYaml {
+  nodeType?: string;
+  bus?: { type?: string };
+}
+
+export interface LibraryItemDetail {
+  readme: string | null;
+  changelog: string | null;
+  forbidden: unknown[] | null;
+  technical:
+    | {
+        kind: "device";
+        manufacturer: string | null;
+        model: string | null;
+        labels: string[] | null;
+        resources: { name: string; description: string | null; valueType: string | null; readWrite: string | null }[];
+      }
+    | { kind: "node"; busType: string | null; hasFirmware: boolean }
+    | null;
+  compatibility: { id: string; name: string; iconPath: string | null; typeName: string }[];
+}
+
+/** Resolves a `library_items.folder_path` back to the on-disk directory
+ * it was walked from - mirrors syncLibrary()'s own two root trees
+ * ("private/..." for a target project's own plugins/, everything else
+ * under this repo's own devices/). */
+function resolveAbsDir(folderPath: string): string {
+  if (folderPath === "private" || folderPath.startsWith("private/")) {
+    if (!config.apiPlugins.extraDir) {
+      throw new Error(`folder_path "${folderPath}" is private but no EXTRA_API_PLUGINS_DIR is configured`);
+    }
+    return path.join(config.apiPlugins.extraDir, folderPath.slice("private/".length));
+  }
+  return path.join(config.apiPlugins.builtinDevicesDir, folderPath);
+}
+
+/** Inverse of resolveAbsDir() - an on-disk package directory back to its
+ * `folder_path` key, or `null` if it isn't under either known root (e.g.
+ * a doc link pointing outside the Library entirely). Used by
+ * rewriteDocLinks() below to turn a cross-item relative markdown link
+ * into a lookup key. */
+function absDirToFolderPath(absDir: string): string | null {
+  const relBuiltin = path.relative(config.apiPlugins.builtinDevicesDir, absDir);
+  if (relBuiltin && !relBuiltin.startsWith("..") && !path.isAbsolute(relBuiltin)) {
+    return relBuiltin.split(path.sep).join("/");
+  }
+  if (config.apiPlugins.extraDir) {
+    const relPrivate = path.relative(config.apiPlugins.extraDir, absDir);
+    if (relPrivate && !relPrivate.startsWith("..") && !path.isAbsolute(relPrivate)) {
+      return path.posix.join("private", relPrivate.split(path.sep).join("/"));
+    }
+  }
+  return null;
+}
+
+// `[label](../../other-item/docs/README.md)` style relative links between
+// two Library items' own docs/README.md|CHANGELOG.md (AGENTS_TO_DO.md,
+// 2026-08-27 "розгортки елементів бібліотеки" - the markdown-viewer
+// follow-up). Deliberately narrow: only `../`-relative `.md` links, not
+// every possible markdown link shape.
+const RELATIVE_MD_LINK_RE = /\[([^\]]+)\]\((\.\.?\/[^)\s]+\.md)\)/g;
+
+/** Rewrites cross-item relative doc links in `text` (resolved against
+ * `baseDir` - the directory the file containing `text` actually lives
+ * in, e.g. `<pkg>/docs` for a README, `<pkg>` for a CHANGELOG) into an
+ * app-internal `library-item://<id>` href the UI's Documentation tab
+ * intercepts instead of navigating to a raw `.md` file path that has no
+ * route of its own. A link whose target isn't itself a known Library
+ * item's own package directory (typo, moved file, non-cross-item
+ * relative link) is left exactly as written - best-effort, not a sync
+ * failure. */
+async function rewriteDocLinks(text: string, baseDir: string): Promise<string> {
+  const matches = [...text.matchAll(RELATIVE_MD_LINK_RE)];
+  if (matches.length === 0) return text;
+
+  let result = text;
+  for (const [full, label, relPath] of matches) {
+    const resolvedFile = path.resolve(baseDir, relPath);
+    // A link into another item's `docs/README.md` resolves one level
+    // too deep for that item's own package directory - step back out of
+    // `docs/`. Anything else (e.g. a CHANGELOG.md at the package root)
+    // is already the package directory once its own filename is dropped.
+    const packageDir =
+      path.basename(path.dirname(resolvedFile)) === "docs"
+        ? path.dirname(path.dirname(resolvedFile))
+        : path.dirname(resolvedFile);
+    const folderPath = absDirToFolderPath(packageDir);
+    if (!folderPath) continue;
+    const { rows } = await pool.query<{ id: string }>(`SELECT id FROM library_items WHERE folder_path = $1`, [
+      folderPath,
+    ]);
+    if (!rows[0]) continue;
+    result = result.replace(full, `[${label}](library-item://${rows[0].id})`);
+  }
+  return result;
+}
+
+/** On-demand detail read for one Library item's expanded row (AGENTS_TO_DO.md,
+ * 2026-08-27 "розгортки елементів бібліотеки") - deliberately NOT synced
+ * into Postgres alongside the rest of the catalog: this content
+ * (README/CHANGELOG prose, EdgeX profile specs) is read-only reference
+ * material a user only looks at when they expand one specific row, not
+ * something any query filters/sorts by - re-reading straight from disk
+ * on request keeps it perfectly fresh without a second sync pass to keep
+ * in step with the first. `kind`/`typeName` come from the already-synced
+ * `library_items` row (routes/library.ts), so this function only needs
+ * `folderPath` to find the directory and `kind`/`typeName` to know which
+ * kind-specific files to look for and which direction to resolve
+ * compatibility in. */
+export async function getLibraryItemDetail(
+  folderPath: string,
+  kind: Kind,
+  typeName: string,
+): Promise<LibraryItemDetail> {
+  const absDir = resolveAbsDir(folderPath);
+
+  const [readmeRaw, changelogRaw, safety] = await Promise.all([
+    readTextIfExists(path.join(absDir, "docs", "README.md")),
+    readTextIfExists(path.join(absDir, "CHANGELOG.md")),
+    readYamlIfExists<SafetyFile>(path.join(absDir, "safety.yaml")),
+  ]);
+  const [readme, changelog] = await Promise.all([
+    readmeRaw ? rewriteDocLinks(readmeRaw, path.join(absDir, "docs")) : Promise.resolve(null),
+    changelogRaw ? rewriteDocLinks(changelogRaw, absDir) : Promise.resolve(null),
+  ]);
+  const forbidden = safety?.forbidden && safety.forbidden.length > 0 ? safety.forbidden : null;
+
+  let technical: LibraryItemDetail["technical"] = null;
+  let compatibility: LibraryItemDetail["compatibility"] = [];
+
+  if (kind === "device") {
+    const profile = await readYamlIfExists<EdgexDeviceProfile>(path.join(absDir, "edgex-device-profile.yaml"));
+    if (profile) {
+      technical = {
+        kind: "device",
+        manufacturer: profile.manufacturer ?? null,
+        model: profile.model ?? null,
+        labels: profile.labels ?? null,
+        resources: (profile.deviceResources ?? []).map((r) => ({
+          name: r.name ?? "",
+          description: r.description ?? null,
+          valueType: r.properties?.valueType ?? null,
+          readWrite: r.properties?.readWrite ?? null,
+        })),
+      };
+    }
+    // Reverse of a node's own `supports` list - every node type whose
+    // `supports` jsonb array contains this device's own type_name
+    // (the `?` operator - "does this top-level array contain this
+    // element" - not `@>`, which needs a jsonb value on both sides).
+    const { rows } = await pool.query<{ id: string; name: string; icon_path: string | null; type_name: string }>(
+      `SELECT id, name, icon_path, type_name FROM library_items
+       WHERE kind = 'node' AND supports ? $1 ORDER BY name`,
+      [typeName],
+    );
+    compatibility = rows.map((r) => ({ id: r.id, name: r.name, iconPath: r.icon_path, typeName: r.type_name }));
+  } else if (kind === "node") {
+    const [nodeYaml, firmwareEntries] = await Promise.all([
+      readYamlIfExists<NodeYaml>(path.join(absDir, "node.yaml")),
+      readdir(path.join(absDir, "firmware")).catch(() => []),
+    ]);
+    technical = { kind: "node", busType: nodeYaml?.bus?.type ?? null, hasFirmware: firmwareEntries.length > 0 };
+    const { rows } = await pool.query<{ id: string; name: string; icon_path: string | null; type_name: string }>(
+      `SELECT li.id, li.name, li.icon_path, li.type_name
+       FROM library_items node, LATERAL jsonb_array_elements_text(node.supports) AS supported_type
+       JOIN library_items li ON li.kind = 'device' AND li.type_name = supported_type
+       WHERE node.folder_path = $1
+       ORDER BY li.name`,
+      [folderPath],
+    );
+    compatibility = rows.map((r) => ({ id: r.id, name: r.name, iconPath: r.icon_path, typeName: r.type_name }));
+  }
+
+  return { readme, changelog, forbidden, technical, compatibility };
+}
+
 /** Recreates the whole catalog from disk - called once on `apps/api`
  * startup and on demand via `POST /library/sync` (routes/library.ts). */
 export async function syncLibrary(): Promise<{ categories: number; items: number }> {

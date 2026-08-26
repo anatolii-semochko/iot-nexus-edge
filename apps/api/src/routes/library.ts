@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 
 import { pool } from "../db.js";
-import { syncLibrary } from "../libraryCatalog.js";
+import { getLibraryItemDetail, syncLibrary } from "../libraryCatalog.js";
 
 type Kind = "device" | "node" | "process";
 
@@ -109,6 +109,37 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
         })),
       ],
     };
+  });
+
+  // Expanded-row detail (AGENTS_TO_DO.md, 2026-08-27) - README/CHANGELOG
+  // prose, EdgeX profile specs, and cross-linked compatibility, read
+  // fresh from disk on every call rather than synced into Postgres (see
+  // getLibraryItemDetail's own doc comment for why). `id` is the DN's
+  // own library.json id, same identity everything else in this route
+  // file already keys on.
+  app.get<{ Params: { id: string } }>("/library/items/:id/detail", async (request, reply) => {
+    const { rows } = await pool.query<{ folder_path: string; kind: Kind; type_name: string }>(
+      `SELECT folder_path, kind, type_name FROM library_items WHERE id = $1`,
+      [request.params.id],
+    );
+    if (!rows[0]) return reply.code(404).send({ error: "not found" });
+    return getLibraryItemDetail(rows[0].folder_path, rows[0].kind, rows[0].type_name);
+  });
+
+  // Cross-item doc-link navigation (AGENTS_TO_DO.md, 2026-08-27 markdown-
+  // viewer follow-up) - the Documentation tab's `library-item://<id>`
+  // links (rewritten server-side by libraryCatalog.ts's own
+  // rewriteDocLinks) resolve to a target item that may live in a
+  // different kind/category than whatever's currently browsed; this is
+  // just enough for LibraryBrowser.jsx to re-navigate there (`kind` +
+  // `categoryId`) before expanding it, not a full item payload.
+  app.get<{ Params: { id: string } }>("/library/items/:id/location", async (request, reply) => {
+    const { rows } = await pool.query<{ kind: Kind; category_id: number | null }>(
+      `SELECT kind, category_id FROM library_items WHERE id = $1`,
+      [request.params.id],
+    );
+    if (!rows[0]) return reply.code(404).send({ error: "not found" });
+    return { kind: rows[0].kind, categoryId: rows[0].category_id };
   });
 
   // Flat, cross-category search by name/description (AGENTS_TO_DO.md: "для

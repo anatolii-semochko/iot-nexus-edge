@@ -29,8 +29,11 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilLibrary, cilReload } from '@coreui/icons'
 import { api } from '../../api/client'
+import ExpandToggleButton from '../../components/table/ExpandToggleButton'
 import TableSearchInput from '../../components/table/TableSearchInput'
+import { useExpandableRows } from '../../hooks/useExpandableRows'
 import upIcon from '../../assets/images/up.png'
+import LibraryItemDetailRow from './LibraryItemDetailRow'
 
 const KINDS = [
   { value: 'device', label: 'Devices' },
@@ -244,6 +247,15 @@ const LibraryBrowser = () => {
   const [syncMessage, setSyncMessage] = useState(null)
   const [addProcessItem, setAddProcessItem] = useState(null)
   const [createdMessage, setCreatedMessage] = useState(null)
+  const [expandedIds, setExpandedIds] = useState([])
+  const { isExpanded, toggleOne } = useExpandableRows(expandedIds, setExpandedIds)
+  // A `library-item://<id>` doc link (LibraryItemDetailRow.jsx's own
+  // Documentation tab) may point at an item in a different kind/category
+  // than whatever's currently browsed - this holds the target id between
+  // "re-navigate there" and "its row actually showed up in `children`",
+  // since that's a separate async fetch (AGENTS_TO_DO.md, 2026-08-27
+  // "markdown-viewer" follow-up).
+  const [pendingExpandId, setPendingExpandId] = useState(null)
 
   const loadBrowse = (nextKind, nextCategoryId) => {
     setError(null)
@@ -283,11 +295,46 @@ const LibraryBrowser = () => {
     setKind(nextKind)
     setCategoryId(null)
     setSearch('')
+    setExpandedIds([])
   }
 
   const handleNavigate = (nextCategoryId) => {
     setCategoryId(nextCategoryId)
+    setExpandedIds([])
   }
+
+  // A doc link's target item may live under a different kind and/or
+  // category than what's on screen - look up where it actually is, then
+  // navigate there; the effect below finishes the job (expand + scroll)
+  // once that navigation's own `children` fetch lands.
+  const handleNavigateToItem = async (id) => {
+    setError(null)
+    try {
+      const location = await api.getLibraryItemLocation(id)
+      setSearch('')
+      setKind(location.kind)
+      setCategoryId(location.categoryId)
+      setExpandedIds([])
+      setPendingExpandId(id)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  useEffect(() => {
+    if (!pendingExpandId || !children) return
+    if (!children.some((c) => c.type === 'item' && c.id === pendingExpandId)) return
+    // Reacting to `children` finishing its own fetch (an external
+    // system, from this effect's point of view) - same accepted pattern
+    // as this file's own kind/categoryId-driven loadBrowse effect above.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExpandedIds([pendingExpandId])
+    document.getElementById(`library-row-${pendingExpandId}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
+    setPendingExpandId(null)
+  }, [children, pendingExpandId])
 
   const handleSync = async () => {
     setSyncing(true)
@@ -310,7 +357,13 @@ const LibraryBrowser = () => {
     <CCard className="mb-4">
       <CCardHeader className="d-flex justify-content-between align-items-center">
         <strong>Library</strong>
-        <CButton color="secondary" variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
+        <CButton
+          color="secondary"
+          variant="outline"
+          size="sm"
+          onClick={handleSync}
+          disabled={syncing}
+        >
           <CIcon icon={cilReload} className="me-1" />
           {syncing ? 'Syncing...' : 'Sync'}
         </CButton>
@@ -354,7 +407,7 @@ const LibraryBrowser = () => {
         ) : rows.length === 0 ? (
           <CAlert color="info">{showingSearch ? 'No matches.' : 'Nothing here yet.'}</CAlert>
         ) : (
-          <CTable hover responsive>
+          <CTable responsive>
             <CTableHead>
               <CTableRow>
                 <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
@@ -362,56 +415,88 @@ const LibraryBrowser = () => {
                 <CTableHeaderCell>Description</CTableHeaderCell>
                 <CTableHeaderCell>Used in project</CTableHeaderCell>
                 {kind === 'process' && <CTableHeaderCell></CTableHeaderCell>}
+                <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
               </CTableRow>
             </CTableHead>
             <CTableBody>
-              {rows.map((row) => (
-                <CTableRow key={`${row.type ?? 'item'}:${row.id}`}>
-                  <CTableDataCell>
-                    <RowIcon iconPath={row.iconPath} />
-                  </CTableDataCell>
-                  <CTableDataCell>
-                    {row.type === 'category' ? (
-                      <a
-                        href="#"
-                        className="link-primary"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          handleNavigate(row.id)
-                        }}
-                      >
-                        {row.name}
-                      </a>
-                    ) : (
-                      row.name
-                    )}
-                  </CTableDataCell>
-                  <CTableDataCell>{row.description ?? '-'}</CTableDataCell>
-                  <CTableDataCell>
-                    {row.type === 'category' ? (
-                      '-'
-                    ) : row.usedInProject ? (
-                      <CBadge color="success">Used</CBadge>
-                    ) : (
-                      <CBadge color="secondary">Not used</CBadge>
-                    )}
-                  </CTableDataCell>
-                  {kind === 'process' && (
-                    <CTableDataCell>
-                      {row.type === 'item' && (
-                        <CButton
-                          size="sm"
-                          color="primary"
-                          variant="outline"
-                          onClick={() => setAddProcessItem(row)}
-                        >
-                          Add process
-                        </CButton>
+              {rows.map((row) => {
+                const expandedRow = row.type === 'item' && isExpanded(row.id)
+                const columnCount = kind === 'process' ? 6 : 5
+                return (
+                  <React.Fragment key={`${row.type ?? 'item'}:${row.id}`}>
+                    <CTableRow id={row.type === 'item' ? `library-row-${row.id}` : undefined}>
+                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                        <RowIcon iconPath={row.iconPath} />
+                      </CTableDataCell>
+                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                        {row.type === 'category' ? (
+                          <a
+                            href="#"
+                            className="link-primary"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              handleNavigate(row.id)
+                            }}
+                          >
+                            {row.name}
+                          </a>
+                        ) : (
+                          row.name
+                        )}
+                      </CTableDataCell>
+                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                        {row.description ?? '-'}
+                      </CTableDataCell>
+                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                        {row.type === 'category' ? (
+                          '-'
+                        ) : row.usedInProject ? (
+                          <CBadge color="success" className="mb-1">
+                            Used
+                          </CBadge>
+                        ) : (
+                          <CBadge color="secondary" className="mb-1">
+                            Not used
+                          </CBadge>
+                        )}
+                      </CTableDataCell>
+                      {kind === 'process' && (
+                        <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                          {row.type === 'item' && (
+                            <CButton
+                              size="sm"
+                              color="primary"
+                              variant="outline"
+                              onClick={() => setAddProcessItem(row)}
+                            >
+                              Add process
+                            </CButton>
+                          )}
+                        </CTableDataCell>
                       )}
-                    </CTableDataCell>
-                  )}
-                </CTableRow>
-              ))}
+                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                        {row.type === 'item' && (
+                          <ExpandToggleButton
+                            expanded={expandedRow}
+                            onClick={() => toggleOne(row.id)}
+                          />
+                        )}
+                      </CTableDataCell>
+                    </CTableRow>
+                    {expandedRow && (
+                      <CTableRow>
+                        <CTableDataCell colSpan={columnCount} className="p-0">
+                          <LibraryItemDetailRow
+                            row={row}
+                            kind={kind}
+                            onNavigateToItem={handleNavigateToItem}
+                          />
+                        </CTableDataCell>
+                      </CTableRow>
+                    )}
+                  </React.Fragment>
+                )
+              })}
             </CTableBody>
           </CTable>
         )}
