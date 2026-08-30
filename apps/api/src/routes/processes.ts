@@ -9,6 +9,7 @@ import type { HeartbeatControlConfig } from "../heartbeatControl.js";
 import { broadcastForced } from "../processBroadcast.js";
 import * as processMessages from "../processMessages.js";
 import * as processRegistry from "../processRegistry.js";
+import { isSimulationTargetSimulated } from "../simulationTarget.js";
 
 interface ProcessConfig {
   min?: number;
@@ -50,10 +51,22 @@ interface ProcessRow {
   // itself isn't a column on this table anymore, groups are a real,
   // independently manageable entity now (routes/processGroups.ts).
   group_name: string;
-  type: "controllable" | "permanent";
+  // Includes "simulation" (AGENTS_TO_DO.md, 2026-08-29) even though the
+  // POST /processes route below only ever accepts "controllable"/
+  // "permanent" - a simulation process is seed-migration-created only,
+  // never through this generic create route, but this interface also
+  // types every row read back via SELECT * FROM processes (GET
+  // /processes above), which legitimately includes simulation rows.
+  type: "controllable" | "permanent" | "simulation";
   kind: string;
   actions: string[];
   device_id: number | null;
+  // Simulation processes only (AGENTS_TO_DO.md, 2026-08-29) - the "spans
+  // an entire Node" link nexus-edge core's 1690000000029 migration
+  // established. Needed here (not just on the orchestrator-facing
+  // apiClient.ts type) for withLiveState's own isSimulationTargetSimulated
+  // check below.
+  node_id: number | null;
   config: ProcessConfig;
   // Dashboard tab (AGENTS.md section 22) - set once, the instant this
   // process first gets an active WEM entry (processMessages.
@@ -580,8 +593,18 @@ async function withLiveState(process: ProcessRow) {
     heartbeatStopped,
     heartbeatLastSeenAt,
     heartbeatTestSimulateFailure,
+    simulationTargetSimulated,
   ] = await Promise.all([
-    process.type === "controllable" ? processRegistry.getStatus(process.id) : Promise.resolve(undefined),
+    // "simulation" (AGENTS_TO_DO.md, 2026-08-29) reuses the exact same
+    // on/off `status` a controllable process already has - "sleeps
+    // until turned on" is just status === "off", no new field. Read
+    // here so apps/orchestrator's simulation process kinds get it from
+    // the one `GET /processes` call the tick loop already makes every
+    // tick, same reasoning as heartbeatStopped/heartbeatLastSeenAt
+    // below.
+    process.type === "controllable" || process.type === "simulation"
+      ? processRegistry.getStatus(process.id)
+      : Promise.resolve(undefined),
     processRegistry.getCritical(process.id),
     processRegistry.getWarning(process.id),
     processRegistry.getMetrics(process.id),
@@ -603,6 +626,11 @@ async function withLiveState(process: ProcessRow) {
     // every process anyway (same as hasActiveWem above), simpler than
     // branching on kind here.
     heartbeatControl.isTestSimulateFailure(process.id),
+    // Second of the two independent gates a simulation process needs
+    // (AGENTS_TO_DO.md, 2026-08-29) - see simulationTarget.ts's own doc
+    // comment. Only meaningful for type: "simulation", same conditional
+    // pattern `status` above already uses.
+    process.type === "simulation" ? isSimulationTargetSimulated(process) : Promise.resolve(undefined),
   ]);
   return {
     ...process,
@@ -615,5 +643,6 @@ async function withLiveState(process: ProcessRow) {
     heartbeatStopped,
     heartbeatTestSimulateFailure,
     heartbeatLastSeenAt,
+    simulationTargetSimulated,
   };
 }
