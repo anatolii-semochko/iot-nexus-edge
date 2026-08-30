@@ -219,6 +219,16 @@ export async function nodeRoutes(app: FastifyInstance): Promise<void> {
         [request.body.simulated, request.params.id],
       );
       if (!result.rows[0]) return reply.code(404).send({ error: "node not found" });
+      // No auto-activation of attached simulation processes here anymore
+      // (2026-08-29, reversed from an earlier design) - a simulation
+      // process's own ON/OFF is exclusively operator-controlled (the
+      // Simulator page's own switch, POST /processes/:id/action), fully
+      // independent of this toggle. Whether it's actually producing data
+      // right now is a live COMBINATION of that switch and this node's own
+      // `simulated` flag (simulationTarget.ts's isSimulationTargetSimulated,
+      // read fresh by both the orchestrator's runner and the Simulator
+      // page's Active/Sleep label) - never a second write to the same
+      // Redis status the switch owns.
       const updated = await withLiveHeartbeat(await findNode(request.params.id));
       await publishNodeState(updated, request.body.simulated ? "node-simulated-on" : "node-simulated-off");
       return updated;
