@@ -86,4 +86,21 @@ export const config = {
   // orchestrator restart" signal, nothing else reaches into orchestrator
   // from this service.
   orchestratorUrl: process.env.ORCHESTRATOR_URL ?? `http://orchestrator:${process.env.ORCHESTRATOR_PORT ?? 3000}`,
+  // Service->Commands (AGENTS_TO_DO.md, 2026-08-30) - host power commands
+  // (systemCommands.ts, routes/service.ts) via a D-Bus systemd-logind call.
+  // Both default false: a fresh checkout, or a target project that hasn't
+  // mounted /run/dbus/system_bus_socket into the api container, must not
+  // show or allow these even though the routes/UI exist unconditionally.
+  service: {
+    shutdownEnabled: process.env.SHUTDOWN_ENABLE === "true",
+    restartEnabled: process.env.RESTART_ENABLE === "true",
+  },
+  // Service->Database (AGENTS_TO_DO.md, 2026-08-30) - System Stamps
+  // (config-table snapshots) saved as files here, not a DB table ("стани
+  // в файлах" - restoring FROM the very database being restored would be
+  // an awkward dependency). Same volume-mount pattern as uploads.avatarsDir.
+  systemStamps: {
+    dir: process.env.SYSTEM_STAMPS_DIR ?? "/workspace/apps/api/uploads/system-stamps",
+    maxUploadSizeBytes: Number(process.env.SYSTEM_STAMP_MAX_SIZE_BYTES ?? 50 * 1024 * 1024),
+  },
 };
