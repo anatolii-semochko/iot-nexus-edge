@@ -27,6 +27,7 @@ const IconButton = ({
   ariaLabel,
   disabled,
   center,
+  title,
 }) => (
   <CButton
     size={size}
@@ -36,6 +37,7 @@ const IconButton = ({
     style={BUTTON_STYLE}
     onClick={onClick}
     aria-label={ariaLabel}
+    title={title}
   >
     <CIcon icon={icon} className={center ? 'align-middle' : undefined} />
   </CButton>

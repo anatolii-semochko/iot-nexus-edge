@@ -1147,6 +1147,15 @@ only the current page of a paginated table) and changes every render.
 `ids`/`expandedIds`/`setExpandedIds` and it renders nothing when there's
 nothing expandable, otherwise the same `ExpandToggleButton` used per-row.
 
+**Don't add CoreUI's `hover` prop to a `<CTable>` that has expandable
+rows** (AGENTS_TO_DO.md 2026-09-04) - `hover` applies its highlight
+per-`<tr>`, so the row directly under the cursor and the expanded
+detail row right below it (a *separate* `<tr>`, per this same toolkit's
+own convention) each light up/dim independently as the mouse crosses
+between them - reads as the whole expanded panel's own background
+flickering. Applies to any table built with this hook, not just the one
+it was first caught on.
+
 **Persisted page state** (`hooks/usePersistedState.js` +
 `utils/cookies.js`): filters, search text, page size, and which rows are
 expanded are the kind of thing someone sets up while actually using a

@@ -16,6 +16,17 @@ body {
   vertical-align: middle;
 }
 
+// Opt-in utility - Bootstrap/CoreUI draws a border under every row,
+// including the last one, which reads as a redundant double line right
+// above a table's own bottom edge (especially noticeable directly
+// above a Save/Cancel button row or another block with no gap). Add
+// `table-no-last-border` to a <CTable> to drop just that one border;
+// every other row keeps its own. Selector specificity matches (and so
+// overrides) the base `.table > :not(caption) > * > *` rule above.
+.table-no-last-border > tbody > tr:last-child > * {
+  border-bottom-width: 0;
+}
+
 .wrapper {
   width: 100%;
   padding-inline: var(--cui-sidebar-occupy-start, 0) var(--cui-sidebar-occupy-end, 0);
@@ -136,4 +147,27 @@ body {
 
 .system-tick-pulse {
   animation: system-tick-pulse 0.1s ease-out;
+}
+
+// Channel spectrum regulator (Light Profiles editor, AGENTS_TO_DO.md
+// 2026-09-06) - a native <input type="range"> has no built-in "filled
+// track" visual; the fill (the channel's own config color, up to the
+// current value) is painted by an inline `background: linear-gradient`
+// set from JS per slider. That gradient only becomes visible once the
+// browser's own track/progress pseudo-elements (which otherwise paint
+// over it) are made transparent here - scoped to this one class so
+// every other `.form-range` in the app (Dev Simulator, etc.) keeps
+// Bootstrap's own default track.
+.channel-power-range {
+  &::-webkit-slider-runnable-track {
+    background: transparent;
+  }
+
+  &::-moz-range-track {
+    background: transparent;
+  }
+
+  &::-moz-range-progress {
+    background: transparent;
+  }
 }

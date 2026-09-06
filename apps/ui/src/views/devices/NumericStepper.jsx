@@ -30,6 +30,17 @@ const REPEAT_INTERVAL_MS = 50
  * write philosophy as the buttons, just via keyboard instead of a click.
  * Every other caller leaves this at its default `false` and is
  * unaffected.
+ *
+ * `incrementDisabled` (AGENTS_TO_DO.md 2026-09-07 - Light Profiles'
+ * Power stepper) - disables just the "+" button/hold-repeat, leaving
+ * "-" and the text input (when `editable`) usable. For a caller whose
+ * effective ceiling isn't a single fixed `max` number but a dynamic
+ * constraint (e.g. "refuse any increase while some OTHER value is
+ * already saturated") - the caller's own `onCommit` can still silently
+ * refuse an increase typed directly into the text field, but the "+"
+ * button itself should read as genuinely disabled (grayed out), not
+ * just silently no-op on click - direct user instruction: no error
+ * banner for this, only disable the button.
  */
 const NumericStepper = ({
   value,
@@ -39,6 +50,7 @@ const NumericStepper = ({
   disabled = false,
   busy = false,
   editable = false,
+  incrementDisabled = false,
   onCommit,
 }) => {
   const current = Number(value ?? 0)
@@ -139,7 +151,7 @@ const NumericStepper = ({
   }
 
   const startHold = (direction) => {
-    if (disabled || busy) return
+    if (disabled || busy || (direction > 0 && incrementDisabled)) return
     // Clears any still-running hold before starting a new one - belt and
     // braces alongside the window listener above, so an interval can never
     // be orphaned by a fresh pointerdown overwriting its ref.
@@ -200,7 +212,7 @@ const NumericStepper = ({
         size="sm"
         variant="outline"
         color="secondary"
-        disabled={disabled || busy}
+        disabled={disabled || busy || incrementDisabled}
         onPointerDown={() => startHold(1)}
         onPointerUp={stopHold}
         onPointerLeave={stopHold}
