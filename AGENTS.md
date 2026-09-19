@@ -6982,3 +6982,125 @@ the whole action look like it silently did nothing even though the
 rows were genuinely gone) via `initUnreadCounts()`, but without the
 forced broadcast a client only found out on the next periodic tick (up
 to `PROCESS_STATE_BROADCAST_INTERVAL_MS`, 5s later).
+
+## 77. `GET /devices/:id` broadcasting `value: null` on a transient EdgeX read failure - live value blinking once/sec
+
+Reported against `nexus-edge-aquarium`'s own Devices page (a light
+channel's Watts reading visibly disappearing and redrawing about once a
+second), but the bug lives entirely in this repo - any project polling
+a Device this way at a high-ish cadence (a Data Logger `periodSeconds:
+1`, in the reported case) can hit it.
+
+`routes/devices.ts`'s `GET /devices/:id` defaults `let value: unknown =
+null` before attempting a live EdgeX read, and only overwrites it on
+success. On a transient failure (`readValue()` throws - a core-command
+timeout under load, in the observed case) the `catch` block only logged
+a warning; `value` stayed `null`, and the handler went on to call
+`publishDeviceReading(device, readingOrigin, value, "device-read")`
+unconditionally - broadcasting `value: null` over the live `device`
+socket domain to every connected client regardless of whether the read
+actually succeeded.
+
+On the client, `useLiveDevice.js`'s own reducer does `if ('value' in
+event) { next.value = event.value; ... }` - the key being merely
+*present* (even as `null`) was enough to clobber the last known-good
+reading, and both consumers that key feeds (`DevicesList.jsx`'s own
+`ValueCell` in the collapsed row, `formatFieldValue` in the expand
+row's plain Value line) render `null`/`undefined` as `-`/blank. One
+transient EdgeX hiccup per second (matching whatever's re-polling this
+route at that cadence) reads as the value itself "flickering."
+
+This is the exact same bug CLASS commit `640000c` already fixed once
+for `mode`/`valueAuto`/`valueManual`/`isOverdue`/`expiresAt` (a sparse
+event without those fields was clobbering them with `undefined`) - but
+`value` itself was never given the same guard, since every OTHER
+publish site (`dualDevicesModel.ts`'s own `publishState`/
+`publishReading`) always has a real reading to report.
+
+Fixed by reusing `DeviceEventEnvelope.value`'s own EXISTING optionality
+(`value?: unknown`, already documented there for a metadata-only event
+that has no reading of its own) for this case too: `GET /devices/:id`
+now tracks a `readFailed` flag separately from `value` staying at its
+`null` default, and passes `undefined` (not `value`) to
+`publishDeviceReading` when the read failed. `publishDeviceReading`
+itself now only includes the `value` key in the published envelope
+when it's not `undefined` - so a failed read publishes an `isOverdue`/
+`expiresAt` update (still needed - staleness tracking must keep
+working even while EdgeX is unreachable) with no `value` key at all,
+letting `useLiveDevice.js`'s own `'value' in event` check correctly
+leave the client's last known-good value untouched, exactly like a
+metadata-only event already does. The route's own REST response body
+(the one-time mount fetch) is unaffected - it still honestly returns
+`null` for a request that itself failed to read a value; only the
+recurring live-socket broadcast to already-connected clients was ever
+wrong.
+
+Also bumped `NumericStepper.jsx`'s own display/commit precision from a
+hardcoded 2 decimals to a new optional `precision` prop (default `2`,
+so every existing caller is unaffected) - `DevicesList.jsx`'s own
+numeric Override control was rounding a Float device's reading to 2
+decimals even though the plain read-only Value line right next to it
+already showed full precision, which read as an inconsistency once the
+value-blink fix above made it obvious the underlying data itself was
+never rounded. Now passes `precision={0}` for an int-typed device
+(nothing to gain from decimals) or `precision={6}` for a Float one
+(enough for any practical reading without displaying raw floating-
+point noise) - scoped to this one caller only.
+
+Live-verified in `nexus-edge-aquarium` (both this repo's own api/ui
+images are built FROM this source tree via each sibling project's own
+`additional_contexts: nexus-edge`, so a rebuild there exercises this
+fix directly): the Devices list's own aquarium light-power-target rows
+already showed full un-rounded precision (`2.6729559748427194`,
+confirming that display path was never the problem); the expand row's
+own Override input, previously capped at 2 decimals, now shows several
+more. No console errors.
+
+## 78. `ProcessesTable.jsx`'s own expanded-row cell had no width ceiling - any process kind's wide Panel could inflate the whole page
+
+Reported live (2026-09-19) against `nexus-edge-aquarium`: opening its
+Month/Year Profiles tabs (each grew to 10 columns after that project's
+own recent "Max Total Wh" work) sometimes forced the whole Processes
+page into an unwanted extra vertical scrollbar too, not just a
+horizontal one on the wide table itself.
+
+Root cause was here, not in the aquarium project: this file's own
+expanded-row cell renders `<Panel process={process} .../>` (whichever
+process kind's own registered panel component - `processTypeRegistry`)
+directly inside `<CTableDataCell colSpan={showPower ? 6 : 5}
+className="p-0">`, with no width constraint of any kind on that cell's
+own content. CoreUI's `CTable` defaults to `table-layout: auto`, and
+that algorithm still consults a descendant's own *preferred*
+(min-content) width when sizing columns - even through a nested
+`.table-responsive` wrapper (`overflow-x: auto`) that has no explicit
+width of its own - so any process kind whose Panel renders a table
+wider than the available row (exactly what happened once
+aquarium-light-control's own Month/Year Profiles tabs grew past ~10
+columns) inflates THIS table's own column sizing, and from there the
+whole page, instead of scrolling inside its own row like it should.
+
+This is the identical root cause `nexus-edge-aquarium`'s own AGENTS.md
+already documented once for a narrower case ("Power Curves polish:
+Editor width/scroll fix", 2026-09-04) - a wide `EqualizerEditor` chart
+inside that project's own `CTableDataCell colSpan={5}` doing the same
+thing to ITS OWN table. Same fix, applied here instead so every
+process kind's own panel is protected, not just that one aquarium tab:
+wrapped `<Panel/>` + `<WemRow/>` in
+`<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)' }}>`
+- an explicit `minmax(0, ...)` grid track is the one sizing context
+that actually ignores a descendant's intrinsic content width, unlike
+plain block/table layout (where a plain `overflow: auto` wrapper's own
+`min-width: 0` doesn't propagate through a table ancestor).
+
+Live-verified in `nexus-edge-aquarium` (rebuilt `ui`, which bundles
+this file via its own `additional_contexts: nexus-edge`): injected a
+temporary `body { max-width: 1000px }` constraint via devtools console
+before and after the fix, on the Month Profiles tab specifically (its
+own widest table at the time) - before, `document.body.scrollWidth`
+stayed at 1708px regardless of the constraint (genuine overflow,
+clipped only visually by the injected `overflow-x: hidden`); after,
+`document.body.scrollWidth` matched the constraint exactly (1000px,
+properly contained). No other process kind's own panel was available
+to cross-check live in this session, but the fix is structural (this
+file's own shared expand-row cell, not anything aquarium-specific), so
+every registered panel benefits equally.

@@ -252,8 +252,26 @@ const ProcessRow = ({
       {expanded && Panel && (
         <CTableRow color={effectiveRowColor}>
           <CTableDataCell colSpan={showPower ? 6 : 5} className="p-0">
-            <Panel process={process} onConfigChange={onReload} />
-            <WemRow messages={messages} />
+            {/* `display: grid; grid-template-columns: minmax(0, 1fr)` -
+                not decorative, load-bearing sizing (nexus-edge-aquarium's
+                own AGENTS.md, "Power Curves polish: Viewer gridlines +
+                Editor width/scroll fix", 2026-09-04): CoreUI's `CTable`
+                defaults to `table-layout: auto`, which still consults a
+                descendant's own preferred (min-content) width when sizing
+                columns even through an `overflow: auto` wrapper with no
+                explicit width - so a process kind whose own expanded
+                Panel renders a wide table (aquarium-light-control's own
+                Month/Year Profiles tabs, reported live 2026-09-19) can
+                inflate this whole Processes table, and the whole page,
+                instead of scrolling inside its own row. An explicit
+                `minmax(0, ...)` grid track is the one sizing context that
+                actually ignores a descendant's intrinsic content width -
+                every Panel gets this for free here, not just aquarium's
+                own. */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)' }}>
+              <Panel process={process} onConfigChange={onReload} />
+              <WemRow messages={messages} />
+            </div>
           </CTableDataCell>
         </CTableRow>
       )}

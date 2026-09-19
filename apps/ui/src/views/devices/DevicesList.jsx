@@ -311,6 +311,14 @@ const DeviceValueEditor = ({ device, value, mode, onWrite, onSimulate, onRelease
             step={device.capabilities?.step ?? (/^u?int/i.test(device.valueType ?? '') ? 1 : 0.5)}
             min={device.capabilities?.min}
             max={device.capabilities?.max}
+            // AGENTS_TO_DO.md 2026-09-14 - this control was rounding a
+            // Float device's own reading to 2 decimals, hiding real
+            // precision (e.g. an aquarium light channel's own Watts
+            // value). An integer device has nothing to gain from extra
+            // decimals; a Float one gets enough to show its own value in
+            // full for any practical reading, without displaying raw
+            // floating-point noise.
+            precision={/^u?int/i.test(device.valueType ?? '') ? 0 : 6}
             editable
             busy={busy}
             onCommit={(next) => (readOnly ? handleSimulate(next) : handleWrite(next))}
