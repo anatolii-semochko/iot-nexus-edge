@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { CButton, CFormInput } from '@coreui/react'
 
-const format = (n) => Number(n).toFixed(2)
+const format = (n, precision) => Number(n).toFixed(precision)
 
 // Standard press-and-hold spinner behavior: a quick click steps once: hold
 // past HOLD_DELAY_MS and it starts stepping by itself every
@@ -41,6 +41,13 @@ const REPEAT_INTERVAL_MS = 50
  * button itself should read as genuinely disabled (grayed out), not
  * just silently no-op on click - direct user instruction: no error
  * banner for this, only disable the button.
+ *
+ * `precision` (AGENTS_TO_DO.md 2026-09-14 - DevicesList.jsx's own
+ * Override control was showing an aquarium Watts reading rounded to 2
+ * decimals, hiding real precision the caller wanted to see in full) -
+ * decimal places for both display and commit/step rounding. Defaults
+ * to 2, preserving every existing caller's own behavior unchanged;
+ * DevicesList.jsx's own numeric Override passes a higher value.
  */
 const NumericStepper = ({
   value,
@@ -51,6 +58,7 @@ const NumericStepper = ({
   busy = false,
   editable = false,
   incrementDisabled = false,
+  precision = 2,
   onCommit,
 }) => {
   const current = Number(value ?? 0)
@@ -62,11 +70,11 @@ const NumericStepper = ({
   // Compiler-era lint rules reject for a plain setState call like this
   // one (same rule already noted elsewhere in this codebase - see e.g.
   // ProcessSettingsModal.jsx's own comments on the same class of rule).
-  const [text, setText] = useState(() => format(current))
+  const [text, setText] = useState(() => format(current, precision))
   const [syncedCurrent, setSyncedCurrent] = useState(current)
   if (current !== syncedCurrent) {
     setSyncedCurrent(current)
-    setText(format(current))
+    setText(format(current, precision))
   }
 
   // The value a held-down repeat continues from - can't read the `value`
@@ -125,7 +133,7 @@ const NumericStepper = ({
   // commits every tick for as long as the button stays held.
   const doStep = (direction) => {
     const stepped = runningValueRef.current + direction * step
-    const clamped = Number(format(Math.min(max, Math.max(min, stepped))))
+    const clamped = Number(format(Math.min(max, Math.max(min, stepped)), precision))
     if (clamped === runningValueRef.current) return false
     runningValueRef.current = clamped
     onCommit(clamped)
@@ -142,11 +150,11 @@ const NumericStepper = ({
   const commitText = () => {
     const parsed = Number(text)
     if (!Number.isFinite(parsed)) {
-      setText(format(current))
+      setText(format(current, precision))
       return
     }
-    const clamped = Number(format(Math.min(max, Math.max(min, parsed))))
-    setText(format(clamped))
+    const clamped = Number(format(Math.min(max, Math.max(min, parsed)), precision))
+    setText(format(clamped, precision))
     if (clamped !== current) onCommit(clamped)
   }
 
@@ -195,7 +203,7 @@ const NumericStepper = ({
       <CFormInput
         size="sm"
         style={{ width: '4rem' }}
-        value={editable ? text : format(current)}
+        value={editable ? text : format(current, precision)}
         disabled={disabled || !editable}
         readOnly={!editable}
         onChange={editable ? (e) => setText(e.target.value) : undefined}

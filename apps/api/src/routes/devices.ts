@@ -159,6 +159,13 @@ const SELECT_DEVICE_WITH_NODE = `
 async function publishDeviceReading(
   device: { id: number; data_logger_control: dataLoggerControl.DataLoggerControlConfig },
   readingOriginMs: number | null,
+  // `undefined` (distinct from a legitimate `null` reading) means "this
+  // call has no reading to report" - a transient read failure, not "the
+  // device's value is null" - same `value?: unknown` optionality
+  // `DeviceEventEnvelope` already documents for metadata-only events,
+  // reused here for the identical reason: omitting the key entirely lets
+  // `useLiveDevice.js`'s own `'value' in event` merge leave the client's
+  // last known-good value untouched instead of clobbering it.
   value: unknown,
   source: string,
 ): Promise<{ isOverdue: boolean; expiresAt: number | null }> {
@@ -167,7 +174,7 @@ async function publishDeviceReading(
     publishDeviceEvent({
       domain: "device",
       entityId: device.id,
-      value,
+      ...(value !== undefined ? { value } : {}),
       isOverdue: result.isOverdue,
       expiresAt: result.expiresAt,
       timestamp: new Date().toISOString(),
@@ -266,6 +273,17 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     if (resolvedEdgexName && device.capabilities.edgexResource) {
       const edgexDeviceName = resolvedEdgexName;
       const edgexResource = device.capabilities.edgexResource;
+      // Tracks a genuine read failure separately from `value` staying at
+      // its `null` default - a transient EdgeX hiccup must never broadcast
+      // `value: null` over the live socket (AGENTS_TO_DO.md 2026-09-14,
+      // "значення... зникає... раз в секунду і перемальовується"): every
+      // OTHER caller of `publishDeviceReading` always has a real reading,
+      // so this was the one path capable of clobbering an already-good
+      // live value with a false "no reading" on every client watching
+      // this device, at whatever cadence something re-polls this route
+      // (a 1s Data Logger interval reproduces this as a steady blink).
+      // See `publishDeviceReading`'s own updated comment for the fix.
+      let readFailed = false;
       try {
         const reading = await readValue(edgexDeviceName, edgexResource);
         value = reading.value;
@@ -277,6 +295,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
         readingOrigin = Math.floor(reading.origin / 1e6);
       } catch (err) {
         app.log.warn({ err, device: device.name }, "failed to read device value");
+        readFailed = true;
       }
       // A pure sensor (readOnly) has no AUTO/MANUAL mode at all - no
       // dualState, rather than defaulting to a misleading "AUTO".
@@ -287,7 +306,12 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
           app.log.warn({ err, device: device.name }, "failed to read Dual Devices Model state");
         }
       }
-      ({ isOverdue, expiresAt } = await publishDeviceReading(device, readingOrigin, value, "device-read"));
+      ({ isOverdue, expiresAt } = await publishDeviceReading(
+        device,
+        readingOrigin,
+        readFailed ? undefined : value,
+        "device-read",
+      ));
     } else if (device.capabilities.readOnly) {
       // No EdgeX/hardware backend at all (e.g. `light-level`, AGENTS.md
       // section 66) - the only way such a Device's value ever changes is
