@@ -6,6 +6,7 @@ import type { FastifyInstance } from "fastify";
 
 import { config } from "./config.js";
 import { pool } from "./db.js";
+import { processStateEvents } from "./processStateEvents.js";
 
 /**
  * Command-API extension points (extension points design, AGENTS_TO_DO.md
@@ -34,6 +35,15 @@ import { pool } from "./db.js";
  * resolvable from the plugin's own file location at all - the same
  * "receive dependencies as arguments, don't import them" reasoning
  * `processPlugins.ts`'s own `apiClient`/`logger` injection already uses.
+ *
+ * `triggerUrgentBroadcast(reason)` (Test/Stop epic, AGENTS_TO_DO.md
+ * 2026-09-21) - same reasoning as `pool` above, for
+ * `processStateEvents.ts`'s own in-process EventEmitter: a plugin route
+ * that wants its own state change to reach the UI sooner than the
+ * regular ~5s periodic broadcast (`processRegistry.ts`'s own
+ * `setCritical`/`setWarning` already do this for THEIR state changes)
+ * can call this instead of needing `processStateEvents.ts` resolvable
+ * from its own file location, which it isn't, same as `pg`/`pool`.
  */
 
 interface ApiPluginSource {
@@ -74,13 +84,19 @@ export async function loadApiPlugins(app: FastifyInstance): Promise<void> {
     const files = await findApiPluginFiles(source.dir);
     for (const file of files) {
       const mod = (await import(pathToFileURL(file).href)) as {
-        default?: (app: FastifyInstance, opts: { pool: typeof pool }) => Promise<void>;
+        default?: (
+          app: FastifyInstance,
+          opts: { pool: typeof pool; triggerUrgentBroadcast: (reason: string) => void },
+        ) => Promise<void>;
       };
       if (typeof mod.default !== "function") {
         throw new Error(`${file}: api.ts must have a default export (async function(app, { pool }) {...})`);
       }
       app.log.info({ source: source.label, file }, "registering DNP api.ts plugin");
-      await app.register(mod.default, { pool });
+      await app.register(mod.default, {
+        pool,
+        triggerUrgentBroadcast: (reason: string) => processStateEvents.emit("urgent", { reason }),
+      });
     }
   }
 }
