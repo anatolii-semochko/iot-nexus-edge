@@ -31,6 +31,12 @@ COPY --from=nexus-edge devices devices
 COPY plugins plugins
 ARG VITE_PROJECT_NAME=NexusEdge
 ENV VITE_PROJECT_NAME=$VITE_PROJECT_NAME
+# Deployment environment (AGENTS_TO_DO.md 2026-09-25) - the stack's own
+# NODE_ENV, passed by docker-compose as a build arg and read by
+# src/appEnv.js (e.g. the header's Simulation badge blinks only in
+# production). Defaults to production when not passed.
+ARG VITE_NODE_ENV=production
+ENV VITE_NODE_ENV=$VITE_NODE_ENV
 RUN pnpm --filter @nexus-edge/ui build
 
 FROM nginx:1.27-alpine AS runtime

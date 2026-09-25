@@ -34,6 +34,7 @@ import CIcon from '@coreui/icons-react'
 import { cilContrast, cilMenu, cilMoon, cilSun } from '@coreui/icons'
 
 import { useAnyNodeSimulated } from '../api/useLiveNode'
+import { IS_PRODUCTION } from '../appEnv'
 import { AppHeaderDropdown } from './header/index'
 import NotificationCenter from './header/NotificationCenter'
 import SystemTickIndicator from './header/SystemTickIndicator'
@@ -79,9 +80,14 @@ const AppHeader = () => {
         <CHeaderNav className="ms-auto">
           {anyNodeSimulated && (
             <li className="nav-item d-flex align-items-center py-1 me-3">
+              {/* Blinks only in production, where a node left in
+                  simulation is an operational problem worth attention;
+                  in development simulation is the normal working state,
+                  so the badge is shown steady (AGENTS_TO_DO.md
+                  2026-09-25). */}
               <CBadge
                 color="primary"
-                className="wem-blink-ring rounded-pill px-3 py-2 me-2"
+                className={`${IS_PRODUCTION ? 'wem-blink-ring ' : ''}rounded-pill px-3 py-2 me-2`}
                 role="status"
                 title="At least one node is in simulation mode"
               >

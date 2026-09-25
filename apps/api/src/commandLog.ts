@@ -52,12 +52,26 @@ export interface CommandLogEntry {
 
 // Best-effort, same principle as messaging.ts's publish() - a logging
 // failure must never break the actual command it's observing.
+//
+// `value` is serialized explicitly (JSON.stringify + ::jsonb) rather than
+// handed to node-pg as-is: pg sends a JS string as raw text, so a string
+// device value like the display's "AUTO" reached the jsonb column
+// unquoted and was rejected as invalid JSON (and a JS array would go out
+// as a Postgres array literal, not JSON). Numbers/booleans/objects
+// already round-tripped - this makes every value type take the same path.
 export async function logCommand(entry: CommandLogEntry): Promise<void> {
   try {
     await pool.query(
       `INSERT INTO log_command (device_id, process_id, action, value, source, actor_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [entry.deviceId ?? null, entry.processId ?? null, entry.action, entry.value ?? null, entry.source, entry.actorUserId],
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6)`,
+      [
+        entry.deviceId ?? null,
+        entry.processId ?? null,
+        entry.action,
+        entry.value === undefined ? null : JSON.stringify(entry.value),
+        entry.source,
+        entry.actorUserId,
+      ],
     );
   } catch (err) {
     logger.warn({ err, deviceId: entry.deviceId, processId: entry.processId, action: entry.action }, "failed to write log_command entry");

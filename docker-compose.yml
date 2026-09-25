@@ -139,6 +139,8 @@ services:
     build:
       context: .
       dockerfile: apps/ui/Dockerfile
+      args:
+        VITE_NODE_ENV: ${NODE_ENV:-production}
     container_name: nexus-edge-ui
     restart: unless-stopped
     env_file: .env
