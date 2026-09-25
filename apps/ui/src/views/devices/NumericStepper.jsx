@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { CButton, CFormInput } from '@coreui/react'
+import { CButton, CFormInput, CInputGroup } from '@coreui/react'
 
 const format = (n, precision) => Number(n).toFixed(precision)
 
@@ -48,7 +48,19 @@ const REPEAT_INTERVAL_MS = 50
  * decimal places for both display and commit/step rounding. Defaults
  * to 2, preserving every existing caller's own behavior unchanged;
  * DevicesList.jsx's own numeric Override passes a higher value.
+ *
+ * Rendered as one Bootstrap input group (AGENTS_TO_DO.md 2026-09-25) -
+ * "-", the value and "+" read as a single joined control instead of
+ * three separately bordered pieces. `flex-nowrap` keeps the buttons from
+ * wrapping under the input in a narrow column, and the input's own fixed
+ * `flex` basis stops input-group's default `flex: 1 1 auto` from
+ * stretching it across the whole row in a block-level parent.
+ * The buttons' resting border borrows the input's own border color
+ * (`STEP_BUTTON_STYLE`), so the joined group reads as one outline instead
+ * of a dark-bordered pair around a light one; hover/active states keep
+ * the outline-secondary look.
  */
+const STEP_BUTTON_STYLE = { '--cui-btn-border-color': 'var(--cui-border-color)' }
 const NumericStepper = ({
   value,
   step = 1,
@@ -187,11 +199,12 @@ const NumericStepper = ({
   }
 
   return (
-    <div className="d-flex align-items-center gap-1">
+    <CInputGroup size="sm" className="flex-nowrap w-auto">
       <CButton
         size="sm"
         variant="outline"
         color="secondary"
+        style={STEP_BUTTON_STYLE}
         disabled={disabled || busy}
         onPointerDown={() => startHold(-1)}
         onPointerUp={stopHold}
@@ -202,7 +215,7 @@ const NumericStepper = ({
       </CButton>
       <CFormInput
         size="sm"
-        style={{ width: '4rem' }}
+        style={{ flex: '0 0 4rem' }}
         value={editable ? text : format(current, precision)}
         disabled={disabled || !editable}
         readOnly={!editable}
@@ -220,6 +233,7 @@ const NumericStepper = ({
         size="sm"
         variant="outline"
         color="secondary"
+        style={STEP_BUTTON_STYLE}
         disabled={disabled || busy || incrementDisabled}
         onPointerDown={() => startHold(1)}
         onPointerUp={stopHold}
@@ -228,7 +242,7 @@ const NumericStepper = ({
       >
         +
       </CButton>
-    </div>
+    </CInputGroup>
   )
 }
 

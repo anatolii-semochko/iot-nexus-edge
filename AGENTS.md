@@ -5933,6 +5933,13 @@ the header component has nothing to do with that page. Reuses the
 existing `.wem-blink-ring` CSS animation (`NotificationCenter.jsx`'s
 own warning/error icons) rather than inventing a second blink
 mechanism.
+Blinks only in production (2026-09-25): with `NODE_ENV=development`
+simulation is the normal working state, so the badge shows steady.
+The UI is a static bundle, so `NODE_ENV` reaches it only as the
+`VITE_NODE_ENV` build arg (docker-compose passes `${NODE_ENV:-
+production}`, same plumbing as `VITE_PROJECT_NAME`), read by
+`src/appEnv.js` (`IS_PRODUCTION`); unset counts as production. Changing
+`NODE_ENV` therefore needs a UI rebuild, not just a restart.
 
 **Nodes/Devices status filter** - a new leftmost filter dropdown (OK/
 Error/Simulation), filtering by the exact same `rowColor` value each
