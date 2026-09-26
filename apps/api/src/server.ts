@@ -8,6 +8,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 
 import { loadApiPlugins } from "./apiPlugins.js";
 import { config } from "./config.js";
+import { startEdgexPushBridge } from "./edgexPushBridge.js";
 import { syncLibrary } from "./libraryCatalog.js";
 import { startProcessStateBroadcastLoop } from "./processBroadcast.js";
 import { initUnreadCounts } from "./processMessages.js";
@@ -18,6 +19,7 @@ import { deviceRoutes } from "./routes/devices.js";
 import { heartbeatControlRoutes } from "./routes/heartbeatControls.js";
 import { libraryRoutes } from "./routes/library.js";
 import { logRoutes } from "./routes/logs.js";
+import { mediaRoutes } from "./routes/media.js";
 import { messageGroupRoutes } from "./routes/messageGroups.js";
 import { messageLevelRoutes } from "./routes/messageLevels.js";
 import { messageSignalTimingRoutes } from "./routes/messageSignalTiming.js";
@@ -50,6 +52,7 @@ export async function startApiServer(): Promise<FastifyInstance> {
   // Created on startup rather than lazily on first upload - one place that
   // can fail loudly at boot instead of on some user's first avatar upload.
   await mkdir(config.uploads.avatarsDir, { recursive: true });
+  await mkdir(config.media.dir, { recursive: true });
 
   await app.register(fastifyCookie);
   await app.register(fastifyJwt, {
@@ -79,6 +82,7 @@ export async function startApiServer(): Promise<FastifyInstance> {
   }
 
   await app.register(authRoutes);
+  await app.register(mediaRoutes);
   await app.register(userRoutes);
   await app.register(userDirectoryRoutes);
   await app.register(nodeRoutes);
@@ -110,6 +114,8 @@ export async function startApiServer(): Promise<FastifyInstance> {
   // (or at zero) after a restart.
   await initUnreadCounts();
   startProcessStateBroadcastLoop();
+  // Device pushes (AGENTS.md section 80) - EdgeX bus -> normal reading path.
+  startEdgexPushBridge();
 
   // Library Catalog (AGENTS.md section 32) - rebuilt on every startup (the
   // user's own explicit spec: "метод аналізу... повинен запускатися

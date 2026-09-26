@@ -4,8 +4,11 @@ import { pathToFileURL } from "node:url";
 
 import type { FastifyInstance } from "fastify";
 
+import { getVisionProvider } from "./ai/vision.js";
 import { config } from "./config.js";
 import { pool } from "./db.js";
+import { resizeJpeg } from "./images.js";
+import { contentTypeForPart, mediaScope, mediaStore, originalPartOf } from "./mediaStore.js";
 import { processStateEvents } from "./processStateEvents.js";
 
 /**
@@ -46,6 +49,37 @@ import { processStateEvents } from "./processStateEvents.js";
  * from its own file location, which it isn't, same as `pg`/`pool`.
  */
 
+/**
+ * Everything an api.ts plugin receives besides `app` - passed in rather
+ * than imported, for the resolution reason explained above. `media`/`ai`/
+ * `resizeJpeg` (AGENTS.md sections 81/82) let a plugin work with a media
+ * device's files and the AI layer through the same modules the core
+ * routes use, never touching the Media Store directory or a vendor SDK
+ * itself.
+ */
+export interface ApiPluginContext {
+  pool: typeof pool;
+  triggerUrgentBroadcast: (reason: string) => void;
+  media: {
+    store: typeof mediaStore;
+    scope: typeof mediaScope;
+    originalPartOf: typeof originalPartOf;
+    contentTypeForPart: typeof contentTypeForPart;
+  };
+  ai: { getVisionProvider: typeof getVisionProvider; imageMaxSide: number };
+  resizeJpeg: typeof resizeJpeg;
+  previewMaxSide: number;
+}
+
+const pluginContext: ApiPluginContext = {
+  pool,
+  triggerUrgentBroadcast: (reason: string) => processStateEvents.emit("urgent", { reason }),
+  media: { store: mediaStore, scope: mediaScope, originalPartOf, contentTypeForPart },
+  ai: { getVisionProvider, imageMaxSide: config.ai.imageMaxSide },
+  resizeJpeg,
+  previewMaxSide: config.media.previewMaxSide,
+};
+
 interface ApiPluginSource {
   label: string;
   dir: string;
@@ -84,19 +118,13 @@ export async function loadApiPlugins(app: FastifyInstance): Promise<void> {
     const files = await findApiPluginFiles(source.dir);
     for (const file of files) {
       const mod = (await import(pathToFileURL(file).href)) as {
-        default?: (
-          app: FastifyInstance,
-          opts: { pool: typeof pool; triggerUrgentBroadcast: (reason: string) => void },
-        ) => Promise<void>;
+        default?: (app: FastifyInstance, opts: ApiPluginContext) => Promise<void>;
       };
       if (typeof mod.default !== "function") {
         throw new Error(`${file}: api.ts must have a default export (async function(app, { pool }) {...})`);
       }
       app.log.info({ source: source.label, file }, "registering DNP api.ts plugin");
-      await app.register(mod.default, {
-        pool,
-        triggerUrgentBroadcast: (reason: string) => processStateEvents.emit("urgent", { reason }),
-      });
+      await app.register(mod.default, pluginContext);
     }
   }
 }

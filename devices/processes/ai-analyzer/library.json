@@ -1,0 +1,5 @@
+{
+  "id": "process-ai-analyzer",
+  "name": "AI Analyzer",
+  "description": "Analyses every image an image-caster device sends (OpenAI vision): short English description, which Target objects are in it and where, result sent back to a result-receiver device. Tabs: Last image, Images history, Target objects."
+}

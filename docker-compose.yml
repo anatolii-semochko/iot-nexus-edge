@@ -108,6 +108,8 @@ services:
       - "${API_PORT}:${API_PORT}"
     volumes:
       - api-avatars:${AVATAR_UPLOAD_DIR}
+      # Media Store (AGENTS.md section 81) - device media, e.g. camera frames.
+      - api-media:${MEDIA_DIR}
       - api-system-stamps:${SYSTEM_STAMPS_DIR}
       # Service->Commands (AGENTS_TO_DO.md, 2026-08-30) - lets systemCommands.ts
       # call org.freedesktop.login1 (systemd-logind) on the HOST bus to
@@ -160,4 +162,5 @@ volumes:
   redis-data:
   rabbitmq-data:
   api-avatars:
+  api-media:
   api-system-stamps:

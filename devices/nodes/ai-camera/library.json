@@ -1,0 +1,5 @@
+{
+  "id": "node-ai-camera",
+  "name": "AI Analyzing Camera",
+  "description": "Experimental WiFi camera (ESP32-CAM + OV3660) - a shutter button sends a frame to NexusEdge over MQTT, the AI Analyzer's short answer comes back to its OLED display."
+}

@@ -3,6 +3,7 @@ module github.com/anatolii-semochko/iot-nexus-edge/apps/device-service
 go 1.25.0
 
 require (
+	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/edgexfoundry/device-sdk-go/v4 v4.0.2
 	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.3
 	golang.org/x/sys v0.45.0
@@ -13,7 +14,6 @@ require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/eclipse/paho.mqtt.golang v1.5.1 // indirect
 	github.com/edgexfoundry/go-mod-bootstrap/v4 v4.0.5 // indirect
 	github.com/edgexfoundry/go-mod-configuration/v4 v4.0.3 // indirect
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.3 // indirect

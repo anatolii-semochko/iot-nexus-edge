@@ -40,6 +40,11 @@ interface DeviceCapabilities {
   // disabled), reserved for a future real hardware-address concept.
   color?: string;
   physicalId?: string;
+  // Media device (AGENTS.md section 81) - its value is a Media Store id
+  // (e.g. an image-caster's latest frame), not a displayable scalar. The
+  // UI shows a preview and, when simulated, a file upload instead of a
+  // value input.
+  media?: boolean;
 }
 
 interface DeviceRow {
@@ -186,6 +191,37 @@ async function publishDeviceReading(
     dataLoggerControl.setOverdueSnapshot(device.id, result.isOverdue, result.expiresAt),
   ]);
   return result;
+}
+
+/**
+ * The Device(s) whose CURRENTLY active EdgeX registration (resolveEdgexName)
+ * is `edgexDeviceName` - what an event or upload arriving from the gateway
+ * under that EdgeX name belongs to. Usually exactly one.
+ */
+export async function findActiveDevicesByEdgexName(edgexDeviceName: string): Promise<DeviceRowWithNode[]> {
+  const result = await pool.query<DeviceRowWithNode>(
+    `${SELECT_DEVICE_WITH_NODE} WHERE d.edgex_device_name = $1 OR d.edgex_device_name_simulated = $1`,
+    [edgexDeviceName],
+  );
+  return result.rows.filter((row) => resolveEdgexName(row) === edgexDeviceName);
+}
+
+/**
+ * A device's own push (AGENTS.md section 80), delivered by
+ * edgexPushBridge.ts from EdgeX's message bus - takes exactly the same
+ * path an ordinary read does (publishDeviceReading: live `device` event on
+ * nexus.events + overdue snapshot), so the UI and every orchestrator
+ * process see a pushed value the same way they see a polled one.
+ *
+ * Only delivered to a Device whose CURRENTLY active EdgeX registration is
+ * the one that pushed (resolveEdgexName) - a node switched to simulated
+ * mode must not have its UI/processes fed by the physical twin it was
+ * redirected away from, and vice versa.
+ */
+export async function publishPushedReading(edgexDeviceName: string, readingOriginMs: number, value: unknown): Promise<number> {
+  const targets = await findActiveDevicesByEdgexName(edgexDeviceName);
+  await Promise.all(targets.map((row) => publishDeviceReading(row, readingOriginMs, value, "device-push")));
+  return targets.length;
 }
 
 /**
@@ -773,11 +809,11 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
   });
 }
 
-interface DeviceRowWithNode extends DeviceRow {
+export interface DeviceRowWithNode extends DeviceRow {
   node_simulated: boolean | null;
 }
 
-async function findDevice(id: string): Promise<DeviceRowWithNode | undefined> {
+export async function findDevice(id: string): Promise<DeviceRowWithNode | undefined> {
   const result = await pool.query<DeviceRowWithNode>(`${SELECT_DEVICE_WITH_NODE} WHERE d.id = $1`, [id]);
   return result.rows[0];
 }
@@ -838,7 +874,7 @@ async function writeOrReject(
   }
 }
 
-async function requireEdgeXDevice(
+export async function requireEdgeXDevice(
   id: string,
   reply: { code: (statusCode: number) => { send: (payload: unknown) => void } },
 ): Promise<(DeviceRowWithNode & { resolvedEdgexName: string }) | undefined> {

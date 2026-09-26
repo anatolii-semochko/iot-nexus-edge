@@ -2,12 +2,14 @@ import Fastify, { type FastifyInstance } from "fastify";
 
 import { apiClient, type ProcessRecord } from "./apiClient.js";
 import { config } from "./config.js";
+import { startDeviceEventSubscription } from "./deviceEvents.js";
 import { logger } from "./logger.js";
 import { loadProcessPlugins } from "./processPlugins.js";
 import { runDataLogger } from "./processes/dataLogger.js";
 import { runHeartbeatControl } from "./processes/heartbeatControl.js";
 import { runHeartbeatControlTest } from "./processes/heartbeatControlTest.js";
 import { runResourceMonitor } from "./processes/resourceMonitor.js";
+import { dispatchDeviceEvent, processLockedRun, setKnownProcesses } from "./processDispatch.js";
 import { processRegistry } from "./processRegistry.js";
 import { TICK_INTERVAL_MS } from "./tickInterval.js";
 
@@ -67,6 +69,10 @@ async function tickBody(): Promise<void> {
     logger.warn({ err }, "failed to list processes");
     return;
   }
+  // The event dispatcher (processDispatch.ts) routes device events to the
+  // same process list the tick just fetched - one list call per second,
+  // not one per event.
+  setKnownProcesses(processes);
 
   // Heartbeating Control (AGENTS.md) - every process id whose runner
   // completed *without throwing* this tick, collected here and touched
@@ -79,7 +85,7 @@ async function tickBody(): Promise<void> {
       const runner = processRegistry.get(process.kind);
       if (!runner) return;
       try {
-        await runner(process);
+        await processLockedRun(process.id, () => runner(process));
         alive.push(process.id);
       } catch (err) {
         logger.warn({ err, processId: process.id, kind: process.kind }, "process tick failed");
@@ -110,6 +116,9 @@ export async function startOrchestrator(): Promise<FastifyInstance> {
   setInterval(() => {
     void tick();
   }, TICK_INTERVAL_MS);
+
+  // Event-driven hooks (AGENTS.md section 80), alongside the tick.
+  startDeviceEventSubscription(dispatchDeviceEvent);
 
   const app = Fastify({ logger: { level: config.logLevel } });
   app.get("/health", async () => ({ status: "ok", service: "orchestrator" }));

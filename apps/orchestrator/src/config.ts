@@ -31,6 +31,20 @@ export const config = {
   // scanned by processPlugins.ts. Unset for this repo's own docker-compose
   // (nothing to scan).
   processPlugins: {
+    // CORE Library process kinds (devices/processes/*/process.ts, AGENTS.md
+    // section 82) - baked into this image, always scanned, the same way
+    // apps/api always scans devices/ for api.ts. A target project's own
+    // kinds come from extraDir on top.
+    builtinDevicesDir: process.env.BUILTIN_DEVICES_DIR ?? "/workspace/devices",
     extraDir: process.env.EXTRA_PROCESS_PLUGINS_DIR,
   },
+  // nexus.events subscription for process onDeviceEvent hooks (AGENTS.md
+  // section 80) - the same RabbitMQ user/host the Devices API publishes
+  // with. Optional: without RABBITMQ_HOST, hooks simply never fire and
+  // processes keep running on the tick alone.
+  rabbitmq: process.env.RABBITMQ_HOST
+    ? {
+        url: `amqp://${process.env.RABBITMQ_DEFAULT_USER}:${process.env.RABBITMQ_DEFAULT_PASS}@${process.env.RABBITMQ_HOST}:${process.env.RABBITMQ_PORT ?? 5672}`,
+      }
+    : null,
 };

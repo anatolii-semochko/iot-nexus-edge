@@ -47,6 +47,29 @@ services:
     networks:
       - __SLUG__-network
 
+  # Device broker (AGENTS.md section 79) - MQTT for network nodes, served
+  # by device-service's MQTT transport. Separate from edgex-mqtt-broker
+  # above (EdgeX's internal bus). Published on all interfaces on purpose:
+  # nodes on the LAN connect to it. Anonymous until the platform-wide
+  # authorization task - LAN only.
+  device-mqtt-broker:
+    container_name: __SLUG__-device-mqtt-broker
+    hostname: device-mqtt-broker
+    image: eclipse-mosquitto:2.0.22
+    restart: unless-stopped
+    read_only: true
+    # The image's own "mosquitto" user - running as it skips the
+    # entrypoint's chown of /mosquitto, which fails on a read-only root.
+    user: "1883:1883"
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./config/device-mqtt-broker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    ports:
+      - "${DEVICE_MQTT_HOST_PORT}:1883"
+    networks:
+      - __SLUG__-network
+
   edgex-core-common-config-bootstrapper:
     container_name: __SLUG__-edgex-core-common-config-bootstrapper
     hostname: edgex-core-common-config-bootstrapper
@@ -225,6 +248,15 @@ services:
     environment:
       EDGEX_SECURITY_SECRET_STORE: "false"
       SERVICE_HOST: device-service
+      # MQTT transport (network nodes, AGENTS.md section 79). Unset
+      # DEVICE_MQTT_BROKER_URL = transport not registered at all.
+      DEVICE_MQTT_BROKER_URL: tcp://device-mqtt-broker:1883
+      DEVICE_MQTT_TOPIC_ROOT: ${DEVICE_MQTT_TOPIC_ROOT}
+      DEVICE_MQTT_CLIENT_ID: ${DEVICE_MQTT_CLIENT_ID}
+      # Media devices (AGENTS.md section 81): frames are uploaded to the
+      # Devices API's Media Store; the device's value becomes the returned id.
+      DEVICE_MEDIA_UPLOAD_URL: http://api:${API_PORT}/media/edgex
+      DEVICE_MEDIA_UPLOAD_TIMEOUT_SECONDS: ${DEVICE_MEDIA_UPLOAD_TIMEOUT_SECONDS}
       EXTRA_RES_DIR: /extra-res
     volumes:
       - ./extra-res:/extra-res:ro

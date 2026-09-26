@@ -42,6 +42,13 @@ server {
     # Reverse-proxy to the Devices API - keeps the browser same-origin (no
     # CORS) and independent of whatever host/port the api container maps to.
     location /api/ {
+        # Largest request body proxied to the api (AGENTS.md section 81) -
+        # nginx's own default is 1 MB, which rejected camera frames /
+        # image uploads with an HTML 413 before the api (whose own limits,
+        # e.g. MEDIA_MAX_FILE_BYTES, are the real ones) ever saw them.
+        # Keep it at or above the api's largest upload limit plus
+        # multipart overhead.
+        client_max_body_size ${API_MAX_REQUEST_BODY_SIZE};
         # `set` before `rewrite ... break` deliberately - break stops
         # ALL further ngx_http_rewrite_module directives in this
         # location, including a `set` that comes after it (found the
