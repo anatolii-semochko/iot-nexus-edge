@@ -11,3 +11,8 @@
 // plugins/ is empty in this repo (reserved, AGENTS.md section 2/4) -
 // zero matches here, so this is a no-op for nexus-edge's own build.
 import.meta.glob('plugins/*/ui/register.js', { eager: true })
+
+// CORE Library process kinds with their own UI (devices/processes/*/ui/
+// register.js, AGENTS.md section 82) - built into every project, the same
+// way the orchestrator/api load their process.ts/api.ts from devices/.
+import.meta.glob('devices/processes/*/ui/register.js', { eager: true })

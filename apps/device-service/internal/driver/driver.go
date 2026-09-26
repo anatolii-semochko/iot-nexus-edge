@@ -4,8 +4,9 @@
 // one of two backends (see backend.go):
 //
 //   - modePhysical: whichever PhysicalTransport (see internal/transport) is
-//     named by the device's `transport.type` protocol property. CAN
-//     (internal/transport/can) is the only one registered today.
+//     named by the device's `transport.type` protocol property: CAN
+//     (internal/transport/can) always, MQTT (internal/transport/mqtt) when
+//     a device broker is configured.
 //   - modeVirtual: the generic Virtual Node Runtime (package virtual).
 //
 // See AGENTS.md section 6 for why the physical/virtual switch lives here
@@ -24,12 +25,14 @@ import (
 
 	"github.com/anatolii-semochko/iot-nexus-edge/apps/device-service/internal/transport"
 	"github.com/anatolii-semochko/iot-nexus-edge/apps/device-service/internal/transport/can"
+	"github.com/anatolii-semochko/iot-nexus-edge/apps/device-service/internal/transport/mqtt"
 	"github.com/anatolii-semochko/iot-nexus-edge/apps/device-service/internal/virtual"
 )
 
 // NexusDriver is the NexusEdge ProtocolDriver implementation.
 type NexusDriver struct {
-	lc logger.LoggingClient
+	lc  logger.LoggingClient
+	sdk interfaces.DeviceServiceSDK
 
 	virtual *virtual.Runtime
 
@@ -48,18 +51,93 @@ func New() *NexusDriver {
 // service, including registering every known PhysicalTransport.
 func (d *NexusDriver) Initialize(sdk interfaces.DeviceServiceSDK) error {
 	d.lc = sdk.LoggingClient()
+	d.sdk = sdk
 
 	canTransport := can.New(d.lc)
 	d.transports = map[string]transport.PhysicalTransport{
 		canTransport.Name(): canTransport,
 	}
+
+	// MQTT (network nodes, AGENTS.md section 79) only when a device broker
+	// is configured - a stack without one keeps behaving exactly as before,
+	// and an mqtt-bound device then fails validation with "unknown
+	// transport" instead of hanging on a broker that doesn't exist.
+	if mqtt.Enabled() {
+		mqttTransport, err := mqtt.New(d.lc)
+		if err != nil {
+			return err
+		}
+		d.transports[mqttTransport.Name()] = mqttTransport
+	}
+
+	// Pushed values become EdgeX async readings (AGENTS.md section 80).
+	// Without async readings enabled the SDK never creates the channel -
+	// pushes are then simply not forwarded (Read still works), instead of
+	// blocking forever on a nil channel.
+	if sdk.AsyncReadingsEnabled() {
+		ch := sdk.AsyncValuesChannel()
+		for _, t := range d.transports {
+			if p, ok := t.(transport.Pusher); ok {
+				p.SetPushSink(func(v *sdkModels.AsyncValues) { ch <- v })
+			}
+		}
+	} else {
+		d.lc.Warn("async readings disabled (Device.EnableAsyncReadings) - device pushes will not be forwarded")
+	}
 	return nil
 }
 
-// Start runs after the SDK is fully initialized. Nothing to do here: bus
-// connections are opened lazily by each transport, on first device bound
-// to them.
+// syncPushBinding keeps every push-capable transport's bindings in step
+// with one EdgeX device: bound on the transport it is physically on (with
+// its profile's single resource), unbound everywhere else - so a device
+// switched to virtual, or to another transport, stops pushing.
+func (d *NexusDriver) syncPushBinding(deviceName string, protocols map[string]models.ProtocolProperties, profileName string) {
+	b, err := backendFor(protocols)
+	for name, t := range d.transports {
+		p, ok := t.(transport.Pusher)
+		if !ok {
+			continue
+		}
+		if err != nil || b.Mode != modePhysical || b.TransportName != name {
+			p.Unbind(deviceName)
+			continue
+		}
+		profile, perr := d.sdk.GetProfileByName(profileName)
+		if perr != nil {
+			d.lc.Errorf("device %s: push binding skipped, profile %s: %s", deviceName, profileName, perr.Error())
+			continue
+		}
+		if len(profile.DeviceResources) != 1 {
+			d.lc.Errorf("device %s: push binding skipped, profile %s has %d resources (a NexusEdge device is atomic - exactly one)",
+				deviceName, profileName, len(profile.DeviceResources))
+			continue
+		}
+		res := profile.DeviceResources[0]
+		if berr := p.Bind(deviceName, protocols[protocolTransport], res.Name, res.Properties.ValueType, res.Attributes); berr != nil {
+			d.lc.Errorf("device %s: push binding: %s", deviceName, berr.Error())
+		}
+	}
+}
+
+// syncPushBindingByName resolves a device's profile from the SDK's own
+// cache - the Add/UpdateDevice callbacks only hand over its protocols.
+func (d *NexusDriver) syncPushBindingByName(deviceName string, protocols map[string]models.ProtocolProperties) {
+	dev, err := d.sdk.GetDeviceByName(deviceName)
+	if err != nil {
+		d.lc.Errorf("device %s: push binding skipped: %s", deviceName, err.Error())
+		return
+	}
+	d.syncPushBinding(deviceName, protocols, dev.ProfileName)
+}
+
+// Start runs after the SDK is fully initialized. Bus connections are
+// opened lazily by each transport; the only work here is binding every
+// already-known device for push - AddDevice only fires for devices new to
+// EdgeX metadata this run, not ones that existed before.
 func (d *NexusDriver) Start() error {
+	for _, dev := range d.sdk.Devices() {
+		d.syncPushBinding(dev.Name, dev.Protocols, dev.ProfileName)
+	}
 	return nil
 }
 
@@ -79,6 +157,8 @@ func (d *NexusDriver) AddDevice(deviceName string, protocols map[string]models.P
 	if err != nil {
 		return fmt.Errorf("device %s: %w", deviceName, err)
 	}
+
+	defer d.syncPushBindingByName(deviceName, protocols)
 
 	if b.Mode == modeVirtual {
 		d.virtual.EnsureDefault(deviceName, virtualSeedFrom(protocols))
@@ -103,6 +183,11 @@ func (d *NexusDriver) UpdateDevice(deviceName string, protocols map[string]model
 // RemoveDevice is invoked when a device bound to this service is removed.
 func (d *NexusDriver) RemoveDevice(deviceName string, protocols map[string]models.ProtocolProperties) error {
 	d.virtual.Remove(deviceName)
+	for _, t := range d.transports {
+		if p, ok := t.(transport.Pusher); ok {
+			p.Unbind(deviceName)
+		}
+	}
 	return nil
 }
 

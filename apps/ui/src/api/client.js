@@ -106,6 +106,25 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ value }),
     }),
+  // Media Store (AGENTS.md section 81) - a media device's stored files.
+  listDeviceMedia: (id, { offset = 0, limit = 20, from, to } = {}) => {
+    const params = new URLSearchParams({ offset: String(offset), limit: String(limit) })
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    return request(`/devices/${id}/media?${params}`)
+  },
+  // Plain URL (for <img src>) - the original when `part` is omitted.
+  deviceMediaUrl: (id, mediaId, part) =>
+    `${BASE}/devices/${id}/media/${encodeURIComponent(mediaId)}${part ? `/${encodeURIComponent(part)}` : ''}`,
+  deleteDeviceMedia: (id, mediaId) =>
+    request(`/devices/${id}/media/${encodeURIComponent(mediaId)}`, { method: 'DELETE' }),
+  // A simulated media device's "capture": stores the file and sets it as
+  // the device's value, exactly like a real device upload.
+  simulateDeviceMedia: (id, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request(`/devices/${id}/media/simulate`, { method: 'POST', body: formData })
+  },
   // Processes (AGENTS.md section 10 - orchestration).
   listProcesses: () => request('/processes'),
   setProcessConfig: (id, config) =>

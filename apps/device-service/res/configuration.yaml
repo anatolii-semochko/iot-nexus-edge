@@ -15,3 +15,8 @@ Device:
   DevicesDir: "./res/devices"
   Discovery:
     Enabled: false
+  # Device pushes (MQTT transport today) are forwarded as async readings
+  # (AGENTS.md section 80). Buffer sized for bursts of pushes arriving
+  # faster than the SDK publishes them to the EdgeX bus.
+  EnableAsyncReadings: true
+  AsyncBufferSize: 16

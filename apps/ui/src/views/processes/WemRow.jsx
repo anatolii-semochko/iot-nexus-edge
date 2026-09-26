@@ -30,7 +30,7 @@ const WemRow = ({ messages }) => {
   }
 
   return (
-    <div className="px-3 pb-2">
+    <div className="mb-2">
       {messages.map((message, index) => (
         <div
           key={message.id}

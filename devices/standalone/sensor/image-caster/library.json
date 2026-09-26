@@ -1,0 +1,5 @@
+{
+  "id": "device-image-caster",
+  "name": "Image caster",
+  "description": "Sends an image (e.g. a camera frame) to NexusEdge on its own - the value is the frame's Media Store id, read-only, event-driven."
+}

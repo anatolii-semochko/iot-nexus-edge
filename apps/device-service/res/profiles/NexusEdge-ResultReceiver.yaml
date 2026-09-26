@@ -1,0 +1,20 @@
+# Loaded copy of devices/standalone/indicator/result-receiver/edgex-device-profile.yaml
+# (source of truth) - kept in sync by hand (AGENTS.md section 7).
+name: "NexusEdge-ResultReceiver"
+manufacturer: "NexusEdge"
+model: "result-receiver"
+labels:
+  - "indicator"
+description: >
+  Receives one result from NexusEdge - atomic device, one String value
+  (a JSON document written whole)
+
+deviceResources:
+  - name: "Result"
+    isHidden: false
+    description: "Latest result written by NexusEdge (JSON string)"
+    properties:
+      valueType: "String"
+      readWrite: "RW"
+
+deviceCommands: []

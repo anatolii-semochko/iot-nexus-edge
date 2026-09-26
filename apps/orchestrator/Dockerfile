@@ -26,6 +26,10 @@ COPY --from=prod-deps /workspace/node_modules ./node_modules
 COPY --from=prod-deps /workspace/apps/orchestrator/node_modules ./apps/orchestrator/node_modules
 COPY --from=prod-deps /workspace/apps/orchestrator/package.json ./apps/orchestrator/package.json
 COPY --from=build /workspace/apps/orchestrator/dist ./apps/orchestrator/dist
+# CORE Library process kinds (devices/processes/*/process.ts, AGENTS.md
+# section 82) - loaded at startup by processPlugins.ts from
+# BUILTIN_DEVICES_DIR (/workspace/devices), same as apps/api's own copy.
+COPY devices ./devices
 WORKDIR /workspace/apps/orchestrator
 EXPOSE 3000
 CMD ["node", "dist/index.js"]

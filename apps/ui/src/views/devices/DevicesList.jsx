@@ -47,6 +47,7 @@ import RowStatusBadge from '../../components/table/RowStatusBadge'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { formatRelativeTime, formatSmartDateTime } from '../../utils/format'
+import DeviceMediaTab from './DeviceMediaTab'
 import DeviceSettingsModal from './DeviceSettingsModal'
 import NumericStepper from './NumericStepper'
 
@@ -443,6 +444,8 @@ const DETAIL_TABS = [
   { key: 'value', label: 'Value' },
   { key: 'info', label: 'Info' },
 ]
+// Media devices (AGENTS.md section 81) get a Media tab between the two.
+const MEDIA_DETAIL_TABS = [DETAIL_TABS[0], { key: 'media', label: 'Media' }, DETAIL_TABS[1]]
 
 // Detail row (AGENTS_TO_DO.md, 2026-08-02, redesigned 2026-08-15,
 // re-laid-out 2026-08-16, retabbed 2026-08-29 "СИМУЛЯЦІЯ") - Value/Info
@@ -468,7 +471,7 @@ const DeviceDetailRow = ({
     <div className="pt-0 pb-3 px-2">
       <CTabs activeItemKey={activeTab} onChange={setActiveTab}>
         <CTabList variant="tabs" className="mb-3">
-          {DETAIL_TABS.map((tab) => (
+          {(device.capabilities?.media ? MEDIA_DETAIL_TABS : DETAIL_TABS).map((tab) => (
             <CTab key={tab.key} itemKey={tab.key}>
               {tab.label}
             </CTab>
@@ -489,6 +492,9 @@ const DeviceDetailRow = ({
           onSimulate={onSimulate}
           onRelease={onRelease}
         />
+      )}
+      {activeTab === 'media' && device.capabilities?.media && (
+        <DeviceMediaTab device={device} value={value} effectivelySimulated={effectivelySimulated} />
       )}
       {activeTab === 'info' && <InfoTab device={device} />}
     </div>

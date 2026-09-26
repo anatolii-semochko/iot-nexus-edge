@@ -92,7 +92,7 @@ const NUMERIC_VALUE_TYPES = new Set([
   "Float64",
 ]);
 
-function normalizeReading(reading: EdgeXReading): EdgeXReading {
+export function normalizeReading(reading: EdgeXReading): EdgeXReading {
   if (typeof reading.value !== "string") {
     return reading;
   }

@@ -45,6 +45,14 @@ export const config = {
     coreMetadataUrl: `http://${required("EDGEX_CORE_METADATA_HOST")}:${process.env.EDGEX_CORE_METADATA_PORT ?? 59881}`,
     coreDataUrl: `http://${required("EDGEX_CORE_DATA_HOST")}:${process.env.EDGEX_CORE_DATA_PORT ?? 59880}`,
     coreCommandUrl: `http://${required("EDGEX_CORE_COMMAND_HOST")}:${process.env.EDGEX_CORE_COMMAND_PORT ?? 59882}`,
+    // EdgeX's own internal message bus (edgex-mqtt-broker) - read by the
+    // device push bridge (edgexPushBridge.ts, AGENTS.md section 80).
+    // Optional: unset = pushes not bridged, polling still works as before.
+    messageBus: {
+      host: process.env.EDGEX_MESSAGEBUS_HOST,
+      port: Number(process.env.EDGEX_MESSAGEBUS_PORT ?? 1883),
+      clientId: process.env.EDGEX_MESSAGEBUS_CLIENT_ID ?? "nexus-edge-api-push-bridge",
+    },
   },
   // UI login only (AGENTS.md section 13) - not per-endpoint API
   // authorization, which stays a separate, not-yet-started task.
@@ -55,6 +63,24 @@ export const config = {
     // Only over HTTPS in production - this platform runs over plain HTTP on
     // a local network today, no TLS termination configured anywhere yet.
     secureCookies: process.env.NODE_ENV === "production",
+  },
+  // AI layer (AGENTS.md section 82). No key = AI unavailable: consumers
+  // record an error instead of analysing, the platform itself is unaffected.
+  ai: {
+    provider: process.env.AI_PROVIDER ?? "openai",
+    openaiApiKey: process.env.OPENAI_API_KEY,
+    openaiModel: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
+    requestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS ?? 25000),
+    // Longest side of the copy sent for analysis - the original is kept as is.
+    imageMaxSide: Number(process.env.AI_IMAGE_MAX_SIDE ?? 1536),
+  },
+  // Media Store (AGENTS.md section 81) - device media (camera frames etc.)
+  // as plain files on a docker volume, no DB table.
+  media: {
+    dir: process.env.MEDIA_DIR ?? "/workspace/apps/api/media",
+    maxFileBytes: Number(process.env.MEDIA_MAX_FILE_BYTES ?? 8 * 1024 * 1024),
+    // Longest side of generated thumbnails (e.g. preview.jpg next to a frame).
+    previewMaxSide: Number(process.env.MEDIA_PREVIEW_MAX_SIDE ?? 320),
   },
   uploads: {
     avatarsDir: process.env.AVATAR_UPLOAD_DIR ?? "/workspace/apps/api/uploads/avatars",

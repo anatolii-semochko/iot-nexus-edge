@@ -1,0 +1,23 @@
+# Source of truth for this device type's EdgeX-facing shape. The copy
+# actually loaded by apps/device-service lives at
+# apps/device-service/res/profiles/NexusEdge-ResultReceiver.yaml - there
+# is no provisioning flow yet that reads this file directly (AGENTS.md
+# section 7), so the two must be kept in sync by hand. Identical content.
+name: "NexusEdge-ResultReceiver"
+manufacturer: "NexusEdge"
+model: "result-receiver"
+labels:
+  - "indicator"
+description: >
+  Receives one result from NexusEdge - atomic device, one String value
+  (a JSON document written whole)
+
+deviceResources:
+  - name: "Result"
+    isHidden: false
+    description: "Latest result written by NexusEdge (JSON string)"
+    properties:
+      valueType: "String"
+      readWrite: "RW"
+
+deviceCommands: []

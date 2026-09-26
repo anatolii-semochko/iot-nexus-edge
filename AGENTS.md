@@ -674,7 +674,10 @@ Socket.IO (an unneeded protocol layer over plain WebSocket).
 **Implementation status / known simplifications**:
 - No heartbeat producer exists anywhere — `node.*.heartbeat` is a reserved
   routing-key shape, not a real event yet.
-- `apps/api` is the only publisher. Nothing bridges EdgeX's own southbound
+- `apps/api` is the only publisher. **Update 2026-09-26:** a device's own
+  push (MQTT nodes) is now bridged from EdgeX's bus into `nexus.events` -
+  see section 80; everything below still holds for every other
+  (polled/written) device. Otherwise nothing bridges EdgeX's own southbound
   device events into `nexus.events` yet, so a device's state only reaches
   the bus when something calls the Devices API's write path — a physical
   device changing state on its own (e.g. a sensor reading drifting, not
@@ -7111,3 +7114,378 @@ properly contained). No other process kind's own panel was available
 to cross-check live in this session, but the fix is structural (this
 file's own shared expand-row cell, not anything aquarium-specific), so
 every registered panel benefits equally.
+
+## 79. MQTT transport for network nodes + device broker (AI Analyzing Camera, stage 1)
+
+2026-09-26, stage 1 of the AI Analyzing Camera plan (AGENTS_TO_DO.md,
+2026-09-24/26). First network (WiFi/Ethernet) transport, alongside CAN -
+infrastructure for every future network node, not camera-specific.
+
+**Principle.** Nodes reach the Device API only through our own gateway
+(`apps/device-service`); an MQTT node is just another `PhysicalTransport`
+(`internal/transport/mqtt`), so physical/virtual switching, simulation and
+the Virtual Node Runtime (sections 6, 48) work unchanged. Not the official
+EdgeX device-mqtt service - that would bypass exactly that logic.
+
+**Device broker** (`device-mqtt-broker` in `docker-compose.edgex.yml`,
+config `config/device-mqtt-broker/mosquitto.conf`) - a separate
+Mosquitto instance from `edgex-mqtt-broker` (EdgeX's internal bus, never
+exposed). Published on all interfaces via `DEVICE_MQTT_HOST_PORT` (core
+1883, target projects 1983 by default, in `check-ports.sh`'s
+`PORT_VARS`) because LAN nodes connect to it. **Anonymous, LAN only** -
+node authentication and TLS are deferred to the platform-wide
+authorization task; do not expose it beyond the LAN before that.
+`max_packet_size` (4 MB) sized for a whole camera frame in one message;
+`persistence false` (read-only container, runs as the image's own uid
+1883 so the entrypoint doesn't try to chown a read-only root).
+
+**Transport** - registered in `driver.Initialize` only when
+`DEVICE_MQTT_BROKER_URL` is set (plus `DEVICE_MQTT_TOPIC_ROOT`,
+`DEVICE_MQTT_CLIENT_ID`, all from `.env` via compose); without it an
+mqtt-bound device fails validation as "unknown transport". One shared
+paho client (already an indirect EdgeX SDK dependency, now direct),
+`ConnectRetry`+`AutoReconnect`, subscription re-made in `OnConnect` -
+live-verified: a broker restart and a device-service restart both
+recover on their own.
+
+Topics (every NexusEdge device is atomic - one resource - so topics are
+per device, not per resource):
+
+```
+<root>/<node>/<device>/state   device -> NE  (publish retained)
+<root>/<node>/<device>/set     NE -> device  (not retained)
+<root>/<node>/<device>/event   device -> NE  (stage 2, push events)
+<root>/<node>/status           online/offline via Last Will (later)
+```
+
+A device binds via its protocol properties: `transport: {type: "mqtt",
+node: "<node>", device: "<device>"}` (`device` defaults to the EdgeX
+device name; `/`, `+`, `#` rejected). Payload = plain UTF-8 text of the
+value (`21.5`, `true`/`false` (also `1`/`0`, `on`/`off`), strings raw);
+binary (images) comes with the Media Store stage. Read = latest `state`
+payload from the cache, origin = its receipt time (same staleness
+contract as CAN, section 59); nothing received yet = read error, like
+CAN. Write = QoS 1 publish to `set`, not retained (outputs are
+re-asserted every tick; a retained command could re-apply a stale value
+to a node reconnecting much later).
+
+**Known limitation:** a retained `state` from a node that has since died
+is re-delivered after a device-service restart with a fresh receipt
+time, so it reads as fresh. Acceptable for the intermittent ("sleeping")
+nodes this is first used for; revisit (MQTT v5 message expiry, or a
+node-side timestamp) before relying on MQTT staleness for safety.
+
+Live-verified (aquarium stack, temporary EdgeX devices created via the
+metadata API, removed afterwards): read before any state -> "no data
+received yet"; retained `21.5` -> read 21.5; write Led=true -> `true` on
+`nexus/bench/led/set`; invalid payload -> clear decode error; value
+recovered from retained after a device-service restart. Unit tests:
+`internal/transport/mqtt/codec_test.go` (payload codec, topics, device
+properties).
+
+## 80. Device push events: gateway -> EdgeX bus -> Devices API -> process hooks (AI Analyzing Camera, stage 2)
+
+2026-09-26, stage 2 of the AI Analyzing Camera plan. Until now every
+device value was pulled (orchestrator tick -> `GET /devices/:id` ->
+core-command read), so two changes inside one 1s tick collapsed into the
+last one and a reaction waited for the next tick. Now a device that
+publishes on its own reaches every consumer immediately, through the
+platform's existing layers - nothing bypasses the gateway or the
+Devices API.
+
+```
+node --MQTT state--> device-service --AsyncValues, tag nexusPush--> EdgeX bus
+  --> api edgexPushBridge.ts --> publishPushedReading (same path as a read)
+  --> nexus.events device.<id>.updated (source "device-push")
+  --> UI (messaging-gateway)  +  orchestrator deviceEvents.ts --> onDeviceEvent hooks
+```
+
+**Gateway** (`apps/device-service`). New optional `transport.Pusher`
+interface (`Bind`/`Unbind`/`SetPushSink`); the MQTT transport implements
+it. The driver keeps bindings in step with EdgeX's device list - all
+known devices in `Start()` (AddDevice only fires for devices new this
+run), then `AddDevice`/`UpdateDevice`/`RemoveDevice` - bound only while
+the device is `physical` on that transport (switched to virtual = no
+push), using the profile's single resource (atomic device; a profile
+with != 1 resource is logged and skipped). Every `state` payload of a
+bound topic becomes an async reading (`Device.EnableAsyncReadings: true`,
+`AsyncBufferSize: 16` in `res/configuration.yaml`) tagged
+`nexusPush=true` (`transport.PushTag`) at event level. Empty payloads
+(retained being cleared) and undecodable ones are not pushed; the latest
+payload is still cached for `Read` either way. CAN does not push yet -
+same interface when a CAN node with buttons needs it.
+
+**Devices API** (`apps/api/src/edgexPushBridge.ts`). Subscribes to EdgeX's
+internal bus (`EDGEX_MESSAGEBUS_HOST`/`PORT`, `edgex/events/device/#`,
+`mqtt` npm client, auto-reconnect) and processes **only** events tagged
+`nexusPush` - EdgeX also emits an event for every ordinary core-command
+read/write, and those already went through the Devices API's own read
+path (live-verified: 8s of normal aquarium traffic = 197 `device-read` +
+96 `api` events, zero `device-push`). `routes/devices.ts`
+`publishPushedReading` maps the EdgeX device name to the Device(s) whose
+**currently active** registration it is (`resolveEdgexName` - a node in
+simulated mode is not fed by its physical twin) and calls the same
+`publishDeviceReading` a read uses. Unset `EDGEX_MESSAGEBUS_HOST` = bridge
+off, polling unchanged.
+
+**Orchestrator.** `deviceEvents.ts` consumes `nexus.events`
+`device.*.updated` (own exclusive auto-delete queue, amqp-connection-
+manager, config from the same `RABBITMQ_*` env the API uses; unset
+`RABBITMQ_HOST` = hooks disabled). Value-less (metadata) events are
+skipped. `processDispatch.ts` routes each event to every process whose
+kind registered a hook - the process list is the one the last tick
+fetched, no API call per event. Plugin API (additive, existing plugins
+unchanged):
+
+```ts
+register(kind, runner, {
+  onDeviceEvent: async (process, event /* {deviceId, value, timestamp, source} */) => { ... },
+});
+```
+
+Handlers get every device event and filter by `deviceId` themselves (a
+process knows which devices it cares about from its own config). A
+process's tick runner and its hooks never run concurrently -
+`processLock.ts` `runExclusive(processId, fn)` chains them per process
+(different processes still run in parallel; a failed run doesn't block
+the next) - so plugins' per-process in-memory Maps stay safe without
+locking of their own. Missed events while the orchestrator's AMQP link
+is down are not replayed - the tick still sees the latest value.
+
+**Simulation needs nothing extra:** a virtual device's value set from the
+UI (`.../simulate`) is already published to `nexus.events`, so a process
+hook reacts to a simulated image-caster exactly as to a real one.
+
+Live-verified on the aquarium stack with a temporary EdgeX device, registry
+row and probe plugin (all removed afterwards): two pushes sent back to back
+both reached EdgeX's bus as separate tagged events, both reached
+`nexus.events` as `device.<id>.updated` with `source: "device-push"` and
+typed values (`true`/`false`, not strings), and both reached the probe
+process's `onDeviceEvent` ~50-90ms after publish (incl. `docker exec`
+overhead); the binding survives a device-service restart (bound in
+`Start()`). Tests: `internal/transport/mqtt/push_test.go` (push, burst,
+unbound/invalid/cleared payloads, shared-topic rejection),
+`apps/orchestrator/src/processLock.test.ts`.
+
+## 81. Media Store + generic file module + media devices (AI Analyzing Camera, stage 3)
+
+2026-09-26, stage 3 of the AI Analyzing Camera plan. Devices can now
+deliver files (camera frames) while staying atomic: the blob goes to a
+Media Store owned by the Devices API, and the device's single String
+value is that file's Media Store id (claim-check pattern). No DB table.
+
+**Generic file store** (`apps/api/src/fileStore.ts`, tests
+`fileStore.test.ts`) - reusable CRUD over a directory of "entries", for
+any feature with a modest number of files (hundreds to low thousands per
+scope; user's request - one module, not per-feature fs code). Layout
+`<root>/<scope...>/<entryId>.<part>`: `entryId` starts with its UTC
+creation time (`20260926T071234Z_a1b2c3`) so name order = time order
+(newest-first paging = readdir + sort + slice, creation time needs no
+metadata); `part` names each file of an entry (`original.jpg`, and
+consumers' own derived parts next to it - `preview.jpg`, `result.json`);
+deleting an entry removes all parts. Atomic writes (tmp + rename), so
+"part X exists" is a safe state flag. `list` supports paging, date range
+on the id's own timestamp, and a filter predicate over a sidecar JSON
+part (reads every candidate's JSON - fine at this scale). Every segment
+validated (no traversal / hidden files), per-part size limit.
+
+**Media Store** (`mediaStore.ts`) - one instance, one scope per Device:
+`<MEDIA_DIR>/device-<id>/` - keyed by the registry id (deliberate change
+from the plan's `<node>/<device>` names: a rename never orphans history).
+The uploaded file is `original.<ext>` (jpg/png/webp). `MEDIA_DIR` is the
+`api-media` docker volume, `MEDIA_MAX_FILE_BYTES` the per-file limit
+(8 MB default) - both in `.env`.
+
+**Routes** (`routes/media.ts`):
+
+| Route | Who | |
+|---|---|---|
+| `PUT /media/edgex/:edgexDeviceName?ext=jpg` | gateway | raw body -> stored under the Device whose **active** registration this is (same rule as pushes, section 80) -> `{mediaId}` |
+| `GET /devices/:id/media` | UI/processes | `{items, total}`, paged (`offset`, `limit` <= 100, `from`, `to`) |
+| `GET /devices/:id/media/:mediaId[/:part]` | UI/processes | the original / one part, `cache-control: immutable` (entries never change) |
+| `DELETE /devices/:id/media/:mediaId` | UI (auth) | whole entry |
+| `POST /devices/:id/media/simulate` | UI (auth) | multipart upload for a simulated read-only media device: store + write the id through EdgeX + `publishReading` - identical to a real capture for every consumer |
+
+**UI proxy body limit** (fixed 2026-09-26, found by the user's first
+real upload): the UI's nginx rejected any request body over its default
+1 MB with an HTML 413 before the api saw it - e.g. a normal phone photo
+through the Media tab. `nginx.conf.template`'s `/api/` location now sets
+`client_max_body_size ${API_MAX_REQUEST_BODY_SIZE}` (`.env`, default
+`10m` - keep it >= the api's largest upload limit plus multipart
+overhead). The variable is **required** (nginx's envsubst leaves an
+unset one literal and nginx won't start) - every project's `.env` needs
+it, including `nexus-edge-smart-house` when it next rebuilds its UI.
+Verified: a 3 MB upload now reaches the api (its own JSON 401 without a
+session), an 11 MB one still stops at nginx.
+
+The gateway upload route is unauthenticated like `.../auto` (no
+service-to-service auth on the platform yet; reachable through the UI's
+`/api` proxy like `.../auto`) - closed by the platform-wide authorization
+task, not piecemeal.
+
+**Gateway** (`apps/device-service`). A resource whose profile attributes
+say `mqttPayload: "media"` (`mediaExtension`, default `jpg`) gets its
+`state` payload uploaded (`DEVICE_MEDIA_UPLOAD_URL` =
+`http://api:${API_PORT}/media/edgex`, `DEVICE_MEDIA_UPLOAD_TIMEOUT_SECONDS`)
+and the returned id cached (for `Read`) and pushed (section 80) as the
+value - the blob never enters EdgeX. `transport.Pusher.Bind` now also
+receives the resource's attributes. Retained media payloads are ignored
+(a frame from an earlier session - re-uploading on every reconnect would
+duplicate it; **media nodes must not publish retained**); `Bind` drops a
+raw frame cached before the media binding existed; a failed upload is
+logged and pushes nothing (last good value kept). One message per image
+(section 79's 4 MB broker packet limit), no chunking protocol.
+
+**Library**: new `devices/standalone/sensor/image-caster` (profile
+`NexusEdge-ImageCaster`, resource `Image`, String, `mqttPayload: media`,
+loaded copy in `apps/device-service/res/profiles/`). Device rows use
+`capabilities: { edgexResource: "Image", readOnly: true, media: true }` -
+the new `capabilities.media` flag tells the UI it's a media device.
+
+**UI**: generic `components/files/` - `FileTable` (thumbnail + date +
+caller columns + delete, on `TablePagination`/`useServerPaginatedList`),
+`FilePreviewModal` (image + date + caller content; `overlay` slot
+positioned over the image, for the AI Analyzer's boxes later),
+`FileUploadButton`. First consumer: `views/devices/DeviceMediaTab.jsx` -
+a **Media** tab in a media device's expand row (between Value and Info):
+latest image (the live value), "Upload image" while simulated, stored
+history with preview and delete. `api.listDeviceMedia/deviceMediaUrl/
+deleteDeviceMedia/simulateDeviceMedia` in `api/client.js`.
+
+Live-verified on the aquarium stack with temporary devices (removed
+afterwards, incl. their Media Store dirs): a real 103 KB JPEG published
+with `mosquitto_pub -s` on a physical image-caster's state topic was
+stored byte-identical (sha256 match), the device's value became its id,
+`GET .../media/:id` served it as `image/jpeg`, and a second frame arrived
+on `nexus.events` as `device-push` with its new id; the simulate upload
+stored the file and set the value (401 without a session); delete
+removed the entry. The Media tab itself was built and lint-clean but not
+clicked through in a browser (login required). Tests: `fileStore.test.ts`,
+`internal/transport/mqtt/media_test.go`.
+
+## 82. AI layer + AI Analyzer process kind + CORE Library process loading (AI Analyzing Camera, stage 4)
+
+2026-09-26, stage 4 of the AI Analyzing Camera plan: the camera's whole
+software side, running today on simulation (hardware still being built).
+
+**CORE Library process kinds are now loaded everywhere** - the Library's
+own `devices/processes/<kind>/` ships all three parts and every project
+picks them up with no copying: `process.ts` by the orchestrator
+(`processPlugins.ts`, new `BUILTIN_DEVICES_DIR`, `devices/` now copied into
+the orchestrator image like the api's), `api.ts` by the api (already the
+case), `ui/register.js` by the UI (new glob in `pluginProcessTypes.js`).
+Order: the project's own `plugins/` first, then the Library; **a project
+plugin overrides a Library kind of the same name** (Library copy skipped
+with a warning) - found live: aquarium carried an unrenamed copy of the
+`example-threshold-monitor` template, and making the duplicate fatal
+crash-looped its orchestrator. A duplicate within one source is still an
+error.
+
+**AI layer** (`apps/api/src/ai/`) - `vision.ts`: provider-agnostic
+`analyzeImage({image, mimeType, instructions, prompt, schemaName,
+schema})` -> `{output, model, usage{input,output,total tokens},
+latencyMs}`; `getVisionProvider()` returns null when unconfigured (no
+key). `openaiVision.ts`: `openai` npm (v7, same client family as
+ai-job-analyzer), Chat Completions, strict `json_schema` response, image
+as a base64 data URL, `maxRetries: 0`. Config (`.env`): `AI_PROVIDER`,
+`OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-4.1-mini` - budget over
+quality, user decision), `AI_REQUEST_TIMEOUT_MS`, `AI_IMAGE_MAX_SIDE`
+(1536 - the copy sent for analysis; the original is kept). Token usage is
+recorded and shown, **never counted or limited** (user decision).
+`images.ts`: `resizeJpeg` on `sharp` (prebuilt musl/arm64 binaries) for
+thumbnails (`MEDIA_PREVIEW_MAX_SIDE`) and the AI copy.
+
+**Plugin context** (`apiPlugins.ts` `ApiPluginContext`) now also carries
+`media` (Media Store), `ai` (`getVisionProvider`, `imageMaxSide`),
+`resizeJpeg`, `previewMaxSide` - Library/project api.ts files use these
+instead of reaching into apps/api.
+
+**Library additions**: `devices/standalone/indicator/result-receiver`
+(String, written whole), `devices/nodes/ai-camera` (node.yaml `bus: mqtt`,
+docs incl. firmware behaviour table and `wiring.md`),
+`devices/processes/ai-analyzer` (process.ts + api.ts + ui/, docs).
+
+**ai-analyzer** (see its own `docs/README.md` for the full contract):
+- process.ts: `onDeviceEvent` on the image device, only for fresh captures
+  (`source` `device-push` or `api` = simulated upload - never a re-read, so
+  an old frame is never re-analysed), duplicate ids dropped; the analysis
+  runs **detached** from the hook in a per-process queue (it takes seconds
+  and the hook shares the process lock with the tick - holding it would
+  stall the tick). Writes `{"imageId","status","text","found":<count>}`
+  to the result-receiver. WEM: failure -> Error until the next success;
+  targets found -> one-shot Message (`found_<mediaId>`, never
+  auto-resolved); > 200 stored images -> persistent Warning (count every
+  10 s). Live metrics `analyzing/lastMediaId/lastAnalyzedAt/lastError/
+  imageCount` drive the panel.
+- api.ts: `POST /ai-analyzer/:id/analyze` (idempotent - `result.json`
+  exists = done, never billed twice) writes `preview.jpg`, sends the AI
+  copy with the active Target objects, validates returned ids against
+  them (invented ids dropped, boxes clamped to 0..1, names snapshotted),
+  stores `result.json` (`status, text, found[{id,name,box}], model,
+  latencyMs, usage, error, analyzedAt`); `GET .../images` (paging, search
+  over text + object names, date range, found yes/no, status, targetId);
+  `GET .../stats`; Target objects CRUD - each change one atomic SQL
+  statement on the process config (limit 100, text <= 50, ids from
+  `nextTargetId`, never reused).
+- UI: Last image (image + red SVG boxes + text/objects/model/latency/
+  tokens, follows new analyses via live metrics), Images (FileTable +
+  filters + preview with boxes + delete), Target objects (add, click-to-
+  rename, active switch, delete, search, paging).
+
+**Aquarium instance** (`nexus-edge-aquarium`): node `ai-camera-01`
+(`simulated = true`), physical MQTT image-caster/result-receiver + `-sim`
+virtual twins (`extra-res/devices/ai-camera-devices.yaml`), process "AI
+Analyzer" (migration `021_seed_ai_camera.sql`).
+
+**Multiple instances + box accuracy (2026-09-26, user review).** A target
+visible several times (bottles, birds, chips) got only one box - api.ts
+dropped repeated ids as duplicates, and the prompt didn't ask for every
+instance. Now: one `found` entry per visible instance (same id may
+repeat), the prompt demands a separate entry per instance and a tight box;
+the UI groups them for display ("Bottle x3"), the camera's `found` is the
+instance count, the WEM Message reads "Found: Bottle x3". Box **accuracy**
+was also examined on the user's own images: gpt-4.1-mini localizes only
+roughly, and a prompt experiment with 0-1000 corner coordinates
+(x1,y1,x2,y2) did not improve it (placements stayed off, some worse) - a
+model limitation, not a prompt one, so the 0..1 x/y/w/h format was kept.
+Better boxes would need a stronger (costlier) model or a dedicated
+detector - deliberately not done (budget first, "not critical").
+
+Live-verified on the aquarium instance with a real OpenAI call: simulated
+upload of a tomatoes photo -> preview + analysis in ~4 s ("whole and
+sliced tomatoes on wood", target "tomato" found with a box, 678 tokens) ->
+result-receiver value written -> "Found: tomato" Message; a guitar photo
+-> no targets; every images filter, and targets add/deactivate/delete/
+validation/id-never-reused, checked through the API; exactly one analyze
+call per capture. Test images/targets removed afterwards. The panel was
+built and bundles, but not clicked through in a browser (login required).
+
+## 83. ai-camera firmware (AI Analyzing Camera, stage 5)
+
+2026-09-26, the last stage of the AI Analyzing Camera plan:
+`devices/nodes/ai-camera/firmware/` - ESP32-CAM (AI-Thinker) + OV3660,
+PlatformIO + Arduino-ESP32 2.0.x (ESP-IDF 4.4, pinned via
+`espressif32@^6.9.0`). **Compiles** (built in a throwaway
+`python:3.11-slim` container with a cached `nexus-pio-cache` volume: RAM
+15.6 %, flash 35.9 %, no warnings in its own sources) - **not flashed or
+run**, the hardware is still being assembled. See its `README.md`.
+
+- MQTT through ESP-IDF's own esp-mqtt (bundled with the core), not
+  PubSubClient: a whole ~0.5-1 MB QXGA JPEG goes out as one QoS 1,
+  non-retained message on `nexus/<node>/image-caster/state` (sections 79,
+  81 - the gateway uploads it to the Media Store). Results arrive on
+  `nexus/<node>/result-receiver/set`; retained `online` / Last Will
+  `offline` on `nexus/<node>/status` (the reserved status topic,
+  section 79 - not consumed by NexusEdge yet).
+- Captive portal (WiFiManager) + NVS for WiFi / broker host+port / node
+  id; mDNS discovery deferred to the authorization task (user decision).
+- State machine = the behaviour table in `devices/nodes/ai-camera/docs/
+  README.md`. **Result correlation refined:** the plan said the camera
+  accepts only the result whose `imageId` matches its frame, but the id
+  is assigned by NexusEdge after the frame arrives - the camera can't know
+  it. Instead the camera accepts a result only while Processing, and the
+  timeouts are ordered so the answer always comes first (NE AI request
+  <= 25 s, camera 30 s); anything arriving outside Processing is ignored.
+- Buzzer on GPIO3 (U0RXD) re-pinned as an output after `Serial.begin` -
+  serial log stays on TX; result hand-off from the MQTT task to `loop()`
+  through a FreeRTOS mutex (a critical section can't allocate a String).

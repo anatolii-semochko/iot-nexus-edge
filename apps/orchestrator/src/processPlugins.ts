@@ -6,7 +6,7 @@ import { apiClient } from "./apiClient.js";
 import { determineAlarmPlan } from "./alarmPolicy.js";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
-import { processRegistry, type ProcessRunner } from "./processRegistry.js";
+import { processRegistry, type ProcessHooks, type ProcessRunner } from "./processRegistry.js";
 import { driveSoundOutput, silenceSoundOutput } from "./soundOutput.js";
 
 /**
@@ -53,7 +53,12 @@ interface ProcessPluginContext {
   silenceSoundOutput: typeof silenceSoundOutput;
 }
 
-type ProcessPluginModule = (register: (kind: string, runner: ProcessRunner) => void, ctx: ProcessPluginContext) => void;
+// `hooks` (AGENTS.md section 80) is optional - a plugin that only has a
+// tick runner keeps calling register(kind, runner) exactly as before.
+type ProcessPluginModule = (
+  register: (kind: string, runner: ProcessRunner, hooks?: ProcessHooks) => void,
+  ctx: ProcessPluginContext,
+) => void;
 
 async function findProcessPluginFiles(dir: string): Promise<string[]> {
   let entries;
@@ -77,22 +82,44 @@ async function findProcessPluginFiles(dir: string): Promise<string[]> {
 }
 
 export async function loadProcessPlugins(): Promise<void> {
-  const dir = config.processPlugins.extraDir;
-  if (!dir) return;
+  // The target project's own plugins/ first, then the CORE Library
+  // (devices/processes/, AGENTS.md section 82). A project plugin OVERRIDES a
+  // Library kind of the same name - the Library copy is skipped with a
+  // warning - so a project can carry its own version of a Library kind (or
+  // an unrenamed copy of a Library template) without the orchestrator
+  // failing to start. A kind registered twice within the same source is
+  // still a hard error (processRegistry.register).
+  const sources = [
+    { label: "private", dir: config.processPlugins.extraDir },
+    { label: "library", dir: config.processPlugins.builtinDevicesDir },
+  ].filter((source): source is { label: string; dir: string } => Boolean(source.dir));
 
-  const files = await findProcessPluginFiles(dir);
-  for (const file of files) {
-    const mod = (await import(pathToFileURL(file).href)) as { default?: ProcessPluginModule };
-    if (typeof mod.default !== "function") {
-      throw new Error(`${file}: process.ts must have a default export (function(register, ctx) {...})`);
+  const registeredBy = new Map<string, string>();
+  for (const source of sources) {
+    for (const file of await findProcessPluginFiles(source.dir)) {
+      const mod = (await import(pathToFileURL(file).href)) as { default?: ProcessPluginModule };
+      if (typeof mod.default !== "function") {
+        throw new Error(`${file}: process.ts must have a default export (function(register, ctx) {...})`);
+      }
+      logger.info({ source: source.label, file }, "registering process plugin");
+      mod.default(
+        (kind, runner, hooks) => {
+          const owner = registeredBy.get(kind);
+          if (source.label === "library" && owner === "private") {
+            logger.warn({ kind, file }, "Library process kind overridden by the project's own plugin - Library copy skipped");
+            return;
+          }
+          processRegistry.register(kind, runner, hooks);
+          registeredBy.set(kind, source.label);
+        },
+        {
+          apiClient,
+          logger,
+          determineAlarmPlan,
+          driveSoundOutput,
+          silenceSoundOutput,
+        },
+      );
     }
-    logger.info({ file }, "registering process plugin");
-    mod.default((kind, runner) => processRegistry.register(kind, runner), {
-      apiClient,
-      logger,
-      determineAlarmPlan,
-      driveSoundOutput,
-      silenceSoundOutput,
-    });
   }
 }

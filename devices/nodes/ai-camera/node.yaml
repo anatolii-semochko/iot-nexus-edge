@@ -1,0 +1,18 @@
+nodeType: ai-camera
+description: >
+  Experimental "budget photo camera" (AGENTS_TO_DO.md 2026-09-24/26, AI
+  Analyzing Camera) - ESP32-CAM (AI-Thinker) with an OV3660 3MP sensor,
+  0.91" SSD1306 OLED (128x32, I2C), shutter button, green/red LEDs, active
+  buzzer, on-board flash. The first network (WiFi) node: talks to
+  NexusEdge over MQTT through the device broker (AGENTS.md section 79),
+  not CAN. Pressing the shutter takes a frame and sends it whole as one
+  MQTT message (image-caster, AGENTS.md section 81); the AI Analyzer
+  process's short English answer comes back through result-receiver and is
+  shown on the display. Indication (display text, LEDs, buzzer) is
+  internal firmware logic, not Devices. An intermittent ("sleeping") node:
+  no heartbeat - being offline is its normal state, not an alarm.
+bus:
+  type: mqtt
+supports:
+  - image-caster
+  - result-receiver
