@@ -58,6 +58,10 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      # Host timezone (.env TZ) - "now" (minute of day, day of week/
+      # month/year) is computed in it; without it the container runs
+      # in UTC and light output shifts by the host's UTC offset.
+      TZ: ${TZ:?set TZ in .env to the host timezone}
       # Extension points (extension points design, nexus-edge AGENTS_TO_DO.md
       # 2026-07-29) - processPlugins.ts scans this for this project's
       # own process kinds (plugins/<name>/process.ts). Empty plugins/ at
@@ -82,6 +86,10 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      # Host timezone (.env TZ) - "now" (minute of day, day of week/
+      # month/year) is computed in it; without it the container runs
+      # in UTC and light output shifts by the host's UTC offset.
+      TZ: ${TZ:?set TZ in .env to the host timezone}
       # Extension points (extension points design, nexus-edge AGENTS_TO_DO.md
       # 2026-07-28) - apiPlugins.ts scans this in addition to the
       # Library (devices/, baked into the nexus-edge image).

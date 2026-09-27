@@ -58,6 +58,11 @@ services:
     container_name: nexus-edge-orchestrator
     restart: unless-stopped
     env_file: .env
+    environment:
+      # Host timezone (.env TZ) - "now" (minute of day, day of week/
+      # month/year) is computed in it; without it the container runs
+      # in UTC and light output shifts by the host's UTC offset.
+      TZ: ${TZ:?set TZ in .env to the host timezone}
     depends_on:
       - postgres
       - redis
@@ -99,6 +104,10 @@ services:
     # hostname from this service under load would have hit the same
     # queueing, this just happened to be the first one added.
     environment:
+      # Host timezone (.env TZ) - "now" (minute of day, day of week/
+      # month/year) is computed in it; without it the container runs
+      # in UTC and light output shifts by the host's UTC offset.
+      TZ: ${TZ:?set TZ in .env to the host timezone}
       UV_THREADPOOL_SIZE: "64"
     depends_on:
       - postgres
