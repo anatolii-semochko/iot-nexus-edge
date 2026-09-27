@@ -102,9 +102,13 @@ cp "$TARGET_DIR/.env.example" "$TARGET_DIR/.env"
 # .env additionally gets project-specific credentials .env.example
 # deliberately leaves as generic placeholders (change-me) - only the
 # ones a fresh `make up-all` needs to not immediately fail on.
+# TZ - this host's own timezone (the stack computes "now" in it); falls
+# back to the .env.example placeholder when neither source exists.
+HOST_TZ=$(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || true)
 sed -i \
   -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=change-me|" \
   -e "s|^RABBITMQ_DEFAULT_PASS=.*|RABBITMQ_DEFAULT_PASS=change-me|" \
+  ${HOST_TZ:+-e "s|^TZ=.*|TZ=$HOST_TZ|"} \
   "$TARGET_DIR/.env"
 
 # Port defaults are a starting point, not guaranteed free (docs/

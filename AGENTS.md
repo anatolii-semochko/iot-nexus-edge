@@ -7489,3 +7489,30 @@ run**, the hardware is still being assembled. See its `README.md`.
 - Buzzer on GPIO3 (U0RXD) re-pinned as an output after `Serial.begin` -
   serial log stays on TX; result hand-off from the MQTT task to `loop()`
   through a FreeRTOS mutex (a critical section can't allocate a String).
+
+## 84. Host timezone (`TZ`) - "now" is the server's local time
+
+Added 2026-09-26 (found live on aquarium: the Control tab's power
+numbers matched the day plan at UTC while the browser's time marker sat
+at CEST - 2h apart). Containers run in UTC unless told otherwise, so any
+wall-clock logic (minute of day, day of week/month/year) silently used
+UTC instead of the local time of the machine next to the hardware.
+
+- `.env` `TZ` (IANA name, e.g. `Europe/Tirane`) - **required** for
+  `api`/`orchestrator`: docker-compose sets `TZ: ${TZ:?...}` there and
+  refuses to start without it (other services get it through
+  `env_file`). Same in `templates/target-project`; `make new-project`
+  fills it from the host (`timedatectl`, then `/etc/timezone`).
+- Must be the env var, not a bind-mounted `/etc/localtime`: the Alpine
+  images have no zoneinfo, and Node/ICU then misidentifies the mounted
+  file (tested: resolved to `Europe/Brussels` and still printed UTC
+  time). Node's bundled ICU handles `TZ` by itself. `date` inside the
+  containers (busybox, no zoneinfo) still prints UTC - expected, Node is
+  what matters.
+- UI rule: server-side "now" wins. A panel showing something tied to
+  the current time takes the server's minute/date from the process's own
+  live metrics (aquarium's Control tab: `serverMinute`/`serverDate`),
+  not from the browser clock. Absolute timestamps (logs, media) are
+  unaffected - they are instants, shown in the viewer's locale.
+- `nexus-edge-smart-house` (reference-only) not changed - its compose
+  doesn't require `TZ`, so it keeps running in UTC until updated.
