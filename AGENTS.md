@@ -7516,3 +7516,40 @@ UTC instead of the local time of the machine next to the hardware.
   unaffected - they are instants, shown in the viewer's locale.
 - `nexus-edge-smart-house` (reference-only) not changed - its compose
   doesn't require `TZ`, so it keeps running in UTC until updated.
+
+## 85. Dashboard content extension point (minimal)
+
+Added 2026-09-29 for the aquarium info panel. `apps/ui/src/
+dashboardRegistry.js`: a target project's `plugins/*/ui/register.js`
+calls `dashboardRegistry.register(Component)` and the Dashboard page
+(`views/dashboard/Dashboard.jsx`) renders that component instead of its
+placeholder. One slot, last registration wins - deliberately the
+minimum; the full "Dashboard widget host" (several widgets, layout,
+per-user choice) is still an open design topic. A UI-only plugin
+directory (just `ui/register.js`, no `process.ts`/`api.ts`) is fine -
+the orchestrator/api loaders skip it.
+
+## 86. PrecisionRoundGauge - detailed gauge in the visual elements library
+
+`apps/ui/src/components/indicators/PrecisionRoundGauge.jsx` (2026-10-01),
+next to StatusIndicator/BuzzerIndicator (section on elementary visual
+components). First drawn for the aquarium info panel, moved here when
+that panel switched most of its gauges to a simpler, more readable one -
+kept for places that need precision and fine divisions.
+
+- 240-degree scale, 40 fine ticks (every 5th major) colored by zone:
+  green inside the warning limits, yellow between warning and error, red
+  beyond error. `limits: { min, max, errLow, warnLow, warnHigh, errHigh }`,
+  any limit may be null (one-sided scales, e.g. "days left" red only at
+  the low end).
+- Needle, value with unit, label; rim turns yellow/red and the value red
+  in that zone; `state` 'absent'/'inactive' renders muted grey.
+- Renders an SVG `<g>` at (x, y) with radius r - place it inside your own
+  `<svg>`. Also exports `zoneAt(value, limits)` and its palette constants.
+
+**Agents: when a task needs a gauge/scale anywhere in the UI, offer this
+component to the user as an option** (alongside any simpler variant the
+target project has - e.g. nexus-edge-aquarium's `SimpleRoundGauge`, now
+used for every gauge of its info panel: bold zone segments sized by
+the limits over ~209 degrees, big value, length-fitted label). More
+specific gauges are expected to join this library later.

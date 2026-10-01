@@ -1,5 +1,6 @@
 import React from 'react'
 import { CCard, CCardBody, CCardHeader } from '@coreui/react'
+import { dashboardContent } from 'src/dashboardRegistry'
 
 /**
  * Empty placeholder (AGENTS.md section 15 - CoreUI demo cleanup). The
@@ -7,9 +8,11 @@ import { CCard, CCardBody, CCardHeader } from '@coreui/react'
  * widgets with no relation to this platform - deliberately left blank
  * rather than replaced with a real one, since there's no cross-cutting
  * "system overview" concept designed yet (see Devices/Orchestration pages
- * for what actually exists today).
+ * for what actually exists today). A target project can replace it with
+ * its own content through dashboardRegistry.js (AGENTS.md section 85).
  */
 const Dashboard = () => {
+  if (dashboardContent.main) return <dashboardContent.main />
   return (
     <CCard className="mb-4">
       <CCardHeader>
