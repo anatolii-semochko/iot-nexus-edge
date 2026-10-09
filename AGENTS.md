@@ -7553,3 +7553,60 @@ target project has - e.g. nexus-edge-aquarium's `SimpleRoundGauge`, now
 used for every gauge of its info panel: bold zone segments sized by
 the limits over ~209 degrees, big value, length-fitted label). More
 specific gauges are expected to join this library later.
+
+## 87. Node -> parent Node (modules of a fleet), and the "no name-based coupling" rule
+
+2026-10-09 (AGENTS_TO_DO.md, aquarium planning). Nexus Edge is built
+for a fleet: one orchestrator (Pi) serves several independent groups of
+equipment on one (later: segmented) bus - e.g. a building with access
+control, HVAC and three aquariums of different configurations. A group
+is built from modules: one base node plus optional nodes that only make
+sense together with it (an aquarium's Aquarium Control + its CO2,
+dosing, sensor and light nodes). Some modules may also run alone (a
+light with no Aquarium Control).
+
+**Relation by id.** `nodes.parent_id` (migration 1690000000056) - the
+base node an optional node is attached to; null = autonomous.
+ON DELETE SET NULL, no self-reference (check constraint), loops rejected
+by the route. Which node TYPES may be parents is declared by the child
+type's own `node.yaml`:
+
+```yaml
+parents:
+  - aquarium-control
+```
+
+synced by the Library walk into `library_items.parent_types`
+(libraryCatalog.ts, next to `supports`). A type with no `parents:` list
+attaches to nothing.
+
+- `PATCH /nodes/:id/parent {parentId|null}` - validates existence, the
+  child type's `parents:`, and loops; pushes the node event like the
+  other node PATCH routes.
+- `GET /nodes` rows carry `parent_id`, `parent_name`, `parent_types`;
+  orchestrator `NodeRecord` carries `type` and `parent_id`.
+- UI: Node Settings popup - "Attached to" select, shown only when the
+  type declares `parents:`, candidates = nodes of those types. Nodes list
+  shows "Attached to <name>" under the node name.
+
+**Rule for every process, plugin and seed (core and target projects)**:
+never find a node, device or process by its display name, by "the first
+row of kind X" (`WHERE kind = ... LIMIT 1`), or by an EdgeX device name
+in runtime code. Address by id: a process gets its devices as ids in its
+own `config`, its node via `processes.node_id`, related nodes via
+`nodes.parent_id`; a route serving one of several processes of a kind
+takes the process id as a parameter. Seeds may look rows up by
+`seed_key`/`edgex_device_name` (that is what those anchors are for), and
+EdgeX device names of a new instance carry the instance's own seed key
+(`<seed_key>-<device>`), so a second instance never collides.
+System singletons (data-logger, heartbeat-control - one per installation
+by design) are the only accepted `WHERE kind = ...` lookups.
+
+**Known open item - CAN addressing per instance.** A device profile's
+`canId` attribute (device-service `transport/can/mapping.go`) is per
+profile, i.e. per device TYPE: two physical nodes of the same type on one
+bus would share arbitration ids (already noted for `heartbeat`'s shared
+profile). Planned fix, before the second physical node of any type goes
+on one bus: a per-node bus address (in `nodes.bus_config`) that the
+device-service combines with the profile's per-resource id offset. Not
+needed while every node but one is virtual.

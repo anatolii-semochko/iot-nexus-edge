@@ -81,19 +81,27 @@ async function findIcon(absDir: string, entryNames: Set<string>, sourceLabel: st
   return null;
 }
 
-/** node.yaml's own `supports:` list (AGENTS.md section 7/32) - purely
- * informational, best-effort: a missing/malformed node.yaml just means no
- * supports list, not a sync failure. */
-async function readSupports(dir: string): Promise<string[] | null> {
+interface NodeYamlLists {
+  supports: string[] | null;
+  parents: string[] | null;
+}
+
+const stringList = (value: unknown): string[] | null =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : null;
+
+/** node.yaml's own `supports:` list (AGENTS.md section 7/32) and `parents:`
+ * list (section 87 - node types this type may attach to) - best-effort: a
+ * missing/malformed node.yaml just means no lists, not a sync failure. */
+async function readNodeYamlLists(dir: string): Promise<NodeYamlLists> {
   try {
     const raw = await readFile(path.join(dir, "node.yaml"), "utf-8");
-    const parsed = parseYaml(raw) as { supports?: unknown };
-    if (Array.isArray(parsed?.supports)) return parsed.supports.filter((v): v is string => typeof v === "string");
-    return null;
+    const parsed = parseYaml(raw) as { supports?: unknown; parents?: unknown };
+    return { supports: stringList(parsed?.supports), parents: stringList(parsed?.parents) };
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
-    logger.warn({ err, dir }, "failed to read node.yaml for Library Catalog supports list");
-    return null;
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      logger.warn({ err, dir }, "failed to read node.yaml for Library Catalog supports/parents lists");
+    }
+    return { supports: null, parents: null };
   }
 }
 
@@ -127,15 +135,16 @@ async function upsertItem(
   descriptor: LibraryDescriptor,
   iconPath: string | null,
   typeName: string,
-  supports: string[] | null,
+  { supports, parents }: NodeYamlLists,
 ): Promise<void> {
   await pool.query(
     `INSERT INTO library_items
-       (id, folder_path, kind, category_id, name, description, icon_path, type_name, supports, last_synced_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
+       (id, folder_path, kind, category_id, name, description, icon_path, type_name, supports, parent_types,
+        last_synced_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
      ON CONFLICT (id) DO UPDATE
        SET folder_path = $2, kind = $3, category_id = $4, name = $5, description = $6,
-           icon_path = $7, type_name = $8, supports = $9, last_synced_at = now(), updated_at = now()`,
+           icon_path = $7, type_name = $8, supports = $9, parent_types = $10, last_synced_at = now(), updated_at = now()`,
     [
       descriptor.id,
       folderPath,
@@ -146,6 +155,7 @@ async function upsertItem(
       iconPath,
       typeName,
       supports ? JSON.stringify(supports) : null,
+      parents ? JSON.stringify(parents) : null,
     ],
   );
 }
@@ -180,8 +190,8 @@ async function walk(
   if (libraryDescriptor) {
     const iconPath = await findIcon(absDir, entryNames, sourceLabel, sourceRelDir);
     const typeName = path.basename(absDir);
-    const supports = kind === "node" ? await readSupports(absDir) : null;
-    await upsertItem(relPath, kind, parentCategoryId, libraryDescriptor, iconPath, typeName, supports);
+    const lists = kind === "node" ? await readNodeYamlLists(absDir) : { supports: null, parents: null };
+    await upsertItem(relPath, kind, parentCategoryId, libraryDescriptor, iconPath, typeName, lists);
     state.seenItemFolderPaths.add(relPath);
     return; // leaf - config/docs/tests/etc. below this are not catalog structure
   }
