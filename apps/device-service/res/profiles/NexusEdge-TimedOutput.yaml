@@ -1,0 +1,19 @@
+apiVersion: "v2"
+name: "NexusEdge-TimedOutput"
+manufacturer: "NexusEdge"
+model: "timed-output"
+labels:
+  - "actuator"
+description: "Output that turns itself off - a command is an on-window in milliseconds, the node ends it on its own"
+
+deviceResources:
+  - name: "WindowMs"
+    isHidden: false
+    description: "Output that turns itself off - a command is an on-window in milliseconds, the node ends it on its own"
+    properties:
+      valueType: "Uint32"
+      readWrite: "RW"
+      units: "ms"
+      defaultValue: "0"
+
+deviceCommands: []

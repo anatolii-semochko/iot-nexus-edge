@@ -1,0 +1,5 @@
+# Forbidden-state rules for this device type, consumed by the central
+# Model State Validator (apps/api/src/validator.ts) - see AGENTS.md
+# section 7/30/32. Empty - cross-device interlocks belong to a node
+# type or a process, not to one Device type in isolation.
+forbidden: []

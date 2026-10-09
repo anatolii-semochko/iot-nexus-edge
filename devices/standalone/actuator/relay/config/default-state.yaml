@@ -1,0 +1,4 @@
+# Initial value for a `backend: virtual` instance of this device type
+# (seeded into apps/device-service's Virtual Node Runtime via the
+# "initial.Relay" protocol property).
+Relay: false

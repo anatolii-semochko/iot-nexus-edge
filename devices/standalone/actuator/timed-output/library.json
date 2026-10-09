@@ -1,0 +1,5 @@
+{
+  "id": "device-timed-output",
+  "name": "Timed output",
+  "description": "Output that turns itself off - a command is an on-window in milliseconds, the node ends it on its own."
+}
