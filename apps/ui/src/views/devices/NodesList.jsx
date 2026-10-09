@@ -319,6 +319,9 @@ const NodesList = () => {
                             </CTableDataCell>
                             <CTableDataCell className={noBorderWhenExpanded}>
                               {node.name}
+                              {node.parent_name && (
+                                <div className="small text-body-secondary">Attached to {node.parent_name}</div>
+                              )}
                             </CTableDataCell>
                             <CTableDataCell className={noBorderWhenExpanded}>
                               {node.group_name ?? '-'}
@@ -411,6 +414,7 @@ const NodesList = () => {
         visible={Boolean(settingsNode)}
         onClose={() => setSettingsNode(null)}
         node={settingsNode}
+        nodes={nodes ?? []}
         nodeGroups={nodeGroups}
         onSaved={reloadNodes}
       />

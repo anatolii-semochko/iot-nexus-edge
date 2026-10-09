@@ -56,6 +56,9 @@ export const api = {
     request(`/nodes/${id}/name`, { method: 'PATCH', body: JSON.stringify({ name }) }),
   setNodeLocation: (id, location) =>
     request(`/nodes/${id}/location`, { method: 'PATCH', body: JSON.stringify({ location }) }),
+  // Node -> parent Node (AGENTS.md section 87) - null detaches.
+  setNodeParent: (id, parentId) =>
+    request(`/nodes/${id}/parent`, { method: 'PATCH', body: JSON.stringify({ parentId }) }),
   // Partial physical network (AGENTS_TO_DO.md, 2026-08-09/10) - a node
   // switches every attached device's EdgeX redirect at once.
   setNodeSimulated: (id, simulated) =>

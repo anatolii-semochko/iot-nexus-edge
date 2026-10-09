@@ -30,6 +30,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export interface NodeRecord {
   id: number;
   name: string;
+  type: string;
+  // AGENTS.md section 87 - the base node this one is attached to, by id.
+  parent_id: number | null;
   heartbeat_control: HeartbeatControlConfig;
   heartbeatStopped: boolean;
   heartbeatLastSeenAt: string | null;

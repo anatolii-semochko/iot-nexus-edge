@@ -28,11 +28,16 @@ import { api } from '../../api/client'
  * JSON, but with no write path anywhere - added here as a free-text
  * field, same as every other target-project so far has left it (no
  * fixed location taxonomy exists in this app).
+ *
+ * "Attached to" (AGENTS.md section 87) - the base node this node belongs
+ * to, offered only for a node type whose node.yaml declares `parents:`;
+ * candidates are the other nodes of those types. The API re-validates.
  */
-const NodeSettingsModal = ({ visible, onClose, node, nodeGroups, onSaved }) => {
+const NodeSettingsModal = ({ visible, onClose, node, nodes = [], nodeGroups, onSaved }) => {
   const [name, setName] = useState('')
   const [location, setLocation] = useState('')
   const [groupId, setGroupId] = useState('')
+  const [parentId, setParentId] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -43,9 +48,13 @@ const NodeSettingsModal = ({ visible, onClose, node, nodeGroups, onSaved }) => {
       setLocation(node.location ?? '')
 
       setGroupId(node.group_id ?? '')
+      setParentId(node.parent_id ?? '')
       setError(null)
     }
   }, [visible, node])
+
+  const parentTypes = node?.parent_types ?? []
+  const parentCandidates = nodes.filter((n) => n.id !== node?.id && parentTypes.includes(n.type))
 
   const handleSave = async () => {
     const trimmedName = name.trim()
@@ -60,6 +69,7 @@ const NodeSettingsModal = ({ visible, onClose, node, nodeGroups, onSaved }) => {
         api.renameNode(node.id, trimmedName),
         api.setNodeLocation(node.id, location.trim()),
         api.setNodeGroup(node.id, groupId === '' ? null : Number(groupId)),
+        ...(parentTypes.length > 0 ? [api.setNodeParent(node.id, parentId === '' ? null : Number(parentId))] : []),
       ])
       onSaved?.()
       onClose()
@@ -99,6 +109,19 @@ const NodeSettingsModal = ({ visible, onClose, node, nodeGroups, onSaved }) => {
             </option>
           ))}
         </CFormSelect>
+        {parentTypes.length > 0 && (
+          <div className="mt-3">
+            <CFormLabel>Attached to</CFormLabel>
+            <CFormSelect value={parentId} onChange={(e) => setParentId(e.target.value)} disabled={busy}>
+              <option value="">Not attached</option>
+              {parentCandidates.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.name}
+                </option>
+              ))}
+            </CFormSelect>
+          </div>
+        )}
       </CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="outline" onClick={onClose} disabled={busy}>
