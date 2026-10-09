@@ -158,9 +158,10 @@ export const api = {
   // this endpoint. Also reused by the Logs page's processes tab (section
   // 29, `from`/`to` date-range params), which the notification center
   // itself never sets.
-  listProcessMessages: ({ type, scope, processId, search, from, to, page, pageSize }) => {
+  listProcessMessages: ({ type, scope, processId, processIds, search, from, to, page, pageSize }) => {
     const params = new URLSearchParams({ type, scope, page, pageSize })
     if (processId) params.set('processId', processId)
+    if (processIds?.length) params.set('processIds', processIds.join(','))
     if (search) params.set('search', search)
     if (from) params.set('from', from)
     if (to) params.set('to', to)

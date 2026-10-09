@@ -353,6 +353,7 @@ export interface ListProcessMessagesParams {
   type: MessageType | "all";
   scope: MessageScope;
   processId?: number;
+  processIds?: number[];
   search?: string;
   // Inclusive ISO timestamp bounds - added for the Logs page's processes
   // tab (AGENTS.md section 29); the notification center popup never sets
@@ -374,7 +375,7 @@ export interface ListProcessMessagesParams {
 export async function listProcessMessages(
   params: ListProcessMessagesParams,
 ): Promise<{ items: ProcessMessageListItem[]; total: number }> {
-  const { type, scope, processId, search, from, to, page, pageSize } = params;
+  const { type, scope, processId, processIds, search, from, to, page, pageSize } = params;
   const conditions: string[] = [];
   const values: unknown[] = [];
 
@@ -383,6 +384,12 @@ export async function listProcessMessages(
     conditions.push(`pm.type = $${values.length}`);
   }
   if (scope === "new") conditions.push("pm.hidden = false");
+  // several processes at once - e.g. a target project's dashboard showing
+  // the messages of one group of equipment (AGENTS.md section 87)
+  if (processIds !== undefined) {
+    values.push(processIds);
+    conditions.push(`pm.process_id = ANY($${values.length}::int[])`);
+  }
   if (processId !== undefined) {
     values.push(processId);
     conditions.push(`pm.process_id = $${values.length}`);

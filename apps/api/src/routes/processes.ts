@@ -438,6 +438,7 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       type: processMessages.MessageType | "all";
       scope: processMessages.MessageScope;
       processId?: string;
+      processIds?: string; // comma-separated
       search?: string;
       from?: string;
       to?: string;
@@ -447,9 +448,12 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   }>("/log-messages", async (request) => {
     const { type, scope, search, from, to } = request.query;
     const processId = request.query.processId ? Number(request.query.processId) : undefined;
+    const processIds = request.query.processIds
+      ? request.query.processIds.split(",").map(Number).filter(Number.isFinite)
+      : undefined;
     const page = Math.max(1, Number(request.query.page ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(request.query.pageSize ?? 20)));
-    return processMessages.listProcessMessages({ type, scope, processId, search, from, to, page, pageSize });
+    return processMessages.listProcessMessages({ type, scope, processId, processIds, search, from, to, page, pageSize });
   });
 
   // UI-driven - which Tab Groups (routes/tabGroups.ts) this process is
