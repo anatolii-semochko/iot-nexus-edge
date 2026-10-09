@@ -7610,3 +7610,9 @@ profile). Planned fix, before the second physical node of any type goes
 on one bus: a per-node bus address (in `nodes.bus_config`) that the
 device-service combines with the profile's per-resource id offset. Not
 needed while every node but one is virtual.
+
+**`/log-messages?processIds=1,2,3`** (2026-10-09) - messages of several
+processes at once (`listProcessMessages` `processIds`, ANY), for a
+target project's dashboard of one group of equipment. Its Logs tab shows
+only that group's processes, found by id.
+
