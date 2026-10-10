@@ -248,6 +248,15 @@ export const apiClient = {
   listProcesses: () => request<ProcessRecord[]>("/processes"),
   listNodes: () => request<NodeRecord[]>("/nodes"),
   getDevice: (deviceId: number) => request<DeviceRecord>(`/devices/${deviceId}`),
+  // AGENTS.md section 88 - many devices' current values in one call, served
+  // from the cache wherever the cache is the source (actuators' commanded
+  // value, simulated/virtual sensors), EdgeX only for a physical sensor
+  // whose cached reading is older than `maxAgeMs` (API default from config).
+  getDeviceValues: (deviceIds: number[], maxAgeMs?: number) =>
+    request<{ values: Record<number, { value: unknown; at: number | null; source: string }> }>("/devices/values", {
+      method: "POST",
+      body: JSON.stringify({ ids: deviceIds, maxAgeMs }),
+    }),
   // Node-side counterpart of the heartbeat call below - see routes/
   // nodes.ts's POST /nodes/heartbeat (AGENTS_TO_DO.md, 2026-08-09).
   touchNodeHeartbeats: (nodeIds: number[]) =>

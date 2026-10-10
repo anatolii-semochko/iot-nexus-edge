@@ -24,6 +24,10 @@ export const config = {
   // in its own .env to drop the per-request noise while keeping real
   // logger.warn()/error() calls elsewhere in the app visible.
   logLevel: process.env.LOG_LEVEL ?? "info",
+  // POST /devices/values (AGENTS.md section 88): how old a PHYSICAL
+  // sensor's cached reading may be before the batch read goes to EdgeX
+  // for a fresh one.
+  deviceValuesMaxAgeMs: Number(process.env.DEVICE_VALUES_MAX_AGE_MS ?? 5000),
   postgres: {
     host: required("POSTGRES_HOST"),
     port: Number(process.env.POSTGRES_PORT ?? 5432),
