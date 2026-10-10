@@ -101,7 +101,9 @@ const ProcessesList = () => {
     api
       .listProcesses()
       .then((all) => {
-        setProcesses(all)
+        // Simulation processes live only on the Simulator page
+        // (AGENTS_TO_DO.md, 2026-10-10) - none of this page's tabs show them.
+        setProcesses(all.filter((p) => p.type !== 'simulation'))
         setError(null)
       })
       .catch((err) => setError(err.message))

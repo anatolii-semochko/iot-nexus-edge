@@ -6792,6 +6792,11 @@ editable there (they're already visible with live values on the
 Simulator panel - making them a raw editable id list would just invite
 misconfiguration).
 
+**Only on the Simulator page** (2026-10-10) - `ProcessesList.jsx` drops
+`type: 'simulation'` processes at load, so none of the Processes page's
+tabs (Dashboard, All, Tab Groups) lists them; the Simulator page is
+their one home.
+
 ## 73. Settings reorg: new `/service` page, Library moved out of Devices
 
 2026-08-30. Library Catalog moved from the DEVICES nav group into a
