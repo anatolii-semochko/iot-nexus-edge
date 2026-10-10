@@ -7616,3 +7616,41 @@ processes at once (`listProcessMessages` `processIds`, ANY), for a
 target project's dashboard of one group of equipment. Its Logs tab shows
 only that group's processes, found by id.
 
+
+## 88. Batch device read - `POST /devices/values`
+
+2026-10-10. Processes that read many devices every tick did one
+`GET /devices/:id` each - each one a core-command -> EdgeX round trip.
+That is about 68 reads per second on the aquarium stack, too much for a
+Raspberry Pi.
+
+**Route.** `POST /devices/values {ids: number[], maxAgeMs?}` returns
+`{values: {[id]: {value, at, source}}}`. Unknown ids are left out.
+Rows come from one SQL query; cached readings and Dual Devices Model
+states come from one Redis MGET
+(`dualDevicesModel.getCachedBatch`). Where each value comes from:
+- **An actuator** (not readOnly) gives its DDM active value, i.e. what
+  was commanded (AUTO, or a manual override): `source: "state"`,
+  `at: null`.
+- **A sensor whose cache IS its source** gives the cached reading. That
+  is a sensor on a virtual EdgeX device (`backend: virtual`, or a node's
+  simulated twin) or one with no EdgeX backend: every write to it goes
+  through `publishReading()`. `source: "cache"`, `at` = when it was
+  written.
+- **A physical sensor** gives the cached reading while it is younger
+  than `maxAgeMs` (env `DEVICE_VALUES_MAX_AGE_MS`, default 5000).
+  Otherwise the route reads it live from EdgeX and caches it
+  (`dualDevicesModel.cacheReading`: `state:{id}` only, no bus event).
+  `source: "edgex"`.
+- **A cache miss or no DDM state yet** falls back to EdgeX too. A
+  failed read gives `source: "error"`, `value: null`.
+
+**Clients.** Orchestrator `apiClient.getDeviceValues(ids, maxAgeMs?)`.
+Target-project plugins call it once per tick for everything they need,
+falling back to single reads on an older core.
+
+**Measured** on the aquarium stack: single `GET /devices/:id` went from
+1357 to 224 per 20 s, and edgex-core-command CPU from ~13 % to ~6 %.
+The remaining single reads come from processes not converted yet
+(control-node, weather-control, the light's heartbeat/button counters)
+and the UI.

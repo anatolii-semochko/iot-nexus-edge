@@ -232,3 +232,48 @@ export async function systemMode(deviceIds: number[]): Promise<Mode | "SERVICE">
   if (hasManual && hasAuto) return "SERVICE";
   return hasManual ? "MANUAL" : "AUTO";
 }
+
+/**
+ * Batch read (AGENTS.md section 88) - many devices' cached readings and
+ * Dual Devices Model states in ONE Redis round trip (MGET), for
+ * POST /devices/values. `readings` = what publishReading()/cacheReading()
+ * last wrote (`state:{id}`, with its time); `states` = getState() per
+ * device. Order follows `deviceIds`.
+ */
+export async function getCachedBatch(deviceIds: number[]): Promise<{
+  readings: ({ value: unknown; updatedAt: string; source: string } | null)[];
+  states: DeviceState[];
+}> {
+  if (deviceIds.length === 0) return { readings: [], states: [] };
+  const keys = deviceIds.flatMap((id) => {
+    const k = keysFor(id);
+    return [`state:${id}`, k.mode, k.valueAuto, k.valueManual];
+  });
+  const raw = await redis.mget(...keys);
+  const readings: ({ value: unknown; updatedAt: string; source: string } | null)[] = [];
+  const states: DeviceState[] = [];
+  for (let i = 0; i < deviceIds.length; i++) {
+    const [reading, mode, rawAuto, rawManual] = raw.slice(i * 4, i * 4 + 4);
+    const decoded = decode(reading ?? null);
+    readings.push(typeof decoded === "object" && decoded !== null ? (decoded as { value: unknown; updatedAt: string; source: string }) : null);
+    const resolvedMode: Mode = mode === "MANUAL" ? "MANUAL" : "AUTO";
+    const valueAuto = decode(rawAuto ?? null);
+    const valueManual = decode(rawManual ?? null);
+    states.push({ mode: resolvedMode, valueAuto, valueManual, active: resolvedMode === "MANUAL" ? valueManual : valueAuto });
+  }
+  return { readings, states };
+}
+
+/**
+ * Caches a reading taken live from EdgeX (the batch read's fallback for
+ * a physical sensor whose cached value was too old) - `state:{id}` only,
+ * no bus event: a batch read is a process polling, not a change worth
+ * pushing to every client.
+ */
+export async function cacheReading(deviceId: number, value: unknown, originMs: number, source: string): Promise<void> {
+  try {
+    await redis.set(`state:${deviceId}`, encode({ value, updatedAt: new Date(originMs).toISOString(), source }));
+  } catch (err) {
+    logger.warn({ err, deviceId }, "failed to refresh state cache");
+  }
+}

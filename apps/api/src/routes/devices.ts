@@ -7,6 +7,7 @@ import { getSystemActorUserId, logCommand } from "../commandLog.js";
 import { logReading } from "../deviceLog.js";
 import * as dataLoggerControl from "../dataLoggerControl.js";
 import { EdgeXError, listEdgeXDevices, readValue, writeValue, type EdgeXDeviceStatus } from "../edgex.js";
+import { config } from "../config.js";
 import { publishDeviceEvent } from "../messaging.js";
 import { devicesNeededFor, validateWrite, type ForbiddenRule } from "../validator.js";
 
@@ -277,6 +278,65 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
         isOverdue: overdue?.isOverdue ?? false,
       };
     });
+  });
+
+  // Batch read (AGENTS.md section 88) - the current values of many devices
+  // in one call, for orchestrator processes that read a dozen devices a
+  // tick (one GET /devices/:id each = one EdgeX core-command round trip
+  // each). Served from the cache wherever the cache IS the source:
+  // - an actuator (not readOnly): its Dual Devices Model active value -
+  //   what was commanded (AUTO or a manual override);
+  // - a sensor on a virtual EdgeX device (a virtual backend or a node's
+  //   simulated twin) or with no EdgeX backend: the cached reading - every
+  //   write to it goes through publishReading();
+  // - a PHYSICAL sensor: the cached reading while younger than `maxAgeMs`
+  //   (config deviceValuesMaxAgeMs), else a live EdgeX read, which is then
+  //   cached for the next caller.
+  // A cache miss falls back to EdgeX too. Unknown ids are left out.
+  // Response: { values: { [id]: { value, at, source } } } - `at` = ms of
+  // the reading (null for a commanded value), `source` = state | cache |
+  // edgex | error.
+  app.post<{ Body: { ids: number[]; maxAgeMs?: number } }>("/devices/values", async (request, reply) => {
+    const ids = Array.isArray(request.body?.ids) ? request.body.ids.map(Number).filter(Number.isFinite) : [];
+    if (ids.length === 0) return reply.code(400).send({ error: "ids (number[]) required" });
+    const maxAgeMs = request.body.maxAgeMs ?? config.deviceValuesMaxAgeMs;
+    const rows = (await pool.query<DeviceRowWithNode>(`${SELECT_DEVICE_WITH_NODE} WHERE d.id = ANY($1::int[])`, [ids])).rows;
+    const { readings, states } = await dualDevicesModel.getCachedBatch(rows.map((r) => r.id));
+    const now = Date.now();
+    const values: Record<number, { value: unknown; at: number | null; source: string }> = {};
+    await Promise.all(
+      rows.map(async (row, i) => {
+        const caps = row.capabilities;
+        const state = states[i];
+        if (!caps.readOnly && state.active !== undefined) {
+          values[row.id] = { value: state.active, at: null, source: "state" };
+          return;
+        }
+        const resolved = resolveEdgexName(row);
+        const cached = readings[i];
+        const cachedAt = cached ? Date.parse(cached.updatedAt) : null;
+        const cacheIsSource =
+          !resolved || resolved === row.edgex_device_name_simulated || row.backend === "virtual";
+        if (cached && (cacheIsSource || (cachedAt !== null && now - cachedAt <= maxAgeMs))) {
+          values[row.id] = { value: cached.value, at: cachedAt, source: "cache" };
+          return;
+        }
+        if (!resolved || !caps.edgexResource) {
+          values[row.id] = { value: null, at: null, source: "error" };
+          return;
+        }
+        try {
+          const reading = await readValue(resolved, caps.edgexResource);
+          const at = Math.floor(reading.origin / 1e6);
+          values[row.id] = { value: reading.value, at, source: "edgex" };
+          if (caps.readOnly) await dualDevicesModel.cacheReading(row.id, reading.value, at, "batch-read");
+        } catch (err) {
+          app.log.warn({ err, device: row.name }, "batch read: EdgeX read failed");
+          values[row.id] = { value: null, at: null, source: "error" };
+        }
+      }),
+    );
+    return { values };
   });
 
   // Detail view: registry metadata, the device's live value (read straight
