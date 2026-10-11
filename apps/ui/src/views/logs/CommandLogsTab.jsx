@@ -21,7 +21,7 @@ import ResetFiltersButton from '../../components/ResetFiltersButton'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
-import { formatSmartDateTime, localDateTimeToIso, userInitials } from '../../utils/format'
+import { formatSmartDateTime, localDateTimeToIso, userInitials, userTitle } from '../../utils/format'
 
 const ACTIONS = [
   'write',
@@ -63,7 +63,7 @@ const ActorCell = ({ actorUser }) => {
     )
   }
   return (
-    <span title={actorUser.display_name ?? actorUser.username}>
+    <span title={userTitle(actorUser)}>
       {actorUser.avatar_path ? (
         <CAvatar src={`/api/uploads/avatars/${actorUser.avatar_path}`} size="sm" />
       ) : (

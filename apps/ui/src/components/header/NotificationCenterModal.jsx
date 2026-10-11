@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   CAlert,
-  CAvatar,
   CButton,
   CCol,
   CFormCheck,
@@ -26,8 +25,9 @@ import CIcon from '@coreui/icons-react'
 import { cilBell, cilCheckCircle, cilReload, cilX } from '@coreui/icons'
 import { api } from '../../api/client'
 import { useProcessesLiveState } from '../../api/useLiveProcess'
-import { formatSmartDateTime, userInitials } from '../../utils/format'
+import { formatSmartDateTime } from '../../utils/format'
 import IconButton from '../IconButton'
+import ReadByAvatar from '../ReadByAvatar'
 import ResetFiltersButton from '../ResetFiltersButton'
 import TablePagination from '../table/TablePagination'
 import TableSearchInput from '../table/TableSearchInput'
@@ -428,22 +428,7 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                         </CTableDataCell>
                         <CTableDataCell className="text-end">
                           {item.hidden ? (
-                            item.hidden_by_user && (
-                              <span
-                                title={`${item.hidden_by_user.display_name ?? item.hidden_by_user.username} · ${formatSmartDateTime(item.hidden_at)}`}
-                              >
-                                {item.hidden_by_user.avatar_path ? (
-                                  <CAvatar
-                                    src={`/api/uploads/avatars/${item.hidden_by_user.avatar_path}`}
-                                    size="sm"
-                                  />
-                                ) : (
-                                  <CAvatar color="secondary" textColor="white" size="sm">
-                                    {userInitials(item.hidden_by_user)}
-                                  </CAvatar>
-                                )}
-                              </span>
-                            )
+                            item.hidden_by_user && <ReadByAvatar user={item.hidden_by_user} at={item.hidden_at} />
                           ) : (
                             <IconButton
                               icon={cilX}

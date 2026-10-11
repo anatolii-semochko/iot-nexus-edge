@@ -12,6 +12,7 @@ import {
 } from '@coreui/react'
 import { cilLockLocked, cilPeople } from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
+import { userTitle } from '../../utils/format'
 import { api } from '../../api/client'
 
 const initials = (user) =>
@@ -48,13 +49,16 @@ const AppHeaderDropdown = () => {
   return (
     <CDropdown variant="nav-item">
       <CDropdownToggle placement="bottom-end" className="py-0 pe-0" caret={false}>
-        {user.avatar_path ? (
-          <CAvatar src={`/api/uploads/avatars/${user.avatar_path}`} size="md" />
-        ) : (
-          <CAvatar color="secondary" textColor="white" size="md">
-            {initials(user)}
-          </CAvatar>
-        )}
+        {/* the toggle doesn't pass a title on - the avatar's own wrapper does */}
+        <span title={userTitle(user)}>
+          {user.avatar_path ? (
+            <CAvatar src={`/api/uploads/avatars/${user.avatar_path}`} size="md" />
+          ) : (
+            <CAvatar color="secondary" textColor="white" size="md">
+              {initials(user)}
+            </CAvatar>
+          )}
+        </span>
       </CDropdownToggle>
       <CDropdownMenu className="pt-0" placement="bottom-end">
         <CDropdownHeader className="bg-body-secondary fw-semibold mb-2">

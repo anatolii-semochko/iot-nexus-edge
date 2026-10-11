@@ -115,3 +115,19 @@ export function userInitials(user) {
     .join('')
     .toUpperCase()
 }
+
+// Role names as people read them (roles are the users table's own,
+// AGENTS.md section 13); an account without a role is a plain user.
+const ROLE_LABELS = { admin: 'Administrator' }
+export function userRoleLabel(user) {
+  const roles = user.roles ?? []
+  return roles.length > 0 ? roles.map((r) => ROLE_LABELS[r] ?? r).join(', ') : 'User'
+}
+
+// An avatar's tooltip (2026-10-11): the role and the name, e.g.
+// "Administrator Anatolii Semochko". `suffix` - extra context after it
+// (when, what for).
+export function userTitle(user, suffix) {
+  const title = `${userRoleLabel(user)} ${user.display_name ?? user.username}`
+  return suffix ? `${title} · ${suffix}` : title
+}
