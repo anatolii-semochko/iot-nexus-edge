@@ -7368,6 +7368,17 @@ removed the entry. The Media tab itself was built and lint-clean but not
 clicked through in a browser (login required). Tests: `fileStore.test.ts`,
 `internal/transport/mqtt/media_test.go`.
 
+**Plugin files and guarded plugin routes** (2026-10-11, first user: the
+aquarium photo gallery). A plugin's own files (not a device's) go into
+the same Media Store under `pluginMediaScope(plugin, ...key)` =
+`plugin-<plugin>/<key...>/`, never mixed with the `device-<id>` scopes.
+`ApiPluginContext` now also passes `requireAuth` (the core route guard -
+`request.user` is the session's user after it), `media.pluginScope`,
+`media.extensionForMimeType` and `media.maxFileBytes` (for the plugin's
+own multipart limit - @fastify/multipart's default is 1 MB), and
+`logCommand` (a plugin route that changes a process's config records it
+in Logs > Commands like the core config route does).
+
 ## 82. AI layer + AI Analyzer process kind + CORE Library process loading (AI Analyzing Camera, stage 4)
 
 2026-09-26, stage 4 of the AI Analyzing Camera plan: the camera's whole

@@ -16,6 +16,12 @@ export const mediaStore = createFileStore({ rootDir: config.media.dir, maxPartBy
 
 export const mediaScope = (deviceId: number) => [`device-${deviceId}`];
 
+// A plugin's own files (not a device's), e.g. an aquarium's photo gallery:
+// <MEDIA_DIR>/plugin-<plugin>/<key...>/ - its own top-level directory, so
+// it never mixes with the device scopes. `key` segments are the plugin's
+// choice (ids, never display names); the file store validates them.
+export const pluginMediaScope = (plugin: string, ...key: string[]) => [`plugin-${plugin}`, ...key];
+
 const ORIGINAL = "original";
 
 // Media types this store accepts from devices and uploads, by extension.

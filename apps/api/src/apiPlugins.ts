@@ -5,10 +5,19 @@ import { pathToFileURL } from "node:url";
 import type { FastifyInstance } from "fastify";
 
 import { getVisionProvider } from "./ai/vision.js";
+import { requireAuth } from "./auth.js";
+import { logCommand } from "./commandLog.js";
 import { config } from "./config.js";
 import { pool } from "./db.js";
 import { resizeJpeg } from "./images.js";
-import { contentTypeForPart, mediaScope, mediaStore, originalPartOf } from "./mediaStore.js";
+import {
+  contentTypeForPart,
+  extensionForMimeType,
+  mediaScope,
+  mediaStore,
+  originalPartOf,
+  pluginMediaScope,
+} from "./mediaStore.js";
 import { processStateEvents } from "./processStateEvents.js";
 
 /**
@@ -55,14 +64,25 @@ import { processStateEvents } from "./processStateEvents.js";
  * `resizeJpeg` (AGENTS.md sections 81/82) let a plugin work with a media
  * device's files and the AI layer through the same modules the core
  * routes use, never touching the Media Store directory or a vendor SDK
- * itself.
+ * itself. `media.pluginScope` is where a plugin keeps files of its own
+ * (not a device's, e.g. an aquarium's photo gallery); `maxFileBytes` is
+ * the Media Store's per-file limit, for a plugin's own multipart upload.
+ * `requireAuth` guards a plugin route that changes data, exactly like the
+ * core routes' own guard (`request.user` is the session's user after it);
+ * `logCommand` records such a change in the command log (Logs > Commands)
+ * the way the core routes do.
  */
 export interface ApiPluginContext {
   pool: typeof pool;
   triggerUrgentBroadcast: (reason: string) => void;
+  requireAuth: typeof requireAuth;
+  logCommand: typeof logCommand;
   media: {
     store: typeof mediaStore;
     scope: typeof mediaScope;
+    pluginScope: typeof pluginMediaScope;
+    extensionForMimeType: typeof extensionForMimeType;
+    maxFileBytes: number;
     originalPartOf: typeof originalPartOf;
     contentTypeForPart: typeof contentTypeForPart;
   };
@@ -74,7 +94,17 @@ export interface ApiPluginContext {
 const pluginContext: ApiPluginContext = {
   pool,
   triggerUrgentBroadcast: (reason: string) => processStateEvents.emit("urgent", { reason }),
-  media: { store: mediaStore, scope: mediaScope, originalPartOf, contentTypeForPart },
+  requireAuth,
+  logCommand,
+  media: {
+    store: mediaStore,
+    scope: mediaScope,
+    pluginScope: pluginMediaScope,
+    extensionForMimeType,
+    maxFileBytes: config.media.maxFileBytes,
+    originalPartOf,
+    contentTypeForPart,
+  },
   ai: { getVisionProvider, imageMaxSide: config.ai.imageMaxSide },
   resizeJpeg,
   previewMaxSide: config.media.previewMaxSide,
