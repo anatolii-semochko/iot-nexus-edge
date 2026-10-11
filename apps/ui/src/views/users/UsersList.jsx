@@ -23,6 +23,7 @@ import TableSearchInput from '../../components/table/TableSearchInput'
 import { usePagination } from '../../hooks/usePagination'
 import { usePersistedState } from '../../hooks/usePersistedState'
 import UserForm from './UserForm'
+import { userTitle } from '../../utils/format'
 
 // Registration for usePersistedState (AGENTS_TO_DO.md, 2026-08-01) - flat
 // variant, same shape as NodesList.jsx/DevicesList.jsx.
@@ -168,7 +169,7 @@ const UsersList = () => {
                     {pageItems.map((user) => (
                       <CTableRow key={user.id}>
                         <CTableDataCell>
-                          <div className="position-relative d-inline-block">
+                          <div className="position-relative d-inline-block" title={userTitle(user)}>
                             {user.avatar_path ? (
                               <CAvatar src={`/api/uploads/avatars/${user.avatar_path}`} size="md" />
                             ) : (

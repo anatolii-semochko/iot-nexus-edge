@@ -10,12 +10,14 @@ import { config } from "../config.js";
 import { pool } from "../db.js";
 
 // Admin-managed user accounts (AGENTS.md section 13) - every route here
-// requires the `admin` role, not just a logged-in session. `admin` and
-// `system` are protected: `admin` can never be deleted or deactivated,
-// `system` can never be deleted (but may be deactivated). This is the one
-// place that distinction is encoded - the UI mirrors it only for display
+// requires the `admin` role, not just a logged-in session. `admin`,
+// `system` and `simulator` are protected: `admin` can never be deleted or
+// deactivated, `system` and `simulator` (the simulation's own account,
+// added 2026-10-11) can never be deleted (but may be deactivated). This
+// is the one place that distinction is encoded - the UI mirrors it only
+// for display
 // (disabling buttons), never re-implements the rule itself.
-const PROTECTED_USERNAMES = new Set(["admin", "system"]);
+const PROTECTED_USERNAMES = new Set(["admin", "system", "simulator"]);
 const NON_DEACTIVATABLE_USERNAMES = new Set(["admin"]);
 
 // The only role that means anything today (gates access to these very
@@ -67,8 +69,9 @@ async function findUser(id: string): Promise<UserRow | undefined> {
 
 // Minimal, non-admin-gated user listing (AGENTS_TO_DO.md, 2026-08-01) -
 // just enough to populate an "actor" filter/display (id, display name,
-// avatar), unlike GET /users below (admin-only, full account management
-// including roles/active/password). A separate exported function, not
+// avatar, roles - an avatar's tooltip names the role, 2026-10-11),
+// unlike GET /users below (admin-only, full account management including
+// roles/active/password). A separate exported function, not
 // registered inside userRoutes' plugin instance, so it sits outside that
 // instance's `requireAdmin` preHandler hook - any logged-in user needs
 // this today (the Logs > Commands actor filter), not just admins. Same
@@ -76,8 +79,8 @@ async function findUser(id: string): Promise<UserRow | undefined> {
 // join (log_messages), which already exposes these same fields.
 export async function userDirectoryRoutes(app: FastifyInstance): Promise<void> {
   app.get("/users/directory", async () => {
-    const result = await pool.query<Pick<UserRow, "id" | "username" | "display_name" | "avatar_path">>(
-      "SELECT id, username, display_name, avatar_path FROM users WHERE active = true ORDER BY username",
+    const result = await pool.query<Pick<UserRow, "id" | "username" | "display_name" | "avatar_path" | "roles">>(
+      "SELECT id, username, display_name, avatar_path, roles FROM users WHERE active = true ORDER BY username",
     );
     return result.rows;
   });

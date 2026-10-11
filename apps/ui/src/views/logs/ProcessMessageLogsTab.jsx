@@ -23,7 +23,7 @@ import ResetFiltersButton from '../../components/ResetFiltersButton'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
-import { formatSmartDateTime, localDateTimeToIso, userInitials } from '../../utils/format'
+import { formatSmartDateTime, localDateTimeToIso, userInitials, userTitle } from '../../utils/format'
 
 const TYPE_OPTIONS = [
   { key: 'all', label: 'All types' },
@@ -157,7 +157,7 @@ const ProcessMessageLogsTab = ({
                     {item.hidden ? (
                       item.hidden_by_user ? (
                         <span
-                          title={`${item.hidden_by_user.display_name ?? item.hidden_by_user.username} · ${formatSmartDateTime(item.hidden_at)}`}
+                          title={userTitle(item.hidden_by_user, `read ${formatSmartDateTime(item.hidden_at)}`)}
                         >
                           {item.hidden_by_user.avatar_path ? (
                             <CAvatar

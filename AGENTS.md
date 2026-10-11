@@ -1041,7 +1041,9 @@ on or half-implement.
   convention as every other credential here, not a stronger generated-secret
   scheme, for consistency): `admin` (role `admin`, can never be deleted or
   deactivated) and `system` (no roles, can never be deleted, *can* be
-  deactivated). `PROTECTED_USERNAMES`/`NON_DEACTIVATABLE_USERNAMES` in
+  deactivated). 2026-10-11: `simulator` (the simulation's account, created
+  by hand - not seeded) is protected the same way as `system`.
+  `PROTECTED_USERNAMES`/`NON_DEACTIVATABLE_USERNAMES` in
   `routes/users.ts` are the one place this is encoded — every response
   includes computed `deletable`/`deactivatable` booleans so `apps/ui` only
   ever disables buttons based on what the server already decided, never
@@ -7670,3 +7672,24 @@ falling back to single reads on an older core.
 The remaining single reads come from processes not converted yet
 (control-node, weather-control, the light's heartbeat/button counters)
 and the UI.
+
+## 89. User avatars: role + name tooltip, "read by" avatar (2026-10-11)
+
+- **Tooltip.** Every user avatar's title is the role and the name -
+  `userTitle(user, suffix?)` in `utils/format.js` (e.g. "Administrator
+  Anatolii Semochko", or "... · read Today, 01:14 PM"). Role labels:
+  `ROLE_LABELS` (`admin` -> Administrator); no role -> "User". Used by
+  the header avatar, the users list, Logs > Commands (actor), Logs >
+  Processes and the notification center (read by), and target projects
+  (the aquarium's author avatars).
+- The avatar data now carries `roles`: `GET /users/directory` and the
+  log messages' `hidden_by_user` include them.
+- **`components/ReadByAvatar.jsx`** - who marked a WEM message as read,
+  shown in place of its X button: as wide as the button
+  (`ICON_BUTTON_WIDTH`, exported by `IconButton.jsx`) with the avatar
+  centered, so read rows' avatars line up with unread rows' buttons.
+  Used by the notification center (the avatar was pushed to the right
+  before) and the aquarium dashboard's Logs tab.
+- The `simulator` account (created by hand on the aquarium stack) is
+  protected like `system` (section 13).
+

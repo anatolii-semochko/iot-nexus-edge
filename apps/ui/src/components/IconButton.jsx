@@ -16,7 +16,10 @@ import CIcon from '@coreui/icons-react'
 // siblings. `align-middle` (`vertical-align: middle`) fixes the same
 // baseline offset on the icon itself, leaving the button un-flexed so its
 // height still comes from line-height like everything next to it.
-const BUTTON_STYLE = { width: '2.25rem' }
+// Exported - a cell that shows either this button or something else in
+// its place (ReadByAvatar) keeps the same width, so both line up.
+export const ICON_BUTTON_WIDTH = '2.25rem'
+const BUTTON_STYLE = { width: ICON_BUTTON_WIDTH }
 
 const IconButton = ({
   icon,

@@ -338,6 +338,7 @@ export interface ProcessMessageListItem extends ProcessMessage {
     display_name: string | null;
     username: string;
     avatar_path: string | null;
+    roles: string[];
   } | null;
 }
 
@@ -420,12 +421,14 @@ export async function listProcessMessages(
         hidden_by_display_name: string | null;
         hidden_by_username: string | null;
         hidden_by_avatar_path: string | null;
+        hidden_by_roles: string[] | null;
       }
     >(
       `SELECT pm.*, p.name AS process_name, g.name AS group_name,
               u.display_name AS hidden_by_display_name,
               u.username AS hidden_by_username,
-              u.avatar_path AS hidden_by_avatar_path
+              u.avatar_path AS hidden_by_avatar_path,
+              u.roles AS hidden_by_roles
        FROM log_messages pm
        JOIN processes p ON p.id = pm.process_id
        JOIN process_groups g ON g.id = p.group_id
@@ -439,7 +442,7 @@ export async function listProcessMessages(
   ]);
 
   return {
-    items: items.map(({ hidden_by_display_name, hidden_by_username, hidden_by_avatar_path, ...row }) => ({
+    items: items.map(({ hidden_by_display_name, hidden_by_username, hidden_by_avatar_path, hidden_by_roles, ...row }) => ({
       ...row,
       hidden_by_user:
         row.hidden_by !== null
@@ -448,6 +451,7 @@ export async function listProcessMessages(
               display_name: hidden_by_display_name,
               username: hidden_by_username as string,
               avatar_path: hidden_by_avatar_path,
+              roles: hidden_by_roles ?? [],
             }
           : null,
     })),
