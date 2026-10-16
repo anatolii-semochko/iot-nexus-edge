@@ -158,7 +158,17 @@ export const api = {
   // this endpoint. Also reused by the Logs page's processes tab (section
   // 29, `from`/`to` date-range params), which the notification center
   // itself never sets.
-  listProcessMessages: ({ type, scope, processId, processIds, search, from, to, page, pageSize }) => {
+  listProcessMessages: ({
+    type,
+    scope,
+    processId,
+    processIds,
+    search,
+    from,
+    to,
+    page,
+    pageSize,
+  }) => {
     const params = new URLSearchParams({ type, scope, page, pageSize })
     if (processId) params.set('processId', processId)
     if (processIds?.length) params.set('processIds', processIds.join(','))
@@ -171,7 +181,17 @@ export const api = {
   // deviceCommands/sensors, AGENTS_TO_DO.md's 2026-07-27 Device/Node refactor -
   // matches the renamed log_command/log_device tables). The processes tab
   // reuses listProcessMessages above instead of a third function here.
-  listCommandLogs: ({ deviceId, processIds, action, actorUserId, search, from, to, page, pageSize }) => {
+  listCommandLogs: ({
+    deviceId,
+    processIds,
+    action,
+    actorUserId,
+    search,
+    from,
+    to,
+    page,
+    pageSize,
+  }) => {
     const params = new URLSearchParams({ page, pageSize })
     if (deviceId) params.set('deviceId', deviceId)
     if (processIds) params.set('processIds', processIds.join(','))
@@ -222,6 +242,15 @@ export const api = {
   // Tab Groups (AGENTS.md section 22) - an operator's own curated
   // workspace, distinct from Process Groups above; admin-managed, ordered,
   // each one a dynamic tab on the Processes page.
+  // Dashboard cards (routes/dashboardCards.ts) - the Dashboard page's tree
+  listDashboardCards: () => request('/dashboard-cards'),
+  createDashboardCard: (card) =>
+    request('/dashboard-cards', { method: 'POST', body: JSON.stringify(card) }),
+  updateDashboardCard: (id, changes) =>
+    request(`/dashboard-cards/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
+  deleteDashboardCard: (id) => request(`/dashboard-cards/${id}`, { method: 'DELETE' }),
+  moveDashboardCard: (id, direction) =>
+    request(`/dashboard-cards/${id}/move`, { method: 'POST', body: JSON.stringify({ direction }) }),
   listTabGroups: () => request('/tab-groups'),
   createTabGroup: (name) =>
     request('/tab-groups', { method: 'POST', body: JSON.stringify({ name }) }),

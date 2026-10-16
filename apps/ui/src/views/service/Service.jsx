@@ -22,21 +22,35 @@ import {
 } from '@coreui/react'
 import { api } from '../../api/client'
 import { usePersistedState } from '../../hooks/usePersistedState'
+import SubTabs from '../../components/SubTabs'
+import DashboardConfigTab from './DashboardConfigTab'
 import DatabaseTab from './DatabaseTab'
 
 // Service page (AGENTS_TO_DO.md, 2026-08-30) - admin-only (server-side
 // requireAdmin on every /service/* route, same pattern as UsersList.jsx's
 // own /users routes - this page has no extra client-side guard beyond
 // that, it trusts the 403). Tabs will grow (user's own "буде
-// розширюватися") - Config is still a placeholder, Database and Commands
-// are both real now.
+// розширюватися"). Config - its sub-tabs: Dashboard (the Dashboard page's
+// card tree, DashboardConfigTab, 2026-10-16); Database and Commands.
 const TABS = [
   { key: 'config', label: 'Config' },
   { key: 'database', label: 'Database' },
   { key: 'commands', label: 'Commands' },
 ]
 
-const PLACEHOLDER_TABS = new Set(['config'])
+const PLACEHOLDER_TABS = new Set([])
+// Config's sub-tabs
+const CONFIG_TABS = [{ key: 'dashboard', label: 'Dashboard' }]
+
+const ConfigTab = () => {
+  const [tab, setTab] = useState(CONFIG_TABS[0].key)
+  return (
+    <div className="pt-3">
+      <SubTabs tabs={CONFIG_TABS} tab={tab} onChange={setTab} />
+      {tab === 'dashboard' && <DashboardConfigTab />}
+    </div>
+  )
+}
 
 // A real <table> (AGENTS_TO_DO.md, 2026-08-30 correction: the earlier
 // row/col-3/col-8 grid pinned the button column to a fixed 25% of the
@@ -190,6 +204,7 @@ const Service = () => {
         {PLACEHOLDER_TABS.has(activeTab) && (
           <PlaceholderTab label={TABS.find((t) => t.key === activeTab).label} />
         )}
+        {activeTab === 'config' && <ConfigTab />}
         {activeTab === 'database' && <DatabaseTab />}
         {activeTab === 'commands' && <CommandsTab />}
       </CCardBody>

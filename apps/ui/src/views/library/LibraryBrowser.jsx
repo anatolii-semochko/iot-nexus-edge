@@ -33,7 +33,7 @@ import { api } from '../../api/client'
 import ExpandToggleButton from '../../components/table/ExpandToggleButton'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useExpandableRows } from '../../hooks/useExpandableRows'
-import upIcon from '../../assets/images/up.png'
+import Breadcrumb from '../../components/UpBreadcrumb'
 import LibraryItemDetailRow from './LibraryItemDetailRow'
 
 const KINDS = [
@@ -165,60 +165,6 @@ const AddProcessModal = ({ item, visible, onClose, onCreated }) => {
     </CModal>
   )
 }
-
-// Breadcrumb strip (AGENTS_TO_DO.md, 2026-08-01 discussion) - modeled on
-// sevenstime-backoffice's web-interface/src/views/base-elements/
-// Categories.js: the up-arrow image (copied verbatim, same asset) plus a
-// "Root / Cat1 / Cat2" clickable path. Unlike that reference, this is
-// read-only navigation only - no add/edit/delete category forms, since
-// the Library Catalog's categories are managed by moving folders in git,
-// not through this UI.
-const Breadcrumb = ({ trail, onNavigate }) => (
-  <div className="mb-2 d-flex align-items-center">
-    <img
-      src={upIcon}
-      alt="Up"
-      onClick={trail.length ? () => onNavigate(trail[trail.length - 2]?.id ?? null) : undefined}
-      style={{
-        opacity: trail.length ? 1 : 0.4,
-        cursor: trail.length ? 'pointer' : 'default',
-        width: 20,
-        height: 20,
-      }}
-    />
-    <div className="ms-2">
-      <a
-        href="#"
-        className={trail.length ? 'link-primary' : ''}
-        onClick={(e) => {
-          e.preventDefault()
-          onNavigate(null)
-        }}
-      >
-        Root
-      </a>
-      {trail.map((crumb, i) => (
-        <span key={crumb.id}>
-          {' / '}
-          {i === trail.length - 1 ? (
-            <span>{crumb.name}</span>
-          ) : (
-            <a
-              href="#"
-              className="link-primary"
-              onClick={(e) => {
-                e.preventDefault()
-                onNavigate(crumb.id)
-              }}
-            >
-              {crumb.name}
-            </a>
-          )}
-        </span>
-      ))}
-    </div>
-  </div>
-)
 
 const iconUrl = (iconPath) => (iconPath ? `/api${iconPath}` : null)
 
@@ -474,7 +420,7 @@ const LibraryBrowser = () => {
         ) : rows.length === 0 ? (
           <CAlert color="info">{showingSearch ? 'No matches.' : 'Nothing here yet.'}</CAlert>
         ) : (
-          <CTable responsive>
+          <CTable responsive className="table-no-last-border">
             <CTableHead>
               <CTableRow>
                 <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
@@ -496,10 +442,11 @@ const LibraryBrowser = () => {
                         <RowIcon iconPath={row.iconPath} />
                       </CTableDataCell>
                       <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                        {/* the folders - blue, no underline; the folders and the DNPs bold (2026-10-16, as Service -> Config -> Dashboard) */}
                         {row.type === 'category' ? (
                           <a
                             href="#"
-                            className="link-primary"
+                            className="link-primary fw-semibold text-decoration-none"
                             onClick={(e) => {
                               e.preventDefault()
                               handleNavigate(row.id)
@@ -508,7 +455,7 @@ const LibraryBrowser = () => {
                             {row.name}
                           </a>
                         ) : (
-                          row.name
+                          <span className="fw-semibold">{row.name}</span>
                         )}
                       </CTableDataCell>
                       <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>

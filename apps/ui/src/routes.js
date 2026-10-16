@@ -59,6 +59,8 @@ const Service = React.lazy(() => import('./views/service/Service'))
 export const routes = [
   { path: '/', exact: true, name: 'Home' },
   { path: '/dashboard', name: 'Dashboard', element: Dashboard },
+  // a card of the Dashboard's tree (a folder or a component on the whole page)
+  { path: '/dashboard/:cardId', name: 'Dashboard', element: Dashboard },
   { path: '/docs', name: 'Docs', element: Docs },
   { path: '/nodes', name: 'Nodes', element: NodesList },
   { path: '/devices', name: 'Devices', element: DevicesList, exact: true },
