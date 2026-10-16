@@ -1456,6 +1456,9 @@ than risk a false reading off a meaningless first sample.
 
 ## 22. Logging + WEM (Warnings/Errors/Messages)
 
+> A one-shot report that should only be logged (never active) is an event -
+> see "Process events - log only, never active (2026-10-15)" at the end.
+
 First slice of a larger, explicitly-scoped-down logging/notifications
 system - three new Postgres tables and their services, wired into real
 producers, plus one new UI row. Deliberately **not** built yet (per the
@@ -7706,3 +7709,31 @@ levels 1-4 now (the aquarium's Settings -> Messages); a buzzer's alarm
 plan (`determineAlarmPlan`) takes the highest active level. Additive -
 the old fields are unchanged. Also: GET `/logs/commands` takes
 `processIds` (comma-separated) - one aquarium's change log.
+
+## Sub-tabs - `src/components/SubTabs` (2026-10-15)
+
+One sub-tab strip for every plugin: the standard `btn-group` (as the
+logs' type filter) of small secondary buttons - icon + label, the open
+one filled, the others outlined. `size`: "sm" (the default for now) or
+"md" (a regular `btn` - nexus-edge-aquarium already; the whole app is to
+move to "md", then it becomes the default - AGENTS_TO_DO "На потім"). `SubTabs({tabs: [{key, label, icon?, badge?}], tab, onChange})`,
+`activeSubTab(tabs, tab)`, `SubTabIcon` - the 24 x 24 line-icon box the
+items' icons share. A host with a fixed tab strip and a scrolling
+content renders an empty element under its strip and wraps the content
+in `<SubTabsHost target={element}>`: the strips inside are portalled
+there and don't scroll with the content; without a host (a page) the
+strip is drawn in place. Used by nexus-edge-aquarium's Service popup and
+its light panel.
+
+## Process events - log only, never active (2026-10-15)
+
+`POST /processes/:id/events {entries}` (orchestrator `apiClient.logEvents`,
+api `processMessages.logEvents`): one-shot reports a process wants in the
+log but not in its active WEM list - a routine "5 ml dosed" would
+otherwise sit as an active `message` until someone dismisses it, filling
+the process's row and the Processes page with green entries that say
+nothing is wrong. Written as `type: "message"` rows already resolved:
+Logs (New / All) and the unread counter see them; the active list, the
+Dashboard tab and the public-state cache don't. Idempotent per code (a
+code already logged for the process is skipped). A notice that asks for
+an action stays a `syncMessages(..., "message", ...)`.

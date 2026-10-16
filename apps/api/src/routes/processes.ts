@@ -377,6 +377,20 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     return { status: "ok" };
   });
 
+  // Orchestrator-driven only - a process's events: one-shot reports for
+  // the log only, never active (processMessages.logEvents).
+  app.post<{ Params: { id: string }; Body: { entries: processMessages.MessageInput[] } }>(
+    "/processes/:id/events",
+    async (request, reply) => {
+      const process = await findProcess(request.params.id);
+      if (!process) {
+        return reply.code(404).send({ error: "process not found" });
+      }
+      await processMessages.logEvents(process.id, request.body.entries ?? []);
+      return { status: "ok" };
+    },
+  );
+
   // Orchestrator-driven only (AGENTS.md section 24) - lets a process force
   // an immediate fleet-wide public-state broadcast outside the normal
   // critical/warning/new-message urgent triggers and the periodic timer,

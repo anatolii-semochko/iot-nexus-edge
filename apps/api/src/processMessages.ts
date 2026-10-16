@@ -180,6 +180,31 @@ export async function syncActiveMessages(
   await maybeFlagForDashboard(processId);
 }
 
+/**
+ * Events (nexus-edge-aquarium AGENTS_TO_DO.md 2026-10-15): one-shot
+ * reports a process only wants in the log - "5 ml dosed", "water change
+ * done" - never in its active WEM list. A process doing its routine work
+ * would otherwise fill its row (and the Processes page) with messages
+ * that say nothing is wrong. Written as `type: "message"` rows already
+ * resolved: the Logs (New / All) and the notification center's unread
+ * counter see them, the process's active list and the Dashboard tab
+ * don't. Idempotent per code - a code already logged for the process is
+ * skipped, so a producer re-sending its event is harmless.
+ */
+export async function logEvents(processId: number, entries: MessageInput[]): Promise<void> {
+  let inserted = 0;
+  for (const entry of entries) {
+    const result = await pool.query(
+      `INSERT INTO log_messages (process_id, type, level, code, text, resolved_at)
+       SELECT $1, 'message', $2, $3, $4, now()
+       WHERE NOT EXISTS (SELECT 1 FROM log_messages WHERE process_id = $1 AND type = 'message' AND code = $3)`,
+      [processId, entry.level, entry.code, entry.text],
+    );
+    inserted += result.rowCount ?? 0;
+  }
+  if (inserted > 0) await bumpUnreadCount("message", inserted);
+}
+
 // True the moment a process has *any* active (unresolved) entry, of any
 // type, regardless of `hidden` - deliberately not `listActiveMessages`
 // (which excludes hidden rows for *display* purposes). The Dashboard flag/
