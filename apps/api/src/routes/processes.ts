@@ -6,6 +6,7 @@ import { config } from "../config.js";
 import { pool } from "../db.js";
 import * as heartbeatControl from "../heartbeatControl.js";
 import type { HeartbeatControlConfig } from "../heartbeatControl.js";
+import { configProblems, configSchemaKinds, configSchemaOf } from "../configSchemas.js";
 import { announceChange } from "../entityChanges.js";
 import { broadcastForced } from "../processBroadcast.js";
 import * as processMessages from "../processMessages.js";
@@ -69,6 +70,10 @@ interface ProcessRow {
   // check below.
   node_id: number | null;
   config: ProcessConfig;
+  // per config section: last changed when / by whom (migrations/1690000000064)
+  config_stamps: Record<string, { at: string; by: number | null }>;
+  // pending one-shot commands (PROCESS_SELECT)
+  commands: { id: number; action: string; params: Record<string, unknown> }[];
   // Dashboard tab (AGENTS.md section 22) - set once, the instant this
   // process first gets an active WEM entry (processMessages.
   // maybeFlagForDashboard), cleared only via the dashboard-flag DELETE
@@ -84,8 +89,15 @@ interface ProcessRow {
 
 const IMPLEMENTED_ACTIONS = new Set(["ON", "OFF"]);
 
+// `commands` - the process's pending one-shot commands (process_commands,
+// not older than config.processCommands.ttlMs) - the orchestrator gets them
+// with the tick's list, no request of its own.
 const PROCESS_SELECT = `
-  SELECT p.*, g.name AS group_name
+  SELECT p.*, g.name AS group_name,
+    COALESCE((SELECT json_agg(json_build_object('id', c.id, 'action', c.action, 'params', c.params) ORDER BY c.id)
+              FROM process_commands c
+              WHERE c.process_id = p.id AND c.done_at IS NULL AND c.created_at > now() - make_interval(secs => ${config.processCommands.ttlMs / 1000})),
+             '[]'::json) AS commands
   FROM processes p
   JOIN process_groups g ON g.id = p.group_id
 `;
@@ -168,6 +180,14 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   // this gets called) - returns an empty list rather than failing the
   // whole request, same "warn don't block" spirit as this project's own
   // check-ports.sh/check-version.
+  // Config schemas (configSchemas.ts) - the kinds that have one, and one
+  // kind's: what its config holds, the types, limits and defaults.
+  app.get("/process-kinds/config-schemas", async () => ({ kinds: configSchemaKinds() }));
+  app.get<{ Params: { kind: string } }>("/process-kinds/:kind/config-schema", async (request, reply) => {
+    const schema = configSchemaOf(request.params.kind);
+    return schema ?? reply.code(404).send({ error: "no config schema for this kind" });
+  });
+
   app.get("/processes/registered-kinds", async (_request, reply) => {
     try {
       // 5s margin, not that it should ever need it - see docker-compose.yml's
@@ -212,6 +232,9 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       slots?: AnnunciatorSlot[];
       testLevel?: { type: "warning" | "error"; level: number } | null;
       testSlotIndex?: number | null;
+      // the sections' stamps the editor saw (config_stamps[section].at) -
+      // not a config field: an edit of a section changed since is refused
+      $seen?: Record<string, string | null>;
     };
   }>(
     "/processes/:id/config",
@@ -222,9 +245,34 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(404).send({ error: "process not found" });
       }
 
-      const config: ProcessConfig = { ...process.config, ...request.body };
+      const { $seen, ...sections } = request.body ?? {};
+      // a section someone changed after this editor loaded it (migrations/
+      // 1690000000064 config_stamps): refused - the editor reloads, nothing
+      // is overwritten unseen. A section sent without its stamp - not checked.
+      for (const [section, seenAt] of Object.entries($seen ?? {})) {
+        if (!(section in sections)) continue;
+        const stamp = process.config_stamps?.[section];
+        if (stamp?.at && (!seenAt || Date.parse(stamp.at) > Date.parse(seenAt))) {
+          const by =
+            stamp.by === null
+              ? null
+              : (await pool.query<{ name: string }>("SELECT COALESCE(display_name, username) AS name FROM users WHERE id = $1", [stamp.by])).rows[0]?.name;
+          return reply.code(409).send({
+            error: `"${section}" was changed${by ? ` by ${by}` : ""} at ${stamp.at} - reload and edit again`,
+            section,
+            stamp,
+          });
+        }
+      }
+
+      const config: ProcessConfig = { ...process.config, ...sections };
       if (config.min !== undefined && config.max !== undefined && config.max < config.min) {
         return reply.code(400).send({ error: "max cannot be less than min" });
+      }
+      // the kind's own schema (configSchemas.ts) - over the sections sent
+      const problems = configProblems(process.kind, sections);
+      if (problems.length > 0) {
+        return reply.code(400).send({ error: `invalid config: ${problems.join("; ")}`, problems });
       }
 
       // Logged before applying (AGENTS.md section 22's precedent for device
@@ -234,13 +282,28 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       await logCommand({
         processId: process.id,
         action: "config",
-        value: request.body,
+        value: sections,
         source: "api",
         actorUserId: request.user.sub,
       });
 
-      await pool.query("UPDATE processes SET config = $1, updated_at = now() WHERE id = $2", [config, process.id]);
-      return { status: "ok", config };
+      // the writer named for the sections' stamps (the trigger reads nexus.actor)
+      const client = await pool.connect();
+      let stamps: unknown;
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('nexus.actor', $1, true)", [String(request.user.sub)]);
+        stamps = (
+          await client.query("UPDATE processes SET config = $1, updated_at = now() WHERE id = $2 RETURNING config_stamps", [config, process.id])
+        ).rows[0]?.config_stamps;
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+      return { status: "ok", config, stamps };
     },
   );
 
@@ -281,6 +344,43 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       // not left to the next periodic tick or an unrelated urgent trigger.
       await broadcastForced(`process-action:${action}`);
       return { status: "ok" };
+    },
+  );
+
+  // One-shot commands (migrations/1690000000064): a person's command to a
+  // process - a calibration start, a replacement done, a test - kept out
+  // of its config. Logged like a config edit; reaches the process with the
+  // tick's list (PROCESS_SELECT `commands`); the process reports it done.
+  app.post<{ Params: { id: string }; Body: { action: string; params?: Record<string, unknown> } }>(
+    "/processes/:id/commands",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const process = await findProcess(request.params.id);
+      if (!process) return reply.code(404).send({ error: "process not found" });
+      const { action, params } = request.body ?? ({} as never);
+      if (typeof action !== "string" || action === "") return reply.code(400).send({ error: "action is required" });
+      await logCommand({ processId: process.id, action: "command", value: { action, params: params ?? {} }, source: "api", actorUserId: request.user.sub });
+      const row = (
+        await pool.query<{ id: number }>("INSERT INTO process_commands (process_id, action, params, created_by) VALUES ($1, $2, $3, $4) RETURNING id", [
+          process.id,
+          action,
+          params ?? {},
+          request.user.sub,
+        ])
+      ).rows[0];
+      return { id: row.id };
+    },
+  );
+
+  // Orchestrator-driven: the process applied the command (`result` - what it says back, optional).
+  app.post<{ Params: { id: string; commandId: string }; Body: { result?: unknown } }>(
+    "/processes/:id/commands/:commandId/done",
+    async (request, reply) => {
+      const result = await pool.query(
+        "UPDATE process_commands SET done_at = now(), result = $3 WHERE id = $2 AND process_id = $1 AND done_at IS NULL",
+        [request.params.id, request.params.commandId, request.body?.result === undefined ? null : JSON.stringify(request.body.result)],
+      );
+      return result.rowCount ? { status: "ok" } : reply.code(404).send({ error: "no such pending command" });
     },
   );
 

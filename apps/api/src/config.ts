@@ -99,6 +99,12 @@ export const config = {
   // independent of the orchestrator's own 1s compute tick. Urgent changes
   // (critical/warning transitions, a new active WEM entry, or an explicit
   // forced broadcast) push immediately regardless of this interval.
+  // One-shot process commands (routes/processes.ts, migrations/1690000000064):
+  // a command not taken within this is dropped - never applied late (a
+  // "replace the cartridge" days after the click).
+  processCommands: {
+    ttlMs: Number(process.env.PROCESS_COMMAND_TTL_MS ?? 10 * 60_000),
+  },
   processState: {
     broadcastIntervalMs: Number(process.env.PROCESS_STATE_BROADCAST_INTERVAL_MS ?? 5000),
   },
@@ -112,6 +118,11 @@ export const config = {
   apiPlugins: {
     builtinDevicesDir: process.env.BUILTIN_DEVICES_DIR ?? "/workspace/devices",
     extraDir: process.env.EXTRA_API_PLUGINS_DIR,
+  },
+  // A target project's own Postgres migrations (extraMigrations.ts) - its
+  // migrations/ directory mounted here; unset - none.
+  extraMigrations: {
+    dir: process.env.EXTRA_MIGRATIONS_DIR,
   },
   // AGENTS_TO_DO.md, 2026-08-14 process management - internal compose-
   // network URL, not a host-published port (see ORCHESTRATOR_PORT in

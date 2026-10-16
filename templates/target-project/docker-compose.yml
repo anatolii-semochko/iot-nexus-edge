@@ -100,6 +100,12 @@ services:
       # 2026-07-28) - apiPlugins.ts scans this in addition to the
       # Library (devices/, baked into the nexus-edge image).
       EXTRA_API_PLUGINS_DIR: /workspace/plugins
+      # This project's own Postgres migrations (nexus-edge
+      # apps/api/src/extraMigrations.ts) - each applied once (table
+      # extra_migrations) when the api starts, or on a person's confirmation
+      # (setting dnp.migrations.apply, POST /dnp/migrations/apply).
+      # Replaces the one-off migrate-extra container (2026-10-16).
+      EXTRA_MIGRATIONS_DIR: /workspace/migrations-extra
       # Live-debugged 2026-08-14 in nexus-edge's own docker-compose.yml
       # (same comment there, in full) - Node's default libuv threadpool (4
       # threads) queues DNS lookups behind other I/O; under this service's
@@ -117,53 +123,7 @@ services:
       # Media Store (AGENTS.md section 81) - device media, e.g. camera frames.
       - api-media:${MEDIA_DIR}
       - ./plugins:/workspace/plugins:ro
-    networks:
-      - __SLUG__-network
-
-  # One-off: applies this project's own private Postgres seeds
-  # (migrations/*.sql) after nexus-edge's own migrations (run by the api
-  # service's startup command) have all been applied.
-  # Deliberately plain psql, not a second node-pg-migrate instance -
-  # fine for a handful of seed files, not an evolving migration history;
-  # reconsider if that changes. Empty migrations/ at generation time is
-  # fine - loops over zero files.
-  migrate-extra:
-    image: postgres:16-alpine
-    container_name: __SLUG__-migrate-extra
-    depends_on:
-      - postgres
-      - api
-    environment:
-      # the api runs ALL of nexus-edge's own migrations before it listens,
-      # so its /health answering means every core table (devices, series,
-      # ...) a seed below may use exists - not just the first one
-      API_HEALTH_URL: http://api:${API_PORT}/health
-      PGHOST: postgres
-      PGPORT: "5432"
-      PGDATABASE: ${POSTGRES_DB}
-      PGUSER: ${POSTGRES_USER}
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - ./migrations:/migrations:ro
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        set -e
-        for i in $$(seq 1 90); do
-          if wget -q -O /dev/null "$$API_HEALTH_URL" 2>/dev/null; then
-            echo "nexus-edge's own migrations applied, applying private seeds"
-            for f in /migrations/*.sql; do
-              [ -e "$$f" ] || continue
-              echo "applying $$f"
-              psql -v ON_ERROR_STOP=1 -f "$$f"
-            done
-            exit 0
-          fi
-          echo "waiting for the api (nexus-edge's own migrations) ($$i/90)"
-          sleep 2
-        done
-        echo "timed out waiting for the api" >&2
-        exit 1
+      - ./migrations:/workspace/migrations-extra:ro
     networks:
       - __SLUG__-network
 

@@ -108,12 +108,23 @@ export interface AnnunciatorSlot {
   messageGroupId: number | null;
 }
 
+// A one-shot command a person gave a process (api routes/processes.ts,
+// migrations/1690000000064): applied once, then reported done
+// (completeCommand). Comes with the tick's process list.
+export interface ProcessCommand {
+  id: number;
+  action: string;
+  params: Record<string, unknown>;
+}
+
 export interface ProcessRecord {
   id: number;
   name: string;
   type: "controllable" | "permanent" | "simulation";
   kind: string;
   device_id: number | null;
+  // pending one-shot commands (not older than the api's PROCESS_COMMAND_TTL_MS)
+  commands?: ProcessCommand[];
   config: {
     min?: number;
     max?: number;
@@ -338,6 +349,9 @@ export const apiClient = {
   // (sendChanged); `always` - every call is written: a write whose arrival
   // itself is the signal (the control node's Pulse - its watchdog counts
   // the frames, the value never changes).
+  // A one-shot command applied (ProcessCommand) - `result`: what the process says back (optional).
+  completeCommand: (processId: number, commandId: number, result?: unknown) =>
+    request(`/processes/${processId}/commands/${commandId}/done`, { method: "POST", body: JSON.stringify({ result }) }),
   setDeviceAuto: (deviceId: number, value: unknown, options: { always?: boolean } = {}) =>
     options.always
       ? request(`/devices/${deviceId}/auto`, { method: "PUT", body: JSON.stringify({ value }) })
