@@ -3,8 +3,10 @@
 // SDK, just the handful of calls the process tick loop needs.
 
 import { config } from "./config.js";
+import { tickStats } from "./tickStats.js";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  tickStats.request(options.method ?? "GET", path);
   // AGENTS_TO_DO.md, 2026-08-29 - server.ts's own tick() re-entrancy guard
   // (added the same day, to stop unbounded overlapping ticks) means a
   // fetch() that never settles now freezes every future tick permanently
@@ -27,6 +29,55 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // (heartbeatControl.ts's fleet-wide staleness check, controlNode.ts's own
 // pulse/heartbeat/sensor handling), not a full mirror of routes/nodes.ts's
 // response shape.
+// A process's state reports (critical / warning flags, metrics, active
+// messages) are sent only when they differ from the last one sent for the
+// same process and slot - most ticks change nothing (nexus-edge-aquarium
+// AGENTS_TO_DO.md 2026-10-16: 141 of 247 requests a tick were such
+// repeats). Re-sent anyway every `config.reportResendMs`, so a restarted
+// API or a lost write converges; a failed send isn't remembered (tried
+// again next tick). The same for an AUTO device value: written when it
+// changes, re-asserted every `config.autoReassertMs` (a released MANUAL
+// override gets its AUTO value from the API itself).
+const lastSent = new Map<string, { body: string; at: number }>();
+
+function sendChanged(key: string, path: string, body: string, method = "POST", resendMs = config.reportResendMs): Promise<unknown> {
+  const now = Date.now();
+  const prev = lastSent.get(key);
+  if (prev && prev.body === body && now - prev.at < resendMs) return Promise.resolve({ status: "unchanged" });
+  return request(path, { method, body }).then((result) => {
+    lastSent.set(key, { body, at: now });
+    return result;
+  });
+}
+
+export interface SeriesRecord {
+  id: number;
+  key: string;
+  name: string;
+  unit: string | null;
+  deviceId: number | null;
+  processId: number | null;
+  valueKey: string | null;
+  kind: "gauge" | "counter" | "state";
+  mode: "period" | "change" | "off";
+  periodS: number | null;
+  deadband: number | null;
+  maxIntervalS: number | null;
+  staleS: number | null;
+}
+
+export interface SeriesDeclaration {
+  valueKey: string;
+  name: string;
+  unit?: string | null;
+  kind?: SeriesRecord["kind"];
+  mode?: SeriesRecord["mode"];
+  periodS?: number | null;
+  deadband?: number | null;
+  maxIntervalS?: number | null;
+  staleS?: number | null;
+}
+
 export interface NodeRecord {
   id: number;
   name: string;
@@ -182,6 +233,8 @@ export interface MessageInput {
   code: string;
   level: number;
   text: string;
+  // what part of the process's domain it is about (an aquarium's service) - absent: the process as a whole
+  subject?: string | null;
 }
 
 // Mirrors processMessages.AutoResolveMode (apps/api) - see
@@ -281,11 +334,14 @@ export const apiClient = {
   // Orchestrator-driven write - only reaches EdgeX while the device is
   // still AUTO (AGENTS.md section 6); always records the intended value
   // even while a human has it overridden MANUAL via the UI.
-  setDeviceAuto: (deviceId: number, value: unknown) =>
-    request(`/devices/${deviceId}/auto`, {
-      method: "PUT",
-      body: JSON.stringify({ value }),
-    }),
+  // Written on a change, re-asserted every config.autoReassertMs
+  // (sendChanged); `always` - every call is written: a write whose arrival
+  // itself is the signal (the control node's Pulse - its watchdog counts
+  // the frames, the value never changes).
+  setDeviceAuto: (deviceId: number, value: unknown, options: { always?: boolean } = {}) =>
+    options.always
+      ? request(`/devices/${deviceId}/auto`, { method: "PUT", body: JSON.stringify({ value }) })
+      : sendChanged(`device:${deviceId}:auto`, `/devices/${deviceId}/auto`, JSON.stringify({ value }), "PUT", config.autoReassertMs),
   // For a readOnly device with no EdgeX backend at all - e.g. the
   // `weather-control` process's own computed `light-level` device
   // (devices/standalone/sensor/light-level). setDeviceAuto above would
@@ -310,21 +366,26 @@ export const apiClient = {
       method: "PUT",
       body: JSON.stringify({ value }),
     }),
+  // Time series (api routes/series.ts): the series with their recording
+  // policy, a process declaring the values it publishes, the logger's points
+  listSeries: () => request<SeriesRecord[]>("/series"),
+  declareSeries: (processId: number, items: SeriesDeclaration[]) =>
+    request(`/series/declare`, { method: "POST", body: JSON.stringify({ processId, items }) }),
+  writeSamples: (rows: { seriesId: number; t: number; v: number }[]) =>
+    request(`/samples`, { method: "POST", body: JSON.stringify({ rows }) }),
+  // several simulated readings in one request - each item's own result
+  simulateDevices: (values: { id: number; value: unknown }[]) =>
+    request<{ results: { id: number; ok: boolean; error?: string }[] }>(`/devices/simulate-auto`, {
+      method: "PUT",
+      body: JSON.stringify({ values }),
+    }),
+  // the state reports - sent only on a change (sendChanged above)
   setCritical: (processId: number, critical: boolean) =>
-    request(`/processes/${processId}/critical`, {
-      method: "POST",
-      body: JSON.stringify({ critical }),
-    }),
+    sendChanged(`${processId}:critical`, `/processes/${processId}/critical`, JSON.stringify({ critical })),
   setMetrics: (processId: number, metrics: ProcessMetrics) =>
-    request(`/processes/${processId}/metrics`, {
-      method: "POST",
-      body: JSON.stringify(metrics),
-    }),
+    sendChanged(`${processId}:metrics`, `/processes/${processId}/metrics`, JSON.stringify(metrics)),
   setWarning: (processId: number, warning: boolean) =>
-    request(`/processes/${processId}/warning`, {
-      method: "POST",
-      body: JSON.stringify({ warning }),
-    }),
+    sendChanged(`${processId}:warning`, `/processes/${processId}/warning`, JSON.stringify({ warning })),
   // WEM (AGENTS.md section 22) - `entries` must be the *complete current
   // set* of codes this process considers active for `type`, not just new
   // ones; the API reconciles that against what's already active (dedup,
@@ -335,10 +396,7 @@ export const apiClient = {
   // would (see processMessages.syncActiveMessages's own doc comment for
   // what each mode does), not for a genuine one-shot notification.
   syncMessages: (processId: number, type: MessageType, entries: MessageInput[], autoResolve?: AutoResolveMode) =>
-    request(`/processes/${processId}/messages`, {
-      method: "POST",
-      body: JSON.stringify({ type, entries, autoResolve }),
-    }),
+    sendChanged(`${processId}:messages:${type}`, `/processes/${processId}/messages`, JSON.stringify({ type, entries, autoResolve })),
   // Events - one-shot reports for the log only, never in the process's
   // active WEM list (api processMessages.logEvents).
   logEvents: (processId: number, entries: MessageInput[]) =>

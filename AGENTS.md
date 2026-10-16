@@ -7209,7 +7209,7 @@ Devices API.
 node --MQTT state--> device-service --AsyncValues, tag nexusPush--> EdgeX bus
   --> api edgexPushBridge.ts --> publishPushedReading (same path as a read)
   --> nexus.events device.<id>.updated (source "device-push")
-  --> UI (messaging-gateway)  +  orchestrator deviceEvents.ts --> onDeviceEvent hooks
+  --> UI (messaging-gateway)  +  orchestrator busEvents.ts --> onDeviceEvent hooks
 ```
 
 **Gateway** (`apps/device-service`). New optional `transport.Pusher`
@@ -7240,7 +7240,7 @@ simulated mode is not fed by its physical twin) and calls the same
 `publishDeviceReading` a read uses. Unset `EDGEX_MESSAGEBUS_HOST` = bridge
 off, polling unchanged.
 
-**Orchestrator.** `deviceEvents.ts` consumes `nexus.events`
+**Orchestrator.** `busEvents.ts` (was deviceEvents.ts) consumes `nexus.events`
 `device.*.updated` (own exclusive auto-delete queue, amqp-connection-
 manager, config from the same `RABBITMQ_*` env the API uses; unset
 `RABBITMQ_HOST` = hooks disabled). Value-less (metadata) events are
@@ -7786,3 +7786,105 @@ subtree, POST `/:id/move {up|down}`).
   footer, centered - measured live (ResizeObserver, window resize).
 - Known limits: a folder of component cards draws every scaled copy live
   (e.g. ten aquarium scenes at once).
+
+## Time series - TimescaleDB (2026-10-16)
+
+One store for logged values (migrations 060, 061; api `timeSeries.ts`,
+`routes/series.ts`; orchestrator `processes/seriesLogger.ts`). The
+postgres image is `timescale/timescaledb:2.17.2-pg16` with
+`shared_preload_libraries=timescaledb` (this repo's and the template's
+compose); without the extension the migration makes plain tables and
+queries bucket the raw points.
+- `series` - `key` (`device:<id>` | `process:<processId>:<valueKey>`),
+  name, unit, `kind` (gauge - averaged; counter - only grows, consumption
+  = the sum of its positive steps; state - a step value, weighted by
+  time), the policy: `mode` period / change / off, `period_s`, `deadband`,
+  `max_interval_s` (change mode: a point at least this often; default
+  1 h), `stale_s` (an older reading is not logged).
+- `samples(series_id, t, v)` - a hypertable (7-day chunks); continuous
+  aggregates `samples_hourly` / `samples_daily` (v_avg, v_min, v_max,
+  v_last, n) with refresh policies, real time (061 - the newest
+  unmaterialized hour / day comes from the raw points).
+- Reading (`querySeries`): the bucket `max(60 s, range / points)` picks
+  the source - raw under an hour, hourly under a day, daily above - so a
+  year's chart reads a few hundred rows; gauge - the n-weighted average,
+  counter - the last value, state - time-weighted from the raw steps.
+  `consumption` - counter rise / state integral in hours (W -> Wh) /
+  gauge average.
+- Routes: `GET /series?processId|deviceId`, `POST /series/declare
+  {processId, items}` (creates with the declared policy; an existing
+  series only gets name / unit / kind refreshed), `PATCH /series/:id`
+  (session; validated), `POST /samples {rows}` (one INSERT),
+  `GET /series/data`, `GET /series/consumption`. Plugins get
+  `context.series` ({query, consumption}). UI client: `listSeries`,
+  `updateSeries`.
+- Writer: the Data Logger process (`runDataLogger` runs `logSeries()`
+  first): series list cached 30 s; device values in one batch read,
+  process values from `metrics.values[valueKey]`; period windows written
+  at the window's start; one `POST /samples` per run. A process publishes
+  its loggable values in `metrics.values` and declares them.
+- Follow-up: the per-device Data Logger (`log_device`,
+  `data_logger_controls`, section 32) is still separate - to be unified
+  with series.
+
+## Change events - caches dropped at once (2026-10-16)
+
+A cache is dropped the moment what it holds changes, not after its TTL
+(nexus-edge-aquarium AGENTS_TO_DO.md item 10 / 9g).
+- Postgres: migration 062 - `notify_change(ignored...)`, an AFTER
+  INSERT / UPDATE / DELETE row trigger: `pg_notify('entity_changes',
+  {table, op, id})` on commit, whoever wrote the row (a core route, a
+  plugin's SQL, a migration); an UPDATE that changed only the ignored
+  columns (and `updated_at`) sends nothing. Watched: `processes`
+  (ignoring `dashboard_flagged_at`), `nodes` (`last_heartbeat_at`,
+  `health`), `devices`, `series`, `library_items` (`last_synced_at`). A
+  target project watches its own tables with the same function
+  (`CREATE OR REPLACE TRIGGER ... EXECUTE FUNCTION notify_change()`).
+  Measured: no notification in steady state (30 s, 10 aquariums).
+- api `entityChanges.ts`: `LISTEN entity_changes` on its own connection
+  (reopened after `ENTITY_CHANGES_RECONNECT_MS`); each change is emitted
+  locally (`entityChanges.on("change")` - e.g. devices.ts' audit policy
+  cache) and published as `<table>.<id>.changed` (messaging.ts
+  `ChangeEventEnvelope`: domain = table, entityId, op). After the LISTEN
+  connection opens - `all.all.changed` op `resync` (changes may have been
+  missed). `announceChange(table, id)` - a change held outside Postgres
+  (a process's ON / OFF status, Redis - routes/processes.ts action).
+- orchestrator: `busEvents.ts` (was deviceEvents.ts) - one queue for
+  `device.*.updated` (readings -> onDeviceEvent) and `*.*.changed` ->
+  `changeEvents.ts` `onEntityChange(tables, listener)`; a resync (the
+  api's, or this subscription (re)opened) reaches every listener. Plugins
+  get `ctx.onEntityChange`. The seriesLogger's series list follows
+  `series`. TTLs stay only as the last safety net (minutes).
+- `tickProcesses.ts`: the process list the tick fetched (with live
+  metrics / status) - the runners (heartbeat control, the series logger),
+  the device event dispatcher and the plugins (`ctx.tickProcesses()`) read
+  it instead of a second `GET /processes`.
+- The UI gets the change events too (the gateway forwards `#`); nothing
+  consumes them yet (Live events shows them).
+
+## CAN transport: a re-plugged adapter is reopened (2026-10-16)
+
+device-service `internal/transport/can`: a USB CAN adapter re-plugged (or
+`can0` moved into the container's namespace again) comes back under the
+same name with a NEW kernel index - the open socket stayed bound to the
+gone one and every write failed "no such device or address" until the
+service was restarted (the control node then lost NexusEdge's pulse - its
+yellow LED). Now `ensureBus` reuses a connection only while it still
+reaches the interface (`busConn.stale`: the reader died, or
+`net.InterfaceByName(name).Index` differs from the socket's `Ifindex`) and
+reopens it otherwise; a failed send marks it dead, reopens once and
+retries. The cached frames are carried over (each with its true receipt
+time). `make attach-can-bus` after a re-plug is still needed (it moves the
+interface into the container) - no device-service restart any more.
+
+## Message subject (2026-10-16)
+
+`log_messages.subject` (migration 063): what part of its process's domain
+a message is about - a key the project defines (an aquarium's service:
+`heating`, `co2`...), null - the process as a whole. A process sends it
+with the message (`MessageInput.subject`, api processMessages.ts and the
+orchestrator's apiClient): stored on insert, updated with level / text,
+written for events too, and carried in the public state's active messages
+(`ProcessPublicMessage.subject`) - a UI groups messages by it instead of
+matching their codes.
+

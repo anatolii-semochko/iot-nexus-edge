@@ -2,7 +2,13 @@ name: nexus-edge
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # TimescaleDB (PostgreSQL 16 + the time-series extension, arm64 too -
+    # nexus-edge AGENTS.md "Time series"): the device / value logs as
+    # hypertables with continuous aggregates. The library is preloaded
+    # here, not by the image's initdb config, so an existing PG16 data
+    # volume works as it is.
+    image: timescale/timescaledb:2.17.2-pg16
+    command: ["postgres", "-c", "shared_preload_libraries=timescaledb"]
     container_name: nexus-edge-postgres
     restart: unless-stopped
     environment:

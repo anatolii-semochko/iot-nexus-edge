@@ -38,6 +38,7 @@
 
 import { apiClient, type MessageInput, type NodeRecord, type ProcessRecord } from "../apiClient.js";
 import { TICK_INTERVAL_MS } from "../tickInterval.js";
+import { tickProcesses } from "../tickProcesses.js";
 
 // `null` - never seen a heartbeat yet (a fresh deploy, or a process kind
 // with no runner) - deliberately not treated as "infinitely stale", same
@@ -131,7 +132,9 @@ export async function runHeartbeatControl(process: ProcessRecord): Promise<void>
   let processes: ProcessRecord[];
   let nodes: NodeRecord[];
   try {
-    [processes, nodes] = await Promise.all([apiClient.listProcesses(), apiClient.listNodes()]);
+    // the processes - this tick's list (tickProcesses.ts)
+    processes = tickProcesses();
+    nodes = await apiClient.listNodes();
   } catch {
     // Already logged once by index.ts's own tick() for this same failure -
     // nothing further to do this tick.

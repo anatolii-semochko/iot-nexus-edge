@@ -4,9 +4,11 @@ import { pathToFileURL } from "node:url";
 
 import { apiClient } from "./apiClient.js";
 import { determineAlarmPlan } from "./alarmPolicy.js";
+import { onEntityChange } from "./changeEvents.js";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { processRegistry, type ProcessHooks, type ProcessRunner } from "./processRegistry.js";
+import { tickProcesses } from "./tickProcesses.js";
 import { driveSoundOutput, silenceSoundOutput } from "./soundOutput.js";
 
 /**
@@ -51,6 +53,11 @@ interface ProcessPluginContext {
   determineAlarmPlan: typeof determineAlarmPlan;
   driveSoundOutput: typeof driveSoundOutput;
   silenceSoundOutput: typeof silenceSoundOutput;
+  // change events (changeEvents.ts): a plugin drops its caches by them
+  onEntityChange: typeof onEntityChange;
+  // this tick's process list, with live metrics (tickProcesses.ts) - not a
+  // second GET /processes
+  tickProcesses: typeof tickProcesses;
 }
 
 // `hooks` (AGENTS.md section 80) is optional - a plugin that only has a
@@ -118,6 +125,8 @@ export async function loadProcessPlugins(): Promise<void> {
           determineAlarmPlan,
           driveSoundOutput,
           silenceSoundOutput,
+          onEntityChange,
+          tickProcesses,
         },
       );
     }

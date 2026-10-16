@@ -17,6 +17,7 @@ export interface ProcessMessage {
   level: number;
   code: string;
   text: string;
+  subject: string | null;
   hidden: boolean;
   hidden_by: number | null;
   hidden_at: string | null;
@@ -29,6 +30,8 @@ export interface MessageInput {
   code: string;
   level: number;
   text: string;
+  // what part of the process's domain it is about (migrations/1690000000063) - null / absent: the process as a whole
+  subject?: string | null;
 }
 
 // See `syncActiveMessages`'s `autoResolve` param below.
@@ -117,9 +120,10 @@ export async function syncActiveMessages(
       code: string;
       level: number;
       text: string;
+      subject: string | null;
       hidden: boolean;
     }>(
-      `SELECT id, code, level, text, hidden FROM log_messages WHERE process_id = $1 AND type = $2 AND resolved_at IS NULL`,
+      `SELECT id, code, level, text, subject, hidden FROM log_messages WHERE process_id = $1 AND type = $2 AND resolved_at IS NULL`,
       [processId, type],
     );
     const activeByCode = new Map(active.map((row) => [row.code, row]));
@@ -128,19 +132,21 @@ export async function syncActiveMessages(
     for (const entry of entries) {
       const existing = activeByCode.get(entry.code);
       if (existing) {
-        if (existing.level !== entry.level || existing.text !== entry.text) {
-          await client.query(`UPDATE log_messages SET level = $1, text = $2, updated_at = now() WHERE id = $3`, [
+        const subject = entry.subject ?? null;
+        if (existing.level !== entry.level || existing.text !== entry.text || existing.subject !== subject) {
+          await client.query(`UPDATE log_messages SET level = $1, text = $2, subject = $3, updated_at = now() WHERE id = $4`, [
             entry.level,
             entry.text,
+            subject,
             existing.id,
           ]);
           changed = true;
         }
       } else {
         await client.query(
-          `INSERT INTO log_messages (process_id, type, level, code, text)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [processId, type, entry.level, entry.code, entry.text],
+          `INSERT INTO log_messages (process_id, type, level, code, text, subject)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [processId, type, entry.level, entry.code, entry.text, entry.subject ?? null],
         );
         changed = true;
         newEntryCount += 1;
@@ -195,10 +201,10 @@ export async function logEvents(processId: number, entries: MessageInput[]): Pro
   let inserted = 0;
   for (const entry of entries) {
     const result = await pool.query(
-      `INSERT INTO log_messages (process_id, type, level, code, text, resolved_at)
-       SELECT $1, 'message', $2, $3, $4, now()
+      `INSERT INTO log_messages (process_id, type, level, code, text, subject, resolved_at)
+       SELECT $1, 'message', $2, $3, $4, $5, now()
        WHERE NOT EXISTS (SELECT 1 FROM log_messages WHERE process_id = $1 AND type = 'message' AND code = $3)`,
-      [processId, entry.level, entry.code, entry.text],
+      [processId, entry.level, entry.code, entry.text, entry.subject ?? null],
     );
     inserted += result.rowCount ?? 0;
   }
@@ -262,12 +268,13 @@ export async function listActiveMessages(processId: number): Promise<ProcessMess
 // this list is nested under) and `resolved_at` is always null for an
 // active list by construction, so neither belongs on the wire.
 function toPublicMessages(messages: ProcessMessage[]): ProcessPublicMessage[] {
-  return messages.map(({ id, type, level, code, text, hidden, created_at, updated_at }) => ({
+  return messages.map(({ id, type, level, code, text, subject, hidden, created_at, updated_at }) => ({
     id,
     type,
     level,
     code,
     text,
+    subject,
     hidden,
     created_at,
     updated_at,

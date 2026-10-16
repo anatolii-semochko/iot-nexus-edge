@@ -90,6 +90,11 @@ export const config = {
     avatarsDir: process.env.AVATAR_UPLOAD_DIR ?? "/workspace/apps/api/uploads/avatars",
     avatarMaxSizeBytes: Number(process.env.AVATAR_MAX_SIZE_BYTES ?? 2 * 1024 * 1024),
   },
+  // Change notifications (entityChanges.ts): the wait before the LISTEN
+  // connection to Postgres is opened again after it dropped.
+  entityChanges: {
+    reconnectMs: Number(process.env.ENTITY_CHANGES_RECONNECT_MS ?? 5000),
+  },
   // Fleet-wide process public-state broadcast (AGENTS.md section 24) -
   // independent of the orchestrator's own 1s compute tick. Urgent changes
   // (critical/warning transitions, a new active WEM entry, or an explicit

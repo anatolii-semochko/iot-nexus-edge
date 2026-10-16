@@ -13,7 +13,8 @@ import (
 // "can0"). Safe for concurrent use by a single reader and a single writer;
 // callers needing concurrent readers must add their own synchronization.
 type Conn struct {
-	fd int
+	fd      int
+	ifindex int // the interface instance it is bound to (see Ifindex)
 }
 
 // Open binds a CAN_RAW socket to the named SocketCAN interface. The
@@ -37,8 +38,15 @@ func Open(ifaceName string) (*Conn, error) {
 		return nil, fmt.Errorf("bind CAN socket to %q: %w", ifaceName, err)
 	}
 
-	return &Conn{fd: fd}, nil
+	return &Conn{fd: fd, ifindex: iface.Index}, nil
 }
+
+// Ifindex is the kernel index of the interface instance this socket is
+// bound to. An interface that disappears and comes back (a USB adapter
+// re-plugged, the interface moved between network namespaces) gets a NEW
+// index under the same name - this socket then stays bound to the gone
+// one and every write fails ("no such device or address").
+func (c *Conn) Ifindex() int { return c.ifindex }
 
 // Close closes the underlying socket. Any in-flight Receive unblocks with
 // an error.
