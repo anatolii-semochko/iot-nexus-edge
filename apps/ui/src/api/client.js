@@ -36,7 +36,8 @@ export async function request(path, options = {}) {
     } catch {
       // response wasn't JSON - keep the raw-text message above
     }
-    throw new Error(message)
+    // the HTTP status with it - a caller tells e.g. a conflict (409) apart
+    throw Object.assign(new Error(message), { status: res.status })
   }
   if (res.status === 204) {
     return null
@@ -132,6 +133,15 @@ export const api = {
   listProcesses: () => request('/processes'),
   setProcessConfig: (id, config) =>
     request(`/processes/${id}/config`, { method: 'PATCH', body: JSON.stringify(config) }),
+  // DNPs and migrations (api routes/dnp.ts, admin): the project's
+  // migrations' state, applying the pending ones, the apply mode.
+  listMigrations: () => request('/dnp/migrations'),
+  applyMigrations: () => request('/dnp/migrations/apply', { method: 'POST' }),
+  setDnpSettings: (settings) => request('/dnp/settings', { method: 'PUT', body: JSON.stringify(settings) }),
+  // A one-shot command to a process (a calibration start, a replacement
+  // done, a test) - kept out of its config (api routes/processes.ts).
+  sendProcessCommand: (id, action, params = {}) =>
+    request(`/processes/${id}/commands`, { method: 'POST', body: JSON.stringify({ action, params }) }),
   doProcessAction: (id, action) =>
     request(`/processes/${id}/action`, { method: 'POST', body: JSON.stringify({ action }) }),
   // Time series (api routes/series.ts): the logged values and their

@@ -21,6 +21,7 @@ import {
 } from '@coreui/react'
 import { api } from '../../api/client'
 import { formatBytes, formatSmartDateTime } from '../../utils/format'
+import MigrationsCard from './MigrationsCard'
 
 // Service->Database (AGENTS_TO_DO.md, 2026-08-30) - donut segments read
 // straight off CoreUI's own theme CSS variables rather than hardcoded hex,
@@ -435,6 +436,11 @@ const DatabaseTab = () => {
           </CTableBody>
         </CTable>
       )}
+
+      {/* the project's migrations - how they are applied, the pending ones */}
+      <div className="mt-3">
+        <MigrationsCard />
+      </div>
 
       {/* Save State */}
       <CModal visible={saveModalOpen} onClose={() => setSaveModalOpen(false)}>

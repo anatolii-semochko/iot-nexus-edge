@@ -7888,3 +7888,60 @@ written for events too, and carried in the public state's active messages
 (`ProcessPublicMessage.subject`) - a UI groups messages by it instead of
 matching their codes.
 
+## Process config schemas (2026-10-16)
+
+`apps/api/src/configSchemas.ts` (ajv): a process kind's config schema
+(JSON Schema) registered by its API plugin
+(`ApiPluginContext.registerConfigSchema(kind, schema)`).
+- `PATCH /processes/:id/config` checks the sections sent against it - 400
+  `{error, problems}` (a stored config older than its schema doesn't block
+  other edits); a kind without a schema is not checked.
+- `GET /process-kinds/config-schemas` - the kinds that have one;
+  `GET /process-kinds/:kind/config-schema` - the schema (types, limits,
+  defaults, descriptions) - for UIs and the coming AI assistant that
+  configures DNPs.
+
+## Config section stamps and process commands (2026-10-16)
+
+Migration 064 (nexus-edge-aquarium AGENTS_TO_DO.md tech debt 6):
+- `processes.config_stamps` `{section: {at, by}}` - kept by the trigger
+  `stamp_config_sections` on EVERY config write (a route, a plugin's SQL, a
+  migration) for each top-level section that really changed; `by` - the
+  transaction's `nexus.actor` (the config route sets it), null otherwise.
+  `PATCH /processes/:id/config` takes `$seen: {section: at}` (not a config
+  field): a section changed after the editor's stamp - 409 (who, when);
+  a section sent without one - not checked. The answer carries the new
+  `stamps`. UI errors carry the HTTP `status` (client.js request).
+- `process_commands` - one-shot commands kept out of the config:
+  `POST /processes/:id/commands {action, params}` (session; logged as
+  log_command action "command"); pending ones (not older than
+  `PROCESS_COMMAND_TTL_MS`, default 10 min - never applied late) come with
+  GET /processes (`commands`) - the tick's list, no request of their own;
+  the process reports `POST /processes/:id/commands/:commandId/done
+  {result}` (orchestrator apiClient.completeCommand). UI client:
+  `sendProcessCommand`. `/logs/commands?action=` takes several, comma-
+  separated.
+
+## DNP API and project migrations (2026-10-16)
+
+- `extraMigrations.ts`: a target project's own migrations
+  (`EXTRA_MIGRATIONS_DIR` - its migrations/ mounted into the api), each
+  applied ONCE with psql (in the api image - a file may use \gset / \if)
+  and recorded in `extra_migrations` (name, sha256); a recorded file
+  changed since - "changed", never re-run. When the api starts (after
+  `listen`): applied if the setting `dnp.migrations.apply` is "auto"
+  (default), else they wait for a person. Replaces the one-off
+  `migrate-extra` container (removed from the template's compose).
+- `system_settings` (migration 065; `systemSettings.ts` - typed keys with
+  defaults): the first key `dnp.migrations.apply`. `library_items.version`
+  - a DNP's version from library.json (optional, "0" unset; compared once
+  DNPs get updates).
+- `routes/dnp.ts` (admin): `GET /dnp` (the catalog's DNPs with versions,
+  the project's code plugins - api / process / ui, `plugin.json`
+  {version, description} optional - and the kinds with a config schema),
+  `GET /dnp/migrations` (core + project, the mode), `POST
+  /dnp/migrations/apply`, `PUT /dnp/settings {migrationsApply}`.
+- UI: Service -> Database -> Migrations (`views/service/MigrationsCard.jsx`):
+  Auto Apply / Human Confirmation, the pending / changed ones, Apply.
+- Next (with the AI assistant): creating nodes / devices through the API.
+

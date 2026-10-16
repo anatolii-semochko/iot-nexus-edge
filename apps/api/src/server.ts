@@ -10,11 +10,13 @@ import { loadApiPlugins } from "./apiPlugins.js";
 import { config } from "./config.js";
 import { startEdgexPushBridge } from "./edgexPushBridge.js";
 import { startEntityChangeListener } from "./entityChanges.js";
+import { runExtraMigrationsOnStart } from "./extraMigrations.js";
 import { syncLibrary } from "./libraryCatalog.js";
 import { startProcessStateBroadcastLoop } from "./processBroadcast.js";
 import { initUnreadCounts } from "./processMessages.js";
 import { authRoutes } from "./routes/auth.js";
 import { dashboardCardRoutes } from "./routes/dashboardCards.js";
+import { dnpRoutes } from "./routes/dnp.js";
 import { dataLoggerControlRoutes } from "./routes/dataLoggerControls.js";
 import { deviceGroupRoutes } from "./routes/deviceGroups.js";
 import { deviceRoutes } from "./routes/devices.js";
@@ -100,6 +102,7 @@ export async function startApiServer(): Promise<FastifyInstance> {
   await app.register(tabGroupRoutes);
   await app.register(dashboardCardRoutes);
   await app.register(seriesRoutes);
+  await app.register(dnpRoutes);
   await app.register(messageGroupRoutes);
   await app.register(messageLevelRoutes);
   await app.register(messageSignalTimingRoutes);
@@ -138,5 +141,10 @@ export async function startApiServer(): Promise<FastifyInstance> {
   }
 
   await app.listen({ port: config.port, host: config.host });
+
+  // The project's own migrations (extraMigrations.ts) - after the core's
+  // (run before this process started) and with the api up; "auto" applies
+  // the pending ones, "confirm" leaves them for a person.
+  void runExtraMigrationsOnStart().catch((err) => app.log.error({ err }, "project migrations on start failed"));
   return app;
 }

@@ -34,7 +34,9 @@ export type DeviceCommandAction =
   // data, so they aren't logged. Both deviceId/processId are absent for
   // these - a system-wide action, not device/process-scoped.
   | "set-state"
-  | "clear-logs";
+  | "clear-logs"
+  // a one-shot process command (routes/processes.ts, migrations/1690000000064) - value {action, params}
+  | "command";
 
 export interface CommandLogEntry {
   // Exactly one of deviceId/processId in practice (device actions vs
@@ -147,7 +149,8 @@ export interface ListCommandLogsParams {
   deviceId?: number;
   // only these processes' commands (e.g. one aquarium's - its dashboard's change log)
   processIds?: number[];
-  action?: DeviceCommandAction;
+  // one action or several (e.g. an aquarium's change log: config + command)
+  action?: DeviceCommandAction | DeviceCommandAction[];
   actorUserId?: number;
   search?: string;
   from?: string;
@@ -175,9 +178,9 @@ export async function listCommandLogs(params: ListCommandLogsParams): Promise<{ 
     values.push(deviceId);
     conditions.push(`l.device_id = $${values.length}`);
   }
-  if (action) {
-    values.push(action);
-    conditions.push(`l.action = $${values.length}`);
+  if (action && (!Array.isArray(action) || action.length > 0)) {
+    values.push(Array.isArray(action) ? action : [action]);
+    conditions.push(`l.action = ANY($${values.length})`);
   }
   if (actorUserId !== undefined) {
     values.push(actorUserId);

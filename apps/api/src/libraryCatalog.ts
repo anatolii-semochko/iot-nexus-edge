@@ -55,6 +55,9 @@ interface LibraryDescriptor {
   // a device type's audit policy for process-written AUTO values
   // (migrations/1690000000059; default "change")
   auditAuto?: "change" | "transition" | "never";
+  // the DNP's version (migrations/1690000000065; optional - "0" when unset):
+  // shown by GET /dnp; compared once DNPs get updates
+  version?: string;
 }
 
 interface CategoryDescriptor {
@@ -143,11 +146,11 @@ async function upsertItem(
   await pool.query(
     `INSERT INTO library_items
        (id, folder_path, kind, category_id, name, description, icon_path, type_name, supports, parent_types,
-        audit_auto, last_synced_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), now())
+        audit_auto, version, last_synced_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now())
      ON CONFLICT (id) DO UPDATE
        SET folder_path = $2, kind = $3, category_id = $4, name = $5, description = $6,
-           icon_path = $7, type_name = $8, supports = $9, parent_types = $10, audit_auto = $11,
+           icon_path = $7, type_name = $8, supports = $9, parent_types = $10, audit_auto = $11, version = $12,
            last_synced_at = now(), updated_at = now()`,
     [
       descriptor.id,
@@ -161,6 +164,7 @@ async function upsertItem(
       supports ? JSON.stringify(supports) : null,
       parents ? JSON.stringify(parents) : null,
       ["change", "transition", "never"].includes(descriptor.auditAuto ?? "") ? descriptor.auditAuto : null,
+      typeof descriptor.version === "string" ? descriptor.version : null,
     ],
   );
 }

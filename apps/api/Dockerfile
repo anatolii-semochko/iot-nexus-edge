@@ -19,6 +19,9 @@ RUN pnpm install --frozen-lockfile --prod --filter @nexus-edge/api...
 
 FROM base AS runtime
 ENV NODE_ENV=production
+# psql - a target project's own migrations (src/extraMigrations.ts) run with
+# it, so a migration file may use psql's \gset / \if
+RUN apk add --no-cache postgresql16-client
 # pnpm workspaces link deps via symlinks into the root node_modules, so both
 # the root and the app-level node_modules must be copied together for the
 # symlinks to resolve at runtime.

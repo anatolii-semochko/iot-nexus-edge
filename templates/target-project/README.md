@@ -21,8 +21,10 @@ make up-all     # build + start everything, including EdgeX Foundry
   routes, and UI controls (private, not part of nexus-edge).
 - `extra-res/` - the EdgeX device profiles/device-lists your plugins'
   devices need (`EXTRA_RES_DIR`).
-- `migrations/` - this project's own Postgres seed data (applied by the
-  `migrate-extra` service, after nexus-edge's own core migrations).
+- `migrations/` - this project's own Postgres migrations (applied by the
+  api after nexus-edge's own - each once, recorded in `extra_migrations`;
+  automatically or on a person's confirmation - setting
+  `dnp.migrations.apply`).
 
 Full walkthrough, one section per extension point:
 [`docs/CREATING_A_TARGET_PROJECT.md`](__NEXUS_EDGE_REPO_URL__/blob/main/docs/CREATING_A_TARGET_PROJECT.md)

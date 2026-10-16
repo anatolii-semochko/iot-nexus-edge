@@ -18,6 +18,7 @@ import {
   originalPartOf,
   pluginMediaScope,
 } from "./mediaStore.js";
+import { registerConfigSchema } from "./configSchemas.js";
 import { processStateEvents } from "./processStateEvents.js";
 import { timeSeries } from "./timeSeries.js";
 
@@ -92,6 +93,8 @@ export interface ApiPluginContext {
   previewMaxSide: number;
   // the time series (timeSeries.ts): a chart's points, a period's consumption
   series: typeof timeSeries;
+  // a process kind's config schema (configSchemas.ts): checks config edits, served to UIs / the AI assistant
+  registerConfigSchema: typeof registerConfigSchema;
 }
 
 const pluginContext: ApiPluginContext = {
@@ -112,6 +115,7 @@ const pluginContext: ApiPluginContext = {
   resizeJpeg,
   previewMaxSide: config.media.previewMaxSide,
   series: timeSeries,
+  registerConfigSchema,
 };
 
 interface ApiPluginSource {
