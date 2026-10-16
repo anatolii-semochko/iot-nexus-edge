@@ -37,6 +37,13 @@ dashboardRegistry.registerComponent({
   description: 'CPU, RAM and disk of the host',
   processKind: 'resource-monitor',
   Component: lazy(() => import('./views/processes/ResourceMonitorPanel')),
+  avatars: [
+    {
+      key: 'chart',
+      title: 'The live chart',
+      Component: lazy(() => import('./views/processes/ResourceMonitorAvatar')),
+    },
+  ],
 })
 dashboardRegistry.registerComponent({
   key: 'weatherControl.panel',
@@ -44,4 +51,11 @@ dashboardRegistry.registerComponent({
   description: 'The weather station: its zones and readings',
   processKind: 'weather-control',
   Component: lazy(() => import('./views/processes/WeatherControlPanel')),
+  avatars: [
+    {
+      key: 'picture',
+      title: 'Sun, cloud, rain, temperature',
+      Component: lazy(() => import('./views/processes/WeatherAvatar')),
+    },
+  ],
 })

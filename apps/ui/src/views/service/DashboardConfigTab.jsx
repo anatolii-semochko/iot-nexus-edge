@@ -36,7 +36,7 @@ import UpBreadcrumb from '../../components/UpBreadcrumb'
  * components the modules registered - dashboardRegistry -, one per named
  * process of their kind, grouped by process, plus the system ones), its
  * view (the visible height - scaled to fit / the visible width) and its
- * preview (the component's own / a scaled copy).
+ * preview (one of the component's avatars / a scaled copy).
  *
  * Access by user groups - not built: the system has no user groups yet
  * (AGENTS_TO_DO.md "Доступи / права"); every signed-in user sees every
@@ -240,21 +240,27 @@ const CardModal = ({ draft, cards, options, onClose, onSave }) => {
                 <option value="fit-height">
                   On the visible height - scaled to fit, no scrolling
                 </option>
-                <option value="fit-width">On the visible width - scrolling sideways</option>
+                <option value="fit-width">On the visible width - laid out in it</option>
               </CFormSelect>
             </div>
             <div>
-              <CFormLabel>Preview</CFormLabel>
+              <CFormLabel>Avatar - the card's picture</CFormLabel>
               <CFormSelect
                 value={form.preview}
                 onChange={(e) => set({ preview: e.target.value })}
-                aria-label="Preview"
+                aria-label="Avatar"
               >
                 <option value="auto">
-                  {def?.Preview
-                    ? "The component's own preview"
-                    : 'A scaled copy (the component has no preview)'}
+                  {def?.avatars?.length
+                    ? `Auto - ${def.avatars[0].title}`
+                    : 'Auto - a scaled copy (the component has no avatar)'}
                 </option>
+                {/* the component's avatars (dashboardRegistry.js) */}
+                {(def?.avatars ?? []).map((a) => (
+                  <option key={a.key} value={a.key}>
+                    {a.title}
+                  </option>
+                ))}
                 <option value="scaled">A scaled copy</option>
               </CFormSelect>
             </div>

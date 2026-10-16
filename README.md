@@ -76,12 +76,30 @@ end-to-end today, verified live in a running container stack (see
   compatibility check before ever applying one), log download/clear,
   and host Shutdown/Restart over D-Bus (`systemd-logind`), all
   admin-gated and env-flagged off by default.
+- **Time series** — logged values (devices and process metrics) in one
+  TimescaleDB store, each series with its recording policy (period / on
+  change / deadband / stale), hourly and daily continuous aggregates so a
+  year's chart reads a few hundred rows; written by the Data Logger.
+- **Change events** — a Postgres trigger notifies every config-relevant
+  row change; the api relays it onto the bus and the orchestrator's
+  processes drop their caches at once (no TTL waits).
+- **Process configs with a schema** — a process kind registers a JSON
+  Schema (edits checked server-side, served to UIs); per-section change
+  stamps refuse an edit over someone else's newer one; one-shot commands
+  go through a process command channel, not the config.
+- **Dashboard cards** — one tree of folders and components (each bound
+  to a named process instance), configured in Service -> Config ->
+  Dashboard; components bring their own avatars for the cards.
+- **DNP API** — the installed DNPs (Library catalog and project plugins,
+  versions), core and project migrations (applied once each,
+  automatically or on confirmation) - the base for an AI assistant that
+  registers and configures DNPs.
 
 Deliberately **not** done yet, and documented as such rather than left
 quiet: per-endpoint API authorization (today only the UI login and the
 `/users` admin endpoints are gated — device/process control endpoints are
-still open), real CAN hardware has not been tested against the transport
-code, and there's no heartbeat/liveness signal from devices yet.
+still open), user groups / access rights per Dashboard card, and an
+automated test suite.
 
 ## Architecture
 
@@ -103,7 +121,7 @@ automation processes — two separate concerns, two separate channels.
 |---|---|
 | Runtime | Node.js 22, TypeScript, pnpm workspaces + Turborepo |
 | Backend HTTP | Fastify, Pino logging |
-| Storage | PostgreSQL 16 (device/process registry), Redis 7 (live state + Dual Devices Model) |
+| Storage | PostgreSQL 16 + TimescaleDB (registry, time series), Redis 7 (live state + Dual Devices Model) |
 | Messaging | RabbitMQ 4 (`nexus.events` topic exchange), `@fastify/websocket` |
 | Hardware hub | EdgeX Foundry Palau 4.0.2, no-security profile |
 | Device driver | Go, EdgeX Device SDK |

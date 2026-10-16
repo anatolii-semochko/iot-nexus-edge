@@ -22,14 +22,16 @@ import { cardIcon } from '../../dashboardIcons'
  * folder's own `layout`); a folder opens its children, a component card
  * opens its component on the whole page by its `view`. Each card has its
  * address (`#/dashboard/<id>`) - Back and links work. A component card
- * shows the component's own preview, else a scaled copy of it.
+ * shows the avatar its card chose (`preview` - the component's avatars,
+ * dashboardRegistry.js; "auto" - its first), else a scaled copy of it.
  * While the tree is empty - the older single slot (a target project's
  * whole dashboard, dashboardRegistry.register) or a placeholder.
  */
 
 // a scaled copy: the component drawn at this width, shrunk into the card
 const PREVIEW_WIDTH = 1400
-const PREVIEW_HEIGHT_REM = 9
+// the card's picture block (2026-10-16: 9 -> 10.8, the cards 20 % taller)
+const PREVIEW_HEIGHT_REM = 10.8
 
 const childrenOf = (cards, parentId) =>
   cards
@@ -121,8 +123,16 @@ const FitBox = ({ children }) => {
   )
 }
 
-// The card's picture: a folder's icon; a component's own preview or a
-// copy of the component, fitted into the block (FitBox).
+// The avatar a card shows: the one its `preview` names, "auto" - the
+// component's first; null - a scaled copy of the component.
+const avatarOf = (def, preview) =>
+  preview === 'scaled'
+    ? null
+    : ((def.avatars ?? []).find((a) => preview === 'auto' || a.key === preview) ?? null)
+
+// The card's picture: a folder's icon; a component's avatar - one made for
+// the block (it fills it), or a `fit` one / a copy of the component scaled
+// into the block (FitBox).
 const CardPreview = ({ card, processes }) => {
   if (card.type === 'folder') {
     return (
@@ -131,18 +141,31 @@ const CardPreview = ({ card, processes }) => {
         style={{ height: `${PREVIEW_HEIGHT_REM}rem` }}
       >
         {/* about 60 % of the block's height */}
-        <CIcon icon={cardIcon(card)} style={{ width: '5.5rem', height: '5.5rem' }} />
+        <CIcon icon={cardIcon(card)} style={{ width: '6.6rem', height: '6.6rem' }} />
       </div>
     )
   }
   const { def, process, problem } = resolve(card, processes)
   if (problem) return <div className="small text-warning p-2">{problem}</div>
-  const Preview = def.Preview && card.preview === 'auto' ? def.Preview : null
+  const avatar = avatarOf(def, card.preview)
+  if (avatar && !avatar.fit) {
+    const Avatar = avatar.Component
+    return (
+      <div
+        style={{ height: `${PREVIEW_HEIGHT_REM}rem`, position: 'relative', overflow: 'hidden' }}
+        aria-hidden="true"
+      >
+        <Suspense fallback={<CSpinner size="sm" />}>
+          <Avatar process={process} />
+        </Suspense>
+      </div>
+    )
+  }
   return (
     <FitBox>
       <Suspense fallback={<CSpinner size="sm" />}>
-        {Preview ? (
-          <Preview process={process} />
+        {avatar ? (
+          <avatar.Component process={process} />
         ) : (
           <ComponentView card={card} processes={processes} scale />
         )}
@@ -320,16 +343,15 @@ const Dashboard = () => {
 
   if (card?.type === 'component') {
     // fit-height - scaled to the visible height (FitHeight); fit-width -
-    // the visible width, scrolling sideways (the component keeps its
-    // natural width)
+    // the visible width: the component lays itself out in it (2026-10-16:
+    // was its natural width - a wide part, e.g. a table, pushed the rest
+    // out of view); what still can't shrink scrolls sideways
     return (
       <div>
         {breadcrumb}
         {card.view === 'fit-width' ? (
-          <div style={{ overflowX: 'auto', overflowY: 'hidden' }}>
-            <div style={{ width: 'max-content', minWidth: '100%' }}>
-              <ComponentView card={card} processes={processes} />
-            </div>
+          <div style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
+            <ComponentView card={card} processes={processes} />
           </div>
         ) : (
           <FitHeight key={card.id}>

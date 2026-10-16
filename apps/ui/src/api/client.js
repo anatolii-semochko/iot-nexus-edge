@@ -137,18 +137,23 @@ export const api = {
   // migrations' state, applying the pending ones, the apply mode.
   listMigrations: () => request('/dnp/migrations'),
   applyMigrations: () => request('/dnp/migrations/apply', { method: 'POST' }),
-  setDnpSettings: (settings) => request('/dnp/settings', { method: 'PUT', body: JSON.stringify(settings) }),
+  setDnpSettings: (settings) =>
+    request('/dnp/settings', { method: 'PUT', body: JSON.stringify(settings) }),
   // A one-shot command to a process (a calibration start, a replacement
   // done, a test) - kept out of its config (api routes/processes.ts).
   sendProcessCommand: (id, action, params = {}) =>
-    request(`/processes/${id}/commands`, { method: 'POST', body: JSON.stringify({ action, params }) }),
+    request(`/processes/${id}/commands`, {
+      method: 'POST',
+      body: JSON.stringify({ action, params }),
+    }),
   doProcessAction: (id, action) =>
     request(`/processes/${id}/action`, { method: 'POST', body: JSON.stringify({ action }) }),
   // Time series (api routes/series.ts): the logged values and their
   // recording policy - `query` {processId} or {deviceId}; `changes` - any
   // of {mode, periodS, deadband, maxIntervalS, staleS} (Settings -> Logs).
   listSeries: (query = {}) => request(`/series?${new URLSearchParams(query)}`),
-  updateSeries: (id, changes) => request(`/series/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
+  updateSeries: (id, changes) =>
+    request(`/series/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
   // Process management (AGENTS_TO_DO.md, 2026-08-14) - live create/delete,
   // plus which kinds the running orchestrator actually has loaded right
   // now (a row whose kind isn't in this list needs an orchestrator

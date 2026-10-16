@@ -9,12 +9,26 @@ import ResourceLevelsChart, { MAX_SAMPLES, ResourceLevelsChartLegend } from './R
 const METRIC_ROWS = [
   { key: 'cpu', warnKey: 'cpuWarnMax', maxKey: 'cpuMax', label: 'CPU', unit: '%', stepperMax: 100 },
   { key: 'ram', warnKey: 'ramWarnMax', maxKey: 'ramMax', label: 'RAM', unit: '%', stepperMax: 100 },
-  { key: 'disk', warnKey: 'diskWarnMax', maxKey: 'diskMax', label: 'Disk', unit: '%', stepperMax: 100 },
+  {
+    key: 'disk',
+    warnKey: 'diskWarnMax',
+    maxKey: 'diskMax',
+    label: 'Disk',
+    unit: '%',
+    stepperMax: 100,
+  },
   // Celsius, not a percentage like the three above - readTempCelsius
   // (resourceMonitor.ts) is absent (not 0) on hosts with no readable
   // thermal zone, e.g. a dev machine without container access to host
   // sysfs, so `value` here can be `undefined` same as the others.
-  { key: 'temp', warnKey: 'tempWarnMax', maxKey: 'tempMax', label: 'Temp', unit: '°C', stepperMax: 150 },
+  {
+    key: 'temp',
+    warnKey: 'tempWarnMax',
+    maxKey: 'tempMax',
+    label: 'Temp',
+    unit: '°C',
+    stepperMax: 150,
+  },
 ]
 
 // A threshold of 0 (or unset) disables that check - same rule as the
@@ -56,15 +70,16 @@ const zoneFor = (value, warnMax, errorMax) => {
  * it's re-expanded (matching the user's own framing: "дані приходять,
  * коли компонента відкрита").
  */
-const ResourceMonitorPanel = ({ process, onConfigChange }) => {
+/**
+ * The live CPU / RAM / disk history (a rolling MAX_SAMPLES window, from the
+ * live state) - the panel and the Dashboard avatar (ResourceMonitorAvatar)
+ * draw it. Returns {metrics, history}.
+ */
+export const useResourceHistory = (process) => {
   const live = useProcessLiveState(process.id)
   const metrics = live.metrics ?? process.metrics
   // Initial window - computed once, at mount, straight from the useState
-  // initializer, not a separate effect that resets on `process.id` change:
-  // this panel only ever mounts fresh per expand (ProcessesTable.jsx's
-  // `{expanded && Panel && ...}` unmounts it on collapse), so `process.id`
-  // never actually changes under a live instance - an effect to "reset on
-  // process.id change" would be dead code that never re-fires.
+  // initializer (the panel / avatar mounts fresh per process).
   const [history, setHistory] = useState(() => (process.metrics ? [process.metrics] : []))
 
   // Appends each live event as it arrives, accumulating a rolling window -
@@ -79,6 +94,11 @@ const ResourceMonitorPanel = ({ process, onConfigChange }) => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHistory((prev) => [...prev, live.metrics].slice(-MAX_SAMPLES))
   }, [live.metrics])
+  return { metrics, history }
+}
+
+const ResourceMonitorPanel = ({ process, onConfigChange }) => {
+  const { metrics, history } = useResourceHistory(process)
 
   const handleCommit = async (field, value) => {
     const result = await api.setProcessConfig(process.id, { [field]: value })
