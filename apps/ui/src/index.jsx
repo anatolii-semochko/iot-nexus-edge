@@ -7,6 +7,7 @@ import './builtinDeviceTypes'
 import './pluginDeviceTypes'
 import './builtinProcessTypes'
 import './pluginProcessTypes'
+import './builtinDashboardComponents'
 import App from './App'
 import store from './store'
 

@@ -7737,3 +7737,52 @@ Logs (New / All) and the unread counter see them; the active list, the
 Dashboard tab and the public-state cache don't. Idempotent per code (a
 code already logged for the process is skipped). A notice that asks for
 an action stays a `syncMessages(..., "message", ...)`.
+
+## Dashboard cards - the Dashboard's tree (2026-10-16)
+
+One tree for the whole system (`dashboard_cards`, migration 058; api
+`routes/dashboardCards.ts`): a card is a folder (its children as blocks or
+a list - `layout`) or a component (`component_key` + `process_id` - a named
+process instance; null - a system component), ordered by `position`
+among its siblings. GET - any signed-in user; edits - admin only (POST,
+PATCH incl. a move to another folder with a cycle check, DELETE with the
+subtree, POST `/:id/move {up|down}`).
+- Components: `dashboardRegistry.registerComponent({key, title,
+  processKind?, Component, Preview?, description})` (src/dashboardRegistry.js);
+  `availableComponents(processes)` - one per named process of the kind, a
+  system one once. The core's own (builtinDashboardComponents.js, lazy):
+  Processes, Nodes, Live events, Logs; process-bound - Resource monitor,
+  Weather. `register(Component)` stays: the page shows it while the tree
+  is empty.
+- Service -> Config -> Dashboard (views/service/DashboardConfigTab.jsx):
+  browsed like the Library - `components/UpBreadcrumb` (the up arrow and
+  the path, shared with the Library), one level listed, a folder's name
+  (a link) opens its level; actions up / down, edit, delete. Add / edit -
+  a popup, a new card's fields empty: title, folder, layout / component
+  (grouped by process), `view` (fit-height - scaled to the visible height,
+  no vertical scrolling; fit-width - the visible width, scrolling
+  sideways), `preview` (auto - the component's own, else a scaled copy;
+  scaled).
+- Dashboard page (views/dashboard/Dashboard.jsx, routes `/dashboard`,
+  `/dashboard/:cardId`): a level's cards, breadcrumb, a component card's
+  preview / scaled copy, the component on the page by its view. The root
+  level is blocks (no setting yet).
+- **Access - a stub**: the system has no user groups (users carry `roles`
+  only); `access_group_ids` is reserved and `cardVisibleTo` lets every
+  signed-in user see every card - to be done with the access-rights
+  package (AGENTS_TO_DO "Доступи / права").
+- Icons: `src/dashboardIcons.js` - the card icons (`dashboard_cards.icon`
+  = a CoreUI icon key; `cardIcon(card)` - its own, else the folder /
+  component default); a folder's icon is picked in its popup. On the page
+  a folder is a card (border, background, divider) with its icon; a
+  component has no border, background or divider - its preview (own or a
+  copy of the component) drawn at 1400 px and scaled to fit the block
+  whole, centered (Dashboard.jsx `FitBox`).
+- Lists (Library, the Dashboard config - both tables with
+  `table-no-last-border`): folder names blue and bold without underline,
+  item / DNP names bold.
+- "fit-height" (Dashboard.jsx `FitHeight`): the component drawn at the
+  page's width, scaled down (never up) to the height left above the
+  footer, centered - measured live (ResizeObserver, window resize).
+- Known limits: a folder of component cards draws every scaled copy live
+  (e.g. ten aquarium scenes at once).

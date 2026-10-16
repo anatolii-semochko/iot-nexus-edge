@@ -13,6 +13,7 @@ import { syncLibrary } from "./libraryCatalog.js";
 import { startProcessStateBroadcastLoop } from "./processBroadcast.js";
 import { initUnreadCounts } from "./processMessages.js";
 import { authRoutes } from "./routes/auth.js";
+import { dashboardCardRoutes } from "./routes/dashboardCards.js";
 import { dataLoggerControlRoutes } from "./routes/dataLoggerControls.js";
 import { deviceGroupRoutes } from "./routes/deviceGroups.js";
 import { deviceRoutes } from "./routes/devices.js";
@@ -95,6 +96,7 @@ export async function startApiServer(): Promise<FastifyInstance> {
   await app.register(processGroupRoutes);
   await app.register(processRoutes);
   await app.register(tabGroupRoutes);
+  await app.register(dashboardCardRoutes);
   await app.register(messageGroupRoutes);
   await app.register(messageLevelRoutes);
   await app.register(messageSignalTimingRoutes);
