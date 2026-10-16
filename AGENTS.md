@@ -1041,8 +1041,10 @@ on or half-implement.
   convention as every other credential here, not a stronger generated-secret
   scheme, for consistency): `admin` (role `admin`, can never be deleted or
   deactivated) and `system` (no roles, can never be deleted, *can* be
-  deactivated). 2026-10-11: `simulator` (the simulation's account, created
-  by hand - not seeded) is protected the same way as `system`.
+  deactivated). 2026-10-11: `simulator` (the simulation's account) is
+  protected the same way as `system`, seeded by
+  `..._seed-simulator-user.ts` (password from `SIMULATOR_DEFAULT_PASSWORD`
+  - required in every stack's `.env`; an existing `simulator` is kept).
   `PROTECTED_USERNAMES`/`NON_DEACTIVATABLE_USERNAMES` in
   `routes/users.ts` are the one place this is encoded — every response
   includes computed `deletable`/`deactivatable` booleans so `apps/ui` only
@@ -7690,6 +7692,17 @@ and the UI.
   centered, so read rows' avatars line up with unread rows' buttons.
   Used by the notification center (the avatar was pushed to the right
   before) and the aquarium dashboard's Logs tab.
-- The `simulator` account (created by hand on the aquarium stack) is
-  protected like `system` (section 13).
+- The `simulator` account is protected like `system` and seeded by a
+  migration (section 13).
 
+
+## Message group active state: levels (2026-10-14)
+
+`GET /message-groups/active-state` also returns `errorLevels` /
+`warningLevels` - the distinct levels of the group's active messages
+(`log_messages`, unresolved, of the member processes); a flag without an
+active message of its type counts as `[1]`. Processes can raise real
+levels 1-4 now (the aquarium's Settings -> Messages); a buzzer's alarm
+plan (`determineAlarmPlan`) takes the highest active level. Additive -
+the old fields are unchanged. Also: GET `/logs/commands` takes
+`processIds` (comma-separated) - one aquarium's change log.

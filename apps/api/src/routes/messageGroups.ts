@@ -48,11 +48,12 @@ export async function messageGroupRoutes(app: FastifyInstance): Promise<void> {
   // currently have an active error/warning", scoped by group membership
   // rather than fleet-wide like Active Zummer's own alarm consumer.
   // Message Groups were purely inert metadata before this - the first
-  // thing that actually reads process_message_groups at runtime. Same
-  // simplification the existing buzzer already makes (AGENTS.md section
-  // 27): a process's critical/warning flag carries no level of its own,
-  // so an active flag here always means "level 1" - nothing produces a
-  // real level 2-4 today.
+  // thing that actually reads process_message_groups at runtime. A
+  // process's critical/warning flag carries no level of its own; the
+  // levels of the group's active messages (`errorLevels` /
+  // `warningLevels`, distinct, from log_messages - 2026-10-14: processes
+  // raise real levels 1-4 now) say how loud it is. A flag without an
+  // active message of its type counts as level 1.
   app.get("/message-groups/active-state", async () => {
     const groups = await pool.query<{ id: number }>("SELECT id FROM message_groups");
     return Promise.all(
@@ -61,15 +62,26 @@ export async function messageGroupRoutes(app: FastifyInstance): Promise<void> {
           "SELECT process_id FROM process_message_groups WHERE message_group_id = $1",
           [group.id],
         );
+        const ids = members.rows.map((row) => row.process_id);
         const states = await Promise.all(
-          members.rows.map((row) =>
-            Promise.all([processRegistry.getCritical(row.process_id), processRegistry.getWarning(row.process_id)]),
-          ),
+          ids.map((id) => Promise.all([processRegistry.getCritical(id), processRegistry.getWarning(id)])),
         );
+        const levels = await pool.query<{ type: string; levels: number[] }>(
+          `SELECT type, array_agg(DISTINCT level ORDER BY level) AS levels FROM log_messages
+           WHERE process_id = ANY($1) AND resolved_at IS NULL AND type IN ('error', 'warning') GROUP BY type`,
+          [ids],
+        );
+        const levelsOf = (type: string) => levels.rows.find((row) => row.type === type)?.levels ?? [];
+        const hasActiveError = states.some(([critical]) => critical);
+        const hasActiveWarning = states.some(([, warning]) => warning);
+        const errorLevels = levelsOf("error");
+        const warningLevels = levelsOf("warning");
         return {
           id: group.id,
-          hasActiveError: states.some(([critical]) => critical),
-          hasActiveWarning: states.some(([, warning]) => warning),
+          hasActiveError,
+          hasActiveWarning,
+          errorLevels: hasActiveError && errorLevels.length === 0 ? [1] : errorLevels,
+          warningLevels: hasActiveWarning && warningLevels.length === 0 ? [1] : warningLevels,
         };
       }),
     );
