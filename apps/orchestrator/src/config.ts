@@ -26,6 +26,13 @@ export const config = {
   // consistent for the same "warn in a resource-constrained deployment"
   // override to be discoverable in one place.
   logLevel: process.env.LOG_LEVEL ?? "info",
+  // The Raspberry budget (nexus-edge-aquarium AGENTS_TO_DO.md 2026-10-16):
+  // a process's unchanged state reports (flags, metrics, messages) and
+  // unchanged AUTO device values are not sent again every tick - only
+  // re-sent / re-asserted after this long (a restarted API converges, a
+  // device that drifted gets corrected).
+  reportResendMs: Number(process.env.ORCHESTRATOR_REPORT_RESEND_MS ?? 60000),
+  autoReassertMs: Number(process.env.ORCHESTRATOR_AUTO_REASSERT_MS ?? 60000),
   // Extension points (AGENTS_TO_DO.md 2026-07-29) - a target project's own
   // process kinds (e.g. nexus-edge-smart-house's temperature-control),
   // scanned by processPlugins.ts. Unset for this repo's own docker-compose
@@ -38,10 +45,11 @@ export const config = {
     builtinDevicesDir: process.env.BUILTIN_DEVICES_DIR ?? "/workspace/devices",
     extraDir: process.env.EXTRA_PROCESS_PLUGINS_DIR,
   },
-  // nexus.events subscription for process onDeviceEvent hooks (AGENTS.md
-  // section 80) - the same RabbitMQ user/host the Devices API publishes
-  // with. Optional: without RABBITMQ_HOST, hooks simply never fire and
-  // processes keep running on the tick alone.
+  // nexus.events subscription (busEvents.ts) for process onDeviceEvent
+  // hooks (AGENTS.md section 80) and change events (changeEvents.ts) - the
+  // same RabbitMQ user/host the Devices API publishes with. Optional:
+  // without RABBITMQ_HOST, hooks simply never fire, caches only expire by
+  // their TTLs and processes keep running on the tick alone.
   rabbitmq: process.env.RABBITMQ_HOST
     ? {
         url: `amqp://${process.env.RABBITMQ_DEFAULT_USER}:${process.env.RABBITMQ_DEFAULT_PASS}@${process.env.RABBITMQ_HOST}:${process.env.RABBITMQ_PORT ?? 5672}`,

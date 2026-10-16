@@ -52,6 +52,9 @@ interface LibraryDescriptor {
   id: string;
   name: string;
   description?: string;
+  // a device type's audit policy for process-written AUTO values
+  // (migrations/1690000000059; default "change")
+  auditAuto?: "change" | "transition" | "never";
 }
 
 interface CategoryDescriptor {
@@ -140,11 +143,12 @@ async function upsertItem(
   await pool.query(
     `INSERT INTO library_items
        (id, folder_path, kind, category_id, name, description, icon_path, type_name, supports, parent_types,
-        last_synced_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
+        audit_auto, last_synced_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), now())
      ON CONFLICT (id) DO UPDATE
        SET folder_path = $2, kind = $3, category_id = $4, name = $5, description = $6,
-           icon_path = $7, type_name = $8, supports = $9, parent_types = $10, last_synced_at = now(), updated_at = now()`,
+           icon_path = $7, type_name = $8, supports = $9, parent_types = $10, audit_auto = $11,
+           last_synced_at = now(), updated_at = now()`,
     [
       descriptor.id,
       folderPath,
@@ -156,6 +160,7 @@ async function upsertItem(
       typeName,
       supports ? JSON.stringify(supports) : null,
       parents ? JSON.stringify(parents) : null,
+      ["change", "transition", "never"].includes(descriptor.auditAuto ?? "") ? descriptor.auditAuto : null,
     ],
   );
 }

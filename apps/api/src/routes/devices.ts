@@ -7,6 +7,7 @@ import { getSystemActorUserId, logCommand } from "../commandLog.js";
 import { logReading } from "../deviceLog.js";
 import * as dataLoggerControl from "../dataLoggerControl.js";
 import { EdgeXError, listEdgeXDevices, readValue, writeValue, type EdgeXDeviceStatus } from "../edgex.js";
+import { entityChanges, type EntityChange } from "../entityChanges.js";
 import { config } from "../config.js";
 import { publishDeviceEvent } from "../messaging.js";
 import { devicesNeededFor, validateWrite, type ForbiddenRule } from "../validator.js";
@@ -534,6 +535,34 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // The same for several devices in ONE request (nexus-edge-aquarium
+  // AGENTS_TO_DO.md 2026-10-16, the Raspberry budget): a simulation
+  // publishes its readings together - one HTTP round trip, the EdgeX
+  // writes in parallel. Each item answers for itself ({id, ok, error?});
+  // one failing item doesn't fail the others.
+  app.put<{ Body: { values: { id: number; value: unknown }[] } }>("/devices/simulate-auto", async (request, reply) => {
+    const values = request.body?.values;
+    if (!Array.isArray(values)) return reply.code(400).send({ error: "request body must include 'values' - [{id, value}]" });
+    const results = await Promise.all(
+      values.map(async ({ id, value }) => {
+        try {
+          if (value === undefined) return { id, ok: false, error: "no value" };
+          const device = await findDevice(String(id));
+          if (!device) return { id, ok: false, error: "device not found" };
+          const edgexName = resolveEdgexName(device);
+          if (!edgexName || !device.capabilities.edgexResource) return { id, ok: false, error: "device is not backed by EdgeX" };
+          if (!device.capabilities.readOnly) return { id, ok: false, error: "device is not read-only" };
+          await writeValue(edgexName, device.capabilities.edgexResource, value);
+          await dualDevicesModel.publishReading(device.id, value, "process");
+          return { id, ok: true };
+        } catch (err) {
+          return { id, ok: false, error: err instanceof Error ? err.message : String(err) };
+        }
+      }),
+    );
+    return { results };
+  });
+
   // Orchestrator-driven equivalent of the write path above: records
   // valueAuto, but only reaches EdgeX if the device is currently in AUTO
   // mode (a manual override keeps winning until released). Called every
@@ -563,8 +592,9 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     // dropped this exact "log every tick" behavior for log_device in the
     // 2026-07-27 refactor. The reassertion write/publish below still runs
     // every tick regardless - only the audit log entry is suppressed.
+    // ... and only as the device type's audit policy says (auditPolicyOf)
     const previousState = await dualDevicesModel.getState(device.id);
-    if (JSON.stringify(previousState.valueAuto) !== JSON.stringify(value)) {
+    if (auditable(await auditPolicyOf(device.type), previousState.valueAuto, value)) {
       await logCommand({ deviceId: device.id, action: "auto", value, source: "api", actorUserId: await getSystemActorUserId() });
     }
 
@@ -871,6 +901,36 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
 
 export interface DeviceRowWithNode extends DeviceRow {
   node_simulated: boolean | null;
+}
+
+// A device type's audit policy for process-written AUTO values (Library
+// `library.json` auditAuto, migrations/1690000000059): read from the
+// catalog once, dropped when a Library item changes (entityChanges.ts).
+let auditPolicies: { byType: Map<string, string> } | null = null;
+entityChanges.on("change", (change: EntityChange) => {
+  if (change.table === "library_items" || change.op === "resync") auditPolicies = null;
+});
+
+async function auditPolicyOf(type: string): Promise<string> {
+  if (!auditPolicies) {
+    const rows = (
+      await pool.query<{ type_name: string; audit_auto: string }>(
+        "SELECT type_name, audit_auto FROM library_items WHERE kind = 'device' AND audit_auto IS NOT NULL",
+      )
+    ).rows;
+    auditPolicies = { byType: new Map(rows.map((r) => [r.type_name, r.audit_auto])) };
+  }
+  return auditPolicies.byType.get(type) ?? "change";
+}
+
+// on / non-zero vs off / zero / empty
+const isOn = (v: unknown) => v !== null && v !== undefined && v !== false && v !== 0 && v !== "0" && v !== "" && v !== "false";
+
+/** Whether an AUTO write from `previous` to `value` gets a log_command row under `policy`. */
+function auditable(policy: string, previous: unknown, value: unknown): boolean {
+  if (policy === "never") return false;
+  if (policy === "transition") return isOn(previous) !== isOn(value);
+  return JSON.stringify(previous) !== JSON.stringify(value);
 }
 
 export async function findDevice(id: string): Promise<DeviceRowWithNode | undefined> {

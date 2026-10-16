@@ -19,6 +19,7 @@ import {
   pluginMediaScope,
 } from "./mediaStore.js";
 import { processStateEvents } from "./processStateEvents.js";
+import { timeSeries } from "./timeSeries.js";
 
 /**
  * Command-API extension points (extension points design, AGENTS_TO_DO.md
@@ -89,6 +90,8 @@ export interface ApiPluginContext {
   ai: { getVisionProvider: typeof getVisionProvider; imageMaxSide: number };
   resizeJpeg: typeof resizeJpeg;
   previewMaxSide: number;
+  // the time series (timeSeries.ts): a chart's points, a period's consumption
+  series: typeof timeSeries;
 }
 
 const pluginContext: ApiPluginContext = {
@@ -108,6 +111,7 @@ const pluginContext: ApiPluginContext = {
   ai: { getVisionProvider, imageMaxSide: config.ai.imageMaxSide },
   resizeJpeg,
   previewMaxSide: config.media.previewMaxSide,
+  series: timeSeries,
 };
 
 interface ApiPluginSource {

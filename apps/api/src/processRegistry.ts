@@ -37,6 +37,7 @@ export interface ProcessPublicMessage {
   level: number;
   code: string;
   text: string;
+  subject: string | null;
   hidden: boolean;
   created_at: string;
   updated_at: string;

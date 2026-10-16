@@ -9,6 +9,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { loadApiPlugins } from "./apiPlugins.js";
 import { config } from "./config.js";
 import { startEdgexPushBridge } from "./edgexPushBridge.js";
+import { startEntityChangeListener } from "./entityChanges.js";
 import { syncLibrary } from "./libraryCatalog.js";
 import { startProcessStateBroadcastLoop } from "./processBroadcast.js";
 import { initUnreadCounts } from "./processMessages.js";
@@ -28,6 +29,7 @@ import { nodeGroupRoutes } from "./routes/nodeGroups.js";
 import { nodeRoutes } from "./routes/nodes.js";
 import { processGroupRoutes } from "./routes/processGroups.js";
 import { processRoutes } from "./routes/processes.js";
+import { seriesRoutes } from "./routes/series.js";
 import { serviceRoutes } from "./routes/service.js";
 import { serviceDatabaseRoutes } from "./routes/serviceDatabase.js";
 import { systemTickRoutes } from "./routes/systemTick.js";
@@ -97,6 +99,7 @@ export async function startApiServer(): Promise<FastifyInstance> {
   await app.register(processRoutes);
   await app.register(tabGroupRoutes);
   await app.register(dashboardCardRoutes);
+  await app.register(seriesRoutes);
   await app.register(messageGroupRoutes);
   await app.register(messageLevelRoutes);
   await app.register(messageSignalTimingRoutes);
@@ -118,6 +121,8 @@ export async function startApiServer(): Promise<FastifyInstance> {
   startProcessStateBroadcastLoop();
   // Device pushes (AGENTS.md section 80) - EdgeX bus -> normal reading path.
   startEdgexPushBridge();
+  // Change notifications (entityChanges.ts) - Postgres -> nexus.events.
+  startEntityChangeListener();
 
   // Library Catalog (AGENTS.md section 32) - rebuilt on every startup (the
   // user's own explicit spec: "метод аналізу... повинен запускатися

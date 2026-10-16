@@ -28,6 +28,8 @@
 
 import { apiClient, type DataLoggerControlEntry, type DataLoggerSettings, type MessageInput, type ProcessRecord } from "../apiClient.js";
 import { TICK_INTERVAL_MS } from "../tickInterval.js";
+import { logSeries } from "./seriesLogger.js";
+import { logger } from "../logger.js";
 
 const TICK_SECONDS = TICK_INTERVAL_MS / 1000;
 
@@ -89,6 +91,9 @@ async function maybeTouch(deviceId: number, periodSeconds: number): Promise<void
 }
 
 export async function runDataLogger(process: ProcessRecord): Promise<void> {
+  // the time series - every series by its own policy (seriesLogger.ts);
+  // a failure there doesn't stop the device logging below
+  await logSeries().catch((err) => logger.warn({ err }, "time series logging failed"));
   let settings: DataLoggerSettings;
   let entries: DataLoggerControlEntry[];
   try {

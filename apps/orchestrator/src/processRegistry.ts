@@ -22,6 +22,11 @@ export interface DeviceEvent {
  */
 export interface ProcessHooks {
   onDeviceEvent?: (process: ProcessRecord, event: DeviceEvent) => Promise<void>;
+  // How often the kind's runner needs to run, ms (default - every tick).
+  // A slow process (water quality probes, dosing) runs less often and
+  // saves the tick's budget (nexus-edge-aquarium AGENTS_TO_DO.md
+  // 2026-10-16, the Raspberry budget); rounded to whole ticks.
+  intervalMs?: number;
 }
 
 const runners = new Map<string, ProcessRunner>();

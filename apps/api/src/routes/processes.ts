@@ -6,6 +6,7 @@ import { config } from "../config.js";
 import { pool } from "../db.js";
 import * as heartbeatControl from "../heartbeatControl.js";
 import type { HeartbeatControlConfig } from "../heartbeatControl.js";
+import { announceChange } from "../entityChanges.js";
 import { broadcastForced } from "../processBroadcast.js";
 import * as processMessages from "../processMessages.js";
 import * as processRegistry from "../processRegistry.js";
@@ -271,6 +272,8 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       });
 
       await processRegistry.setStatus(process.id, action === "ON" ? "on" : "off", "api");
+      // the status lives in Redis - no row change tells the processes' caches
+      announceChange("processes", process.id);
       // `status` is a deliberately non-urgent, timer-only broadcast field
       // (AGENTS.md section 24) - a UI-driven ON/OFF click is exactly the
       // "flip it and watch the effect immediately" case that's laggy for,

@@ -1,7 +1,9 @@
 package can
 
 import (
+	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/clients/logger"
@@ -23,6 +25,11 @@ type cachedFrame struct {
 type busConn struct {
 	conn *Conn
 	lc   logger.LoggingClient
+	name string
+
+	// the reader hit an error (the interface went away) - the connection
+	// is to be reopened (see stale)
+	dead atomic.Bool
 
 	mu     sync.RWMutex
 	latest map[uint32]cachedFrame
@@ -30,16 +37,23 @@ type busConn struct {
 	stop chan struct{}
 }
 
-func newBusConn(ifaceName string, lc logger.LoggingClient) (*busConn, error) {
+// newBusConn opens `ifaceName`; `latest` - the frames a previous
+// connection to it had cached (kept across a reopen - each still carries
+// its true receipt time), nil for none.
+func newBusConn(ifaceName string, lc logger.LoggingClient, latest map[uint32]cachedFrame) (*busConn, error) {
 	conn, err := Open(ifaceName)
 	if err != nil {
 		return nil, err
+	}
+	if latest == nil {
+		latest = make(map[uint32]cachedFrame)
 	}
 
 	b := &busConn{
 		conn:   conn,
 		lc:     lc,
-		latest: make(map[uint32]cachedFrame),
+		name:   ifaceName,
+		latest: latest,
 		stop:   make(chan struct{}),
 	}
 	go b.readLoop(ifaceName)
@@ -55,7 +69,8 @@ func (b *busConn) readLoop(ifaceName string) {
 				// Close() closed the socket to unblock Receive; exit quietly.
 				return
 			default:
-				b.lc.Errorf("CAN bus %s: read error, stopping bus reader: %s", ifaceName, err.Error())
+				b.lc.Errorf("CAN bus %s: read error, stopping bus reader (reopened on next use): %s", ifaceName, err.Error())
+				b.dead.Store(true)
 				return
 			}
 		}
@@ -83,6 +98,29 @@ func (b *busConn) Latest(id uint32) (Frame, time.Time, bool) {
 	defer b.mu.RUnlock()
 	c, ok := b.latest[id]
 	return c.frame, c.receivedAt, ok
+}
+
+// stale tells whether this connection no longer reaches the interface
+// named `name`: its reader died, or the interface was re-created under the
+// same name (a new kernel index - a re-plugged USB adapter, the interface
+// moved into this container's namespace again). One netlink lookup.
+func (b *busConn) stale() bool {
+	if b.dead.Load() {
+		return true
+	}
+	iface, err := net.InterfaceByName(b.name)
+	return err != nil || iface.Index != b.conn.Ifindex()
+}
+
+// frames is a copy of the cached frames (handed to a reopened connection).
+func (b *busConn) frames() map[uint32]cachedFrame {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	out := make(map[uint32]cachedFrame, len(b.latest))
+	for id, f := range b.latest {
+		out[id] = f
+	}
+	return out
 }
 
 // Send writes a frame to the bus.

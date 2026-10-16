@@ -2,16 +2,18 @@ import Fastify, { type FastifyInstance } from "fastify";
 
 import { apiClient, type ProcessRecord } from "./apiClient.js";
 import { config } from "./config.js";
-import { startDeviceEventSubscription } from "./deviceEvents.js";
+import { startBusSubscription } from "./busEvents.js";
 import { logger } from "./logger.js";
 import { loadProcessPlugins } from "./processPlugins.js";
 import { runDataLogger } from "./processes/dataLogger.js";
 import { runHeartbeatControl } from "./processes/heartbeatControl.js";
 import { runHeartbeatControlTest } from "./processes/heartbeatControlTest.js";
 import { runResourceMonitor } from "./processes/resourceMonitor.js";
-import { dispatchDeviceEvent, processLockedRun, setKnownProcesses } from "./processDispatch.js";
+import { dispatchDeviceEvent, processLockedRun } from "./processDispatch.js";
+import { setTickProcesses } from "./tickProcesses.js";
 import { processRegistry } from "./processRegistry.js";
 import { TICK_INTERVAL_MS } from "./tickInterval.js";
+import { tickStats } from "./tickStats.js";
 
 // Built-in process kinds (AGENTS.md section 10) - registered through the
 // same processRegistry a target-project plugin would use (extension
@@ -42,17 +44,23 @@ function registerBuiltinProcessKinds(): void {
 // process runner below fires concurrently (Promise.all), so N
 // overlapping ticks means N times the API traffic, not N+1.
 let tickInProgress = false;
+// when each process's runner last ran (its kind's `intervalMs`)
+const lastRunAt = new Map<number, number>();
 
 async function tick(): Promise<void> {
   if (tickInProgress) {
     logger.warn("tick: previous tick still running - skipping this interval firing");
+    tickStats.skipped();
     return;
   }
   tickInProgress = true;
+  const started = performance.now();
   try {
     await tickBody();
   } finally {
     tickInProgress = false;
+    const window = tickStats.tick(performance.now() - started);
+    if (window) logger.info({ tickStats: window }, "tick load (last window)");
   }
 }
 
@@ -69,10 +77,10 @@ async function tickBody(): Promise<void> {
     logger.warn({ err }, "failed to list processes");
     return;
   }
-  // The event dispatcher (processDispatch.ts) routes device events to the
-  // same process list the tick just fetched - one list call per second,
-  // not one per event.
-  setKnownProcesses(processes);
+  // The runners, the plugins and the event dispatcher (processDispatch.ts)
+  // read the list the tick just fetched (tickProcesses.ts) - one list call
+  // per second, not one per runner or event.
+  setTickProcesses(processes);
 
   // Heartbeating Control (AGENTS.md) - every process id whose runner
   // completed *without throwing* this tick, collected here and touched
@@ -84,8 +92,18 @@ async function tickBody(): Promise<void> {
     processes.map(async (process) => {
       const runner = processRegistry.get(process.kind);
       if (!runner) return;
+      // a kind with its own interval runs only when due (half a tick of slack)
+      const intervalMs = processRegistry.hooks(process.kind)?.intervalMs ?? 0;
+      const now = Date.now();
+      if (intervalMs > TICK_INTERVAL_MS && now - (lastRunAt.get(process.id) ?? 0) < intervalMs - TICK_INTERVAL_MS / 2) {
+        alive.push(process.id); // not run this tick by design - still alive
+        return;
+      }
+      lastRunAt.set(process.id, now);
       try {
+        const runStarted = performance.now();
         await processLockedRun(process.id, () => runner(process));
+        tickStats.kind(process.kind, performance.now() - runStarted);
         alive.push(process.id);
       } catch (err) {
         logger.warn({ err, processId: process.id, kind: process.kind }, "process tick failed");
@@ -117,8 +135,9 @@ export async function startOrchestrator(): Promise<FastifyInstance> {
     void tick();
   }, TICK_INTERVAL_MS);
 
-  // Event-driven hooks (AGENTS.md section 80), alongside the tick.
-  startDeviceEventSubscription(dispatchDeviceEvent);
+  // Event-driven hooks (AGENTS.md section 80) and change events
+  // (changeEvents.ts), alongside the tick.
+  startBusSubscription(dispatchDeviceEvent);
 
   const app = Fastify({ logger: { level: config.logLevel } });
   app.get("/health", async () => ({ status: "ok", service: "orchestrator" }));
@@ -129,6 +148,8 @@ export async function startOrchestrator(): Promise<FastifyInstance> {
   // loadProcessPlugins() above run once at startup, not on a timer - a
   // kind copied in after that needs a restart before it shows up here).
   app.get("/process-kinds", async () => ({ kinds: processRegistry.list() }));
+  // the tick load of the last full window (tickStats.ts)
+  app.get("/tick-stats", async () => tickStats.last() ?? { pending: true });
   await app.listen({ port: config.port, host: config.host });
   return app;
 }

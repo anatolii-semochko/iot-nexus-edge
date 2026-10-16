@@ -19,7 +19,13 @@ name: __SLUG__
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # TimescaleDB (PostgreSQL 16 + the time-series extension, arm64 too -
+    # nexus-edge AGENTS.md "Time series"): the device / value logs as
+    # hypertables with continuous aggregates. The library is preloaded
+    # here, not by the image's initdb config, so an existing PG16 data
+    # volume works as it is.
+    image: timescale/timescaledb:2.17.2-pg16
+    command: ["postgres", "-c", "shared_preload_libraries=timescaledb"]
     container_name: __SLUG__-postgres
     restart: unless-stopped
     environment:
@@ -116,7 +122,7 @@ services:
 
   # One-off: applies this project's own private Postgres seeds
   # (migrations/*.sql) after nexus-edge's own migrations (run by the api
-  # service's startup command) have created the devices/nodes tables.
+  # service's startup command) have all been applied.
   # Deliberately plain psql, not a second node-pg-migrate instance -
   # fine for a handful of seed files, not an evolving migration history;
   # reconsider if that changes. Empty migrations/ at generation time is
@@ -126,7 +132,12 @@ services:
     container_name: __SLUG__-migrate-extra
     depends_on:
       - postgres
+      - api
     environment:
+      # the api runs ALL of nexus-edge's own migrations before it listens,
+      # so its /health answering means every core table (devices, series,
+      # ...) a seed below may use exists - not just the first one
+      API_HEALTH_URL: http://api:${API_PORT}/health
       PGHOST: postgres
       PGPORT: "5432"
       PGDATABASE: ${POSTGRES_DB}
@@ -138,9 +149,9 @@ services:
     command:
       - |
         set -e
-        for i in $$(seq 1 30); do
-          if psql -c "select 1 from devices limit 1" >/dev/null 2>&1; then
-            echo "devices table ready, applying private seeds"
+        for i in $$(seq 1 90); do
+          if wget -q -O /dev/null "$$API_HEALTH_URL" 2>/dev/null; then
+            echo "nexus-edge's own migrations applied, applying private seeds"
             for f in /migrations/*.sql; do
               [ -e "$$f" ] || continue
               echo "applying $$f"
@@ -148,10 +159,10 @@ services:
             done
             exit 0
           fi
-          echo "waiting for nexus-edge's own migrations to create devices table ($$i/30)"
+          echo "waiting for the api (nexus-edge's own migrations) ($$i/90)"
           sleep 2
         done
-        echo "timed out waiting for devices table" >&2
+        echo "timed out waiting for the api" >&2
         exit 1
     networks:
       - __SLUG__-network

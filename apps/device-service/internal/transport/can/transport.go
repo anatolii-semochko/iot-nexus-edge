@@ -118,8 +118,19 @@ func (t *Transport) Write(deviceName string, props models.ProtocolProperties, re
 			return fmt.Errorf("resource %s: %w", req.DeviceResourceName, err)
 		}
 
-		if err := bus.Send(Frame{ID: mapping.ArbitrationID, Data: data}); err != nil {
-			return fmt.Errorf("resource %s: sending CAN frame: %w", req.DeviceResourceName, err)
+		frame := Frame{ID: mapping.ArbitrationID, Data: data}
+		if err := bus.Send(frame); err != nil {
+			// the interface may have gone and come back between the stale
+			// check and this write - reopen once and retry
+			bus.dead.Store(true)
+			retry, rerr := t.ensureBus(cfg.Bus)
+			if rerr != nil {
+				return fmt.Errorf("resource %s: sending CAN frame: %w (reopen: %v)", req.DeviceResourceName, err, rerr)
+			}
+			if err := retry.Send(frame); err != nil {
+				return fmt.Errorf("resource %s: sending CAN frame: %w", req.DeviceResourceName, err)
+			}
+			bus = retry
 		}
 	}
 
@@ -143,11 +154,23 @@ func (t *Transport) ensureBus(ifaceName string) (*busConn, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	// An open connection is reused while it still reaches the interface;
+	// one that doesn't (a re-plugged adapter, a dead reader) is reopened
+	// here, on the next read / write - no service restart needed.
+	var latest map[uint32]cachedFrame
 	if b, ok := t.bus[ifaceName]; ok {
-		return b, nil
+		if !b.stale() {
+			return b, nil
+		}
+		t.lc.Infof("CAN bus %s: the interface changed or its reader stopped - reopening", ifaceName)
+		latest = b.frames()
+		if err := b.Close(); err != nil {
+			t.lc.Debugf("closing stale CAN bus %s: %s", ifaceName, err.Error())
+		}
+		delete(t.bus, ifaceName)
 	}
 
-	b, err := newBusConn(ifaceName, t.lc)
+	b, err := newBusConn(ifaceName, t.lc, latest)
 	if err != nil {
 		return nil, fmt.Errorf("open CAN bus %s: %w", ifaceName, err)
 	}
