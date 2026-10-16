@@ -339,6 +339,13 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ type, entries, autoResolve }),
     }),
+  // Events - one-shot reports for the log only, never in the process's
+  // active WEM list (api processMessages.logEvents).
+  logEvents: (processId: number, entries: MessageInput[]) =>
+    request(`/processes/${processId}/events`, {
+      method: "POST",
+      body: JSON.stringify({ entries }),
+    }),
   // Forces an immediate fleet-wide public-state broadcast (AGENTS.md
   // section 24), outside the automatic critical/warning/new-message
   // triggers and the periodic timer - available for a process kind that
