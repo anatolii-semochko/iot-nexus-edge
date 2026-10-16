@@ -7748,7 +7748,8 @@ among its siblings. GET - any signed-in user; edits - admin only (POST,
 PATCH incl. a move to another folder with a cycle check, DELETE with the
 subtree, POST `/:id/move {up|down}`).
 - Components: `dashboardRegistry.registerComponent({key, title,
-  processKind?, Component, Preview?, description})` (src/dashboardRegistry.js);
+  processKind?, Component, avatars?, description})` (src/dashboardRegistry.js;
+  avatars - section "Dashboard: avatars ..." below);
   `availableComponents(processes)` - one per named process of the kind, a
   system one once. The core's own (builtinDashboardComponents.js, lazy):
   Processes, Nodes, Live events, Logs; process-bound - Resource monitor,
@@ -7944,4 +7945,22 @@ Migration 064 (nexus-edge-aquarium AGENTS_TO_DO.md tech debt 6):
 - UI: Service -> Database -> Migrations (`views/service/MigrationsCard.jsx`):
   Auto Apply / Human Confirmation, the pending / changed ones, Apply.
 - Next (with the AI assistant): creating nodes / devices through the API.
+
+## Dashboard: avatars, taller cards, fit-width (2026-10-16)
+
+- The custom: a DNP brings, beside its Dashboard components, their
+  versions adapted to the Dashboard - first the card's picture, its
+  avatar: `registerComponent({..., avatars: [{key, title, Component,
+  fit?}]})` (dashboardRegistry.js; `Preview` is gone). An avatar fills the
+  card's picture block itself; a `fit` one is a full view scaled into it
+  (FitBox). A card's `preview` (migration 066 - any key): "auto" (the first
+  avatar, else a scaled copy), "scaled", or an avatar's key; Service ->
+  Config -> Dashboard -> a card's "Avatar". The core's: Resource monitor -
+  `chart` (its live chart only, ResourceMonitorAvatar - the history hook
+  `useResourceHistory` shared with the panel); Weather - `picture` (a
+  static sun / cloud / rain / thermometer SVG, transparent, WeatherAvatar).
+- The cards 20 % taller (picture block 10.8 rem), a folder's icon 6.6 rem.
+- fit-width: the component is laid out in the visible width (was its
+  natural width - a wide part, e.g. a table, pushed the rest out of view);
+  what can't shrink scrolls sideways.
 

@@ -1,5 +1,15 @@
 import React, { useEffect, useState } from 'react'
-import { CAlert, CBadge, CButton, CButtonGroup, CSpinner, CTable, CTableBody, CTableDataCell, CTableRow } from '@coreui/react'
+import {
+  CAlert,
+  CBadge,
+  CButton,
+  CButtonGroup,
+  CSpinner,
+  CTable,
+  CTableBody,
+  CTableDataCell,
+  CTableRow,
+} from '@coreui/react'
 import { api } from '../../api/client'
 import { formatSmartDateTime } from '../../utils/format'
 
@@ -61,16 +71,24 @@ const MigrationsCard = () => {
         <h5 className="mb-0">Migrations</h5>
         <CButtonGroup size="sm" role="group" aria-label="How the project's migrations are applied">
           {MODES.map((m) => (
-            <CButton key={m.value} color="primary" variant={data.apply === m.value ? undefined : 'outline'} onClick={() => setMode(m.value)}>
+            <CButton
+              key={m.value}
+              color="primary"
+              variant={data.apply === m.value ? undefined : 'outline'}
+              onClick={() => setMode(m.value)}
+            >
               {m.label}
             </CButton>
           ))}
         </CButtonGroup>
       </div>
       <div className="small text-body-secondary mb-2">
-        Core: {data.core.length} applied. Project: {data.project.length - pending.length - changed.length} applied
+        Core: {data.core.length} applied. Project:{' '}
+        {data.project.length - pending.length - changed.length} applied
         {last ? `, the last ${last.name} (${formatSmartDateTime(last.appliedAt)})` : ''}.{' '}
-        {data.apply === 'auto' ? 'New ones are applied when the API starts.' : 'New ones wait for a confirmation here.'}
+        {data.apply === 'auto'
+          ? 'New ones are applied when the API starts.'
+          : 'New ones wait for a confirmation here.'}
       </div>
       {error && <CAlert color="danger">{error}</CAlert>}
       {message && <CAlert color="success">{message}</CAlert>}
@@ -84,7 +102,10 @@ const MigrationsCard = () => {
                   {m.status === 'pending' ? (
                     <CBadge color="warning">Pending</CBadge>
                   ) : (
-                    <CBadge color="danger" title="Changed after it was applied - not re-run; write a new migration">
+                    <CBadge
+                      color="danger"
+                      title="Changed after it was applied - not re-run; write a new migration"
+                    >
                       Changed
                     </CBadge>
                   )}

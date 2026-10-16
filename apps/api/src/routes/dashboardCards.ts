@@ -20,7 +20,8 @@ interface CardRow {
   component_key: string | null;
   process_id: number | null;
   view: "fit-height" | "fit-width";
-  preview: "auto" | "scaled";
+  // "auto" | "scaled" | an avatar's key (migrations/1690000000066)
+  preview: string;
   access_group_ids: number[];
   created_at: string;
   updated_at: string;
@@ -35,7 +36,7 @@ interface CardBody {
   componentKey?: string | null;
   processId?: number | null;
   view?: "fit-height" | "fit-width";
-  preview?: "auto" | "scaled";
+  preview?: string;
 }
 
 const toCard = (row: CardRow) => ({
@@ -95,6 +96,8 @@ const problemOf = (body: CardBody, type: string | undefined): string | null => {
     !body.componentKey
   )
     return "a component card needs its component";
+  if (body.preview !== undefined && !/^[A-Za-z0-9_.-]{1,64}$/.test(body.preview))
+    return 'preview must be "auto", "scaled" or an avatar\'s key';
   return null;
 };
 

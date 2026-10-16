@@ -7,10 +7,17 @@
 //     title: 'Aquarium dashboard',
 //     processKind: 'aquarium-control',  // one component per named process of this kind
 //     Component,                        // ({ process }) - the process row; a system one: ()
-//     Preview,                          // optional ({ process }) - the card's own preview
+//     avatars: [                        // optional - the card's pictures, made for its block
+//       { key: 'photo', title: 'The newest photo', Component },   // fills the block itself
+//       { key: 'scene', title: 'The scene', Component, fit: true }, // a full view, scaled into it
+//     ],
 //   })
 //
 // Without `processKind` the component is a system one (no process).
+// Avatars (2026-10-16): the custom - a DNP brings, beside its components,
+// their versions adapted to the Dashboard: a card's picture (its avatar)
+// first. A card picks one (`preview` - an avatar's key; "auto" - the first;
+// "scaled" - a scaled copy of the component, also when there is none).
 // Service -> Config -> Dashboard builds the card tree out of them; the
 // Dashboard page shows the tree. Plain objects read via property access,
 // same react-hooks/static-components reasoning as processTypeRegistry.js.
