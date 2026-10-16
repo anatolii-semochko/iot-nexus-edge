@@ -145,6 +145,8 @@ interface CommandLogRawRow {
 
 export interface ListCommandLogsParams {
   deviceId?: number;
+  // only these processes' commands (e.g. one aquarium's - its dashboard's change log)
+  processIds?: number[];
   action?: DeviceCommandAction;
   actorUserId?: number;
   search?: string;
@@ -160,9 +162,14 @@ export interface ListCommandLogsParams {
  * a row targets one or the other, never both.
  */
 export async function listCommandLogs(params: ListCommandLogsParams): Promise<{ items: CommandLogListItem[]; total: number }> {
-  const { deviceId, action, actorUserId, search, from, to, page, pageSize } = params;
+  const { deviceId, processIds, action, actorUserId, search, from, to, page, pageSize } = params;
   const conditions: string[] = [];
   const values: unknown[] = [];
+
+  if (processIds !== undefined) {
+    values.push(processIds);
+    conditions.push(`l.process_id = ANY($${values.length})`);
+  }
 
   if (deviceId !== undefined) {
     values.push(deviceId);

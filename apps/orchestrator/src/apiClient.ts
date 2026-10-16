@@ -275,7 +275,9 @@ export const apiClient = {
   // currently have an active error/warning", read fresh every tick same
   // as message levels/signal timing above.
   getMessageGroupsActiveState: () =>
-    request<{ id: number; hasActiveError: boolean; hasActiveWarning: boolean }[]>("/message-groups/active-state"),
+    request<
+      { id: number; hasActiveError: boolean; hasActiveWarning: boolean; errorLevels?: number[]; warningLevels?: number[] }[]
+    >("/message-groups/active-state"),
   // Orchestrator-driven write - only reaches EdgeX while the device is
   // still AUTO (AGENTS.md section 6); always records the intended value
   // even while a human has it overridden MANUAL via the UI.

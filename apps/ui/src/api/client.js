@@ -171,9 +171,10 @@ export const api = {
   // deviceCommands/sensors, AGENTS_TO_DO.md's 2026-07-27 Device/Node refactor -
   // matches the renamed log_command/log_device tables). The processes tab
   // reuses listProcessMessages above instead of a third function here.
-  listCommandLogs: ({ deviceId, action, actorUserId, search, from, to, page, pageSize }) => {
+  listCommandLogs: ({ deviceId, processIds, action, actorUserId, search, from, to, page, pageSize }) => {
     const params = new URLSearchParams({ page, pageSize })
     if (deviceId) params.set('deviceId', deviceId)
+    if (processIds) params.set('processIds', processIds.join(','))
     if (action) params.set('action', action)
     if (actorUserId) params.set('actorUserId', actorUserId)
     if (search) params.set('search', search)

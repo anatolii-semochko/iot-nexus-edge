@@ -22,6 +22,8 @@ export async function logRoutes(app: FastifyInstance): Promise<void> {
   app.get<{
     Querystring: {
       deviceId?: string;
+      // comma-separated process ids
+      processIds?: string;
       action?: DeviceCommandAction;
       actorUserId?: string;
       search?: string;
@@ -34,8 +36,15 @@ export async function logRoutes(app: FastifyInstance): Promise<void> {
     const { action, search, from, to } = request.query;
     const deviceId = request.query.deviceId ? Number(request.query.deviceId) : undefined;
     const actorUserId = request.query.actorUserId ? Number(request.query.actorUserId) : undefined;
+    const processIds = request.query.processIds
+      ? request.query.processIds
+          .split(",")
+          .map(Number)
+          .filter((n) => Number.isInteger(n))
+      : undefined;
     return commandLog.listCommandLogs({
       deviceId,
+      processIds,
       action,
       actorUserId,
       search,
