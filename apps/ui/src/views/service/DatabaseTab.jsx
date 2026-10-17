@@ -21,6 +21,7 @@ import {
 } from '@coreui/react'
 import { api } from '../../api/client'
 import { formatBytes, formatSmartDateTime } from '../../utils/format'
+import ClearLogsModal from './ClearLogsModal'
 
 // Service->Database (AGENTS_TO_DO.md, 2026-08-30) - donut segments read
 // straight off CoreUI's own theme CSS variables rather than hardcoded hex,
@@ -247,7 +248,6 @@ const DatabaseTab = () => {
   const [applying, setApplying] = useState(false)
 
   const [clearLogsConfirm, setClearLogsConfirm] = useState(false)
-  const [clearingLogs, setClearingLogs] = useState(false)
 
   const reloadStats = () => {
     api
@@ -315,21 +315,6 @@ const DatabaseTab = () => {
       setError(err.message)
     } finally {
       setApplying(false)
-    }
-  }
-
-  const handleClearLogs = async () => {
-    setClearingLogs(true)
-    setError(null)
-    try {
-      await api.clearDatabaseLogs()
-      setClearLogsConfirm(false)
-      setMessage('Logs cleared.')
-      reloadStats()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setClearingLogs(false)
     }
   }
 
@@ -515,29 +500,16 @@ const DatabaseTab = () => {
         </CModalFooter>
       </CModal>
 
-      {/* Clear Logs confirm */}
-      <CModal visible={clearLogsConfirm} onClose={() => setClearLogsConfirm(false)}>
-        <CModalHeader>
-          <CModalTitle>Confirm Clear Logs</CModalTitle>
-        </CModalHeader>
-        <CModalBody>
-          This permanently deletes every command/device/message log entry. Configuration (devices,
-          nodes, processes, users...) is not affected. This cannot be undone.
-        </CModalBody>
-        <CModalFooter>
-          <CButton
-            color="secondary"
-            variant="outline"
-            onClick={() => setClearLogsConfirm(false)}
-            disabled={clearingLogs}
-          >
-            Cancel
-          </CButton>
-          <CButton color="danger" onClick={handleClearLogs} disabled={clearingLogs}>
-            {clearingLogs ? <CSpinner size="sm" /> : 'Clear Logs'}
-          </CButton>
-        </CModalFooter>
-      </CModal>
+      {/* Clear Logs - the form (what, up to when) */}
+      {clearLogsConfirm && (
+        <ClearLogsModal
+          onClose={() => setClearLogsConfirm(false)}
+          onCleared={(text) => {
+            setMessage(text)
+            reloadStats()
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -45,6 +45,45 @@ export async function request(path, options = {}) {
   return res.json()
 }
 
+/**
+ * An AI Assistant answer as it happens (api POST /ai/conversations/:id/
+ * messages/stream - server-sent events over a POST, so not EventSource):
+ * `onEvent(type, data)` - "status" {text}, "message" (a stored message),
+ * "done", "error" {error}. Resolves when the stream ends.
+ */
+export async function streamAiMessage(conversationId, text, onEvent) {
+  const res = await fetch(`${BASE}/ai/conversations/${conversationId}/messages/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  if (!res.ok || !res.body) {
+    let message = `the assistant failed: ${res.status}`
+    try {
+      message = (await res.json()).error ?? message
+    } catch {
+      // not JSON - keep the status
+    }
+    throw Object.assign(new Error(message), { status: res.status })
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let end
+    while ((end = buffer.indexOf('\n\n')) >= 0) {
+      const block = buffer.slice(0, end)
+      buffer = buffer.slice(end + 2)
+      const type = /^event: (.*)$/m.exec(block)?.[1]
+      const data = /^data: (.*)$/m.exec(block)?.[1]
+      if (type) onEvent(type, data ? JSON.parse(data) : {})
+    }
+  }
+}
+
 export const api = {
   listNodes: () => request('/nodes'),
   getNode: (id) => request(`/nodes/${id}`),
@@ -142,6 +181,52 @@ export const api = {
     request(`/ai/connections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteAiConnection: (id) => request(`/ai/connections/${id}`, { method: 'DELETE' }),
   testAiConnection: (id) => request(`/ai/connections/${id}/test`, { method: 'POST' }),
+  // the assistant's instances (the whole system, the DNP instances): connection, access levels, logs
+  listAiInstances: () => request('/ai/instances'),
+  updateAiInstance: (key, data) =>
+    request(`/ai/instances/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  // AI Assistant conversations (api ai/agent.ts) and their logs (admin)
+  // what the messenger can talk to: the instances the assistant is on for
+  listAiEntities: () => request('/ai/entities'),
+  startAiConversation: (data) =>
+    request('/ai/conversations', { method: 'POST', body: JSON.stringify(data) }),
+  listAiConversations: (query = {}) => request(`/ai/conversations?${new URLSearchParams(query)}`),
+  getAiConversation: (id) => request(`/ai/conversations/${id}`),
+  sendAiMessage: (id, text) =>
+    request(`/ai/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ text }) }),
+  deleteAiConversation: (id) => request(`/ai/conversations/${id}`, { method: 'DELETE' }),
+  listAiLogs: ({ page, pageSize }) =>
+    request(`/ai/logs?${new URLSearchParams({ page, pageSize })}`),
+  listAiReports: ({ page, pageSize }) =>
+    request(`/ai/reports?${new URLSearchParams({ page, pageSize })}`),
+  // the agents' proposals (api ai/proposals.ts) - a page; a conversation's: { conversationId }
+  listAiProposals: (params) =>
+    request(
+      `/ai/proposals?${new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== '')),
+      )}`,
+    ),
+  // the calendar (api ai/calendar.ts)
+  listAiSchedules: (instanceKey) =>
+    request(`/ai/schedules?${new URLSearchParams({ instanceKey })}`),
+  createAiSchedule: (data) =>
+    request('/ai/schedules', { method: 'POST', body: JSON.stringify(data) }),
+  updateAiSchedule: (id, data) =>
+    request(`/ai/schedules/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteAiSchedule: (id) => request(`/ai/schedules/${id}`, { method: 'DELETE' }),
+  runAiSchedule: (id) => request(`/ai/schedules/${id}/run`, { method: 'POST' }),
+  decideAiProposal: (id, decision) =>
+    request(`/ai/proposals/${id}/${decision}`, { method: 'POST' }),
+  // MCP access tokens (api ai/mcp.ts) - a new token comes back once, on create
+  listMcpTokens: () => request('/ai/mcp-tokens'),
+  createMcpToken: (data) =>
+    request('/ai/mcp-tokens', { method: 'POST', body: JSON.stringify(data) }),
+  updateMcpToken: (id, data) =>
+    request(`/ai/mcp-tokens/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteMcpToken: (id) => request(`/ai/mcp-tokens/${id}`, { method: 'DELETE' }),
   // A one-shot command to a process (a calibration start, a replacement
   // done, a test) - kept out of its config (api routes/processes.ts).
   sendProcessCommand: (id, action, params = {}) =>
@@ -163,6 +248,12 @@ export const api = {
   // restart before it does anything - see ProcessesList.jsx's own
   // "pending restart" badge).
   createProcess: (data) => request('/processes', { method: 'POST', body: JSON.stringify(data) }),
+  // the Device Registry's writes (api registry.ts): a node with its declared devices, a device
+  getNodeType: (type) => request(`/registry/node-types/${encodeURIComponent(type)}`),
+  createNode: (data) => request('/nodes', { method: 'POST', body: JSON.stringify(data) }),
+  deleteNode: (id) => request(`/nodes/${id}`, { method: 'DELETE' }),
+  createDevice: (data) => request('/devices', { method: 'POST', body: JSON.stringify(data) }),
+  deleteDevice: (id) => request(`/devices/${id}`, { method: 'DELETE' }),
   deleteProcess: (id) => request(`/processes/${id}`, { method: 'DELETE' }),
   getRegisteredProcessKinds: () => request('/processes/registered-kinds'),
   // WEM (AGENTS.md section 22/25) - global dismiss (who/when is recorded
@@ -421,5 +512,9 @@ export const api = {
     formData.append('file', file)
     return request('/service/database/upload', { method: 'POST', body: formData })
   },
-  clearDatabaseLogs: () => request('/service/database/logs', { method: 'DELETE' }),
+  // Clear Logs with a choice (api logCleanup.ts): the units' volumes up to `before`, then the ticked ones cleared
+  getLogVolumes: (before) =>
+    request(`/service/database/logs/volumes${before ? `?${new URLSearchParams({ before })}` : ''}`),
+  clearDatabaseLogs: (data) =>
+    request('/service/database/logs', { method: 'DELETE', body: JSON.stringify(data) }),
 }

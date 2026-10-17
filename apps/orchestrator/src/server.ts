@@ -5,6 +5,7 @@ import { config } from "./config.js";
 import { startBusSubscription } from "./busEvents.js";
 import { logger } from "./logger.js";
 import { loadProcessPlugins } from "./processPlugins.js";
+import { runAiAssistant } from "./processes/aiAssistant.js";
 import { runDataLogger } from "./processes/dataLogger.js";
 import { runHeartbeatControl } from "./processes/heartbeatControl.js";
 import { runHeartbeatControlTest } from "./processes/heartbeatControlTest.js";
@@ -30,6 +31,7 @@ function registerBuiltinProcessKinds(): void {
   processRegistry.register("heartbeat-control", runHeartbeatControl);
   processRegistry.register("heartbeat-control-test", runHeartbeatControlTest);
   processRegistry.register("data-logger", runDataLogger);
+  processRegistry.register("ai-assistant", runAiAssistant, { intervalMs: config.aiCalendarIntervalMs });
 }
 
 // Re-entrancy guard (AGENTS_TO_DO.md, 2026-08-29) - setInterval below

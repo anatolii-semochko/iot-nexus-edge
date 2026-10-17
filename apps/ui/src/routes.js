@@ -16,6 +16,7 @@
 import React from 'react'
 
 const Dashboard = React.lazy(() => import('./views/dashboard/Dashboard'))
+const AiAssistant = React.lazy(() => import('./views/ai/AiAssistant'))
 const Docs = React.lazy(() => import('./views/docs/Docs'))
 
 // Devices
@@ -61,6 +62,10 @@ export const routes = [
   { path: '/dashboard', name: 'Dashboard', element: Dashboard },
   // a card of the Dashboard's tree (a folder or a component on the whole page)
   { path: '/dashboard/:cardId', name: 'Dashboard', element: Dashboard },
+  // the AI Assistant's messenger (2026-10-17)
+  { path: '/ai-assistant', name: 'AI Assistant', element: AiAssistant },
+  // a conversation opened by link (a scheduled run's warning, the calendar)
+  { path: '/ai-assistant/:conversationId', name: 'AI Assistant', element: AiAssistant },
   { path: '/docs', name: 'Docs', element: Docs },
   { path: '/nodes', name: 'Nodes', element: NodesList },
   { path: '/devices', name: 'Devices', element: DevicesList, exact: true },

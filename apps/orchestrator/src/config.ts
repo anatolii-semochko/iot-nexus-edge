@@ -33,6 +33,9 @@ export const config = {
   // device that drifted gets corrected).
   reportResendMs: Number(process.env.ORCHESTRATOR_REPORT_RESEND_MS ?? 60000),
   autoReassertMs: Number(process.env.ORCHESTRATOR_AUTO_REASSERT_MS ?? 60000),
+  // How often the "ai-assistant" process asks the API to start the due
+  // scheduled AI runs (processes/aiAssistant.ts) - the calendar's resolution.
+  aiCalendarIntervalMs: Number(process.env.AI_CALENDAR_INTERVAL_MS ?? 60000),
   // Extension points (AGENTS_TO_DO.md 2026-07-29) - a target project's own
   // process kinds (e.g. nexus-edge-smart-house's temperature-control),
   // scanned by processPlugins.ts. Unset for this repo's own docker-compose

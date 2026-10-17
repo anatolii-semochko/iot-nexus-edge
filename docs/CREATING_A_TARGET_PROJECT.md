@@ -117,6 +117,30 @@ watching it still works fine.
   only the specific instance wiring + process logic is what you're
   copying.
 
+## 6a. AI Assistant support for a DNP (optional)
+
+A DNP's processes get the Nexus Edge AI Assistant when its plugin
+declares it (AGENTS.md "AI Assistant"):
+
+- `plugins/<name>/plugin.json` - `{"version": "...", "description":
+  "...", "ai": {"kinds": [...], "workTypes": [...], "scheduledTypes":
+  [...]}}`: the process kinds whose instances get the assistant, the work
+  types (a standard one by its key - `status-analysis`, `wem-analysis`,
+  `config`, `control-tasks`, ...; an own one - `{key, title,
+  description}`), the ones the calendar may run.
+- `plugins/<name>/prompts/<work-type>.md` - an own work type's prompt, or
+  an override of a standard one (English, short; the core's packs -
+  `nexus-edge/apps/api/prompts/README.md`).
+- Docs the agent searches (`docs.search`): the plugin's own `docs/` and
+  node docs, plus the project's `AGENTS.md` / `README.md` mounted into the
+  api at `/workspace/project-docs` (the template's compose does it).
+- A node type's `node.yaml` `devices: [{role, type, name?}]` (and
+  optionally `heartbeatControl`) lets a person or the agent register a
+  node with its devices at run time (Library -> "Add node"; the
+  assistant's Install).
+- `.env`: `AI_SECRETS_KEY` (the connections' keys are encrypted with it),
+  the AI and calendar settings - see `.env.example`.
+
 ## 7. UI extension point (build-time - only if you need a custom control)
 
 A device without a custom `ui/register.js` still shows up automatically

@@ -467,6 +467,8 @@ export const apiClient = {
   // Reads the device's own current live value server-side and writes it
   // to log_device in one call - see routes/devices.ts's POST
   // /devices/:id/log.
+  // the AI Assistant's calendar (processes/aiAssistant.ts) - the scheduled runs it started
+  aiCalendarTick: () => request<{ started: number[] }>("/ai/calendar/tick", { method: "POST" }),
   logDeviceReading: (deviceId: number) =>
     request<{ status: string; value: unknown }>(`/devices/${deviceId}/log`, { method: "POST" }),
   // Generic escape hatch (AGENTS.md section 31) - a target project's own

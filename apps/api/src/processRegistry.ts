@@ -38,6 +38,7 @@ export interface ProcessPublicMessage {
   code: string;
   text: string;
   subject: string | null;
+  link: string | null;
   hidden: boolean;
   created_at: string;
   updated_at: string;

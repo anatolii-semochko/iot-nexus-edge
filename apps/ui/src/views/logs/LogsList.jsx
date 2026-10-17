@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { CCard, CCardBody, CCardHeader, CTab, CTabList, CTabs } from '@coreui/react'
 import { api } from '../../api/client'
 import { usePersistedState } from '../../hooks/usePersistedState'
+import AiLogsTab from './AiLogsTab'
+import AiProposalsTab from './AiProposalsTab'
+import AiReportsTab from './AiReportsTab'
 import CommandLogsTab from './CommandLogsTab'
 import DeviceLogsTab from './DeviceLogsTab'
 import ProcessMessageLogsTab from './ProcessMessageLogsTab'
@@ -10,6 +13,11 @@ const TAB_DEFS = [
   { key: 'commands', label: 'Commands' },
   { key: 'devices', label: 'Devices' },
   { key: 'processes', label: 'Messages' },
+  // the AI Assistant's conversations and its reports to the developers (2026-10-17)
+  { key: 'ai', label: 'AI' },
+  { key: 'aiReports', label: 'AI Reports' },
+  // what the agents proposed to change, Accept / Reject (stage 6)
+  { key: 'aiProposals', label: 'AI Proposals' },
 ]
 
 // Registration for usePersistedState (AGENTS_TO_DO.md, 2026-08-01) -
@@ -171,6 +179,9 @@ const LogsList = () => {
             onResetFilters={() => resetTab('processes')}
           />
         )}
+        {activeTab === 'ai' && <AiLogsTab />}
+        {activeTab === 'aiReports' && <AiReportsTab />}
+        {activeTab === 'aiProposals' && <AiProposalsTab />}
       </CCardBody>
     </CCard>
   )

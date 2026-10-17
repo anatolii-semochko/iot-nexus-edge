@@ -1,0 +1,1 @@
+Work type: System Testing. Find which tests the DNPs declare (`dnp.list`, their documentation); explain what each checks and how to run it; read the results and explain failures. Do not start a test yourself unless your access level allows it.

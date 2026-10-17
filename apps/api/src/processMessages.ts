@@ -18,6 +18,7 @@ export interface ProcessMessage {
   code: string;
   text: string;
   subject: string | null;
+  link: string | null;
   hidden: boolean;
   hidden_by: number | null;
   hidden_at: string | null;
@@ -32,6 +33,8 @@ export interface MessageInput {
   text: string;
   // what part of the process's domain it is about (migrations/1690000000063) - null / absent: the process as a whole
   subject?: string | null;
+  // an in-app path the message points to (migrations/1690000000072 - a scheduled AI run's conversation) - null / absent: none
+  link?: string | null;
 }
 
 // See `syncActiveMessages`'s `autoResolve` param below.
@@ -121,9 +124,10 @@ export async function syncActiveMessages(
       level: number;
       text: string;
       subject: string | null;
+      link: string | null;
       hidden: boolean;
     }>(
-      `SELECT id, code, level, text, subject, hidden FROM log_messages WHERE process_id = $1 AND type = $2 AND resolved_at IS NULL`,
+      `SELECT id, code, level, text, subject, link, hidden FROM log_messages WHERE process_id = $1 AND type = $2 AND resolved_at IS NULL`,
       [processId, type],
     );
     const activeByCode = new Map(active.map((row) => [row.code, row]));
@@ -133,20 +137,22 @@ export async function syncActiveMessages(
       const existing = activeByCode.get(entry.code);
       if (existing) {
         const subject = entry.subject ?? null;
-        if (existing.level !== entry.level || existing.text !== entry.text || existing.subject !== subject) {
-          await client.query(`UPDATE log_messages SET level = $1, text = $2, subject = $3, updated_at = now() WHERE id = $4`, [
+        const link = entry.link ?? null;
+        if (existing.level !== entry.level || existing.text !== entry.text || existing.subject !== subject || existing.link !== link) {
+          await client.query(`UPDATE log_messages SET level = $1, text = $2, subject = $3, link = $4, updated_at = now() WHERE id = $5`, [
             entry.level,
             entry.text,
             subject,
+            link,
             existing.id,
           ]);
           changed = true;
         }
       } else {
         await client.query(
-          `INSERT INTO log_messages (process_id, type, level, code, text, subject)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [processId, type, entry.level, entry.code, entry.text, entry.subject ?? null],
+          `INSERT INTO log_messages (process_id, type, level, code, text, subject, link)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [processId, type, entry.level, entry.code, entry.text, entry.subject ?? null, entry.link ?? null],
         );
         changed = true;
         newEntryCount += 1;
@@ -201,10 +207,10 @@ export async function logEvents(processId: number, entries: MessageInput[]): Pro
   let inserted = 0;
   for (const entry of entries) {
     const result = await pool.query(
-      `INSERT INTO log_messages (process_id, type, level, code, text, subject, resolved_at)
-       SELECT $1, 'message', $2, $3, $4, $5, now()
+      `INSERT INTO log_messages (process_id, type, level, code, text, subject, link, resolved_at)
+       SELECT $1, 'message', $2, $3, $4, $5, $6, now()
        WHERE NOT EXISTS (SELECT 1 FROM log_messages WHERE process_id = $1 AND type = 'message' AND code = $3)`,
-      [processId, entry.level, entry.code, entry.text, entry.subject ?? null],
+      [processId, entry.level, entry.code, entry.text, entry.subject ?? null, entry.link ?? null],
     );
     inserted += result.rowCount ?? 0;
   }
@@ -268,13 +274,14 @@ export async function listActiveMessages(processId: number): Promise<ProcessMess
 // this list is nested under) and `resolved_at` is always null for an
 // active list by construction, so neither belongs on the wire.
 function toPublicMessages(messages: ProcessMessage[]): ProcessPublicMessage[] {
-  return messages.map(({ id, type, level, code, text, subject, hidden, created_at, updated_at }) => ({
+  return messages.map(({ id, type, level, code, text, subject, link, hidden, created_at, updated_at }) => ({
     id,
     type,
     level,
     code,
     text,
     subject,
+    link,
     hidden,
     created_at,
     updated_at,

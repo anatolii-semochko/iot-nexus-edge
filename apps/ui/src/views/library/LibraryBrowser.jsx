@@ -34,6 +34,7 @@ import ExpandToggleButton from '../../components/table/ExpandToggleButton'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useExpandableRows } from '../../hooks/useExpandableRows'
 import Breadcrumb from '../../components/UpBreadcrumb'
+import AddRegistryModal from './AddRegistryModal'
 import LibraryItemDetailRow from './LibraryItemDetailRow'
 
 const KINDS = [
@@ -205,6 +206,8 @@ const LibraryBrowser = () => {
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState(null)
   const [addProcessItem, setAddProcessItem] = useState(null)
+  // a node / device type's "Add node" / "Add device" (AddRegistryModal.jsx)
+  const [addRegistryItem, setAddRegistryItem] = useState(null)
   const [createdMessage, setCreatedMessage] = useState(null)
   const [expandedIds, setExpandedIds] = useState([])
   const { isExpanded, toggleOne } = useExpandableRows(expandedIds, setExpandedIds)
@@ -427,14 +430,14 @@ const LibraryBrowser = () => {
                 <CTableHeaderCell>Name</CTableHeaderCell>
                 <CTableHeaderCell>Description</CTableHeaderCell>
                 <CTableHeaderCell>Used in project</CTableHeaderCell>
-                {kind === 'process' && <CTableHeaderCell></CTableHeaderCell>}
+                <CTableHeaderCell></CTableHeaderCell>
                 <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
               </CTableRow>
             </CTableHead>
             <CTableBody>
               {rows.map((row) => {
                 const expandedRow = row.type === 'item' && isExpanded(row.id)
-                const columnCount = kind === 'process' ? 6 : 5
+                const columnCount = 6
                 return (
                   <React.Fragment key={`${row.type ?? 'item'}:${row.id}`}>
                     <CTableRow id={row.type === 'item' ? `library-row-${row.id}` : undefined}>
@@ -474,20 +477,22 @@ const LibraryBrowser = () => {
                           </CBadge>
                         )}
                       </CTableDataCell>
-                      {kind === 'process' && (
-                        <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
-                          {row.type === 'item' && (
-                            <CButton
-                              size="sm"
-                              color="primary"
-                              variant="outline"
-                              onClick={() => setAddProcessItem(row)}
-                            >
-                              Add process
-                            </CButton>
-                          )}
-                        </CTableDataCell>
-                      )}
+                      <CTableDataCell
+                        className={`text-nowrap ${expandedRow ? 'border-bottom-0' : ''}`}
+                      >
+                        {row.type === 'item' && (
+                          <CButton
+                            size="sm"
+                            color="primary"
+                            variant="outline"
+                            onClick={() =>
+                              kind === 'process' ? setAddProcessItem(row) : setAddRegistryItem(row)
+                            }
+                          >
+                            Add {kind}
+                          </CButton>
+                        )}
+                      </CTableDataCell>
                       <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
                         {row.type === 'item' && (
                           <ExpandToggleButton
@@ -516,6 +521,14 @@ const LibraryBrowser = () => {
         )}
       </CCardBody>
 
+      {addRegistryItem && (
+        <AddRegistryModal
+          kind={kind}
+          item={addRegistryItem}
+          onClose={() => setAddRegistryItem(null)}
+          onCreated={setCreatedMessage}
+        />
+      )}
       <AddProcessModal
         item={addProcessItem}
         visible={Boolean(addProcessItem)}

@@ -27,6 +27,7 @@ import { api } from '../../api/client'
 import { useProcessesLiveState } from '../../api/useLiveProcess'
 import { formatSmartDateTime } from '../../utils/format'
 import IconButton from '../IconButton'
+import MessageLink from '../MessageLink'
 import ReadByAvatar from '../ReadByAvatar'
 import ResetFiltersButton from '../ResetFiltersButton'
 import TablePagination from '../table/TablePagination'
@@ -425,6 +426,7 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                         <CTableDataCell>{item.process_name}</CTableDataCell>
                         <CTableDataCell className={`text-${WEM_TYPE_META[item.type].color}`}>
                           {item.text}
+                          <MessageLink link={item.link} onClick={onClose} />
                         </CTableDataCell>
                         <CTableDataCell className="text-end">
                           {item.hidden ? (

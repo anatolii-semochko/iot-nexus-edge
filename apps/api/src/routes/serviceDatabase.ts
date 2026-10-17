@@ -2,6 +2,7 @@ import type { MultipartFile } from "@fastify/multipart";
 import type { FastifyInstance } from "fastify";
 
 import { requireAdmin } from "../auth.js";
+import { clearLogs, logVolumes } from "../logCleanup.js";
 import { logCommand } from "../commandLog.js";
 import { config } from "../config.js";
 import { pool } from "../db.js";
@@ -10,7 +11,6 @@ import {
   applyStampDump,
   buildLogsDump,
   buildStampDump,
-  clearLogTables,
   CONFIG_TABLES,
   createStampFile,
   deleteStampFile,
@@ -180,20 +180,37 @@ export async function serviceDatabaseRoutes(app: FastifyInstance): Promise<void>
     return { ok: true };
   });
 
-  app.delete("/service/database/logs", async (request, reply) => {
-    await clearLogTables();
+  // Clear Logs with a choice (logCleanup.ts): the units with their volume
+  // up to `before` (empty - all), then the ticked ones deleted
+  app.get<{ Querystring: { before?: string } }>("/service/database/logs/volumes", async (request, reply) => {
+    try {
+      return { units: await logVolumes(request.query.before ?? null) };
+    } catch (err) {
+      return reply.code(400).send({ error: (err as Error).message });
+    }
+  });
+
+  app.delete<{ Body: { before?: string | null; units?: string[] } }>("/service/database/logs", async (request, reply) => {
+    const units = request.body?.units;
+    if (!Array.isArray(units) || units.length === 0) return reply.code(400).send({ error: "units (what to clear) are required" });
+    const before = request.body?.before ?? null;
+    let deleted: Record<string, number>;
+    try {
+      deleted = await clearLogs(before, units);
+    } catch (err) {
+      return reply.code(400).send({ error: (err as Error).message });
+    }
     await logCommand({
       action: "clear-logs",
+      value: { before, units, deleted },
       source: "service-database",
       actorUserId: request.user.sub,
     });
-    // clearLogTables() already resynced the Redis unread counters - this
-    // pushes that fresh state to every connected client right away rather
-    // than waiting up to PROCESS_STATE_BROADCAST_INTERVAL_MS (5s) for the
-    // next periodic tick, same "user asked for this specific broadcast"
-    // pattern routes/processes.ts's own action/forced-broadcast/dashboard-
-    // flag-cleared routes already use.
+    // the unread counters are resynced (clearLogs) - pushed to every client
+    // right away rather than on the next periodic broadcast, same "user asked
+    // for this specific broadcast" pattern as routes/processes.ts's own
+    // action / forced-broadcast routes.
     await broadcastForced("clear-logs");
-    return reply.code(204).send();
+    return { deleted };
   });
 }

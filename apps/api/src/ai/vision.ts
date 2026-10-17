@@ -57,14 +57,51 @@ export interface CompletionResult {
   latencyMs: number;
 }
 
+// --- a conversation with tools (the agent - agent.ts) ---------------------------
+
+/** A tool the model may call - its name ([a-zA-Z0-9_-]), description, input JSON Schema. */
+export interface ChatToolSpec {
+  name: string;
+  description: string;
+  input: Record<string, unknown>;
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+/** The conversation, provider-neutral: each client maps it to its own API. */
+export type ChatMessage =
+  | { role: "user"; content: string }
+  | { role: "assistant"; content: string; toolCalls?: ToolCall[] }
+  | { role: "tool"; toolCallId: string; name: string; content: string; isError?: boolean };
+
+export interface ChatRequest {
+  system: string;
+  messages: ChatMessage[];
+  tools: ChatToolSpec[];
+  maxTokens?: number;
+}
+
+export interface ChatResult {
+  content: string;
+  toolCalls: ToolCall[];
+  model: string;
+  usage: TokenUsage | null;
+  latencyMs: number;
+}
+
 /**
  * One AI connection's client (ai/connections.ts - Service -> Config -> AI):
- * a plain completion (the connection test; the agent - stage 3) and an
- * image analysis with a structured answer.
+ * a plain completion (the connection test), a conversation with tools (the
+ * agent) and an image analysis with a structured answer.
  */
 export interface AiClient {
   connection: AiConnectionInfo;
   complete(request: CompletionRequest): Promise<CompletionResult>;
+  chat(request: ChatRequest): Promise<ChatResult>;
   analyzeImage<T>(request: VisionRequest): Promise<VisionResult<T>>;
 }
 

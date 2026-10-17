@@ -153,3 +153,46 @@ export async function writeValue(deviceName: string, commandName: string, value:
     throw new EdgeXError(message, res.status);
   }
 }
+
+/** A device registration in core-metadata (registry.ts - a device created through the API). */
+export interface EdgeXDeviceInput {
+  name: string;
+  profileName: string;
+  description: string;
+  labels: string[];
+  protocols: Record<string, Record<string, unknown>>;
+}
+
+/**
+ * Registers a device in core-metadata, bound to the device-service
+ * (`config.edgex.deviceServiceName`) - the service gets it through its
+ * AddDevice callback, no restart. core-metadata answers a batch (207) with
+ * a status per item - the item's own status is the result.
+ */
+export async function addEdgeXDevice(device: EdgeXDeviceInput): Promise<void> {
+  const res = await fetch(`${config.edgex.coreMetadataUrl}/api/v3/device`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify([
+      {
+        apiVersion: "v3",
+        device: { ...device, serviceName: config.edgex.deviceServiceName, adminState: "UNLOCKED", operatingState: "UP" },
+      },
+    ]),
+  });
+  const text = await res.text();
+  let item: { statusCode?: number; message?: string } | undefined;
+  try {
+    item = (JSON.parse(text) as { statusCode?: number; message?: string }[])[0];
+  } catch {
+    // not the batch answer - the HTTP status says it
+  }
+  const status = item?.statusCode ?? res.status;
+  if (status >= 300) throw new EdgeXError(`core-metadata: device ${device.name}: ${item?.message ?? text}`, status);
+}
+
+/** Removes a device from core-metadata (a missing one - fine: the goal is that it isn't there). */
+export async function deleteEdgeXDevice(name: string): Promise<void> {
+  const res = await fetch(`${config.edgex.coreMetadataUrl}/api/v3/device/name/${encodeURIComponent(name)}`, { method: "DELETE" });
+  if (!res.ok && res.status !== 404) throw new EdgeXError(`core-metadata DELETE device ${name} failed: ${res.status} ${await res.text()}`, res.status);
+}

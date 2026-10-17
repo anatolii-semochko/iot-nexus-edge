@@ -49,6 +49,9 @@ export const config = {
     coreMetadataUrl: `http://${required("EDGEX_CORE_METADATA_HOST")}:${process.env.EDGEX_CORE_METADATA_PORT ?? 59881}`,
     coreDataUrl: `http://${required("EDGEX_CORE_DATA_HOST")}:${process.env.EDGEX_CORE_DATA_PORT ?? 59880}`,
     coreCommandUrl: `http://${required("EDGEX_CORE_COMMAND_HOST")}:${process.env.EDGEX_CORE_COMMAND_PORT ?? 59882}`,
+    // the device-service's name in EdgeX (apps/device-service) - the service a
+    // device registered through the API (registry.ts) is bound to
+    deviceServiceName: process.env.EDGEX_DEVICE_SERVICE_NAME ?? "device-nexus-edge",
     // EdgeX's own internal message bus (edgex-mqtt-broker) - read by the
     // device push bridge (edgexPushBridge.ts, AGENTS.md section 80).
     // Optional: unset = pushes not bridged, polling still works as before.
@@ -80,8 +83,31 @@ export const config = {
     openaiApiKey: process.env.OPENAI_API_KEY,
     openaiModel: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
     requestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS ?? 25000),
+    // one model call of a conversation (the agent) - a long context with tool results takes longer
+    chatTimeoutMs: Number(process.env.AI_CHAT_TIMEOUT_MS ?? 90000),
     // an answer's tokens when the connection sets no limit of its own
     defaultMaxOutputTokens: Number(process.env.AI_MAX_OUTPUT_TOKENS ?? 2048),
+    // the core's prompt packs (ai/prompts.ts) - relative to the api's working directory
+    promptsDir: process.env.AI_PROMPTS_DIR ?? "prompts",
+    // what `docs.search` reads (ai/docs.ts): "label=dir" pairs, comma-separated -
+    // the core's docs (copied into the image), the Library DNPs, the project's
+    // docs (mounted) and its plugins (their docs / node docs / prompts)
+    docsSources: (process.env.AI_DOCS_SOURCES ?? "core=/workspace/docs-core,library=/workspace/devices,project=/workspace/project-docs,plugins=/workspace/plugins")
+      .split(",")
+      .map((pair) => pair.split("="))
+      .filter(([label, dir]) => label && dir)
+      .map(([label, dir]) => ({ label: label.trim(), dir: dir.trim() })),
+    // a tool answer's size limit, characters (the gateway cuts longer ones)
+    toolMaxChars: Number(process.env.AI_TOOL_MAX_CHARS ?? 12000),
+    // the agent (ai/agent.ts): model calls in one answer (each may call tools);
+    // the conversation history sent back, characters (older turns are dropped)
+    agentMaxSteps: Number(process.env.AI_AGENT_MAX_STEPS ?? 8),
+    historyMaxChars: Number(process.env.AI_HISTORY_MAX_CHARS ?? 40000),
+    // the calendar (ai/calendar.ts): how late a scheduled run may still start, minutes
+    // (the system down longer - that occurrence is skipped)
+    calendarCatchUpMin: Number(process.env.AI_CALENDAR_CATCH_UP_MIN ?? 30),
+    // the language a scheduled run reports in (no person asks - nothing to answer in kind)
+    scheduledLanguage: process.env.AI_SCHEDULED_LANGUAGE ?? "English",
     // Longest side of the copy sent for analysis - the original is kept as is.
     imageMaxSide: Number(process.env.AI_IMAGE_MAX_SIDE ?? 1536),
   },

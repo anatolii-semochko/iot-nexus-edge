@@ -1,0 +1,1 @@
+Work type: Status Analysis of this instance. Its current state and metrics (`system.overview` for the entity), its active WEM, and its key series over the recent period. Report what is normal, what is off and why, what to check first.

@@ -6944,7 +6944,7 @@ attachment`, never written to disk server-side), **Upload State**
 ad-hoc-download shape as Download State, but for the 3 log tables - a
 deliberately simpler envelope with no `migrations`/`formatVersion`,
 since logs are never uploaded back, only downloaded or cleared), and
-**Clear Logs** (`TRUNCATE` the 3 log tables). **Apply** exists ONLY as
+**Clear Logs** (`TRUNCATE` the 3 log tables - replaced 2026-10-17 by a form with a choice of what and up to when: see "Clear Logs with a choice" below). **Apply** exists ONLY as
 a per-row action in the CRUD list of saved stamps below both blocks,
 never as a top-level button - a saved stamp needs to be picked before
 "apply" means anything.
@@ -6995,7 +6995,7 @@ Database actions the feature was asked to audit; Save/Download aren't
 destructive to live data, so they aren't logged. Clear Logs also calls
 `broadcastForced("clear-logs")` (`processBroadcast.ts`, the same helper
 `routes/processes.ts`'s own ON/OFF actions and forced-broadcast route
-already use) right after truncating - `clearLogTables()` itself already
+already use) right after clearing - the clearing itself (now `logCleanup.ts clearLogs`) already
 resyncs the header's own Redis-cached unread-warning/error counters
 (`processMessages.ts`'s `wem:unread:*`, incrementally maintained on
 every hide/create, NOT derived fresh from `log_messages` on read - a
@@ -7388,7 +7388,7 @@ in Logs > Commands like the core config route does).
 
 ## 82. AI layer + AI Analyzer process kind + CORE Library process loading (AI Analyzing Camera, stage 4)
 
-(2026-10-17: the provider now comes from the AI connections - section "AI Assistant, stage 1" at the end; `getVisionProvider()` is async and returns the default connection's client.)
+(2026-10-17: the provider now comes from the AI connections - section "AI Assistant" -> "Connections and clients" at the end; `getVisionProvider()` is async and returns the default connection's client.)
 
 2026-09-26, stage 4 of the AI Analyzing Camera plan: the camera's whole
 software side, running today on simulation (hardware still being built).
@@ -7931,22 +7931,19 @@ Migration 064 (nexus-edge-aquarium AGENTS_TO_DO.md tech debt 6):
   (`EXTRA_MIGRATIONS_DIR` - its migrations/ mounted into the api), each
   applied ONCE with psql (in the api image - a file may use \gset / \if)
   and recorded in `extra_migrations` (name, sha256); a recorded file
-  changed since - "changed", never re-run. When the api starts (after
-  `listen`): applied if the setting `dnp.migrations.apply` is "auto"
-  (default), else they wait for a person. Replaces the one-off
-  `migrate-extra` container (removed from the template's compose).
-- `system_settings` (migration 065; `systemSettings.ts` - typed keys with
-  defaults): the first key `dnp.migrations.apply`. `library_items.version`
-  - a DNP's version from library.json (optional, "0" unset; compared once
-  DNPs get updates).
+  changed since - "changed", never re-run. Applied at every api start
+  (after `listen`) - they come with a deployment (the 2026-10-16 setting
+  `dnp.migrations.apply` and the Service -> Database -> Migrations card were
+  removed 2026-10-17, migration 067; what an AI agent installs goes through
+  its Install level). Replaces the one-off `migrate-extra` container.
+- `system_settings` (migration 065) - a typed key/value table, empty now.
+  `library_items.version` - a DNP's version from library.json (optional,
+  "0" unset; compared once DNPs get updates).
 - `routes/dnp.ts` (admin): `GET /dnp` (the catalog's DNPs with versions,
   the project's code plugins - api / process / ui, `plugin.json`
   {version, description} optional - and the kinds with a config schema),
-  `GET /dnp/migrations` (core + project, the mode), `POST
-  /dnp/migrations/apply`, `PUT /dnp/settings {migrationsApply}`.
-- UI: Service -> Database -> Migrations (`views/service/MigrationsCard.jsx`):
-  Auto Apply / Human Confirmation, the pending / changed ones, Apply.
-- Next (with the AI assistant): creating nodes / devices through the API.
+  `GET /dnp/migrations` (core + project), `POST /dnp/migrations/apply`.
+- Nodes / devices through the API - "Device Registry writes" below.
 
 ## Dashboard: avatars, taller cards, fit-width (2026-10-16)
 
@@ -7966,40 +7963,294 @@ Migration 064 (nexus-edge-aquarium AGENTS_TO_DO.md tech debt 6):
   natural width - a wide part, e.g. a table, pushed the rest out of view);
   what can't shrink scrolls sideways.
 
-## AI Assistant, stage 1 - connections, the ai-agent account (2026-10-17)
+## AI Assistant (2026-10-17)
 
-The Nexus Edge AI Assistant (the plan - nexus-edge-aquarium AGENTS_TO_DO.md
-2026-10-16/17: connections -> DNP AI manifests, prompt packs, access levels,
-the resource gateway -> the agent and its logs -> the messenger -> proposals
--> the calendar). Stage 1:
-- `ai-agent` - a protected account (migration 067; routes/users.ts): the
-  author of what an agent does on its own (an Auto access level). What a
-  person confirms is that person's; the orchestrator - `system`; the
-  simulation - `simulator`. Its password is random, never stored.
+The Nexus Edge AI Assistant: a person picks an entity (the whole system or
+a DNP instance) and a work type and talks to an agent that reads the
+system through tools, proposes changes within its access levels, runs on a
+calendar and reports to the developers. The same tools are served over MCP
+to any external agent. History of the decisions - iot `AGENTS_TO_DO.md`
+chronology (AI Assistant).
+
+### Authors and accounts
+
+- `ai-agent` - a protected account (migration 067; routes/users.ts
+  `PROTECTED_USERNAMES`), the author of what an agent applies on its own
+  (an Auto access level); its password is random, never stored. What a
+  person accepts is that person's; the orchestrator (the calendar's runs) -
+  `system`; the simulation - `simulator`.
+
+### Connections and clients
+
 - `ai_connections` (migration 067; `ai/connections.ts`): name, type
-  (`openai`, `anthropic`, `openai-compatible` - a local model server's /v1
-  endpoint), endpoint (null - the type's own), model, the API key
-  encrypted (`ai/secrets.ts`: AES-256-GCM with `AI_SECRETS_KEY` from .env;
-  never returned - `hasKey`), one default, enabled, limits
-  (`max_output_tokens` - else `AI_MAX_OUTPUT_TOKENS`; `daily_token_limit` -
-  enforced from stage 3). A client per connection, cached, dropped on a
-  change. The first connection is imported once from the old `OPENAI_*`
-  .env settings when there is none (they may be removed from .env then).
-- Clients (`ai/vision.ts` AiClient): `complete` (a plain completion - the
-  connection test now, the agent later) and `analyzeImage` (a structured
-  answer): OpenAI / compatible (`openaiClient.ts`, the openai SDK with a
-  baseURL; strict JSON-schema output), Anthropic (`anthropicClient.ts`,
-  the Messages API over fetch; the schema as a forced tool).
-- `routes/ai.ts` (admin): `GET /ai/connections` (+ `secretsAvailable`),
-  `POST`, `PATCH /:id` (`apiKey` absent - kept, null / "" - removed),
-  `DELETE /:id`, `POST /:id/test` (the model answers "OK": model, latency,
-  tokens).
-- UI: Service -> Config -> AI (the second sub-tab, after Dashboard; both
-  with icons) - `views/service/AiConfigTab.jsx`: the connections table
-  (Test / Edit / Delete), the form with the key in a password field whose
-  eye shows only what is typed now.
+  (`openai`, `anthropic`, `openai-compatible` - a local model server's /v1),
+  endpoint (null - the type's own), model, the API key encrypted
+  (`ai/secrets.ts`: AES-256-GCM with `AI_SECRETS_KEY`, format
+  `v1:iv:tag:data`; never returned - `hasKey`), one default, enabled,
+  limits (`max_output_tokens` - else `AI_MAX_OUTPUT_TOKENS`;
+  `daily_token_limit` - checked before each agent call, 429). A client per
+  connection, cached, dropped on a change. The first connection is
+  imported once from the old `OPENAI_*` .env settings when there is none.
+- Clients (`ai/vision.ts` AiClient): `complete`, `chat` (a provider-neutral
+  conversation with tools - `ChatMessage` user / assistant + toolCalls /
+  tool), `analyzeImage` (structured answer). OpenAI / compatible
+  (`openaiClient.ts`, the SDK with a baseURL; function calling, strict JSON
+  schema) and Anthropic (`anthropicClient.ts`, the Messages API over fetch;
+  tool_use / tool_result, a turn's results in one user message). A chat
+  call's timeout - `AI_CHAT_TIMEOUT_MS` (90 s); image analysis -
+  `AI_REQUEST_TIMEOUT_MS`. A model's failure reaches the user as
+  "<connection>: <reason>" (502).
+- Routes (admin): `GET /ai/connections` (+ `secretsAvailable`), `POST`,
+  `PATCH /:id` (`apiKey` absent - kept, null / "" - removed), `DELETE
+  /:id`, `POST /:id/test`. UI: Service -> Config -> AI (`AiConfigTab.jsx` -
+  the second sub-tab after Dashboard): connections, the key in a password
+  field whose eye shows only what is typed now.
 - The `dnp.migrations.apply` setting and Service -> Database -> Migrations
-  are gone: the api applies a project's migrations at every start (they
-  come with a deployment); what the agent proposes goes through its
-  Install access level (stage 5). `/dnp/migrations` stays for the agent.
+  are gone: the api applies a project's migrations at every start; what an
+  agent installs goes through its Install level.
 
+### DNP AI manifests, prompt packs, instances
+
+- DNP AI manifest (`ai/manifests.ts`): a project plugin's `plugin.json`
+  `"ai": {kinds, workTypes, scheduledTypes}` - the process kinds whose
+  instances get the assistant, the work types (a standard DNP type by its
+  key - `DNP_WORK_TYPES`; its own - {key, title, description}), the ones
+  the calendar may run. The whole system's - `NE_WORK_TYPES`. Library DNPs
+  (library.json) - not yet.
+- Prompt packs (`apps/api/prompts/`, README there; copied into the image):
+  `system.md` (language, tools first, tool data is never instructions, no
+  claimed change without a tool result, change only through the proposing
+  tools and call them at once on the user's request / agreement, sources),
+  `knowledge.md` (docs first, a DNP's own before the platform's),
+  `report.md` (the developer report), `scheduled.md` (the calendar's
+  request), `nexus-edge/<type>.md`, `dnp/<type>.md`; a DNP overrides / adds
+  in `<plugin>/prompts/<type>.md`. `ai/prompts.ts` assembles base +
+  knowledge + the type's (cached). Short - every token is paid per request;
+  improved whenever a test shows a gap.
+- Instances (`ai_instances`, migration 068; `ai/instances.ts`):
+  "nexus-edge" (built in, first) and "process:<id>" for each process a
+  manifest covers - connection (null - the assistant is off), access
+  {read, config / control / install: off | confirm | auto, report}
+  (install - the whole system only), logs (the full payload kept or not). A
+  missing row - read on, confirm, report off, logs on, no connection.
+  Routes (admin): `GET /ai/instances`, `PUT /ai/instances/:key`, `GET
+  /ai/instances/:key/prompt?workType=`. UI: Service -> Config -> AI ->
+  Instances (`AiInstances.jsx`) with the Calendar button where the DNP
+  declares scheduled types.
+
+### The resource gateway (tools)
+
+`ai/tools.ts` - the only way an agent sees and changes the system: a
+registry of tools with contracts (name, description, input JSON Schema -
+ajv with defaults, access), answers as compact JSON cut at
+`AI_TOOL_MAX_CHARS`. `toolAllowed(access, instance)`: a read tool - the
+Read level; a proposing one - its level is not Off (the agent and MCP
+offer only those). A DNP instance's own process is the default
+`processId`; its scope is its group (the processes on its node and the
+node's children - an aquarium's modules), also when the model passes its
+own id; another id narrows.
+- Read: `system.overview` (nodes, processes, WEM counts; one instance - its
+  nodes, devices by role, compact metrics, active WEM, config sections,
+  `groupProcesses`), `process.metrics`, `wem.summary` (by code: how often,
+  first / last, active), `logs.around` (commands with their actor, WEM,
+  device readings around a moment), `series.list` / `series.stats` /
+  `series.points` (raw / hourly / daily by the period), `config.get` (+
+  section stamps; the sections asked for that the config hasn't, with the
+  ones it has), `config.schema`, `dnp.list`, `library.node_type` (a node
+  type's bus, parents, devices by role), `docs.search` / `docs.read`
+  (`ai/docs.ts`: Markdown of `AI_DOCS_SOURCES` split by headings, BM25,
+  built once; the core's docs in the image, the project's AGENTS.md /
+  README mounted at /workspace/project-docs).
+- Proposing (see Proposals): `config.propose`, `control.propose`,
+  `install.process.propose`, `install.node.propose`,
+  `install.device.propose`. Types are accepted bare or as dnp.list prints
+  them (`node:...`).
+- Routes (admin): `GET /ai/tools`, `POST /ai/tools/:name {instanceKey,
+  input}` (a run for checks).
+
+### MCP server
+
+The gateway over the Model Context Protocol (`ai/mcp.ts`,
+`@modelcontextprotocol/sdk`) - a permanent working tool for analysing a
+local or remote system (a Raspberry Pi) with any MCP client, improved as
+it is used.
+- `/mcp` (through the UI: `<origin>/api/mcp`): Streamable HTTP, stateless,
+  JSON answers; `initialize` carries short instructions. Tool names - "_"
+  for "."; read tools `readOnlyHint`, proposing ones not; a refusal -
+  `isError`. A proposal from MCP waits in Logs -> AI Proposals.
+- Access: `Authorization: Bearer <token>` - `ai_mcp_tokens` (migration
+  069): a token acts as one instance (its levels apply), only its sha-256
+  and a prefix stored, shown once; enable / disable, revoke, last used. No
+  enabled token - 401. Routes (admin): `GET / POST /ai/mcp-tokens`, `PATCH
+  / DELETE /ai/mcp-tokens/:id`. UI: Service -> Config -> AI -> MCP access
+  (`AiMcpAccess.jsx`, with the `claude mcp add --transport http ...`
+  command).
+
+### The agent, conversations, logs
+
+- `ai/agent.ts`: a conversation is about one instance and work type through
+  the instance's connection. The system prompt: the packs + the entity
+  (with its group) + the time + the report instruction (Report on); kept
+  with the conversation when it logs. One answer - up to
+  `AI_AGENT_MAX_STEPS` model calls with tools (the last - without); the
+  history cut to `AI_HISTORY_MAX_CHARS` at a user's turn;
+  `<developer-report title>` blocks -> `ai_reports` (stored only).
+- Storage (migration 070): `ai_conversations` (instance, work type, title,
+  connection + model, logged, system prompt, token totals, who;
+  `schedule_id` / `scheduled` - migration 072), `ai_messages` (role,
+  content, tool calls, error, model, tokens, latency; a tool result
+  "[not logged]" when the instance doesn't log), `ai_reports`.
+- Routes: any signed-in user, their own conversations (a scheduled run's -
+  readable by all; continued / deleted by an admin; an admin - all):
+  `POST /ai/conversations`, `GET /ai/conversations`, `GET
+  /ai/conversations/:id` (+ its proposals), `POST
+  /ai/conversations/:id/messages`, `POST .../messages/stream`, `DELETE
+  /ai/conversations/:id`; `GET /ai/entities` (what the messenger offers);
+  admin - `GET /ai/logs`, `GET /ai/reports`. The UI's nginx `/api/` -
+  `proxy_read_timeout 300s`.
+- Streaming: server-sent events over the POST (`status` - thinking /
+  calling <tool> / reading the results; `message`; `done`; `error`),
+  `x-accel-buffering: no`; the UI reads them with fetch + a stream reader
+  (`streamAiMessage`, client.js).
+- UI: menu "AI Assistant" (under Dashboard) - `views/ai/AiAssistant.jsx`:
+  the conversations (scheduled ones badged), the entity and work type of a
+  new one, the turns - the user's message, the tool steps under "Used
+  tools", proposal cards, the answer as Markdown (react-markdown +
+  remark-gfm); route `/ai-assistant/:conversationId` opens one. Logs ->
+  "AI" (`AiLogsTab.jsx` - the full payload), "AI Reports", "AI Proposals".
+
+### Proposals
+
+Every change an agent asks for (`ai/proposals.ts`, migration 071
+`ai_proposals`): `access` (config / control / install - the level
+governing it), `operation` (config / command / switch / create-process /
+create-node / create-device), `payload` (applied as it is), `before` (the
+diff's left side; a config's - also the stamps the agent saw), `via`
+(assistant - `conversation_id`; mcp - `mcp_token_id`), status pending /
+applied / rejected / failed, `result` / `error`, who decided and when.
+- Auto - applied at once as `ai-agent`; Confirm - pending until a person
+  accepts (applied as that person, source "ai" in the command log) or
+  rejects; Off - not offered. A decision is claimed atomically (two
+  Accepts apply once; a decided one - 409). A config accepted after someone
+  changed the same section - failed with who / when.
+- The tools check before proposing: `config.propose {processId?, sections,
+  reason}` (only the sections that change, schema-checked);
+  `control.propose {processId?, action, params?, reason}` (ON / OFF if the
+  process lists it, else a one-shot command); `install.process.propose
+  {kind, name, groupId, nodeId?, type?, config?}`; `install.node.propose`
+  / `install.device.propose` (the Device Registry's checks - below).
+  Install - Nexus Edge only; a DNP instance changes only its own group.
+- Applying is the same code a person's edit runs: `processWrites.ts`
+  (`writeProcessConfig` - stamps seen, min / max, the kind's schema, the
+  command log, `nexus.actor`; `checkProcessConfig`; `giveProcessCommand`;
+  `switchProcess`; `createProcess` - also schema-checks its config) - the
+  routes `PATCH /processes/:id/config`, `POST /processes/:id/action`,
+  `POST /processes/:id/commands`, `POST /processes` call them; `registry.ts`
+  for nodes / devices.
+- Routes: `GET /ai/proposals {page, pageSize, status?, conversationId?}`
+  (a non-admin - their conversations'), `POST
+  /ai/proposals/:id/accept|reject` (the conversation's owner or an admin;
+  an MCP client's / a scheduled run's - an admin). UI: `ProposalCard.jsx` -
+  access, summary, status, reason, the diff by field path
+  (`channels[0].dailyMl 20 -> 22`), Accept / Reject or who decided / why it
+  failed; in the messenger's turn and Logs -> AI Proposals.
+
+### The calendar
+
+- `ai_schedules` (migration 072): instance, work type (of its
+  `scheduledTypes`), on / off, repeat day / week (`weekday` 0 - Sunday) /
+  month (`month_day`) / year (`month` + `month_day`), local "HH:MM"; the
+  last run - its date, when, conversation, status running / ok / problem /
+  failed / skipped, note.
+- The clock: the built-in process "AI Assistant" (kind `ai-assistant`,
+  System, migration 072; orchestrator `processes/aiAssistant.ts`, every
+  `AI_CALENDAR_INTERVAL_MS`) calls `POST /ai/calendar/tick`; `ai/calendar.ts`
+  claims what is due atomically (one run per occurrence date) and runs it
+  in an in-memory queue, one at a time. Runs left "running" by a stopped
+  API - failed at start.
+- The time rule (`ai/calendarTime.ts`, tests - vitest pins
+  `TZ=Europe/Berlin`): the host's local wall time on the occurrence's date
+  - a time the spring switch skips runs right after the jump, a repeated
+  autumn time once; later than `AI_CALENDAR_CATCH_UP_MIN` - skipped; a day
+  past a shorter month's end - its last day. The same rule as the
+  aquarium's `dueOccurrence` (plugins are self-contained - a shared
+  `packages/` module is the place once one exists).
+- A run: a conversation of the `system` user, the request
+  `prompts/scheduled.md` (language - `AI_SCHEDULED_LANGUAGE`); the answer's
+  last line `Status: OK | PROBLEM - <what>` is its status; no connection -
+  skipped. Problems and failures - the AI Assistant process's WEM warnings
+  (code `schedule:<id>`, level - its config `problemLevel`, `link`
+  `/ai-assistant/<conversation>`), resolved by the next OK run or by
+  switching the schedule off.
+- `log_messages.link` - a general WEM field (`MessageInput.link`, the
+  public messages too); "Open" in the WEM row, the notification center and
+  Logs -> Messages (`components/MessageLink.jsx`).
+- Routes (admin): `GET / POST /ai/schedules`, `PATCH / DELETE
+  /ai/schedules/:id`, `POST /ai/schedules/:id/run`; `POST
+  /ai/calendar/tick` - orchestrator-driven. UI: Instances -> Calendar
+  (`AiCalendarModal.jsx`).
+
+### Checked live (OpenAI gpt-4.1-mini, the aquarium project)
+
+A pH question answered from the CO2 module's evidence (~6 s, ~10 k
+tokens); MCP through curl and the SDK client; streamed answers; a dosing
+change proposed and accepted in the browser, Auto as ai-agent, a stamp
+conflict -> failed; a scheduled run started by the orchestrator found the
+stale "Main node control" heartbeat and raised a linked warning; "add a
+virtual CO2 module to Bare Tank with only heartbeat, pH and the valve" ->
+the right node proposal.
+
+## Device Registry writes - nodes and devices through the API (2026-10-17)
+
+A node and its devices came only from a project's seed migration plus its
+EdgeX device list (`extra-res/devices/*.yaml`); now also at run time -
+`apps/api/src/registry.ts` (a person: routes / Library; the assistant:
+Install proposals).
+- `createNode {type, name, parentId?, groupId?, location?, roles?,
+  backend?, busConfig?, transport?, simulated?}` - a Library node type with
+  the devices its `node.yaml` declares under `devices: [{role, type,
+  name?}]` (all, or `roles`), each with `capabilities.role` (section 87). A
+  type with `parents` needs a parent of one of them; the name is unique;
+  `bus_type` from `node.yaml` `bus.type`; Heartbeating Control from
+  `node.yaml` `heartbeatControl` (absent - not monitored). A failed device
+  rolls the node back.
+- `createDevice {type, name, nodeId?, role?, location?, backend?,
+  transport?, capabilities?}` - a Library device type: profile and
+  resource from `edgex-device-profile.yaml`, `readOnly` from its
+  `contract.schema.ts` (imported as a DNP's api.ts is; a sensor's profile
+  is RW for its simulation). On a node: the node type must `support` it,
+  the role free. Registered in EdgeX core-metadata first (`edgex.ts
+  addEdgeXDevice`, bound to `EDGEX_DEVICE_SERVICE_NAME` - the
+  device-service takes it through AddDevice, no restart), then the row; a
+  failed row removes the registration. EdgeX name `<node type>-<node
+  id>-<role or name>` (standalone - `standalone-...`). Virtual by default;
+  physical - `transport {type: can | mqtt, ...}`.
+- `deleteDevice` (row + EdgeX registrations, the simulated twin's too),
+  `deleteNode` (its devices, then the row; refused while it has child
+  nodes). `checkNode` / `checkDevice` - the same checks, nothing written.
+  Device create / delete - log_command `create` / `delete`.
+- Routes (`routes/registry.ts`, signed-in): `POST /nodes`, `DELETE
+  /nodes/:id`, `POST /devices`, `DELETE /devices/:id`, `GET
+  /registry/node-types/:type`. UI: Library -> Nodes / Devices -> "Add node"
+  / "Add device" (`AddRegistryModal.jsx`; virtual). Not in the UI yet:
+  deleting from the Nodes / Devices pages, a physical binding.
+
+## Clear Logs with a choice (2026-10-17)
+
+Service -> Database -> Clear Logs is a form (`ClearLogsModal.jsx`): the
+date the logs are cleared before (local midnight; empty - all), then the
+units with their volume up to it - permanent first ("AI Assistant
+Messenger", "AI Assistant Reports", "AI Assistant Proposals", "System" -
+rows of no DNP instance: core, users, standalone devices, deleted
+entities), then the DNP instances, larger first: a root node's tree (an
+aquarium with its modules - the processes on those nodes and their
+devices) or a process with no node; the selected volume; Clear Logs.
+- `logCleanup.ts`: `logVolumes(before)` / `clearLogs(before, units)` with
+  one mapping (a log_command row of a process -> its unit, else of a
+  device -> the device's, else System; log_device by device; log_messages
+  by process). Kept: active WEM messages and pending proposals; time
+  series are not logs. One transaction, then `initUnreadCounts` and a
+  forced broadcast.
+- Routes (admin): `GET /service/database/logs/volumes?before`, `DELETE
+  /service/database/logs {before?, units}`; audit - `clear-logs` with
+  `{before, units, deleted}`.

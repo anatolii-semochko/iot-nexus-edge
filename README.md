@@ -73,7 +73,8 @@ end-to-end today, verified live in a running container stack (see
   like live hardware.
 - **Admin Service page** — System Stamps (snapshot/restore the whole
   device/node/process/user configuration as a file, with a
-  compatibility check before ever applying one), log download/clear,
+  compatibility check before ever applying one), log download and a
+  Clear Logs form (up to a date, per DNP instance, with volumes),
   and host Shutdown/Restart over D-Bus (`systemd-logind`), all
   admin-gated and env-flagged off by default.
 - **Time series** — logged values (devices and process metrics) in one
@@ -91,9 +92,18 @@ end-to-end today, verified live in a running container stack (see
   to a named process instance), configured in Service -> Config ->
   Dashboard; components bring their own avatars for the cards.
 - **DNP API** — the installed DNPs (Library catalog and project plugins,
-  versions), core and project migrations (applied once each,
-  automatically or on confirmation) - the base for an AI assistant that
-  registers and configures DNPs.
+  versions), core and project migrations (applied once each at start);
+  nodes (with the devices their type declares) and devices registered at
+  run time - in the registry and in EdgeX, no restart.
+- **Nexus Edge AI Assistant** — a messenger with an agent per entity (the
+  whole system or a DNP instance) and work type: it reads the system
+  through a tool gateway (states, WEM, logs, time series, configs, the
+  docs), proposes config / control / install changes within its access
+  levels (Off / Confirm with Accept-Reject cards / Auto), runs scheduled
+  analyses with linked warnings, reports to the developers. OpenAI,
+  Anthropic or an OpenAI-compatible local model; keys encrypted. The same
+  tools as an **MCP server** (`/api/mcp`, bearer tokens) for Claude Code
+  or any MCP client.
 
 Deliberately **not** done yet, and documented as such rather than left
 quiet: per-endpoint API authorization (today only the UI login and the

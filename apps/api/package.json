@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "ajv": "^8.17.1",
     "@fastify/jwt": "^9.0.4",
     "@fastify/multipart": "^9.0.3",
