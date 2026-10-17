@@ -6,9 +6,9 @@ import { config } from "../config.js";
 import { pool } from "../db.js";
 import * as heartbeatControl from "../heartbeatControl.js";
 import type { HeartbeatControlConfig } from "../heartbeatControl.js";
-import { configProblems, configSchemaKinds, configSchemaOf } from "../configSchemas.js";
-import { announceChange } from "../entityChanges.js";
+import { configSchemaKinds, configSchemaOf } from "../configSchemas.js";
 import { broadcastForced } from "../processBroadcast.js";
+import { createProcess, giveProcessCommand, ProcessWriteError, switchProcess, writeProcessConfig } from "../processWrites.js";
 import * as processMessages from "../processMessages.js";
 import * as processRegistry from "../processRegistry.js";
 import { isSimulationTargetSimulated } from "../simulationTarget.js";
@@ -87,8 +87,6 @@ interface ProcessRow {
   updated_at: string;
 }
 
-const IMPLEMENTED_ACTIONS = new Set(["ON", "OFF"]);
-
 // `commands` - the process's pending one-shot commands (process_commands,
 // not older than config.processCommands.ttlMs) - the orchestrator gets them
 // with the tick's list, no request of its own.
@@ -132,28 +130,13 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       config?: ProcessConfig;
     };
   }>("/processes", { preHandler: requireAuth }, async (request, reply) => {
-    const { name, groupId, type, kind, actions, deviceId, config } = request.body;
-    if (!name || !groupId || !kind) {
-      return reply.code(400).send({ error: "name, groupId, and kind are required" });
-    }
-    if (type !== "controllable" && type !== "permanent") {
-      return reply.code(400).send({ error: "type must be 'controllable' or 'permanent'" });
-    }
-
-    let row;
     try {
-      const result = await pool.query<{ id: number }>(
-        `INSERT INTO processes (name, group_id, type, kind, actions, device_id, config)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [name, groupId, type, kind, actions ?? [], deviceId ?? null, config ?? {}],
-      );
-      row = result.rows[0];
+      const id = await createProcess(request.body, request.user.sub, "api");
+      return withLiveState((await findProcess(String(id)))!);
     } catch (err) {
-      return reply.code(400).send({ error: (err as Error).message });
+      if (err instanceof ProcessWriteError) return reply.code(err.statusCode).send({ error: err.message, ...err.extra });
+      throw err;
     }
-
-    await logCommand({ processId: row.id, action: "create", value: request.body, source: "api", actorUserId: request.user.sub });
-    return withLiveState((await findProcess(String(row.id)))!);
   });
 
   // Deliberately unrestricted - this will happily delete a `permanent`
@@ -246,70 +229,19 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const { $seen, ...sections } = request.body ?? {};
-      // a section someone changed after this editor loaded it (migrations/
-      // 1690000000064 config_stamps): refused - the editor reloads, nothing
-      // is overwritten unseen. A section sent without its stamp - not checked.
-      for (const [section, seenAt] of Object.entries($seen ?? {})) {
-        if (!(section in sections)) continue;
-        const stamp = process.config_stamps?.[section];
-        if (stamp?.at && (!seenAt || Date.parse(stamp.at) > Date.parse(seenAt))) {
-          const by =
-            stamp.by === null
-              ? null
-              : (await pool.query<{ name: string }>("SELECT COALESCE(display_name, username) AS name FROM users WHERE id = $1", [stamp.by])).rows[0]?.name;
-          return reply.code(409).send({
-            error: `"${section}" was changed${by ? ` by ${by}` : ""} at ${stamp.at} - reload and edit again`,
-            section,
-            stamp,
-          });
-        }
-      }
-
-      const config: ProcessConfig = { ...process.config, ...sections };
-      if (config.min !== undefined && config.max !== undefined && config.max < config.min) {
-        return reply.code(400).send({ error: "max cannot be less than min" });
-      }
-      // the kind's own schema (configSchemas.ts) - over the sections sent
-      const problems = configProblems(process.kind, sections);
-      if (problems.length > 0) {
-        return reply.code(400).send({ error: `invalid config: ${problems.join("; ")}`, problems });
-      }
-
-      // Logged before applying (AGENTS.md section 22's precedent for device
-      // writes) - `value` is the partial patch actually sent, not the whole
-      // resulting config, matching "value is what was written" everywhere
-      // else in log_command.
-      await logCommand({
-        processId: process.id,
-        action: "config",
-        value: sections,
-        source: "api",
-        actorUserId: request.user.sub,
-      });
-
-      // the writer named for the sections' stamps (the trigger reads nexus.actor)
-      const client = await pool.connect();
-      let stamps: unknown;
+      // stamps, schema, command log, author - processConfig.ts (shared with
+      // the AI Assistant's proposals)
       try {
-        await client.query("BEGIN");
-        await client.query("SELECT set_config('nexus.actor', $1, true)", [String(request.user.sub)]);
-        stamps = (
-          await client.query("UPDATE processes SET config = $1, updated_at = now() WHERE id = $2 RETURNING config_stamps", [config, process.id])
-        ).rows[0]?.config_stamps;
-        await client.query("COMMIT");
+        const { config, stamps } = await writeProcessConfig(process.id, sections, $seen, request.user.sub, "api");
+        return { status: "ok", config, stamps };
       } catch (err) {
-        await client.query("ROLLBACK");
+        if (err instanceof ProcessWriteError) return reply.code(err.statusCode).send({ error: err.message, ...err.extra });
         throw err;
-      } finally {
-        client.release();
       }
-      return { status: "ok", config, stamps };
     },
   );
 
-  // Only ON/OFF exist today (the two seeded processes need nothing else) -
-  // START/PAUSE/STOP are named in the general process concept but not
-  // implemented yet.
+  // ON / OFF - processWrites.ts switchProcess (shared with the AI Assistant's proposals)
   app.post<{ Params: { id: string }; Body: { action: string } }>(
     "/processes/:id/action",
     { preHandler: requireAuth },
@@ -319,31 +251,13 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(404).send({ error: "process not found" });
       }
 
-      const { action } = request.body;
-      if (!process.actions.includes(action)) {
-        return reply.code(400).send({ error: `action '${action}' is not valid for this process`, allowed: process.actions });
+      try {
+        await switchProcess(process.id, request.body.action, request.user.sub, "api");
+        return { status: "ok" };
+      } catch (err) {
+        if (err instanceof ProcessWriteError) return reply.code(err.statusCode).send({ error: err.message, ...err.extra });
+        throw err;
       }
-      if (!IMPLEMENTED_ACTIONS.has(action)) {
-        return reply.code(400).send({ error: `action '${action}' is not implemented yet` });
-      }
-
-      await logCommand({
-        processId: process.id,
-        action: action === "ON" ? "on" : "off",
-        source: "api",
-        actorUserId: request.user.sub,
-      });
-
-      await processRegistry.setStatus(process.id, action === "ON" ? "on" : "off", "api");
-      // the status lives in Redis - no row change tells the processes' caches
-      announceChange("processes", process.id);
-      // `status` is a deliberately non-urgent, timer-only broadcast field
-      // (AGENTS.md section 24) - a UI-driven ON/OFF click is exactly the
-      // "flip it and watch the effect immediately" case that's laggy for,
-      // same reasoning as the dashboard-flag-cleared route below. Forced,
-      // not left to the next periodic tick or an unrelated urgent trigger.
-      await broadcastForced(`process-action:${action}`);
-      return { status: "ok" };
     },
   );
 
@@ -359,16 +273,7 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       if (!process) return reply.code(404).send({ error: "process not found" });
       const { action, params } = request.body ?? ({} as never);
       if (typeof action !== "string" || action === "") return reply.code(400).send({ error: "action is required" });
-      await logCommand({ processId: process.id, action: "command", value: { action, params: params ?? {} }, source: "api", actorUserId: request.user.sub });
-      const row = (
-        await pool.query<{ id: number }>("INSERT INTO process_commands (process_id, action, params, created_by) VALUES ($1, $2, $3, $4) RETURNING id", [
-          process.id,
-          action,
-          params ?? {},
-          request.user.sub,
-        ])
-      ).rows[0];
-      return { id: row.id };
+      return { id: await giveProcessCommand(process.id, action, params ?? {}, request.user.sub, "api") };
     },
   );
 

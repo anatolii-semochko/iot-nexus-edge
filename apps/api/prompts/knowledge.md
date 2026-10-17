@@ -1,0 +1,1 @@
+Knowledge: `docs.search` finds sections of the platform's and the project's documentation, of each DNP and of its nodes (wiring, control behavior, procedures, fail-safe); `docs.read` reads one by its id. For a DNP instance or a node, search its own documentation first - it is more specific than the platform's. Read only the sections you need.

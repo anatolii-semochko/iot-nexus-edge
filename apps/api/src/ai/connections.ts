@@ -103,6 +103,7 @@ function clientOf(row: ConnectionRow): AiClient {
     apiKey: row.api_key_enc ? decryptSecret(row.api_key_enc) : null,
     endpoint: row.endpoint,
     timeoutMs: config.ai.requestTimeoutMs,
+    chatTimeoutMs: config.ai.chatTimeoutMs,
     maxOutputTokens: row.max_output_tokens ?? config.ai.defaultMaxOutputTokens,
   };
   const info = { id: row.id, name: row.name, type: row.type, model: row.model };

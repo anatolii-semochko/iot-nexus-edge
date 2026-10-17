@@ -9,6 +9,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { loadApiPlugins } from "./apiPlugins.js";
 import { config } from "./config.js";
 import { startEdgexPushBridge } from "./edgexPushBridge.js";
+import { recoverInterruptedRuns } from "./ai/calendar.js";
 import { importEnvConnection } from "./ai/connections.js";
 import { startEntityChangeListener } from "./entityChanges.js";
 import { runExtraMigrationsOnStart } from "./extraMigrations.js";
@@ -18,6 +19,7 @@ import { initUnreadCounts } from "./processMessages.js";
 import { authRoutes } from "./routes/auth.js";
 import { dashboardCardRoutes } from "./routes/dashboardCards.js";
 import { aiRoutes } from "./routes/ai.js";
+import { registryRoutes } from "./routes/registry.js";
 import { dnpRoutes } from "./routes/dnp.js";
 import { dataLoggerControlRoutes } from "./routes/dataLoggerControls.js";
 import { deviceGroupRoutes } from "./routes/deviceGroups.js";
@@ -96,6 +98,7 @@ export async function startApiServer(): Promise<FastifyInstance> {
   await app.register(nodeGroupRoutes);
   await app.register(deviceRoutes);
   await app.register(deviceGroupRoutes);
+  await app.register(registryRoutes);
   await app.register(heartbeatControlRoutes);
   await app.register(dataLoggerControlRoutes);
   await app.register(libraryRoutes);
@@ -148,6 +151,12 @@ export async function startApiServer(): Promise<FastifyInstance> {
     await importEnvConnection();
   } catch (err) {
     app.log.error({ err }, "AI connection import from .env failed");
+  }
+  // scheduled AI runs this api was running when it stopped (ai/calendar.ts)
+  try {
+    await recoverInterruptedRuns();
+  } catch (err) {
+    app.log.error({ err }, "AI calendar recovery failed");
   }
 
   await app.listen({ port: config.port, host: config.host });

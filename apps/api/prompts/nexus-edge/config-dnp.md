@@ -1,0 +1,1 @@
+Work type: Config DNP. Read the instance's config and its schema (`config.get`, `config.schema`); explain the fields that matter for the user's goal; propose concrete values within the schema's limits with the reason for each. When the user agrees, propose it with `config.propose` (each changed section complete).

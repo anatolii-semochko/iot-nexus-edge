@@ -147,4 +147,42 @@ export async function consumption(keys: string[], from: number, to: number): Pro
   return out;
 }
 
-export const timeSeries = { query: querySeries, consumption };
+export interface SeriesStats {
+  min: number | null;
+  max: number | null;
+  avg: number | null;
+  last: number | null;
+  n: number;
+}
+
+/**
+ * Each series' statistics between `from` and `to` (ms) - min, max, average
+ * (n-weighted over the aggregates), the last value, the readings counted -
+ * from the raw points up to two days, the hourly aggregate up to 60 days,
+ * the daily above (TimescaleDB; without it - the raw points). For the AI
+ * assistant (its `series.stats` tool) and any summary.
+ */
+export async function seriesStats(keys: string[], from: number, to: number): Promise<Record<string, SeriesStats>> {
+  const rows = await seriesOf(keys);
+  const out: Record<string, SeriesStats> = {};
+  if (rows.length === 0) return out;
+  const spanS = (to - from) / 1000;
+  const source = !(await hasAggregates()) || spanS <= 2 * DAY_S ? "raw" : spanS <= 60 * DAY_S ? "hourly" : "daily";
+  const ids = rows.map((r) => r.id);
+  const sql =
+    source === "raw"
+      ? `SELECT series_id, min(v) AS min, max(v) AS max, avg(v) AS avg, (array_agg(v ORDER BY t DESC))[1] AS last, count(*) AS n
+         FROM samples WHERE series_id = ANY($1::int[]) AND t >= to_timestamp($2 / 1000.0) AND t <= to_timestamp($3 / 1000.0) GROUP BY series_id`
+      : `SELECT series_id, min(v_min) AS min, max(v_max) AS max, sum(v_avg * n) / NULLIF(sum(n), 0) AS avg,
+                (array_agg(v_last ORDER BY bucket DESC))[1] AS last, sum(n) AS n
+         FROM samples_${source} WHERE series_id = ANY($1::int[]) AND bucket >= to_timestamp($2 / 1000.0) AND bucket <= to_timestamp($3 / 1000.0)
+         GROUP BY series_id`;
+  const keyOf = new Map(rows.map((r) => [r.id, r.key]));
+  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+  for (const r of (await pool.query(sql, [ids, from, to])).rows) {
+    out[keyOf.get(r.series_id)!] = { min: num(r.min), max: num(r.max), avg: num(r.avg), last: num(r.last), n: Number(r.n) };
+  }
+  return out;
+}
+
+export const timeSeries = { query: querySeries, consumption, stats: seriesStats };

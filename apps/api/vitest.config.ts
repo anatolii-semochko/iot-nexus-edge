@@ -9,5 +9,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     passWithNoTests: true,
+    // a zone with daylight saving - the local-time rules (ai/calendarTime.ts) are tested across its switches
+    env: { TZ: "Europe/Berlin" },
   },
 });

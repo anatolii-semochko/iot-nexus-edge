@@ -1,6 +1,7 @@
 import React from 'react'
 import { api } from '../../api/client'
 import { wemBadgeClass } from '../../utils/wem'
+import MessageLink from '../../components/MessageLink'
 
 /**
  * WEM (Warnings/Errors/Messages) list (AGENTS.md section 22) - rendered as
@@ -38,6 +39,7 @@ const WemRow = ({ messages }) => {
         >
           <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>
             {index + 1}. {message.text}
+            <MessageLink link={message.link} />
           </span>
           {message.type === 'message' && (
             <button

@@ -1,0 +1,1 @@
+Work type: Control Tasks of this instance - one-off or scheduled actions: the command / config that does it, whether it is safe now, then the proposal (`control.propose` / `config.propose`); a scheduled one - described with its time (scheduling comes with the calendar).

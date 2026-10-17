@@ -59,6 +59,9 @@ server {
         proxy_pass http://$api_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        # an AI Assistant answer (api ai/agent.ts) may take several model
+        # calls with tools - well over nginx's default 60 s
+        proxy_read_timeout 300s;
     }
 
     # Reverse-proxy to the Messaging Gateway's WebSocket endpoint (AGENTS.md

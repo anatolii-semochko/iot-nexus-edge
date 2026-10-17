@@ -286,7 +286,7 @@ export interface LibraryItemDetail {
  * it was walked from - mirrors syncLibrary()'s own two root trees
  * ("private/..." for a target project's own plugins/, everything else
  * under this repo's own devices/). */
-function resolveAbsDir(folderPath: string): string {
+export function resolveAbsDir(folderPath: string): string {
   if (folderPath === "private" || folderPath.startsWith("private/")) {
     if (!config.apiPlugins.extraDir) {
       throw new Error(`folder_path "${folderPath}" is private but no EXTRA_API_PLUGINS_DIR is configured`);

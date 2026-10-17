@@ -25,6 +25,8 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilLockLocked, cilPencil, cilTrash } from '@coreui/icons'
 import { api } from '../../api/client'
+import AiInstances from './AiInstances'
+import AiMcpAccess from './AiMcpAccess'
 
 /**
  * Service -> Config -> AI (Nexus Edge AI Assistant, stage 1 - nexus-edge-
@@ -33,8 +35,8 @@ import { api } from '../../api/client'
  * and never comes back here - the form shows only whether one is set; a
  * new key is typed in a password field (the eye shows what is being typed
  * now). The default connection serves the photo analysis; the assistant's
- * instances pick theirs (stage 2 - this tab grows the developer reports and
- * the instances with their access levels under the connections).
+ * instances pick theirs - Instances under the connections (AiInstances.jsx,
+ * stage 2).
  */
 
 const TYPES = [
@@ -420,6 +422,19 @@ const AiConfigTab = () => {
           </CTableBody>
         </CTable>
       )}
+      <h5 className="mt-4 mb-2">Instances</h5>
+      <div className="small text-body-secondary mb-2">
+        Where the assistant works and what it may do: Confirm - a person accepts each change; Auto -
+        done by the ai-agent account.
+      </div>
+      <AiInstances connections={data.connections} />
+      <h5 className="mt-4 mb-2">MCP access</h5>
+      <div className="small text-body-secondary mb-2">
+        External AI clients (Claude Code, Claude Desktop, other agents) read this system through the
+        assistant&apos;s tools over the Model Context Protocol - each token with the access levels
+        of the instance it acts as.
+      </div>
+      <AiMcpAccess />
       <ConnectionModal
         form={form}
         setForm={setForm}

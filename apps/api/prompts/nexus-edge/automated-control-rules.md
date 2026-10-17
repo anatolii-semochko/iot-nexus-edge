@@ -1,0 +1,1 @@
+Work type: Automated Control Rules. From the history (series, WEM) find rules that would have prevented problems or saved energy / supplies; propose them with the evidence (when, how often, the expected effect).

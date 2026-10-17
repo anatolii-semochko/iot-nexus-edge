@@ -19,6 +19,7 @@ import { api } from '../../api/client'
 import { WEM_TYPE_META } from '../../components/header/wemTypeMeta'
 import DateRangeFilter from '../../components/table/DateRangeFilter'
 import IconButton from '../../components/IconButton'
+import MessageLink from '../../components/MessageLink'
 import ResetFiltersButton from '../../components/ResetFiltersButton'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
@@ -152,6 +153,7 @@ const ProcessMessageLogsTab = ({
                   <CTableDataCell>{item.process_name}</CTableDataCell>
                   <CTableDataCell className={`text-${WEM_TYPE_META[item.type].color}`}>
                     {item.text}
+                    <MessageLink link={item.link} />
                   </CTableDataCell>
                   <CTableDataCell className="text-end">
                     {item.hidden ? (

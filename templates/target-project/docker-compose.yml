@@ -124,6 +124,9 @@ services:
       - api-media:${MEDIA_DIR}
       - ./plugins:/workspace/plugins:ro
       - ./migrations:/workspace/migrations-extra:ro
+      # the project's documentation the AI Assistant searches (nexus-edge
+      # apps/api/src/ai/docs.ts, source "project")
+      - ./README.md:/workspace/project-docs/README.md:ro
     networks:
       - __SLUG__-network
 

@@ -1,0 +1,1 @@
+Work type: Control Rules of this instance. Turn the user's rule in words into its own config (safety rules, gates, schedules); show the change and its effect; a proposal unless the Config level allows it.

@@ -1,0 +1,1 @@
+Work type: Control Rules. Turn the user's rule in words ("if pH < 6.4, stop CO2") into the system's own rules / config (safety rules, service gates, schedules) of the right instance; show what changes and its effect; it is a proposal unless the Config level allows it.
