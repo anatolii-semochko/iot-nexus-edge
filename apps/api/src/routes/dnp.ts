@@ -3,12 +3,11 @@ import path from "node:path";
 
 import type { FastifyInstance } from "fastify";
 
-import { requireAdmin, type JwtPayload } from "../auth.js";
+import { requireAdmin } from "../auth.js";
 import { config } from "../config.js";
 import { configSchemaKinds } from "../configSchemas.js";
 import { pool } from "../db.js";
 import { applyPendingExtraMigrations, listExtraMigrations } from "../extraMigrations.js";
-import { getSetting, setSetting } from "../systemSettings.js";
 
 // The DNPs of this system and their migrations (nexus-edge-aquarium
 // AGENTS_TO_DO.md 2026-10-16, tech debt 11) - for a person (Service ->
@@ -20,9 +19,8 @@ import { getSetting, setSetting } from "../systemSettings.js";
 //   process.ts, ui; `plugin.json` {version, description} optional), the
 //   process kinds with a config schema;
 // - GET /dnp/migrations - the core's (node-pg-migrate) and the project's
-//   (extraMigrations.ts: applied / pending / changed), the apply mode;
-// - POST /dnp/migrations/apply - the project's pending ones, now;
-// - PUT /dnp/settings {migrationsApply: "auto" | "confirm"}.
+//   (extraMigrations.ts: applied / pending / changed);
+// - POST /dnp/migrations/apply - the project's pending ones, now.
 
 const exists = async (p: string) => stat(p).then(() => true, () => false);
 
@@ -60,18 +58,11 @@ export async function dnpRoutes(app: FastifyInstance): Promise<void> {
       name: r.name,
       appliedAt: r.run_on.toISOString(),
     }));
-    return { core, project: await listExtraMigrations(), apply: await getSetting("dnp.migrations.apply") };
+    return { core, project: await listExtraMigrations() };
   });
 
   app.post("/dnp/migrations/apply", { preHandler: requireAdmin }, async (_request, reply) => {
     const result = await applyPendingExtraMigrations();
     return result.failed ? reply.code(500).send({ error: `${result.failed.name}: ${result.failed.error}`, ...result }) : result;
-  });
-
-  app.put<{ Body: { migrationsApply?: string } }>("/dnp/settings", { preHandler: requireAdmin }, async (request, reply) => {
-    const mode = request.body?.migrationsApply;
-    if (mode !== "auto" && mode !== "confirm") return reply.code(400).send({ error: 'migrationsApply must be "auto" or "confirm"' });
-    await setSetting("dnp.migrations.apply", mode, (request.user as JwtPayload).sub);
-    return { migrationsApply: mode };
   });
 }

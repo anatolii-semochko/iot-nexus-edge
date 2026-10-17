@@ -17,7 +17,8 @@ import { pool } from "../db.js";
 // is the one place that distinction is encoded - the UI mirrors it only
 // for display
 // (disabling buttons), never re-implements the rule itself.
-const PROTECTED_USERNAMES = new Set(["admin", "system", "simulator"]);
+// `ai-agent` - the AI agent's own account (migrations/1690000000067)
+const PROTECTED_USERNAMES = new Set(["admin", "system", "simulator", "ai-agent"]);
 const NON_DEACTIVATABLE_USERNAMES = new Set(["admin"]);
 
 // The only role that means anything today (gates access to these very

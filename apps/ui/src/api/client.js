@@ -133,12 +133,15 @@ export const api = {
   listProcesses: () => request('/processes'),
   setProcessConfig: (id, config) =>
     request(`/processes/${id}/config`, { method: 'PATCH', body: JSON.stringify(config) }),
-  // DNPs and migrations (api routes/dnp.ts, admin): the project's
-  // migrations' state, applying the pending ones, the apply mode.
-  listMigrations: () => request('/dnp/migrations'),
-  applyMigrations: () => request('/dnp/migrations/apply', { method: 'POST' }),
-  setDnpSettings: (settings) =>
-    request('/dnp/settings', { method: 'PUT', body: JSON.stringify(settings) }),
+  // AI connections (api routes/ai.ts, admin) - no keys come back (`hasKey`);
+  // `apiKey` sent only when changed (null - remove it).
+  listAiConnections: () => request('/ai/connections'),
+  createAiConnection: (data) =>
+    request('/ai/connections', { method: 'POST', body: JSON.stringify(data) }),
+  updateAiConnection: (id, data) =>
+    request(`/ai/connections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteAiConnection: (id) => request(`/ai/connections/${id}`, { method: 'DELETE' }),
+  testAiConnection: (id) => request(`/ai/connections/${id}/test`, { method: 'POST' }),
   // A one-shot command to a process (a calibration start, a replacement
   // done, a test) - kept out of its config (api routes/processes.ts).
   sendProcessCommand: (id, action, params = {}) =>

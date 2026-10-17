@@ -22,7 +22,8 @@ import {
 } from '@coreui/react'
 import { api } from '../../api/client'
 import { usePersistedState } from '../../hooks/usePersistedState'
-import SubTabs from '../../components/SubTabs'
+import SubTabs, { SubTabIcon } from '../../components/SubTabs'
+import AiConfigTab from './AiConfigTab'
 import DashboardConfigTab from './DashboardConfigTab'
 import DatabaseTab from './DatabaseTab'
 
@@ -40,7 +41,33 @@ const TABS = [
 
 const PLACEHOLDER_TABS = new Set([])
 // Config's sub-tabs
-const CONFIG_TABS = [{ key: 'dashboard', label: 'Dashboard' }]
+// The more often used first, the system ones last (2026-10-17).
+const CONFIG_TABS = [
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    icon: (
+      <SubTabIcon>
+        <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.5" />
+        <rect x="13" y="3.5" width="7.5" height="7.5" rx="1.5" />
+        <rect x="3.5" y="13" width="7.5" height="7.5" rx="1.5" />
+        <rect x="13" y="13" width="7.5" height="7.5" rx="1.5" />
+      </SubTabIcon>
+    ),
+  },
+  {
+    key: 'ai',
+    label: 'AI',
+    // sparkles - a large four-pointed star and two small ones
+    icon: (
+      <SubTabIcon>
+        <path d="M10 3.5l1.6 4.9 4.9 1.6-4.9 1.6L10 16.5l-1.6-4.9L3.5 10l4.9-1.6z" />
+        <path d="M17.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" />
+        <path d="M17.5 3.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" />
+      </SubTabIcon>
+    ),
+  },
+]
 
 const ConfigTab = () => {
   const [tab, setTab] = useState(CONFIG_TABS[0].key)
@@ -48,6 +75,7 @@ const ConfigTab = () => {
     <div className="pt-3">
       <SubTabs tabs={CONFIG_TABS} tab={tab} onChange={setTab} />
       {tab === 'dashboard' && <DashboardConfigTab />}
+      {tab === 'ai' && <AiConfigTab />}
     </div>
   )
 }

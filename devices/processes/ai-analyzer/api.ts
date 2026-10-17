@@ -169,7 +169,8 @@ export default async function aiAnalyzerApi(app: any, ctx: any): Promise<void> {
     const maxTextLength = proc.config.maxTextLength ?? DEFAULT_MAX_TEXT_LENGTH;
     const started = Date.now();
     let result: AnalysisResult;
-    const provider = ai.getVisionProvider();
+    // the default AI connection (Service -> Config -> AI)
+    const provider = await ai.getVisionProvider();
     if (!provider) {
       result = {
         status: "error",
@@ -178,7 +179,7 @@ export default async function aiAnalyzerApi(app: any, ctx: any): Promise<void> {
         model: null,
         latencyMs: null,
         usage: null,
-        error: "AI is not configured (OPENAI_API_KEY)",
+        error: "AI is not configured (no default connection - Service -> Config -> AI)",
         analyzedAt: new Date().toISOString(),
       };
     } else {

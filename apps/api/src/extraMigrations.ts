@@ -6,7 +6,6 @@ import path from "node:path";
 import { config } from "./config.js";
 import { pool } from "./db.js";
 import { logger } from "./logger.js";
-import { getSetting } from "./systemSettings.js";
 
 // A target project's own Postgres migrations (nexus-edge-aquarium
 // AGENTS_TO_DO.md 2026-10-16, tech debt 11 - was the one-off `migrate-extra`
@@ -14,9 +13,10 @@ import { getSetting } from "./systemSettings.js";
 // applied ONCE and recorded in `extra_migrations` (name, sha256 - the same
 // table and checksums the container kept). Run with psql (in this image), so
 // a file may use psql's \gset / \if. When:
-// - the api starts (after its own migrations): applied if the setting
-//   `dnp.migrations.apply` is "auto", else they wait;
-// - POST /dnp/migrations/apply (a person, or later the AI assistant).
+// - the api starts (after its own migrations) - they came with a
+//   deployment (2026-10-17: no "wait for a confirmation" mode - what the AI
+//   assistant proposes goes through its Install access level);
+// - POST /dnp/migrations/apply (an admin; the assistant - stage 5).
 // A recorded file changed since - reported ("changed"), never re-run: a
 // new migration is written instead.
 
@@ -107,7 +107,7 @@ export function applyPendingExtraMigrations(): Promise<{ applied: string[]; fail
   return running;
 }
 
-/** On the api's start: the pending ones applied ("auto") or reported as waiting ("confirm"). */
+/** On the api's start: the pending ones applied. */
 export async function runExtraMigrationsOnStart(): Promise<void> {
   if (!config.extraMigrations.dir) return;
   const all = await listExtraMigrations();
@@ -115,10 +115,6 @@ export async function runExtraMigrationsOnStart(): Promise<void> {
   const changed = all.filter((m) => m.status === "changed");
   for (const m of changed) logger.warn({ migration: m.name }, "project migration changed after it was applied - not re-run (write a new one)");
   if (pending.length === 0) return;
-  if ((await getSetting("dnp.migrations.apply")) === "confirm") {
-    logger.warn({ pending: pending.map((m) => m.name) }, "project migrations wait for a confirmation (Service -> Database -> Migrations)");
-    return;
-  }
   const { applied, failed } = await applyPendingExtraMigrations();
   logger.info({ applied: applied.length, failed: failed?.name ?? null }, "project migrations on start");
 }

@@ -68,13 +68,20 @@ export const config = {
     // a local network today, no TLS termination configured anywhere yet.
     secureCookies: process.env.NODE_ENV === "production",
   },
-  // AI layer (AGENTS.md section 82). No key = AI unavailable: consumers
+  // AI layer (AGENTS.md section 82; connections - ai/connections.ts,
+  // Service -> Config -> AI). No connection = AI unavailable: consumers
   // record an error instead of analysing, the platform itself is unaffected.
   ai: {
+    // the master key the connections' API keys are encrypted with (ai/secrets.ts)
+    secretsKey: process.env.AI_SECRETS_KEY,
+    // imported ONCE as the first connection when there is none yet
+    // (ai/connections.ts importEnvConnection) - may be removed from .env then
     provider: process.env.AI_PROVIDER ?? "openai",
     openaiApiKey: process.env.OPENAI_API_KEY,
     openaiModel: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
     requestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS ?? 25000),
+    // an answer's tokens when the connection sets no limit of its own
+    defaultMaxOutputTokens: Number(process.env.AI_MAX_OUTPUT_TOKENS ?? 2048),
     // Longest side of the copy sent for analysis - the original is kept as is.
     imageMaxSide: Number(process.env.AI_IMAGE_MAX_SIDE ?? 1536),
   },

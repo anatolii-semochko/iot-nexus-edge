@@ -9,6 +9,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { loadApiPlugins } from "./apiPlugins.js";
 import { config } from "./config.js";
 import { startEdgexPushBridge } from "./edgexPushBridge.js";
+import { importEnvConnection } from "./ai/connections.js";
 import { startEntityChangeListener } from "./entityChanges.js";
 import { runExtraMigrationsOnStart } from "./extraMigrations.js";
 import { syncLibrary } from "./libraryCatalog.js";
@@ -16,6 +17,7 @@ import { startProcessStateBroadcastLoop } from "./processBroadcast.js";
 import { initUnreadCounts } from "./processMessages.js";
 import { authRoutes } from "./routes/auth.js";
 import { dashboardCardRoutes } from "./routes/dashboardCards.js";
+import { aiRoutes } from "./routes/ai.js";
 import { dnpRoutes } from "./routes/dnp.js";
 import { dataLoggerControlRoutes } from "./routes/dataLoggerControls.js";
 import { deviceGroupRoutes } from "./routes/deviceGroups.js";
@@ -103,6 +105,7 @@ export async function startApiServer(): Promise<FastifyInstance> {
   await app.register(dashboardCardRoutes);
   await app.register(seriesRoutes);
   await app.register(dnpRoutes);
+  await app.register(aiRoutes);
   await app.register(messageGroupRoutes);
   await app.register(messageLevelRoutes);
   await app.register(messageSignalTimingRoutes);
@@ -138,6 +141,13 @@ export async function startApiServer(): Promise<FastifyInstance> {
     await syncLibrary();
   } catch (err) {
     app.log.error({ err }, "Library Catalog sync failed on startup");
+  }
+
+  // the first AI connection from the old .env settings, once (ai/connections.ts)
+  try {
+    await importEnvConnection();
+  } catch (err) {
+    app.log.error({ err }, "AI connection import from .env failed");
   }
 
   await app.listen({ port: config.port, host: config.host });
