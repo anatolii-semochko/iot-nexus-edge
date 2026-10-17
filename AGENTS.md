@@ -7388,6 +7388,8 @@ in Logs > Commands like the core config route does).
 
 ## 82. AI layer + AI Analyzer process kind + CORE Library process loading (AI Analyzing Camera, stage 4)
 
+(2026-10-17: the provider now comes from the AI connections - section "AI Assistant, stage 1" at the end; `getVisionProvider()` is async and returns the default connection's client.)
+
 2026-09-26, stage 4 of the AI Analyzing Camera plan: the camera's whole
 software side, running today on simulation (hardware still being built).
 
@@ -7963,4 +7965,41 @@ Migration 064 (nexus-edge-aquarium AGENTS_TO_DO.md tech debt 6):
 - fit-width: the component is laid out in the visible width (was its
   natural width - a wide part, e.g. a table, pushed the rest out of view);
   what can't shrink scrolls sideways.
+
+## AI Assistant, stage 1 - connections, the ai-agent account (2026-10-17)
+
+The Nexus Edge AI Assistant (the plan - nexus-edge-aquarium AGENTS_TO_DO.md
+2026-10-16/17: connections -> DNP AI manifests, prompt packs, access levels,
+the resource gateway -> the agent and its logs -> the messenger -> proposals
+-> the calendar). Stage 1:
+- `ai-agent` - a protected account (migration 067; routes/users.ts): the
+  author of what an agent does on its own (an Auto access level). What a
+  person confirms is that person's; the orchestrator - `system`; the
+  simulation - `simulator`. Its password is random, never stored.
+- `ai_connections` (migration 067; `ai/connections.ts`): name, type
+  (`openai`, `anthropic`, `openai-compatible` - a local model server's /v1
+  endpoint), endpoint (null - the type's own), model, the API key
+  encrypted (`ai/secrets.ts`: AES-256-GCM with `AI_SECRETS_KEY` from .env;
+  never returned - `hasKey`), one default, enabled, limits
+  (`max_output_tokens` - else `AI_MAX_OUTPUT_TOKENS`; `daily_token_limit` -
+  enforced from stage 3). A client per connection, cached, dropped on a
+  change. The first connection is imported once from the old `OPENAI_*`
+  .env settings when there is none (they may be removed from .env then).
+- Clients (`ai/vision.ts` AiClient): `complete` (a plain completion - the
+  connection test now, the agent later) and `analyzeImage` (a structured
+  answer): OpenAI / compatible (`openaiClient.ts`, the openai SDK with a
+  baseURL; strict JSON-schema output), Anthropic (`anthropicClient.ts`,
+  the Messages API over fetch; the schema as a forced tool).
+- `routes/ai.ts` (admin): `GET /ai/connections` (+ `secretsAvailable`),
+  `POST`, `PATCH /:id` (`apiKey` absent - kept, null / "" - removed),
+  `DELETE /:id`, `POST /:id/test` (the model answers "OK": model, latency,
+  tokens).
+- UI: Service -> Config -> AI (the second sub-tab, after Dashboard; both
+  with icons) - `views/service/AiConfigTab.jsx`: the connections table
+  (Test / Edit / Delete), the form with the key in a password field whose
+  eye shows only what is typed now.
+- The `dnp.migrations.apply` setting and Service -> Database -> Migrations
+  are gone: the api applies a project's migrations at every start (they
+  come with a deployment); what the agent proposes goes through its
+  Install access level (stage 5). `/dnp/migrations` stays for the agent.
 
