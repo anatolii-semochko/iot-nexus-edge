@@ -99,7 +99,7 @@ const TargetsTab = ({ process, targets, limit, onChanged }) => {
         </span>
         {error && <span className="text-danger small">{error}</span>}
       </div>
-      <CTable small align="middle" className="mb-0 table-no-last-border">
+      <CTable small align="middle" className="mb-0">
         <CTableHead>
           <CTableRow>
             <CTableHeaderCell style={{ width: '4rem' }}>ID</CTableHeaderCell>

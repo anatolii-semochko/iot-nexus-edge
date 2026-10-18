@@ -391,8 +391,8 @@ const DashboardConfigTab = () => {
             : `No cards yet - the Dashboard shows the project's own page${options.length > 0 ? '' : ' (no module offers components)'}.`}
         </CAlert>
       ) : (
-        // a table - the rows' lines, none under the last (table-no-last-border)
-        <CTable align="middle" className="mb-0 table-no-last-border">
+        // a table - the rows' lines, none under the last
+        <CTable align="middle" className="mb-0">
           <CTableBody>
             {level.map((card, i) => (
               <CTableRow key={card.id}>

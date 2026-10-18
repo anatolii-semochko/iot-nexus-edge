@@ -272,16 +272,13 @@ const AiAssistant = () => {
 
   return (
     <CCard
-      className="mb-4 overflow-hidden"
+      className="overflow-hidden"
       style={{ height: 'calc(100vh - 11rem)', minHeight: '28rem' }}
     >
       <style>{ANSWER_CSS}</style>
       <div className="d-flex h-100">
         {/* the conversations */}
-        <div
-          className="d-flex flex-column border-end bg-body-tertiary"
-          style={{ width: '17rem', flexShrink: 0 }}
-        >
+        <div className="d-flex flex-column border-end" style={{ width: '17rem', flexShrink: 0 }}>
           <div className="p-2 border-bottom">
             <CButton
               color="primary"
