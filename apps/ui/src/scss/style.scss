@@ -16,14 +16,13 @@ body {
   vertical-align: middle;
 }
 
-// Opt-in utility - Bootstrap/CoreUI draws a border under every row,
-// including the last one, which reads as a redundant double line right
-// above a table's own bottom edge (especially noticeable directly
-// above a Save/Cancel button row or another block with no gap). Add
-// `table-no-last-border` to a <CTable> to drop just that one border;
-// every other row keeps its own. Selector specificity matches (and so
-// overrides) the base `.table > :not(caption) > * > *` rule above.
-.table-no-last-border > tbody > tr:last-child > * {
+// Bootstrap/CoreUI draws a border under every row, including the last
+// one, which reads as a redundant double line right above a table's own
+// bottom edge (a card's edge, a Save/Cancel row, pagination). Dropped for
+// every table - an opt-in class was too easy to forget. Selector
+// specificity matches (and so overrides) the base
+// `.table > :not(caption) > * > *` rule above.
+.table > tbody > tr:last-child > * {
   border-bottom-width: 0;
 }
 
@@ -170,4 +169,41 @@ body {
   &::-moz-range-progress {
     background: transparent;
   }
+}
+
+
+// A page without a frame: the routed view's own top card (AppContent's
+// `page-content` container) loses its border, its header band and its
+// side padding, and the container its max width - the page is one sheet
+// on the body colour, edge to edge, aligned with the header. Cards inside
+// a page (Dashboard tiles, panels, folders) keep their usual look.
+.wrapper {
+  background: var(--cui-body-bg);
+}
+
+.page-content {
+  max-width: none;
+
+  > .card {
+    --cui-card-spacer-x: 0;
+    --cui-card-cap-padding-x: 0;
+    --cui-card-cap-padding-y: 0;
+    --cui-card-cap-bg: transparent;
+    border: 0;
+
+    > .card-header {
+      border-bottom: 0;
+
+      strong {
+        font-size: 1.5em;
+      }
+    }
+  }
+}
+
+// Badges in a table cell keep a small gap below, so several of them
+// wrapping onto two lines don't touch.
+.table td > .badge,
+.table th > .badge {
+  margin-bottom: 0.25rem;
 }

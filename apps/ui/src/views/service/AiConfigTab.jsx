@@ -324,7 +324,7 @@ const AiConfigTab = () => {
           No connection yet - the AI features are off until one is added.
         </CAlert>
       ) : (
-        <CTable small hover responsive className="align-middle table-no-last-border">
+        <CTable small hover responsive className="align-middle">
           <CTableHead>
             <CTableRow>
               <CTableHeaderCell>Name</CTableHeaderCell>

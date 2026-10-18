@@ -79,7 +79,7 @@ const AiInstances = ({ connections }) => {
           {error}
         </CAlert>
       )}
-      <CTable small hover responsive className="align-middle table-no-last-border">
+      <CTable small hover responsive className="align-middle">
         <CTableHead>
           <CTableRow>
             <CTableHeaderCell>Instance</CTableHeaderCell>

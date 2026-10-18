@@ -52,7 +52,7 @@ const FileTable = ({
   <div>
     {toolbar && <div className="mb-2">{toolbar}</div>}
     {error && <div className="text-danger small mb-2">{error}</div>}
-    <CTable small align="middle" className="mb-0 table-no-last-border">
+    <CTable small align="middle" className="mb-0">
       <CTableHead>
         <CTableRow>
           {thumbnailUrl && <CTableHeaderCell style={{ width: '5rem' }} />}

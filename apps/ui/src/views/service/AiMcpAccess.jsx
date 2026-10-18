@@ -128,7 +128,7 @@ const AiMcpAccess = () => {
       {tokens.length === 0 ? (
         <div className="small text-body-secondary mb-2">No token - the MCP server is closed.</div>
       ) : (
-        <CTable small hover responsive className="align-middle table-no-last-border">
+        <CTable small hover responsive className="align-middle">
           <CTableHead>
             <CTableRow>
               <CTableHeaderCell>Name</CTableHeaderCell>

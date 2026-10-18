@@ -423,7 +423,7 @@ const LibraryBrowser = () => {
         ) : rows.length === 0 ? (
           <CAlert color="info">{showingSearch ? 'No matches.' : 'Nothing here yet.'}</CAlert>
         ) : (
-          <CTable responsive className="table-no-last-border">
+          <CTable responsive>
             <CTableHead>
               <CTableRow>
                 <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
