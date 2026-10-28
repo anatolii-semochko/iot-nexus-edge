@@ -102,8 +102,8 @@ services:
       EXTRA_API_PLUGINS_DIR: /workspace/plugins
       # This project's own Postgres migrations (nexus-edge
       # apps/api/src/extraMigrations.ts) - each applied once (table
-      # extra_migrations) when the api starts, or on a person's confirmation
-      # (setting dnp.migrations.apply, POST /dnp/migrations/apply).
+      # extra_migrations) when the api starts - they come with a
+      # deployment (an admin can also run POST /dnp/migrations/apply).
       # Replaces the one-off migrate-extra container (2026-10-16).
       EXTRA_MIGRATIONS_DIR: /workspace/migrations-extra
       # Live-debugged 2026-08-14 in nexus-edge's own docker-compose.yml

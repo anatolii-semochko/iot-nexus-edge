@@ -14,7 +14,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // nothing here had a timeout at all. AbortSignal.timeout() is the
   // built-in fetch mechanism for this, no extra dependency.
   const res = await fetch(`${config.apiUrl}${path}`, {
-    headers: options.body ? { "Content-Type": "application/json" } : {},
+    headers: { "X-Service-Token": config.serviceApiToken, ...(options.body ? { "Content-Type": "application/json" } : {}) },
     signal: AbortSignal.timeout(config.apiRequestTimeoutMs),
     ...options,
   });
@@ -142,6 +142,11 @@ export interface ProcessRecord {
     ramWarnMax?: number;
     diskWarnMax?: number;
     tempWarnMax?: number;
+    // a raised level holds until its metric falls this far below the
+    // threshold (the metric's own unit) - resourceMonitor.ts; 0 - none
+    hysteresis?: number;
+    // ...and holds this long (s) after it fell below - resourceMonitor.ts
+    holdSeconds?: number;
     // temperature-control/temperature-monitor role -> deviceId mapping
     // (AGENTS_TO_DO.md's 2026-07-27 Device/Node refactor, roadmap Phase 4.1) - a
     // single `device_id` above no longer says enough once the sensor and

@@ -1,0 +1,44 @@
+{
+  "id": "node-battery-storage",
+  "name": "Battery Storage (pack + inverter)",
+  "description": "A commercial battery storage pack with its battery inverter - reference TESVOLT TS HV 70 (67 kWh, NMC, 1C) with SMA Sunny Tripower Storage 60 (60 kW). State of charge, DC voltage and current, AC power (+ discharge / - charge), temperature, an on / off contactor. Used by energy-field.",
+  "models": [
+    {
+      "key": "ts-hv-70-stps-60",
+      "name": "TS HV 70 + Sunny Tripower Storage 60",
+      "maker": "TESVOLT AG / SMA Solar Technology AG, Germany",
+      "image": "model-ts-hv-70.webp",
+      "purpose": "Commercial battery storage unit - a lithium battery pack with its three-phase battery inverter.",
+      "specs": [
+        {
+          "label": "Capacity",
+          "value": "67 kWh (14 modules) / 76 kWh (16)"
+        },
+        {
+          "label": "Cells",
+          "value": "lithium NMC prismatic (Samsung SDI)"
+        },
+        {
+          "label": "C-rate",
+          "value": "1C"
+        },
+        {
+          "label": "Battery efficiency",
+          "value": "up to 98 %"
+        },
+        {
+          "label": "Cycles",
+          "value": "6,000 at 1C, 100 % DoD"
+        },
+        {
+          "label": "Inverter",
+          "value": "60 kVA AC, DC 575-1000 V"
+        },
+        {
+          "label": "Operating range",
+          "value": "-10..50 °C"
+        }
+      ]
+    }
+  ]
+}

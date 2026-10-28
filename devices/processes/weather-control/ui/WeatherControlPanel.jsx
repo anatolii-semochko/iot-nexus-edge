@@ -2,7 +2,8 @@ import React from 'react'
 import CIcon from '@coreui/icons-react'
 import { CCol, CRow } from '@coreui/react'
 import { LEVEL_BY_KEY } from './lightLevels'
-import { useDeviceValue } from './useDeviceValue'
+import { useDeviceValue } from 'src/views/processes/useDeviceValue'
+import ForecastBlock from './ForecastBlock'
 
 const Reading = ({ label, value, unit, decimals = 1 }) => (
   <CCol xs="auto">
@@ -16,20 +17,12 @@ const Reading = ({ label, value, unit, decimals = 1 }) => (
 )
 
 /**
- * Expandable-row detail for the "weather-control" process kind
- * (Node Weather Control.txt, AGENTS_TO_DO.md 2026-08-23) - read-only
- * display of the outdoor station's five readings (four raw sensor
- * Devices plus the process's own computed light-level Device). No
- * thresholds to edit here - unlike ControlNodePanel/
- * TemperatureProcessPanel, this process has no warning/error bounds of
- * its own; its only configurable behavior (zone boundaries/colors) lives
- * in the process's own Settings popup (Config -> "Light level zones"),
- * matching the Ukrainian spec's own "Config процесу" placement, not this
- * expandable panel.
- *
- * This process kind's *runner* lives in a target project's own
- * plugins/weather-control/process.ts (not nexus-edge core) - same split
- * `control-node`/`ControlNodePanel.jsx` already established.
+ * Expandable-row detail of the "weather-control" process kind (CORE Library
+ * package devices/processes/weather-control/) - read-only: the station's
+ * readings (the raw sensors plus the computed light level; wind and rain
+ * when the node has them) and, with a location set, the forecast
+ * (ForecastBlock). The light-level zones are edited in the process's
+ * Settings (Zones), the forecast's location in its config.
  */
 const WeatherControlPanel = ({ process }) => {
   const {
@@ -38,6 +31,9 @@ const WeatherControlPanel = ({ process }) => {
     pressureDeviceId,
     lightDeviceId,
     lightLevelDeviceId,
+    windSpeedDeviceId,
+    rainDeviceId,
+    forecast,
   } = process.config
 
   const temperature = useDeviceValue(temperatureDeviceId)
@@ -45,6 +41,8 @@ const WeatherControlPanel = ({ process }) => {
   const pressure = useDeviceValue(pressureDeviceId)
   const light = useDeviceValue(lightDeviceId)
   const lightLevel = useDeviceValue(lightLevelDeviceId)
+  const windSpeed = useDeviceValue(windSpeedDeviceId)
+  const rain = useDeviceValue(rainDeviceId)
 
   const level = typeof lightLevel === 'string' ? LEVEL_BY_KEY[lightLevel] : undefined
 
@@ -55,6 +53,10 @@ const WeatherControlPanel = ({ process }) => {
         <Reading label="Humidity" value={humidity} unit="%RH" />
         <Reading label="Pressure" value={pressure} unit=" hPa" />
         <Reading label="Light (raw)" value={light} unit="" decimals={0} />
+        {windSpeedDeviceId !== undefined && <Reading label="Wind" value={windSpeed} unit=" m/s" />}
+        {rainDeviceId !== undefined && (
+          <Reading label="Rain (wetness)" value={rain} unit="%" decimals={0} />
+        )}
         <CCol xs="auto">
           <div className="text-body-secondary small">Light level</div>
           <div
@@ -72,6 +74,11 @@ const WeatherControlPanel = ({ process }) => {
           </div>
         </CCol>
       </CRow>
+      {forecast?.latitude !== undefined && (
+        <div className="mt-4">
+          <ForecastBlock processId={process.id} />
+        </div>
+      )}
     </div>
   )
 }

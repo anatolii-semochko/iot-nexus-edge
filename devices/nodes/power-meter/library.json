@@ -1,0 +1,28 @@
+{
+  "id": "node-power-meter",
+  "name": "Power Meter",
+  "description": "A three-phase power meter on a feeder - reference model Janitza UMG 96-PA (Modbus RTU / TCP, MID variant). Power and energy register. Used by energy-field as the site consumption.",
+  "models": [
+    {
+      "key": "umg-96-pa",
+      "name": "UMG 96-PA",
+      "maker": "Janitza electronics GmbH, Germany",
+      "image": "model-umg-96-pa.webp",
+      "purpose": "Three-phase power analyser of a consumer - its power and energy.",
+      "specs": [
+        {
+          "label": "Format",
+          "value": "96 x 96 mm panel"
+        },
+        {
+          "label": "Interface",
+          "value": "Modbus RTU (RS-485, up to 115 kbps), Ethernet modules"
+        },
+        {
+          "label": "Billing",
+          "value": "MID variant UMG 96-PA-MID"
+        }
+      ]
+    }
+  ]
+}

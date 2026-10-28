@@ -19,6 +19,7 @@ import LiveBadge from '../devices/LiveBadge'
 import DashboardTab from './DashboardTab'
 import ProcessesTable from './ProcessesTable'
 import SettingsTab from './SettingsTab'
+import PageTitle from '../../components/PageTitle'
 
 // Registration for usePersistedState (AGENTS.md section 22) - a separate,
 // independent registration from the older 'nexusedge.processes' key
@@ -276,7 +277,7 @@ const ProcessesList = () => {
         {/* Flex, not just LiveBadge's own align-middle (AGENTS_TO_DO.md,
             2026-08-30) - see Simulator.jsx's own identical comment. */}
         <div className="d-flex align-items-center gap-2">
-          <strong>Processes</strong>
+          <PageTitle title="Processes" />
           <LiveBadge />
         </div>
       </CCardHeader>

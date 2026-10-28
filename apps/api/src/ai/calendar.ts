@@ -39,6 +39,7 @@ export interface Schedule {
   monthDay: number | null;
   month: number | null;
   time: string;
+  everyHours: number | null;
   lastRunDate: string | null;
   lastRunAt: string | null;
   lastConversationId: number | null;
@@ -58,6 +59,7 @@ interface ScheduleRow {
   month_day: number | null;
   month: number | null;
   time: string;
+  every_hours: number | null;
   last_run_date: string | null;
   last_run_at: Date | null;
   last_conversation_id: number | null;
@@ -76,6 +78,7 @@ const toSchedule = (r: ScheduleRow): Schedule => ({
   monthDay: r.month_day,
   month: r.month,
   time: r.time,
+  everyHours: r.every_hours,
   lastRunDate: r.last_run_date,
   lastRunAt: r.last_run_at?.toISOString() ?? null,
   lastConversationId: r.last_conversation_id,
@@ -95,6 +98,7 @@ export interface ScheduleInput {
   monthDay?: number | null;
   month?: number | null;
   time?: string;
+  everyHours?: number | null;
 }
 
 /** What is wrong with a schedule for an instance (null - fine). */
@@ -103,7 +107,8 @@ export function scheduleProblem(instance: Instance, s: Required<ScheduleInput>):
     return instance.scheduledTypes.length
       ? `workType must be one of ${instance.scheduledTypes.join(", ")}`
       : `${instance.name} declares no scheduled work types`;
-  if (!["day", "week", "month", "year"].includes(s.repeat)) return "repeat must be day, week, month or year";
+  if (!["day", "week", "month", "year", "hours"].includes(s.repeat)) return "repeat must be day, week, month, year or hours";
+  if (s.repeat === "hours" && !(Number.isInteger(s.everyHours) && s.everyHours! >= 1 && s.everyHours! <= 12)) return "everyHours (1..12) is required for runs every N hours";
   if (!/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/.test(s.time)) return "time must be HH:MM (00:00 - 24:00)";
   if (s.repeat === "week" && !(Number.isInteger(s.weekday) && s.weekday! >= 0 && s.weekday! <= 6)) return "weekday (0 - Sunday .. 6) is required for a weekly run";
   if ((s.repeat === "month" || s.repeat === "year") && !(Number.isInteger(s.monthDay) && s.monthDay! >= 1 && s.monthDay! <= 31))
@@ -118,6 +123,7 @@ const normalized = (s: Required<ScheduleInput>) => ({
   weekday: s.repeat === "week" ? s.weekday : null,
   monthDay: s.repeat === "month" || s.repeat === "year" ? s.monthDay : null,
   month: s.repeat === "year" ? s.month : null,
+  everyHours: s.repeat === "hours" ? s.everyHours : null,
 });
 
 export async function listSchedules(instanceKey?: string): Promise<Schedule[]> {
@@ -151,15 +157,16 @@ export async function createSchedule(instanceKey: string, input: ScheduleInput, 
     monthDay: input.monthDay ?? null,
     month: input.month ?? null,
     time: input.time ?? "",
+    everyHours: input.everyHours ?? null,
   };
   const problem = scheduleProblem(instance, s);
   if (problem) throw new CalendarError(problem);
   const n = normalized(s);
   const row = (
     await pool.query<ScheduleRow>(
-      `INSERT INTO ai_schedules (instance_key, work_type, enabled, repeat, weekday, month_day, month, time, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [instanceKey, n.workType, n.enabled, n.repeat, n.weekday, n.monthDay, n.month, n.time, userId],
+      `INSERT INTO ai_schedules (instance_key, work_type, enabled, repeat, weekday, month_day, month, time, every_hours, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [instanceKey, n.workType, n.enabled, n.repeat, n.weekday, n.monthDay, n.month, n.time, n.everyHours, userId],
     )
   ).rows[0];
   return toSchedule(row);
@@ -178,15 +185,16 @@ export async function updateSchedule(id: number, input: ScheduleInput): Promise<
     monthDay: input.monthDay !== undefined ? input.monthDay : row.month_day,
     month: input.month !== undefined ? input.month : row.month,
     time: input.time ?? row.time,
+    everyHours: input.everyHours !== undefined ? input.everyHours : row.every_hours,
   };
   const problem = scheduleProblem(instance, s);
   if (problem) throw new CalendarError(problem);
   const n = normalized(s);
   const updated = (
     await pool.query<ScheduleRow>(
-      `UPDATE ai_schedules SET work_type = $2, enabled = $3, repeat = $4, weekday = $5, month_day = $6, month = $7, time = $8, updated_at = now()
+      `UPDATE ai_schedules SET work_type = $2, enabled = $3, repeat = $4, weekday = $5, month_day = $6, month = $7, time = $8, every_hours = $9, updated_at = now()
        WHERE id = $1 RETURNING *`,
-      [id, n.workType, n.enabled, n.repeat, n.weekday, n.monthDay, n.month, n.time],
+      [id, n.workType, n.enabled, n.repeat, n.weekday, n.monthDay, n.month, n.time, n.everyHours],
     )
   ).rows[0];
   // switched off - its problem is no one's to see any more

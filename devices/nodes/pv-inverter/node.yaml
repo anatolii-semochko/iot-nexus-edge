@@ -1,0 +1,17 @@
+nodeType: pv-inverter
+description: >
+  A block of PV modules wired as one string group to its three-phase
+  string inverter - the unit of control on a generation field (many
+  modules, one point to watch and switch). Reference model SMA Sunny
+  Tripower 10.0 (STP10.0-3AV-40: 10 kW AC, up to 15 kWp DC, two MPP
+  trackers, Modbus TCP / SunSpec). Reports its AC power, its yield
+  register and the DC voltage; its operation is switched on / off. Driven
+  by the `energy-field` process (simulated - from the weather forecast's
+  solar radiation).
+bus:
+  type: modbus-tcp
+supports:
+  - power
+  - energy
+  - voltage
+  - relay

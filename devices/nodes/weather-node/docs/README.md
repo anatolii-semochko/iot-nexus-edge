@@ -14,10 +14,17 @@ Three physical sensors, five Devices on a real instance:
 | AHT20 (I2C) | temperature + humidity | `temperature` (°C), `humidity` (%RH) |
 | BMP280 (I2C) | atmospheric pressure | `pressure` (hPa) - the module's own temperature output is read and discarded, AHT20 already covers that |
 | Photoresistor (ADC) | raw ambient light | `light` (raw 0-4095 count, uncalibrated) |
+| Cup anemometer (pulse input) | wind speed | `wind-speed` (m/s) - added 2026-10-19, firmware not yet |
+| Resistive rain plate (ADC) | surface wetness | `rain` (0-100 %) - added 2026-10-19, firmware not yet |
 | - | *(computed, no sensor of its own)* | `light-level` - a 6-step category derived from `light` by the `weather-control` process, see below |
 
-Plus `heartbeat`, posted once per second - 6 Devices total on a real
-instance.
+Plus `heartbeat`, posted once per second - 8 Devices total on a real
+instance (6 before the wind and rain sensors).
+
+A simulated node (Nodes -> Simulated) is driven by the `weather-control`
+process: with a forecast location set, it follows the forecast (temperature,
+humidity, pressure, light from the solar radiation, wind, rain) - see
+`devices/processes/weather-control/docs/README.md`.
 
 ## Light level
 

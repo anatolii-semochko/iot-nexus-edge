@@ -1,0 +1,47 @@
+import {
+  cilAlarm,
+  cilBolt,
+  cilBug,
+  cilCalendarCheck,
+  cilChartLine,
+  cilChatBubble,
+  cilDrop,
+  cilFire,
+  cilFork,
+  cilHeart,
+  cilLifeRing,
+  cilLightbulb,
+  cilLoopCircular,
+  cilNotes,
+  cilPlus,
+  cilSettings,
+  cilSun,
+  cilTask,
+  cilWarning,
+} from '@coreui/icons'
+
+// The work types' icons (a manifest's "icon" - one of these names; 2026-10-24): imported by name,
+// not the whole set - the bundle stays small. An unknown name - the chat bubble.
+const ICONS = {
+  cilAlarm,
+  cilBolt,
+  cilBug,
+  cilCalendarCheck,
+  cilChartLine,
+  cilChatBubble,
+  cilDrop,
+  cilFire,
+  cilFork,
+  cilHeart,
+  cilLifeRing,
+  cilLightbulb,
+  cilLoopCircular,
+  cilNotes,
+  cilPlus,
+  cilSettings,
+  cilSun,
+  cilTask,
+  cilWarning,
+}
+
+export const workTypeIcon = (name) => ICONS[name] ?? cilChatBubble

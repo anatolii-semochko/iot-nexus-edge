@@ -262,6 +262,8 @@ services:
       # Devices API's Media Store; the device's value becomes the returned id.
       DEVICE_MEDIA_UPLOAD_URL: http://api:${API_PORT}/media/edgex
       DEVICE_MEDIA_UPLOAD_TIMEOUT_SECONDS: ${DEVICE_MEDIA_UPLOAD_TIMEOUT_SECONDS}
+      # the Devices API accepts the internal services by this token (access/guard.ts)
+      SERVICE_API_TOKEN: ${SERVICE_API_TOKEN}
     ports:
       - "127.0.0.1:59999:59999"
     networks:

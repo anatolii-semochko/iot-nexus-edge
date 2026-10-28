@@ -45,17 +45,3 @@ dashboardRegistry.registerComponent({
     },
   ],
 })
-dashboardRegistry.registerComponent({
-  key: 'weatherControl.panel',
-  title: 'Weather',
-  description: 'The weather station: its zones and readings',
-  processKind: 'weather-control',
-  Component: lazy(() => import('./views/processes/WeatherControlPanel')),
-  avatars: [
-    {
-      key: 'picture',
-      title: 'Sun, cloud, rain, temperature',
-      Component: lazy(() => import('./views/processes/WeatherAvatar')),
-    },
-  ],
-})

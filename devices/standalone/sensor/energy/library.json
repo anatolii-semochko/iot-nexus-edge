@@ -1,0 +1,5 @@
+{
+  "id": "device-energy",
+  "name": "Energy",
+  "description": "Energy counter - single Float32 reading (kWh), read-only, only ever growing (a meter's register: import, export, generated, consumed)."
+}

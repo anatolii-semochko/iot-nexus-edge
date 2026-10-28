@@ -89,17 +89,15 @@ async function findProcessPluginFiles(dir: string): Promise<string[]> {
 }
 
 export async function loadProcessPlugins(): Promise<void> {
-  // The target project's own plugins/ first, then the CORE Library
-  // (devices/processes/, AGENTS.md section 82). A project plugin OVERRIDES a
-  // Library kind of the same name - the Library copy is skipped with a
-  // warning - so a project can carry its own version of a Library kind (or
-  // an unrenamed copy of a Library template) without the orchestrator
-  // failing to start. A kind registered twice within the same source is
-  // still a hard error (processRegistry.register).
-  const sources = [
-    { label: "private", dir: config.processPlugins.extraDir },
-    { label: "library", dir: config.processPlugins.builtinDevicesDir },
-  ].filter((source): source is { label: string; dir: string } => Boolean(source.dir));
+  // The target project's own roots first - the LAST listed first (the most
+  // specific project: the demo before the aquarium it is built on) - then
+  // the CORE Library (devices/processes/, AGENTS.md section 82). An earlier
+  // source OVERRIDES a kind of the same name in a later one - that copy is
+  // skipped with a warning - so a project can carry its own version of a
+  // Library (or a dependency's) kind without the orchestrator failing to
+  // start. A kind registered twice within the same source is still a hard
+  // error (processRegistry.register).
+  const sources = [...config.processPlugins.extraDirs].reverse().concat([{ label: "library", dir: config.processPlugins.builtinDevicesDir }]);
 
   const registeredBy = new Map<string, string>();
   for (const source of sources) {
@@ -112,8 +110,9 @@ export async function loadProcessPlugins(): Promise<void> {
       mod.default(
         (kind, runner, hooks) => {
           const owner = registeredBy.get(kind);
-          if (source.label === "library" && owner === "private") {
-            logger.warn({ kind, file }, "Library process kind overridden by the project's own plugin - Library copy skipped");
+          // registered by an earlier (more specific) source - this copy is overridden
+          if (owner !== undefined && owner !== source.label) {
+            logger.warn({ kind, file, by: owner }, "process kind overridden by a more specific source - this copy skipped");
             return;
           }
           processRegistry.register(kind, runner, hooks);

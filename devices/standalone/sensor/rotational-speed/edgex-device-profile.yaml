@@ -1,0 +1,24 @@
+# Source of truth for this device type's EdgeX-facing shape. The copy
+# actually loaded by apps/device-service lives at
+# apps/device-service/res/profiles/NexusEdge-RotationalSpeed.yaml - kept in sync by
+# hand (AGENTS.md section 7). Identical content.
+name: "NexusEdge-RotationalSpeed"
+manufacturer: "NexusEdge"
+model: "rotational-speed"
+labels:
+  - "sensor"
+description: "Rotational speed - atomic device, one Float32 value"
+
+deviceResources:
+  - name: "RotationalSpeed"
+    isHidden: false
+    description: "Rotational speed reading"
+    properties:
+      valueType: "Float32"
+      # RW at the EdgeX level although read-only for the platform - the
+      # simulate endpoints (and a physical write) push readings through
+      # core-command (same as ../pressure).
+      readWrite: "RW"
+      units: "rpm"
+
+deviceCommands: []

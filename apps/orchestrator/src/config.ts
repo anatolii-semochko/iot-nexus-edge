@@ -20,6 +20,13 @@ export const config = {
   // re-entrancy guard (added the same day) can never freeze forever on a
   // single hung call with no timeout at all.
   apiRequestTimeoutMs: Number(process.env.API_REQUEST_TIMEOUT_MS ?? 10000),
+  // The internal services' token the API accepts instead of a person's
+  // session (header X-Service-Token; apps/api access/guard.ts).
+  serviceApiToken: (() => {
+    const token = process.env.SERVICE_API_TOKEN;
+    if (!token) throw new Error("Missing required environment variable: SERVICE_API_TOKEN");
+    return token;
+  })(),
   // Same LOG_LEVEL knob as apps/api's own config.ts - this server only
   // ever serves /health and /process-kinds (not the hot path, that's
   // this app acting as a *client* against api's own server), but kept
@@ -44,9 +51,18 @@ export const config = {
     // CORE Library process kinds (devices/processes/*/process.ts, AGENTS.md
     // section 82) - baked into this image, always scanned, the same way
     // apps/api always scans devices/ for api.ts. A target project's own
-    // kinds come from extraDir on top.
+    // kinds come from its roots on top - one or several, comma-separated
+    // "label=path" or "path" (the demo project on the aquarium's packages;
+    // the same format as the api's - apps/api projectRoots.ts).
     builtinDevicesDir: process.env.BUILTIN_DEVICES_DIR ?? "/workspace/devices",
-    extraDir: process.env.EXTRA_PROCESS_PLUGINS_DIR,
+    extraDirs: (process.env.EXTRA_PROCESS_PLUGINS_DIR ?? "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .map((entry, i) => {
+        const eq = entry.indexOf("=");
+        return { label: eq > 0 ? entry.slice(0, eq).trim() : i === 0 ? "private" : `private-${i + 1}`, dir: eq > 0 ? entry.slice(eq + 1).trim() : entry };
+      }),
   },
   // nexus.events subscription (busEvents.ts) for process onDeviceEvent
   // hooks (AGENTS.md section 80) and change events (changeEvents.ts) - the

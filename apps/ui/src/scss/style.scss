@@ -183,6 +183,8 @@ body {
 
 .page-content {
   max-width: none;
+  // the last block never sticks to the footer (the user, 2026-10-24)
+  padding-bottom: 1.5rem;
 
   > .card {
     --cui-card-spacer-x: 0;
@@ -206,4 +208,120 @@ body {
 .table td > .badge,
 .table th > .badge {
   margin-bottom: 0.25rem;
+}
+
+// Key values (AGENTS.md "Key values", 2026-10-22): the figures a person
+// looks for first - power, energy, money, prices, percentages - stand out
+// from the text around them: bold, about a fifth larger, tabular lining
+// digits (neighbouring figures align and compare digit by digit); the unit
+// smaller and regular. `components/KeyValue.jsx` renders it; plain markup
+// may use the classes. Seven-segment digits stay for device displays and
+// gauges (SevenSegment) - not for text.
+.kv {
+  font-weight: 700;
+  font-size: 1.2em;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.kv-unit {
+  font-weight: 400;
+  font-size: 0.8em;
+  margin-left: 0.15em;
+  // grey and slanted, as the summary lines' units (the user, 2026-10-25)
+  font-style: italic;
+  color: var(--cui-secondary-color);
+}
+// the AI button (components/ai/AiButton.jsx): the AI's mark, no frame, a soft ground on hover
+.ai-btn {
+  border: 0;
+  background: transparent;
+  color: inherit; // the text's colour beside it, as the other icons
+  padding: 2px;
+  line-height: 0;
+  border-radius: 6px;
+  vertical-align: middle;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--cui-tertiary-bg);
+  }
+}
+
+// the AI's mark calls for attention (components/AiBrainIcon.jsx, the user 2026-10-25): every 10 s
+// one turn about its vertical axis in 0.9 s (the user 2026-10-25: 0.3 -> 0.6 -> 0.9 s) - narrows to a line, comes back mirrored, narrows again,
+// restored - on a sine's pace; every mark on the page at once (the phase from the clock); only before
+// a page's or a popup's title - still (`still`) in the side menu, the table rows' actions, the
+// conversation; none with reduced motion
+.ai-mark-flip {
+  animation: ai-mark-flip 10s infinite;
+}
+@keyframes ai-mark-flip {
+  0%,
+  91% {
+    transform: rotateY(0deg);
+    animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1); // ease-in-out sine
+  }
+  100% {
+    transform: rotateY(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-mark-flip {
+    animation: none;
+  }
+}
+
+// a page that takes the whole room under the header (routes.js `bleed` - DefaultLayout): no
+// padding, the window's height, its own parts scroll
+.page-content.page-bleed {
+  padding-bottom: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+// a block's summary line (components/SummaryLine.jsx, the user 2026-10-24): the name, the figures
+// (1.5em bold, tabular), their words - one style for every scene
+.sum-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.75rem;
+  row-gap: 2px;
+}
+.sum-figures {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.3em;
+}
+.sum-title {
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+.sum-value {
+  font-weight: 700;
+  font-size: 1.5em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.sum-text {
+  font-weight: 500;
+  white-space: nowrap;
+  // the words grey, as every other text (the figures keep the block's colour - the user, 2026-10-25)
+  color: var(--cui-secondary-color);
+}
+// a figure's unit right after it ("kW", "%", "kWh") - grey and slanted
+.sum-unit {
+  font-style: italic;
+  color: var(--cui-secondary-color);
+}
+// a labelled reading's value (components/StatTile.jsx) - its KeyValues stand out, the rest stays tabular
+.kv-tile {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
 }

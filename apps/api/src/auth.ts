@@ -1,17 +1,22 @@
 import bcrypt from "bcryptjs";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
-// UI login only (AGENTS.md section 13). requireAuth/requireAdmin are the
-// only two route guards in this codebase - every other route (devices,
-// nodes, processes) is intentionally still unauthenticated, a separate,
-// not-yet-started task.
+
+// Passwords and the request's identity (AGENTS.md section 13). Access is
+// decided by ONE guard for every route (access/guard.ts - B1); the
+// preHandlers below remain for the routes and DNP plugins that still name
+// them: a person or a service is known (the guard already decided).
 
 const BCRYPT_COST = 10;
 
+// the session's token (access/session.ts)
 export interface JwtPayload {
   sub: number;
   username: string;
-  roles: string[];
+  // the server-side session (user_sessions); none on a service's request
+  sid?: string;
+  guest?: boolean;
+  ctx?: string;
 }
 
 declare module "@fastify/jwt" {
@@ -30,18 +35,9 @@ export function verifyPassword(plain: string, hash: string): Promise<boolean> {
 }
 
 export async function requireAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  try {
-    await request.jwtVerify();
-  } catch {
-    await reply.code(401).send({ error: "unauthorized" });
-  }
+  if (!request.principal) await reply.code(401).send({ error: "unauthorized" });
 }
 
-export async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  await requireAuth(request, reply);
-  if (reply.sent) return;
-  const payload = request.user as JwtPayload;
-  if (!payload.roles.includes("admin")) {
-    await reply.code(403).send({ error: "forbidden" });
-  }
-}
+// The route's own permission (access/routes.ts) is what decides now - this
+// stays for the routes that still name it and means the same as requireAuth.
+export const requireAdmin = requireAuth;

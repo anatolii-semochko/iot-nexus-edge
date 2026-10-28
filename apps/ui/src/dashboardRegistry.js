@@ -11,6 +11,9 @@
 //       { key: 'photo', title: 'The newest photo', Component },   // fills the block itself
 //       { key: 'scene', title: 'The scene', Component, fit: true }, // a full view, scaled into it
 //     ],
+//     params: (process) => [            // optional - the card's own parameters: one part of the process
+//       { key: 'nodeId', label: 'Room', required: true, hint: '...', options: [{ value: 71, label: 'Office 21' }] },
+//     ],                                // the component gets them as `params` ({ process, params })
 //   })
 //
 // Without `processKind` the component is a system one (no process).

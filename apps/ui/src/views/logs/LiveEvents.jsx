@@ -21,6 +21,7 @@ import ResetFiltersButton from '../../components/ResetFiltersButton'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { usePersistedState } from '../../hooks/usePersistedState'
 import LiveBadge from '../devices/LiveBadge'
+import PageTitle from '../../components/PageTitle'
 
 // How many recent messages to keep in the buffer - client-side only (no
 // pagination, no server round trip - this is a raw tap on the socket, not
@@ -193,7 +194,7 @@ const LiveEvents = () => {
     <CCard className="mb-4">
       <CCardHeader className="d-flex justify-content-between align-items-center">
         <div className="d-flex align-items-center gap-2">
-          <strong>Live Events</strong>
+          <PageTitle title="Live Events" />
           <small>last</small>
           <CFormSelect
             size="sm"

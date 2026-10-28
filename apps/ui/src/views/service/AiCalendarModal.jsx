@@ -28,7 +28,8 @@ import { formatSmartDateTime } from '../../utils/format'
  * An instance's calendar (Nexus Edge AI Assistant, stage 7 - api
  * ai/calendar.ts): its scheduled runs - each on / off, the work type (of
  * those its DNP / Nexus Edge declares in `scheduledTypes`), the repeat
- * (day / week + weekday / month + day / year + month and day; a day past a
+ * (day / week + weekday / month + day / year + month and day / every N
+ * hours from the time to the day's end - 2026-10-25; a day past a
  * shorter month's end - its last day), the local time. A run is a
  * conversation of its own (AI Assistant, marked "scheduled"); a problem it
  * finds - a warning of the "AI Assistant" process linked to it. Every
@@ -40,6 +41,7 @@ const REPEATS = [
   { value: 'week', label: 'Every week' },
   { value: 'month', label: 'Every month' },
   { value: 'year', label: 'Every year' },
+  { value: 'hours', label: 'Every N hours' },
 ]
 // 1 (Monday) first; the value - JS getDay (0 - Sunday)
 const WEEKDAYS = [
@@ -79,12 +81,28 @@ const forRepeat = (repeat, s) => ({
   weekday: repeat === 'week' ? (s.weekday ?? 1) : null,
   monthDay: repeat === 'month' || repeat === 'year' ? (s.monthDay ?? 1) : null,
   month: repeat === 'year' ? (s.month ?? 1) : null,
+  everyHours: repeat === 'hours' ? (s.everyHours ?? 2) : null,
 })
 
 const DayFields = ({ s, onChange, label }) => {
   const sm = { size: 'sm', style: { width: 'auto' } }
   return (
     <div className="d-flex gap-1">
+      {s.repeat === 'hours' && (
+        <CFormSelect
+          {...sm}
+          value={s.everyHours ?? 2}
+          onChange={(e) => onChange({ everyHours: Number(e.target.value) })}
+          aria-label={`${label} - every hours`}
+          title="From the time below every so many hours, to the day's end"
+        >
+          {[1, 2, 3, 4, 6, 8, 12].map((h) => (
+            <option key={h} value={h}>
+              every {h} h
+            </option>
+          ))}
+        </CFormSelect>
+      )}
       {s.repeat === 'week' && (
         <CFormSelect
           {...sm}
@@ -312,7 +330,9 @@ const AiCalendarModal = ({ instance, onClose }) => {
                         disabled={s.lastStatus === 'running'}
                         onClick={() => runNow(s)}
                       >
-                        <CIcon icon={cilMediaPlay} />
+                        {/* labelled - a bare play mark wasn't found (the user, 2026-10-25) */}
+                        <CIcon icon={cilMediaPlay} className="me-1" />
+                        Run now
                       </CButton>
                       <CButton
                         size="sm"

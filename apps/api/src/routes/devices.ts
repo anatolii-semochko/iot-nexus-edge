@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 
+import { scopeFilter } from "../access/scope.js";
 import { requireAuth } from "../auth.js";
 import * as dualDevicesModel from "../dualDevicesModel.js";
 import { pool } from "../db.js";
@@ -253,8 +254,11 @@ async function publishDeviceMetadata(deviceId: number, source: string): Promise<
 export async function deviceRoutes(app: FastifyInstance): Promise<void> {
   // List view: registry metadata plus EdgeX admin/operating state, fetched
   // once for every device.
-  app.get("/devices", async () => {
-    const result = await pool.query<DeviceListRow>(`${SELECT_DEVICE_LIST_BASE} GROUP BY d.id, n.name, n.simulated, li.icon_path ORDER BY d.name`);
+  app.get("/devices", async (request) => {
+    const all = await pool.query<DeviceListRow>(`${SELECT_DEVICE_LIST_BASE} GROUP BY d.id, n.name, n.simulated, li.icon_path ORDER BY d.name`);
+    // a person limited to some DNP instances sees only theirs (access/scope.ts)
+    const scope = await scopeFilter(request, "devices.view");
+    const result = { rows: all.rows.filter((d) => !scope || scope.device(d.id)) };
 
     let edgexByName = new Map<string, EdgeXDeviceStatus>();
     try {

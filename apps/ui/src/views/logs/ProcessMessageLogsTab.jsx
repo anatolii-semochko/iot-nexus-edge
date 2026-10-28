@@ -24,7 +24,13 @@ import ResetFiltersButton from '../../components/ResetFiltersButton'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
-import { formatSmartDateTime, localDateTimeToIso, userInitials, userTitle } from '../../utils/format'
+import {
+  formatSmartDateTime,
+  localDateTimeToIso,
+  userInitials,
+  userTitle,
+} from '../../utils/format'
+import AiButton from '../../components/ai/AiButton'
 
 const TYPE_OPTIONS = [
   { key: 'all', label: 'All types' },
@@ -155,11 +161,20 @@ const ProcessMessageLogsTab = ({
                     {item.text}
                     <MessageLink link={item.link} />
                   </CTableDataCell>
-                  <CTableDataCell className="text-end">
+                  <CTableDataCell className="text-end text-nowrap">
+                    <AiButton
+                      action
+                      className="me-2 align-middle"
+                      subject={{ type: 'message', id: item.id, processId: item.process_id }}
+                      label="this message"
+                    />
                     {item.hidden ? (
                       item.hidden_by_user ? (
                         <span
-                          title={userTitle(item.hidden_by_user, `read ${formatSmartDateTime(item.hidden_at)}`)}
+                          title={userTitle(
+                            item.hidden_by_user,
+                            `read ${formatSmartDateTime(item.hidden_at)}`,
+                          )}
                         >
                           {item.hidden_by_user.avatar_path ? (
                             <CAvatar

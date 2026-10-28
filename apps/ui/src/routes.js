@@ -35,7 +35,7 @@ const LiveEvents = React.lazy(() => import('./views/logs/LiveEvents'))
 const LogsList = React.lazy(() => import('./views/logs/LogsList'))
 
 // Users
-const UsersList = React.lazy(() => import('./views/users/UsersList'))
+const UsersPage = React.lazy(() => import('./views/users/UsersPage'))
 
 // Service
 const Service = React.lazy(() => import('./views/service/Service'))
@@ -63,9 +63,14 @@ export const routes = [
   // a card of the Dashboard's tree (a folder or a component on the whole page)
   { path: '/dashboard/:cardId', name: 'Dashboard', element: Dashboard },
   // the AI Assistant's messenger (2026-10-17)
-  { path: '/ai-assistant', name: 'AI Assistant', element: AiAssistant },
+  { path: '/ai-assistant', name: 'AI Assistant', element: AiAssistant, bleed: true },
   // a conversation opened by link (a scheduled run's warning, the calendar)
-  { path: '/ai-assistant/:conversationId', name: 'AI Assistant', element: AiAssistant },
+  {
+    path: '/ai-assistant/:conversationId',
+    name: 'AI Assistant',
+    element: AiAssistant,
+    bleed: true,
+  },
   { path: '/docs', name: 'Docs', element: Docs },
   { path: '/nodes', name: 'Nodes', element: NodesList },
   { path: '/devices', name: 'Devices', element: DevicesList, exact: true },
@@ -74,7 +79,7 @@ export const routes = [
   { path: '/processes', name: 'Processes', element: ProcessesList },
   { path: '/live-events', name: 'Live Events', element: LiveEvents },
   { path: '/logs', name: 'Logs', element: LogsList },
-  { path: '/users', name: 'Users', element: UsersList },
+  { path: '/users', name: 'Users', element: UsersPage },
   { path: '/service', name: 'Service', element: Service },
 ]
 

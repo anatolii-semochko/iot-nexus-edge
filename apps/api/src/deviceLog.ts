@@ -47,6 +47,8 @@ export interface ListDeviceLogsParams {
   to?: string;
   page: number;
   pageSize: number;
+  // a person limited to some DNP instances (access/scope.ts): only these devices' rows
+  visibleDeviceIds?: number[];
 }
 
 /**
@@ -55,10 +57,14 @@ export interface ListDeviceLogsParams {
  * has no separate resource label to search by anymore.
  */
 export async function listDeviceLogs(params: ListDeviceLogsParams): Promise<{ items: DeviceLogListItem[]; total: number }> {
-  const { deviceId, search, from, to, page, pageSize } = params;
+  const { deviceId, search, from, to, page, pageSize, visibleDeviceIds } = params;
   const conditions: string[] = [];
   const values: unknown[] = [];
 
+  if (visibleDeviceIds) {
+    values.push(visibleDeviceIds);
+    conditions.push(`l.device_id = ANY($${values.length})`);
+  }
   if (deviceId !== undefined) {
     values.push(deviceId);
     conditions.push(`l.device_id = $${values.length}`);

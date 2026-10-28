@@ -1,0 +1,13 @@
+nodeType: buffer-tank
+description: >
+  A heating / cooling buffer tank - stratified water heat storage
+  between the heat pumps and the consumers. Reference: Vaillant allSTOR
+  plus (Germany; multifunction buffer 300 - 2000 l, the reference here -
+  800 l, VPS 800). Reports the water temperature at the top, the middle
+  and the bottom; the stored heat (kWh, %) is computed by the `heating-
+  control` process from them and the tank's volume and useful
+  temperature range.
+bus:
+  type: modbus-tcp
+supports:
+  - temperature

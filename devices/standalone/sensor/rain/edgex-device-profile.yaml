@@ -1,0 +1,24 @@
+# Source of truth for this device type's EdgeX-facing shape. The copy
+# actually loaded by apps/device-service lives at
+# apps/device-service/res/profiles/NexusEdge-Rain.yaml - kept in sync by
+# hand (AGENTS.md section 7). Identical content.
+name: "NexusEdge-Rain"
+manufacturer: "NexusEdge"
+model: "rain"
+labels:
+  - "sensor"
+description: "Rain sensor (surface wetness) - atomic device, one Float32 value"
+
+deviceResources:
+  - name: "Rain"
+    isHidden: false
+    description: "Rain sensor (surface wetness) reading"
+    properties:
+      valueType: "Float32"
+      # RW at the EdgeX level although read-only for the platform - the
+      # simulate endpoints (and a physical CAN write) push readings through
+      # core-command (same as ../pressure).
+      readWrite: "RW"
+      units: "%"
+
+deviceCommands: []

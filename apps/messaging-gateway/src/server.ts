@@ -3,6 +3,8 @@ import Fastify from "fastify";
 
 import type { BusEvent } from "./rabbitmq.js";
 import { readProcessStateSnapshot, readStateSnapshot, subscriberRedis } from "./redis.js";
+import { eventAllowed, fetchScope, scopedProcessSnapshot, type StreamScope } from "./access.js";
+import { config } from "./config.js";
 import { matchesAny } from "./topicMatch.js";
 
 // Synthetic routing key for the process-state snapshot (AGENTS.md section
@@ -23,6 +25,8 @@ const SYSTEM_TICK_CHANNEL = "system:tick";
 
 interface Subscriber {
   patterns: string[];
+  // what this person may see (access.ts) - undefined until the API answered
+  scope?: StreamScope;
   send: (payload: unknown) => void;
 }
 
@@ -59,14 +63,35 @@ export function buildServer() {
       };
       subscribers.add(subscriber);
 
-      // Attached synchronously, before the async snapshot read below - a
-      // client that disconnects while that read is in flight must still be
-      // removed (see @fastify/websocket's own guidance on not doing async
-      // work before wiring up handlers).
-      socket.on("close", () => subscribers.delete(subscriber));
+      // Attached synchronously, before the async reads below - a client
+      // that disconnects while they are in flight must still be removed
+      // (see @fastify/websocket's own guidance on not doing async work
+      // before wiring up handlers).
+      const cookie = request.headers.cookie;
+      // the person's scope, asked again from time to time; no session (any more) - the stream ends
+      const refresh = setInterval(() => {
+        fetchScope(cookie)
+          .then((scope) => (scope ? (subscriber.scope = scope) : socket.close(4401, "unauthorized")))
+          .catch((err: unknown) => app.log.warn({ err }, "stream scope refresh failed"));
+      }, config.scopeRefreshMs);
+      socket.on("close", () => {
+        clearInterval(refresh);
+        subscribers.delete(subscriber);
+      });
 
-      Promise.all([readStateSnapshot(), readProcessStateSnapshot()])
-        .then(([deviceSnapshot, processSnapshot]) => {
+      fetchScope(cookie)
+        .then((scope) => {
+          if (!scope) {
+            socket.close(4401, "unauthorized");
+            return null;
+          }
+          subscriber.scope = scope;
+          return Promise.all([readStateSnapshot(), readProcessStateSnapshot()]);
+        })
+        .then((snapshots) => {
+          if (!snapshots || !subscriber.scope) return;
+          const scope = subscriber.scope;
+          const [deviceSnapshot, processSnapshot] = snapshots;
           const deviceEntries = deviceSnapshot.map((entry) => ({
             routingKey: `device.${entry.deviceId}.updated`,
             // Reshaped to the exact envelope shape live "event" messages
@@ -91,9 +116,9 @@ export function buildServer() {
           // per-process here.
           const processEntries = processSnapshot ? [toProcessStateEntry(processSnapshot)] : [];
 
-          const matching = [...deviceEntries, ...processEntries].filter((entry) =>
-            matchesAny(entry.routingKey, patterns),
-          );
+          const matching = [...deviceEntries, ...processEntries]
+            .filter((entry) => matchesAny(entry.routingKey, patterns) && eventAllowed(scope, entry.routingKey))
+            .map((entry) => (entry.routingKey === PROCESS_STATE_ROUTING_KEY ? { ...entry, event: scopedProcessSnapshot(scope, entry.event) } : entry));
           subscriber.send({ type: "snapshot", events: matching });
         })
         .catch((err: unknown) => {
@@ -104,9 +129,10 @@ export function buildServer() {
 
   function broadcast(event: BusEvent): void {
     for (const subscriber of subscribers) {
-      if (matchesAny(event.routingKey, subscriber.patterns)) {
-        subscriber.send({ type: "event", routingKey: event.routingKey, event: event.envelope });
-      }
+      const scope = subscriber.scope;
+      if (!scope || !matchesAny(event.routingKey, subscriber.patterns) || !eventAllowed(scope, event.routingKey)) continue;
+      const envelope = event.routingKey === PROCESS_STATE_ROUTING_KEY ? scopedProcessSnapshot(scope, event.envelope) : event.envelope;
+      subscriber.send({ type: "event", routingKey: event.routingKey, event: envelope });
     }
   }
 

@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 // `passWithNoTests` - this service has no test files yet (syncActiveMessages/
@@ -9,6 +10,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     passWithNoTests: true,
+    // the CORE Library packages' pure logic is tested here too (devices/processes/<kind>/*.test.ts)
+    include: ["src/**/*.test.ts", path.resolve(__dirname, "../../devices/processes/**/*.test.ts")],
     // a zone with daylight saving - the local-time rules (ai/calendarTime.ts) are tested across its switches
     env: { TZ: "Europe/Berlin" },
   },

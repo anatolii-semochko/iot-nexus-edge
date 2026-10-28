@@ -78,7 +78,7 @@ async function readJsonIfExists<T>(file: string): Promise<T | null> {
 
 /** Returns a URL path servable by the `/library-assets/<source>/*` static
  * mounts registered in server.ts, not a filesystem path - `sourceLabel`
- * ("library" | "private") picks which mount, `relDir` is this folder's
+ * ("library" or a project root's label) picks which mount, `relDir` is this folder's
  * path relative to that source's own root. */
 async function findIcon(absDir: string, entryNames: Set<string>, sourceLabel: string, relDir: string): Promise<string | null> {
   for (const name of ICON_NAMES) {
@@ -184,14 +184,14 @@ async function walk(
     throw err;
   }
   const entryNames = new Set(entries.map((e) => e.name));
-  // `relPath` doubles as the folder_path key (devices-root-relative,
-  // "private" prefixed for target-project plugins/ to keep the two trees
-  // from colliding) and, stripped of that artificial "private" prefix,
-  // the path relative to whichever static mount (`/library-assets/
-  // library/*` or `/library-assets/private/*`, server.ts) actually
-  // serves this folder's icon.
-  const sourceLabel = relPath === "private" || relPath.startsWith("private/") ? "private" : "library";
-  const sourceRelDir = sourceLabel === "private" ? relPath.slice("private".length).replace(/^\//, "") : relPath;
+  // `relPath` doubles as the folder_path key (devices-root-relative, a
+  // project root's label prefixed - "private" for the first - to keep the
+  // trees from colliding) and, stripped of that prefix, the path relative to
+  // whichever static mount (`/library-assets/library/*` or
+  // `/library-assets/<label>/*`, server.ts) actually serves this folder's icon.
+  const projectRoot = projectRootOf(relPath);
+  const sourceLabel = projectRoot?.label ?? "library";
+  const sourceRelDir = projectRoot ? relPath.slice(projectRoot.label.length).replace(/^\//, "") : relPath;
 
   const libraryDescriptor = entryNames.has("library.json")
     ? await readJsonIfExists<LibraryDescriptor>(path.join(absDir, "library.json"))
@@ -282,35 +282,34 @@ export interface LibraryItemDetail {
   compatibility: { id: string; name: string; iconPath: string | null; typeName: string }[];
 }
 
+// the project root a folder_path starts with ("private/nodes/x" - the root labelled "private")
+const projectRootOf = (folderPath: string) => config.apiPlugins.extraDirs.find((r) => folderPath === r.label || folderPath.startsWith(`${r.label}/`));
+
 /** Resolves a `library_items.folder_path` back to the on-disk directory
- * it was walked from - mirrors syncLibrary()'s own two root trees
- * ("private/..." for a target project's own plugins/, everything else
- * under this repo's own devices/). */
+ * it was walked from - mirrors syncLibrary()'s root trees ("<label>/..."
+ * for a target project's plugin roots - projectRoots.ts, the first one
+ * "private"; everything else under this repo's own devices/). */
 export function resolveAbsDir(folderPath: string): string {
-  if (folderPath === "private" || folderPath.startsWith("private/")) {
-    if (!config.apiPlugins.extraDir) {
-      throw new Error(`folder_path "${folderPath}" is private but no EXTRA_API_PLUGINS_DIR is configured`);
-    }
-    return path.join(config.apiPlugins.extraDir, folderPath.slice("private/".length));
-  }
+  const root = projectRootOf(folderPath);
+  if (root) return path.join(root.dir, folderPath.slice(root.label.length + 1));
   return path.join(config.apiPlugins.builtinDevicesDir, folderPath);
 }
 
 /** Inverse of resolveAbsDir() - an on-disk package directory back to its
- * `folder_path` key, or `null` if it isn't under either known root (e.g.
+ * `folder_path` key, or `null` if it isn't under any known root (e.g.
  * a doc link pointing outside the Library entirely). Used by
  * rewriteDocLinks() below to turn a cross-item relative markdown link
  * into a lookup key. */
 function absDirToFolderPath(absDir: string): string | null {
-  const relBuiltin = path.relative(config.apiPlugins.builtinDevicesDir, absDir);
-  if (relBuiltin && !relBuiltin.startsWith("..") && !path.isAbsolute(relBuiltin)) {
-    return relBuiltin.split(path.sep).join("/");
-  }
-  if (config.apiPlugins.extraDir) {
-    const relPrivate = path.relative(config.apiPlugins.extraDir, absDir);
-    if (relPrivate && !relPrivate.startsWith("..") && !path.isAbsolute(relPrivate)) {
-      return path.posix.join("private", relPrivate.split(path.sep).join("/"));
-    }
+  const inside = (root: string) => {
+    const rel = path.relative(root, absDir);
+    return rel && !rel.startsWith("..") && !path.isAbsolute(rel) ? rel.split(path.sep).join("/") : null;
+  };
+  const builtin = inside(config.apiPlugins.builtinDevicesDir);
+  if (builtin) return builtin;
+  for (const root of config.apiPlugins.extraDirs) {
+    const rel = inside(root.dir);
+    if (rel) return path.posix.join(root.label, rel);
   }
   return null;
 }
@@ -444,10 +443,10 @@ export async function syncLibrary(): Promise<{ categories: number; items: number
   await walk(path.join(config.apiPlugins.builtinDevicesDir, "standalone"), "standalone", "device", null, state);
   await walk(path.join(config.apiPlugins.builtinDevicesDir, "nodes"), "nodes", "node", null, state);
   await walk(path.join(config.apiPlugins.builtinDevicesDir, "processes"), "processes", "process", null, state);
-  if (config.apiPlugins.extraDir) {
-    await walk(path.join(config.apiPlugins.extraDir, "devices"), "private/devices", "device", null, state);
-    await walk(path.join(config.apiPlugins.extraDir, "nodes"), "private/nodes", "node", null, state);
-    await walk(path.join(config.apiPlugins.extraDir, "processes"), "private/processes", "process", null, state);
+  for (const root of config.apiPlugins.extraDirs) {
+    await walk(path.join(root.dir, "devices"), `${root.label}/devices`, "device", null, state);
+    await walk(path.join(root.dir, "nodes"), `${root.label}/nodes`, "node", null, state);
+    await walk(path.join(root.dir, "processes"), `${root.label}/processes`, "process", null, state);
   }
 
   // Delete rows for folders that no longer exist (moved/renamed/removed
@@ -469,4 +468,42 @@ export async function syncLibrary(): Promise<{ categories: number; items: number
     "Library Catalog sync complete",
   );
   return { categories: Number(categoryCount[0].count), items: Number(itemCount[0].count) };
+}
+
+/** A node type's reference model (its library.json `models[]`, AGENTS_TO_DO.md
+ * 2026-10-20 X1) - what a node's information popup shows: the maker and
+ * the model, what it is for, its main data; `image` (a file in the type's
+ * folder) as a /library-assets URL. */
+export interface LibraryModel {
+  key: string;
+  name: string;
+  maker: string | null;
+  purpose: string | null;
+  specs: { label: string; value: string }[];
+  image: string | null;
+  url: string | null;
+}
+
+/** The /library-assets URL of a file inside a Library item's folder. */
+function assetUrlOf(folderPath: string, rel: string): string {
+  const root = projectRootOf(folderPath);
+  const [label, relDir] = root ? [root.label, folderPath.slice(root.label.length + 1)] : ["library", folderPath];
+  return path.posix.join("/library-assets", label, relDir, rel);
+}
+
+/** A node type's `models` from its library.json (read fresh from disk, like the item detail). */
+export async function getLibraryModels(folderPath: string): Promise<LibraryModel[]> {
+  const raw = await readJsonIfExists<{ models?: Partial<LibraryModel>[] }>(path.join(resolveAbsDir(folderPath), "library.json"));
+  return (raw?.models ?? [])
+    .filter((m): m is Partial<LibraryModel> & { key: string; name: string } => typeof m.key === "string" && typeof m.name === "string")
+    .map((m) => ({
+      key: m.key,
+      name: m.name,
+      maker: m.maker ?? null,
+      purpose: m.purpose ?? null,
+      specs: Array.isArray(m.specs) ? m.specs.filter((s) => s && typeof s.label === "string").map((s) => ({ label: s.label, value: String(s.value) })) : [],
+      // a file inside the type's own folder only - never a path out of it
+      image: typeof m.image === "string" && !m.image.includes("..") && !m.image.startsWith("/") ? assetUrlOf(folderPath, m.image) : null,
+      url: typeof m.url === "string" && /^https?:\/\//.test(m.url) ? m.url : null,
+    }));
 }

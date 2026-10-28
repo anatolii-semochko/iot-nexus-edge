@@ -33,6 +33,7 @@ import ResetFiltersButton from '../ResetFiltersButton'
 import TablePagination from '../table/TablePagination'
 import TableSearchInput from '../table/TableSearchInput'
 import { WEM_TYPE_META } from './wemTypeMeta'
+import AiButton from '../ai/AiButton'
 
 // The modal's own type selector, not the header icons' (NotificationCenter.
 // jsx) - "All" only makes sense as something to *view*, it has no unread
@@ -428,9 +429,18 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                           {item.text}
                           <MessageLink link={item.link} onClick={onClose} />
                         </CTableDataCell>
-                        <CTableDataCell className="text-end">
+                        <CTableDataCell className="text-end text-nowrap">
+                          {/* the AI on this message - what caused it, how to fix it (2026-10-24) */}
+                          <AiButton
+                            action
+                            className="me-1 align-middle"
+                            subject={{ type: 'message', id: item.id, processId: item.process_id }}
+                            label="this message"
+                          />
                           {item.hidden ? (
-                            item.hidden_by_user && <ReadByAvatar user={item.hidden_by_user} at={item.hidden_at} />
+                            item.hidden_by_user && (
+                              <ReadByAvatar user={item.hidden_by_user} at={item.hidden_at} />
+                            )
                           ) : (
                             <IconButton
                               icon={cilX}

@@ -127,7 +127,9 @@ declares it (AGENTS.md "AI Assistant"):
   [...]}}`: the process kinds whose instances get the assistant, the work
   types (a standard one by its key - `status-analysis`, `wem-analysis`,
   `config`, `control-tasks`, ...; an own one - `{key, title,
-  description}`), the ones the calendar may run.
+  description, icon, start}` - `icon` a CoreUI `cil*` name, `start` the
+  phrase the messenger puts in the message box, "{name}" the instance's
+  name), the ones the calendar may run.
 - `plugins/<name>/prompts/<work-type>.md` - an own work type's prompt, or
   an override of a standard one (English, short; the core's packs -
   `nexus-edge/apps/api/prompts/README.md`).
@@ -177,6 +179,30 @@ A genuine Dashboard *widget* (a standalone tile, not tied to one
 device's page) isn't possible yet - there is no generic Dashboard widget
 host in `nexus-edge` to plug into. Same `register.js`/glob mechanism will
 apply once one exists.
+
+## 8. Building on another target project (optional)
+
+A project can reuse another target project's packages instead of copying
+them - the demo (`nexus-edge-tech/demo/`) runs on `nexus-edge-aquarium`'s.
+Every extension directory takes a comma-separated list of roots,
+`label=path` or `path`, the dependency first (nexus-edge AGENTS.md
+"Several project roots"):
+
+- mount the dependency's checkout (an env var such as `AQUARIUM_PATH`)
+  next to your own directories and list both:
+  `EXTRA_API_PLUGINS_DIR` / `EXTRA_PROCESS_PLUGINS_DIR`
+  (`dep=/workspace/plugins-dep,own=/workspace/plugins`),
+  `EXTRA_MIGRATIONS_DIR` (its `migrations/`, then yours),
+  `EXTRA_RES_DIR` on the device-service (its `extra-res/`, then yours);
+- a process kind of yours with the same name as the dependency's
+  overrides it;
+- your migrations run after the dependency's, so they can adjust its
+  seeds - by stable names / `seed_key`, never by ids, and only where a
+  person hasn't chosen otherwise (guard with `NOT EXISTS` / `NOT (config ?
+  ...)`);
+- the UI is bundled once: a second named build context for the
+  dependency, its `plugins/` copied first and yours over it
+  (`COPY --from=dep plugins plugins` then `COPY plugins plugins`).
 
 ## Known gaps (not blockers, just be aware)
 

@@ -30,12 +30,14 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilLibrary, cilReload } from '@coreui/icons'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
 import ExpandToggleButton from '../../components/table/ExpandToggleButton'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useExpandableRows } from '../../hooks/useExpandableRows'
 import Breadcrumb from '../../components/UpBreadcrumb'
 import AddRegistryModal from './AddRegistryModal'
 import LibraryItemDetailRow from './LibraryItemDetailRow'
+import PageTitle from '../../components/PageTitle'
 
 const KINDS = [
   { value: 'device', label: 'Devices' },
@@ -184,6 +186,8 @@ const RowIcon = ({ iconPath }) => {
  * with its own breadcrumb-driven browse state.
  */
 const LibraryBrowser = () => {
+  // adding nodes / devices / processes and syncing - by the person's rights (access.js)
+  const can = useCan()
   const [searchParams, setSearchParams] = useSearchParams()
   // Type-column deep link (AGENTS_TO_DO.md, 2026-08-30) - a Devices/Nodes/
   // ProcessesTable row's "link" cell opens #/library?kind=X&type=Y in a
@@ -359,13 +363,13 @@ const LibraryBrowser = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader className="d-flex justify-content-between align-items-center">
-        <strong>Library</strong>
+        <PageTitle title="Library" />
         <CButton
           color="secondary"
           variant="outline"
           size="sm"
           onClick={handleSync}
-          disabled={syncing}
+          disabled={syncing || !can('library.manage')}
         >
           <CIcon icon={cilReload} className="me-1" />
           {syncing ? 'Syncing...' : 'Sync'}
@@ -480,18 +484,21 @@ const LibraryBrowser = () => {
                       <CTableDataCell
                         className={`text-nowrap ${expandedRow ? 'border-bottom-0' : ''}`}
                       >
-                        {row.type === 'item' && (
-                          <CButton
-                            size="sm"
-                            color="primary"
-                            variant="outline"
-                            onClick={() =>
-                              kind === 'process' ? setAddProcessItem(row) : setAddRegistryItem(row)
-                            }
-                          >
-                            Add {kind}
-                          </CButton>
-                        )}
+                        {row.type === 'item' &&
+                          can(`${kind === 'process' ? 'processes' : `${kind}s`}.manage`) && (
+                            <CButton
+                              size="sm"
+                              color="primary"
+                              variant="outline"
+                              onClick={() =>
+                                kind === 'process'
+                                  ? setAddProcessItem(row)
+                                  : setAddRegistryItem(row)
+                              }
+                            >
+                              Add {kind}
+                            </CButton>
+                          )}
                       </CTableDataCell>
                       <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
                         {row.type === 'item' && (

@@ -30,6 +30,9 @@ const (
 	envMediaUploadURL = "DEVICE_MEDIA_UPLOAD_URL"
 	// envMediaUploadTimeout bounds one media upload, in seconds.
 	envMediaUploadTimeout = "DEVICE_MEDIA_UPLOAD_TIMEOUT_SECONDS"
+	// envServiceAPIToken is the internal services' token the Devices API
+	// accepts instead of a user's session (header X-Service-Token).
+	envServiceAPIToken = "SERVICE_API_TOKEN"
 )
 
 // serviceConfig is the broker connection this transport shares across
@@ -41,6 +44,7 @@ type serviceConfig struct {
 
 	MediaUploadURL     string
 	MediaUploadTimeout time.Duration
+	ServiceAPIToken    string
 }
 
 // Enabled reports whether a device broker is configured for this service.
@@ -61,6 +65,7 @@ func serviceConfigFromEnv() (serviceConfig, error) {
 		}
 	}
 	cfg.MediaUploadURL = strings.TrimRight(strings.TrimSpace(os.Getenv(envMediaUploadURL)), "/")
+	cfg.ServiceAPIToken = strings.TrimSpace(os.Getenv(envServiceAPIToken))
 	cfg.MediaUploadTimeout = 30 * time.Second
 	if raw := strings.TrimSpace(os.Getenv(envMediaUploadTimeout)); raw != "" {
 		seconds, err := strconv.Atoi(raw)

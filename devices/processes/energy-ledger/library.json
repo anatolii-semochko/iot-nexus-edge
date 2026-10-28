@@ -1,0 +1,35 @@
+{
+  "id": "process-energy-ledger",
+  "name": "Energy Ledger",
+  "description": "The site's energy and money journal: one record a day from the energy field, the grid connection and the heatings - energy, money, the baselines; the savings bridge (without the system - heat pumps - heat storage - own energy - sales = paid) for a day, a month, a year; the month's calendar; who the energy was for - the cost accounts (private, business, what to re-bill to tenants). The batteries' plan and its strategies, the learning, the day's review, the operational days' notes (holidays, outages, maintenance), the similar days; the AI's daily report and day plan.",
+  "ai": {
+    "workTypes": [
+      "help",
+      "status-analysis",
+      "wem-analysis",
+      "config",
+      "control-tasks",
+      "analysis-proposals",
+      "other",
+      {
+        "key": "daily-report",
+        "title": "Daily Report",
+        "description": "Yesterday in money and energy, what the plan did, anomalies (a PV block under its neighbours), what to change",
+        "icon": "cilCalendarCheck",
+        "start": "Report on yesterday for {name}: the money and the energy, what the plan did, anomalies, what to change."
+      },
+      {
+        "key": "day-plan",
+        "title": "Day Plan",
+        "description": "Today's energy strategy: the day's notes, the similar days, the forecast and the prices - check the ledger's plan, adapt the strategy and the reserve, say in words what the site does today",
+        "icon": "cilSun",
+        "start": "Plan today for {name}: the day's notes, the similar days, the forecast - which strategy and reserve, and why."
+      }
+    ],
+    "scheduledTypes": [
+      "status-analysis",
+      "daily-report",
+      "day-plan"
+    ]
+  }
+}

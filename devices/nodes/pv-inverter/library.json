@@ -1,0 +1,45 @@
+{
+  "id": "node-pv-inverter",
+  "name": "PV Inverter (string block)",
+  "description": "A block of PV modules (one string group) with its three-phase string inverter - reference model SMA Sunny Tripower 10.0 (10 kW AC, up to 15 kWp, 2 MPP trackers, Modbus TCP). Power, yield, DC voltage, an on / off switch. One block - one point of control. Used by energy-field.",
+  "models": [
+    {
+      "key": "stp-10-0-3av-40",
+      "name": "Sunny Tripower 10.0 (STP10.0-3AV-40)",
+      "maker": "SMA Solar Technology AG, Germany",
+      "image": "model-stp-10-0-3av-40.webp",
+      "purpose": "Three-phase string inverter of one PV block - turns the modules' DC into the grid's AC.",
+      "specs": [
+        {
+          "label": "AC power",
+          "value": "10 kW"
+        },
+        {
+          "label": "Max. PV generator",
+          "value": "15 kWp"
+        },
+        {
+          "label": "MPP trackers",
+          "value": "2, 320-800 V"
+        },
+        {
+          "label": "Max. efficiency",
+          "value": "98.3 %"
+        },
+        {
+          "label": "Grid",
+          "value": "3-phase 230 / 400 V"
+        },
+        {
+          "label": "Interface",
+          "value": "Modbus TCP (SunSpec)"
+        },
+        {
+          "label": "Protection",
+          "value": "IP65"
+        }
+      ],
+      "url": "https://files.sma.de/downloads/STP8-10-3AV-40-BE-en-18.pdf"
+    }
+  ]
+}

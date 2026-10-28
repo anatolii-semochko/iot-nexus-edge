@@ -1,4 +1,5 @@
-import { Ajv, type ValidateFunction } from "ajv";
+import { dayNoteInput } from "../dayNotes.js";
+import { Ajv, type ErrorObject, type ValidateFunction } from "ajv";
 
 import { config } from "../config.js";
 import { configProblems, configSchemaKinds, configSchemaOf } from "../configSchemas.js";
@@ -6,6 +7,11 @@ import { pool } from "../db.js";
 import * as processRegistry from "../processRegistry.js";
 import { checkProcessConfig, ProcessWriteError } from "../processWrites.js";
 import { checkDevice, checkNode, nodeTypeOf, RegistryError } from "../registry.js";
+import { isPermission } from "../access/catalog.js";
+import { can, FULL_ROLES, principalOf, resolveContext } from "../access/principal.js";
+import { computeRights, type Rights } from "../access/rights.js";
+import { rolesProblem } from "../routes/access.js";
+import { instanceUnits } from "../dnpInstances.js";
 import { querySeries, seriesStats } from "../timeSeries.js";
 import { docSources, readDoc, searchDocs } from "./docs.js";
 import type { Instance } from "./instances.js";
@@ -58,13 +64,28 @@ export class ToolError extends Error {}
 export const toolAllowed = (access: ToolAccess, instance: Instance): boolean =>
   access === "read" ? instance.access.read : instance.access[access] !== "off";
 
+// An input's problems as a model can act on them: the unknown field named
+// with the allowed ones, a missing one named (ajv's own "must NOT have
+// additional properties" left a model guessing which).
+function inputProblems(errors: ErrorObject[], schema: Record<string, unknown>): string {
+  const allowed = Object.keys((schema.properties ?? {}) as object).join(", ");
+  return errors
+    .map((e) => {
+      const at = e.instancePath || "/";
+      if (e.keyword === "additionalProperties") return `${at}: unknown field "${(e.params as { additionalProperty: string }).additionalProperty}" (allowed: ${allowed})`;
+      if (e.keyword === "required") return `${at}: "${(e.params as { missingProperty: string }).missingProperty}" is required`;
+      return `${at} ${e.message}`;
+    })
+    .join("; ");
+}
+
 /** Runs a tool for an instance: access, input checked; the answer as JSON text, cut at the limit. */
 export async function runTool(name: string, input: unknown, ctx: ToolContext): Promise<{ text: string; truncated: boolean }> {
   const entry = tools.get(name);
   if (!entry) throw new ToolError(`no tool "${name}"`);
   if (!toolAllowed(entry.tool.access, ctx.instance)) throw new ToolError(`${ctx.instance.name}: access level ${entry.tool.access} is off`);
   const args = structuredClone((input ?? {}) as Record<string, unknown>);
-  if (!entry.validate(args)) throw new ToolError(`invalid input: ${(entry.validate.errors ?? []).map((e) => `${e.instancePath || "/"} ${e.message}`).join("; ")}`);
+  if (!entry.validate(args)) throw new ToolError(`invalid input: ${inputProblems(entry.validate.errors ?? [], entry.tool.input)}`);
   const result = await entry.tool.run(args, ctx);
   const text = JSON.stringify(result);
   const max = config.ai.toolMaxChars;
@@ -316,7 +337,8 @@ registerTool({
 
 registerTool({
   name: "series.stats",
-  description: "Statistics of series over a period (default the last 7 days): min, max, average, last, count - from the aggregates for long periods (a year is cheap).",
+  description:
+    "Statistics of series over a period (default the last 7 days): min, max, average, last, count - from the aggregates for long periods (a year is cheap). `keys` - full series keys from series.list (e.g. process:16:temp.value).",
   access: "read",
   input: {
     type: "object",
@@ -332,7 +354,8 @@ registerTool({
 
 registerTool({
   name: "series.points",
-  description: "A series' curve over a period (default the last 24 h), at most `points` points - for trends and moments; use series.stats for numbers.",
+  description:
+    "A series' curve over a period (default the last 24 h), at most `points` points - for trends and moments; use series.stats for numbers. The key - a full series key from series.list.",
   access: "read",
   input: {
     type: "object",
@@ -524,6 +547,53 @@ registerTool({
           sections: Object.fromEntries(names.map((k) => [k, p.config[k] ?? null])),
           stamps: Object.fromEntries(names.map((k) => [k, p.config_stamps?.[k]?.at ?? null])),
         },
+      },
+      ctx,
+    );
+    return proposalAnswer(proposal);
+  },
+});
+
+registerTool({
+  name: "daynote.propose",
+  description:
+    "Propose adding, changing or removing an operational day's note of a process - what is known about a day the plans weigh (the notes of today and tomorrow are in your context; read more with ledger.notes): " +
+    "the energy field's technical ones - outage (no grid in its window), maintenance (nodeIds out in its window); the Energy Ledger's logic - holiday, day-off, workday (a working weekend); a heating's - maintenance, room-closed; other anywhere. " +
+    "A window: startsAt / endsAt (ISO times), else the whole day. E.g. a person tells you tomorrow is a day off, or the grid operator announced works. Applied at once or shown to the user to accept, per this instance's Control level. Ask when unsure.",
+  access: "control",
+  input: {
+    type: "object",
+    properties: {
+      processId: { type: "integer", description: "the process the note belongs to (the energy field / the ledger / a heating)" },
+      op: { enum: ["add", "update", "delete"] },
+      noteId: { type: "integer", description: "update / delete - the note's id" },
+      day: { type: "string", description: "YYYY-MM-DD" },
+      kind: { enum: ["outage", "holiday", "day-off", "workday", "maintenance", "room-closed", "other"] },
+      text: { type: "string", maxLength: 500 },
+      startsAt: { type: ["string", "null"] },
+      endsAt: { type: ["string", "null"] },
+      nodeIds: { type: "array", maxItems: 100, items: { type: "integer" } },
+      reason: REASON,
+    },
+    required: ["processId", "op", "reason"],
+    additionalProperties: false,
+  },
+  async run(input, ctx) {
+    const p = await writableProcess(input, ctx);
+    const op = input.op as "add" | "update" | "delete";
+    const { processId: _p, op: _o, noteId, reason: _r, ...rest } = input;
+    const checkedNote = op === "delete" ? { fields: {} } : dayNoteInput(rest, op === "update");
+    if ("error" in checkedNote) throw new ToolError(checkedNote.error);
+    if (op !== "add" && !Number.isInteger(noteId)) throw new ToolError("noteId is required to update / delete a note");
+    const proposal = await propose(
+      {
+        access: "control",
+        operation: "day-note",
+        processId: p.id,
+        summary: `${p.name}: ${op} a day note${checkedNote.fields.day ? ` for ${checkedNote.fields.day}` : ""}${checkedNote.fields.kind ? ` (${checkedNote.fields.kind})` : ""}`,
+        reason: input.reason as string,
+        payload: { op, noteId: (noteId as number | undefined) ?? null, fields: checkedNote.fields },
+        before: null,
       },
       ctx,
     );
@@ -729,6 +799,120 @@ registerTool({
         reason,
         payload: device as never,
         before: null,
+      },
+      ctx,
+    );
+    return proposalAnswer(proposal);
+  },
+});
+
+// --- access (B1.4): why a person sees / can do something, and a proposed change of their access -----
+
+// a person by username or display name (case-insensitive)
+async function personOf(name: string) {
+  const row = (
+    await pool.query<{ id: number; username: string; display_name: string | null; active: boolean }>(
+      "SELECT id, username, display_name, active FROM users WHERE lower(username) = lower($1) OR lower(display_name) = lower($1) ORDER BY id LIMIT 1",
+      [name],
+    )
+  ).rows[0];
+  if (!row) throw new ToolError(`no user "${name}"`);
+  return row;
+}
+const wholeSystemOnly = (ctx: ToolContext) => {
+  if (ctx.instance.processId !== null) throw new ToolError("access is the whole system's - ask the Nexus Edge assistant");
+};
+
+registerTool({
+  name: "access.explain",
+  description:
+    "A person's access: their roles (each - its levels view / control / config on objects: every other object \"*\", a DNP instance, a system section), " +
+    "the role they act in now, what they may do as a result; with `permission` (a catalog key like processes.config) - whether and where they hold it and which roles give it. " +
+    "To answer \"why can't X see / do Y\".",
+  access: "read",
+  input: {
+    type: "object",
+    properties: { user: { type: "string", minLength: 1, description: "username or display name" }, permission: { type: "string" } },
+    required: ["user"],
+    additionalProperties: false,
+  },
+  async run(input, ctx) {
+    wholeSystemOnly(ctx);
+    const person = await personOf(input.user as string);
+    const map = await instanceUnits();
+    const unitKeys = [...map.units.keys(), "system"];
+    const objectName = (k: string) => (k === "*" ? "every other object" : k.startsWith("section:") ? `section ${k.slice(8)}` : (map.units.get(k)?.name ?? k));
+    const roles = (
+      await pool.query<{ key: string; name: string; rights: Rights }>(
+        "SELECT r.key, r.name, r.rights FROM roles r JOIN role_members m ON m.role_key = r.key WHERE m.user_id = $1 ORDER BY r.name",
+        [person.id],
+      )
+    ).rows;
+    const describe = (r: { key: string; rights: Rights }) =>
+      FULL_ROLES.has(r.key) ? "everything" : Object.entries(r.rights ?? {}).map(([o, l]) => `${objectName(o)}: ${l.join(", ") || "nothing"}`);
+    // the role they act in now (their last chosen; none chosen - the most allowing)
+    const context = await resolveContext(person.id, null);
+    const principal = await principalOf(person.id, context);
+    const perm = input.permission as string | undefined;
+    const gives = (r: { key: string; rights: Rights }, p: string) => {
+      if (FULL_ROLES.has(r.key)) return "everywhere";
+      const c = computeRights(r.rights ?? {}, unitKeys);
+      return c.global.has(p) ? "everywhere" : c.scoped.has(p) ? [...c.scoped.get(p)!].map(objectName) : null;
+    };
+    return {
+      user: { username: person.username, name: person.display_name, active: person.active },
+      roles: roles.map((r) => ({ name: r.name, rights: describe(r) })),
+      actingAs: context ? (roles.find((r) => `role:${r.key}` === context)?.name ?? null) : roles.length === 1 ? roles[0].name : null,
+      everywhere: principal ? [...principal.global] : [],
+      onSomeInstances: principal ? Object.fromEntries([...principal.scoped].map(([k, u]) => [k, [...u].map(objectName)])) : {},
+      ...(perm
+        ? {
+            permission: perm,
+            known: isPermission(perm),
+            heldNow: principal ? (can(principal, perm) ? (principal.global.has(perm) || principal.global.has("*") ? "everywhere" : [...(principal.scoped.get(perm) ?? [])].map(objectName)) : "no") : "no",
+            rolesGiving: roles.map((r) => ({ role: r.name, where: gives(r, perm) })).filter((x) => x.where !== null),
+          }
+        : {}),
+    };
+  },
+});
+
+registerTool({
+  name: "access.propose",
+  description:
+    "Propose a person's roles (replacing them as a whole) - roles by key or name; what a role allows is set on the role itself (Users -> Roles). " +
+    "Always waits for a person who manages users to accept it - never applied on its own.",
+  access: "install",
+  input: {
+    type: "object",
+    properties: {
+      user: { type: "string", minLength: 1 },
+      roles: { type: "array", maxItems: 20, items: { type: "string" }, description: "role keys or names" },
+      reason: REASON,
+    },
+    required: ["user", "roles", "reason"],
+    additionalProperties: false,
+  },
+  async run(input, ctx) {
+    wholeSystemOnly(ctx);
+    const person = await personOf(input.user as string);
+    // a role by its key or its name, any case
+    const roleRows = (await pool.query<{ key: string; name: string }>("SELECT key, name FROM roles")).rows;
+    const roleOf = (x: string) => roleRows.find((r) => r.key === x || r.name.toLowerCase() === x.toLowerCase())?.key ?? x;
+    const wanted = [...new Set((input.roles as string[]).map(roleOf))];
+    const problem = await rolesProblem(person.username, wanted);
+    if (problem) throw new ToolError(`${problem} - the roles: ${roleRows.map((r) => r.name).join(", ")}`);
+    const before = (await pool.query<{ role_key: string }>("SELECT role_key FROM role_members WHERE user_id = $1", [person.id])).rows.map((r) => r.role_key);
+    const nameOf = (k: string) => roleRows.find((r) => r.key === k)?.name ?? k;
+    const proposal = await propose(
+      {
+        access: "install",
+        operation: "roles",
+        processId: null,
+        summary: `Roles of ${person.display_name ?? person.username}: ${wanted.map(nameOf).join(", ") || "none"}`,
+        reason: input.reason as string,
+        payload: { userId: person.id, roles: wanted },
+        before: { roles: before },
       },
       ctx,
     );

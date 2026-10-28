@@ -1,0 +1,5 @@
+{
+  "id": "device-state-of-charge",
+  "name": "State of Charge",
+  "description": "Battery state of charge - single Float32 reading (0-100 %), read-only, reported by a battery's management system."
+}

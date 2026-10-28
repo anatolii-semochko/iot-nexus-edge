@@ -29,6 +29,9 @@ const core = (...parts: string[]) => path.resolve(config.ai.promptsDir, ...parts
 /** The developer-report instruction (the instance's Report access on). */
 export const reportInstruction = (): Promise<string | null> => readCached(core("report.md"));
 
+/** A guest's conversation: what to answer, and the off-topic mark (ai/agent.ts OFF_TOPIC). */
+export const guestInstruction = (): Promise<string | null> => readCached(core("guest.md"));
+
 /** The calendar's request of a scheduled run (ai/calendar.ts) - "{workType}" / "{entity}" filled in. */
 export const scheduledRunRequest = (): Promise<string | null> => readCached(core("scheduled.md"));
 

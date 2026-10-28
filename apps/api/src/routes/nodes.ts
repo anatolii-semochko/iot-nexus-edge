@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
+import { scopeFilter } from "../access/scope.js";
 import { requireAuth } from "../auth.js";
 import { logCommand } from "../commandLog.js";
 import { pool } from "../db.js";
@@ -125,9 +126,11 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 export async function nodeRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/nodes", async () => {
+  app.get("/nodes", async (request) => {
     const result = await pool.query<NodeRow>(`${SELECT_NODE} ORDER BY n.name`);
-    return Promise.all(result.rows.map(withLiveHeartbeat));
+    // a person limited to some DNP instances sees only theirs (access/scope.ts)
+    const scope = await scopeFilter(request, "nodes.view");
+    return Promise.all(result.rows.filter((n) => !scope || scope.node(n.id)).map(withLiveHeartbeat));
   });
 
   app.get<{ Params: { id: string } }>("/nodes/:id", async (request, reply) => {

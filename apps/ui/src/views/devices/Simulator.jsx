@@ -14,6 +14,7 @@ import { api } from '../../api/client'
 import { usePersistedState } from '../../hooks/usePersistedState'
 import LiveBadge from './LiveBadge'
 import ProcessesTable from '../processes/ProcessesTable'
+import PageTitle from '../../components/PageTitle'
 
 // Registration for usePersistedState - separate key from
 // 'nexusedge.processesPage' (ProcessesList.jsx), own independent filter/
@@ -116,7 +117,7 @@ const Simulator = () => {
             box, so it still measured ~1.5px low against "Simulator".
             Flex align-items: center is pixel-exact. */}
         <div className="d-flex align-items-center gap-2">
-          <strong>Simulator</strong>
+          <PageTitle title="Simulator" />
           <LiveBadge />
         </div>
       </CCardHeader>

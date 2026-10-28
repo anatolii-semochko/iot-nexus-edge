@@ -10,18 +10,11 @@ import {
   CDropdownMenu,
   CDropdownToggle,
 } from '@coreui/react'
-import { cilLockLocked, cilPeople } from '@coreui/icons'
+import { cilAccountLogout, cilCheckAlt, cilLockLocked } from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
-import { userTitle } from '../../utils/format'
+import { userInitials, userTitle } from '../../utils/format'
 import { api } from '../../api/client'
-
-const initials = (user) =>
-  (user.display_name ?? user.username)
-    .split(/\s+/)
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
+import { markRoleSwitch } from '../../roleSwitch'
 
 /**
  * The logged-in-user menu (AGENTS.md section 13). Replaces the CoreUI demo
@@ -31,18 +24,44 @@ const initials = (user) =>
  */
 const AppHeaderDropdown = () => {
   const user = useSelector((state) => state.user)
+  // the guest's session (2026-10-27): "Sign in" instead of "Logout"
+  const guest = useSelector((state) => state.guest)
+  // the roles the person may act in (G1 2026-10-26; roles without groups 2026-10-27): one at a time -
+  // the menu, the pages, the processes, the Dashboard and the AI show only what it allows; remembered
+  // for the next sign-in
+  const contexts = useSelector((state) => state.accessContexts) ?? []
+  const context = useSelector((state) => state.accessContext)
   const dispatch = useDispatch()
   const navigate = useNavigate()
 
   if (!user) return null
-  const isAdmin = user.roles.includes('admin')
+
+  const switchTo = async (key) => {
+    if (key === context) return
+    await api.setAccessContext(key)
+    // every list, page and right reloaded in the new role; a page it doesn't open - left (roleSwitch.js)
+    markRoleSwitch()
+    window.location.reload()
+  }
 
   const handleLogout = async () => {
+    // the guest keeps its session until someone signs in (Login.jsx)
+    if (guest) return navigate('/login')
+    let guestEnabled = false
     try {
       await api.logout()
+      // the guest on - back to the Dashboard as the guest (AuthGate starts its session), else the sign-in
+      guestEnabled = (await api.getSignInInfo()).guestEnabled
     } finally {
-      dispatch({ type: 'set', user: null })
-      navigate('/login')
+      dispatch({
+        type: 'set',
+        user: null,
+        access: null,
+        accessContexts: [],
+        accessContext: null,
+        guest: false,
+      })
+      navigate(guestEnabled ? '/' : '/login')
     }
   }
 
@@ -55,7 +74,7 @@ const AppHeaderDropdown = () => {
             <CAvatar src={`/api/uploads/avatars/${user.avatar_path}`} size="md" />
           ) : (
             <CAvatar color="secondary" textColor="white" size="md">
-              {initials(user)}
+              {userInitials(user)}
             </CAvatar>
           )}
         </span>
@@ -64,16 +83,30 @@ const AppHeaderDropdown = () => {
         <CDropdownHeader className="bg-body-secondary fw-semibold mb-2">
           {user.display_name ?? user.username}
         </CDropdownHeader>
-        {isAdmin && (
-          <CDropdownItem href="#/users">
-            <CIcon icon={cilPeople} className="me-2" />
-            Users
-          </CDropdownItem>
+        {contexts.length > 1 && (
+          <>
+            <div className="px-3 pb-1 small text-body-secondary">Act as</div>
+            {contexts.map((c) => (
+              <CDropdownItem
+                key={c.key}
+                onClick={() => switchTo(c.key)}
+                active={c.key === context}
+                style={{ cursor: 'pointer' }}
+              >
+                <CIcon
+                  icon={cilCheckAlt}
+                  className="me-2"
+                  style={{ visibility: c.key === context ? 'visible' : 'hidden' }}
+                />
+                {c.name}
+              </CDropdownItem>
+            ))}
+            <CDropdownDivider />
+          </>
         )}
-        <CDropdownDivider />
         <CDropdownItem onClick={handleLogout} style={{ cursor: 'pointer' }}>
-          <CIcon icon={cilLockLocked} className="me-2" />
-          Logout
+          <CIcon icon={guest ? cilAccountLogout : cilLockLocked} className="me-2" />
+          {guest ? 'Sign in' : 'Logout'}
         </CDropdownItem>
       </CDropdownMenu>
     </CDropdown>

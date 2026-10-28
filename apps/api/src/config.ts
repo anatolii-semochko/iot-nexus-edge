@@ -3,6 +3,8 @@
 // codebase"). Every other module imports `config`, never process.env
 // directly.
 
+import { parseRoots } from "./projectRoots.js";
+
 function required(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -61,16 +63,52 @@ export const config = {
       clientId: process.env.EDGEX_MESSAGEBUS_CLIENT_ID ?? "nexus-edge-api-push-bridge",
     },
   },
-  // UI login only (AGENTS.md section 13) - not per-endpoint API
-  // authorization, which stays a separate, not-yet-started task.
+  // Sign-in and access control (AGENTS.md section 13; access/ - B1): a
+  // session's token lives JWT_TOKEN_TTL seconds (its cookie too - it outlives
+  // the browser); the server keeps each session's last activity
+  // (user_sessions) - one unused for JWT_TIME_INVALIDATION seconds is over,
+  // and signing out / a deactivation revokes it at once. The internal
+  // services (orchestrator, device-service) send SERVICE_API_TOKEN instead.
   auth: {
     jwtSecret: required("JWT_SECRET"),
-    tokenTtl: process.env.JWT_EXPIRES_IN ?? "12h",
+    tokenTtlSeconds: Number(process.env.JWT_TOKEN_TTL ?? 31536000),
+    idleSeconds: Number(process.env.JWT_TIME_INVALIDATION ?? 36000),
+    // a session's last activity is written at most this often (every request reads it)
+    activityWriteSeconds: Number(process.env.AUTH_ACTIVITY_WRITE_SECONDS ?? 60),
+    serviceApiToken: required("SERVICE_API_TOKEN"),
+    // how long a person's computed permissions are reused before re-reading the roles, ms
+    principalCacheMs: Number(process.env.AUTH_PRINCIPAL_CACHE_MS ?? 15000),
     cookieName: "nexus_edge_session",
     // Only over HTTPS in production - this platform runs over plain HTTP on
     // a local network today, no TLS termination configured anywhere yet.
     secureCookies: process.env.NODE_ENV === "production",
+    // the guest's conversations of more than its settings' days go at this local time (HH:MM; maintenance.ts)
+    guestCleanupAt: process.env.GUEST_CLEANUP_AT ?? "03:00",
   },
+  // External data services the Library packages use (fetched by the API,
+  // never by a browser): the weather forecast (weather-control - Open-Meteo,
+  // no key); day-ahead electricity prices (energy-grid - Energy-Charts of
+  // Fraunhofer ISE, aWATTar as the fallback; no keys).
+  services: {
+    openMeteoUrl: process.env.OPEN_METEO_URL ?? "https://api.open-meteo.com/v1/forecast",
+    energyChartsUrl: process.env.ENERGY_CHARTS_URL ?? "https://api.energy-charts.info/price",
+    awattarUrl: process.env.AWATTAR_URL ?? "https://api.awattar.de/v1/marketdata",
+    // the map tiles of a node's information popup ({z}/{x}/{y} in the
+    // template), fetched and cached by the API (routes/map.ts) - the
+    // browser never calls the tile server; its usage policy wants a
+    // User-Agent naming the application and an attribution where shown
+    mapTilesUrl: process.env.MAP_TILES_URL ?? "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    mapTilesAttribution: process.env.MAP_TILES_ATTRIBUTION ?? "© OpenStreetMap contributors",
+    mapTilesUserAgent: process.env.MAP_TILES_USER_AGENT ?? "NexusEdge (IoT platform)",
+    mapTilesCacheSize: Number(process.env.MAP_TILES_CACHE_SIZE ?? 500),
+  },
+  // The nightly maintenance (maintenance.ts): logs older than
+  // LOG_RETENTION_DAYS cleared at LOG_RETENTION_AT (0 / empty - never); the
+  // time series' raw samples kept SAMPLES_RETENTION_DAYS (a TimescaleDB
+  // retention policy; 0 - forever - the hourly / daily aggregates stay).
+  logRetentionDays: Number(process.env.LOG_RETENTION_DAYS ?? 0),
+  logRetentionAt: process.env.LOG_RETENTION_AT ?? "03:30",
+  samplesRetentionDays: Number(process.env.SAMPLES_RETENTION_DAYS ?? 0),
   // AI layer (AGENTS.md section 82; connections - ai/connections.ts,
   // Service -> Config -> AI). No connection = AI unavailable: consumers
   // record an error instead of analysing, the platform itself is unaffected.
@@ -103,6 +141,11 @@ export const config = {
     // the conversation history sent back, characters (older turns are dropped)
     agentMaxSteps: Number(process.env.AI_AGENT_MAX_STEPS ?? 8),
     historyMaxChars: Number(process.env.AI_HISTORY_MAX_CHARS ?? 40000),
+    // the messenger's "Quick start" for a newcomer (2026-10-24): the whole system's work types offered first
+    quickStart: (process.env.AI_QUICK_START ?? "status-analysis,wem-analysis,analysis-proposals")
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean),
     // the calendar (ai/calendar.ts): how late a scheduled run may still start, minutes
     // (the system down longer - that occurrence is skipped)
     calendarCatchUpMin: Number(process.env.AI_CALENDAR_CATCH_UP_MIN ?? 30),
@@ -122,6 +165,8 @@ export const config = {
   uploads: {
     avatarsDir: process.env.AVATAR_UPLOAD_DIR ?? "/workspace/apps/api/uploads/avatars",
     avatarMaxSizeBytes: Number(process.env.AVATAR_MAX_SIZE_BYTES ?? 2 * 1024 * 1024),
+    // a Dashboard card's own picture / background (dashboard_card_images - in the database)
+    dashboardImageMaxBytes: Number(process.env.DASHBOARD_IMAGE_MAX_BYTES ?? 1024 * 1024),
   },
   // Change notifications (entityChanges.ts): the wait before the LISTEN
   // connection to Postgres is opened again after it dropped.
@@ -148,14 +193,17 @@ export const config = {
   // extraApiPluginsDir is unset by default (nothing to scan for this
   // repo's own docker-compose); a target project sets it to its own
   // plugins/ directory.
+  // The project's plugin roots (projectRoots.ts - one or several, e.g. the
+  // demo project on the aquarium's packages): "label=path" or "path", comma-separated.
   apiPlugins: {
     builtinDevicesDir: process.env.BUILTIN_DEVICES_DIR ?? "/workspace/devices",
-    extraDir: process.env.EXTRA_API_PLUGINS_DIR,
+    extraDirs: parseRoots(process.env.EXTRA_API_PLUGINS_DIR, "private"),
   },
   // A target project's own Postgres migrations (extraMigrations.ts) - its
-  // migrations/ directory mounted here; unset - none.
+  // migrations/ directory mounted here, or several (a dependency's first);
+  // none set - none.
   extraMigrations: {
-    dir: process.env.EXTRA_MIGRATIONS_DIR,
+    dirs: parseRoots(process.env.EXTRA_MIGRATIONS_DIR, "project"),
   },
   // AGENTS_TO_DO.md, 2026-08-14 process management - internal compose-
   // network URL, not a host-published port (see ORCHESTRATOR_PORT in

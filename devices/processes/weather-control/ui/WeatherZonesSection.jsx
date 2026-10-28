@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import CIcon from '@coreui/icons-react'
 import { CButton, CCol, CFormInput, CRow } from '@coreui/react'
-import NumericStepper from '../devices/NumericStepper'
+import NumericStepper from 'src/views/devices/NumericStepper'
 import {
   LIGHT_LEVELS,
   RAW_LIGHT_MAX,
@@ -9,7 +9,7 @@ import {
   classifyRawLight,
   defaultZones,
 } from './lightLevels'
-import { useDeviceValue } from './useDeviceValue'
+import { useDeviceValue } from 'src/views/processes/useDeviceValue'
 
 const percent = (value) => ((value - RAW_LIGHT_MIN) / (RAW_LIGHT_MAX - RAW_LIGHT_MIN)) * 100
 
@@ -39,26 +39,20 @@ const boundaryRange = (zones, index) => {
  * Staged locally exactly like AnnunciatorSlotsSection.jsx (both
  * registered into processTypeRegistry.js's own processSettingsSections)
  * - edits only reach
- * `process.config.zones` when the modal's own Save button runs, via
- * `extraConfigRef`; Cancel/close just discards this component's local
- * state.
+ * `process.config.zones` when the modal's own Save button runs (through
+ * WeatherSettingsSection's `onChange`); Cancel/close just discards this
+ * component's local state.
  *
- * `settingsTabs` (AGENTS_TO_DO.md 2026-08-25 "cosmetic improvements") -
- * a single declared tab ("Configuration") is enough to split this kind's
- * Settings popup into "System" (ProcessSettingsModal.jsx's own Tabs/
- * Message Casting Groups, unchanged) + "Configuration" (this component's
- * entire output) - see AquariumLightControlSettingsSection.jsx's own
- * doc comment for the two/three-tab case this same mechanism also
- * supports.
+ * Shown inside WeatherSettingsSection (the "Configuration" tab).
  */
-const WeatherZonesSection = ({ process, extraConfigRef }) => {
+const WeatherZonesSection = ({ process, onChange }) => {
   const [zones, setZones] = useState(process.config.zones ?? defaultZones())
   const rawLight = useDeviceValue(process.config.lightDeviceId)
   const currentZoneKey = classifyRawLight(zones, rawLight)
 
   const updateZones = (next) => {
     setZones(next)
-    extraConfigRef.current = next
+    onChange(next)
   }
 
   const updateBoundary = (index, min) => {
@@ -190,6 +184,4 @@ const WeatherZonesSection = ({ process, extraConfigRef }) => {
 
 // Read by ProcessSettingsModal.jsx to split its popup into System/
 // Configuration instead of one flat scroll.
-WeatherZonesSection.settingsTabs = ['Configuration']
-
 export default WeatherZonesSection

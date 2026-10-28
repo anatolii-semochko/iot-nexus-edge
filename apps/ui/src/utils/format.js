@@ -108,9 +108,11 @@ export function formatBytes(bytes) {
 }
 
 export function userInitials(user) {
+  // words' first letters or digits - "Claude (test)" -> "CT", not "C("
   return (user.display_name ?? user.username)
     .split(/\s+/)
-    .map((part) => part[0])
+    .map((part) => part.match(/[\p{L}\p{N}]/u)?.[0])
+    .filter(Boolean)
     .slice(0, 2)
     .join('')
     .toUpperCase()

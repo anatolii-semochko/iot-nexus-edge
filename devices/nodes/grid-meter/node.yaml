@@ -1,0 +1,17 @@
+nodeType: grid-meter
+description: >
+  The grid connection point's meter (2026-10-19, the energy packages): a
+  three-phase power analyser at the site's connection to the public grid -
+  reference model Janitza UMG 604-PRO (Modbus TCP, port 502). Measures the
+  three phase voltages, the frequency, the total active power (signed: +
+  import from the grid, - export to it) and the import / export energy
+  registers. Off-the-shelf - no firmware of ours; read over Modbus TCP once
+  the device service has a Modbus transport (virtual / simulated until
+  then). Driven by the `energy-grid` process.
+bus:
+  type: modbus-tcp
+supports:
+  - voltage
+  - frequency
+  - power
+  - energy

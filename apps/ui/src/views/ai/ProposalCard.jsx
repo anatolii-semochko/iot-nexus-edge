@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { CBadge, CButton, CSpinner } from '@coreui/react'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
 import { formatSmartDateTime } from '../../utils/format'
 
 /**
@@ -79,6 +80,11 @@ const Change = ({ proposal: p }) => {
     const rows = diffOf(p.before?.sections, p.payload.sections)
     return rows.length ? <DiffTable rows={rows} /> : <div className="small">No field changes.</div>
   }
+  if (p.operation === 'grants') {
+    // a person's access - their roles before and after (api access.propose)
+    const rows = diffOf({ grants: p.before?.grants }, { grants: p.payload.grants })
+    return rows.length ? <DiffTable rows={rows} /> : <div className="small">No change.</div>
+  }
   if (p.operation === 'switch')
     return (
       <DiffTable
@@ -107,6 +113,7 @@ const Change = ({ proposal: p }) => {
 
 /** `onDecided(proposal)` - the proposal after a decision. */
 const ProposalCard = ({ proposal: p, onDecided }) => {
+  const canDecide = useCan()('ai.decide')
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState(null)
   const decide = (decision) => {
@@ -134,7 +141,11 @@ const ProposalCard = ({ proposal: p, onDecided }) => {
       </div>
       {p.reason && <div className="small text-body-secondary mb-1">{p.reason}</div>}
       <Change proposal={p} />
-      {p.status === 'pending' ? (
+      {p.status === 'pending' && !canDecide ? (
+        <div className="small text-body-secondary mt-1">
+          Waiting for a person with the right to decide.
+        </div>
+      ) : p.status === 'pending' ? (
         <div className="d-flex gap-2 mt-2 align-items-center">
           <CButton
             size="sm"

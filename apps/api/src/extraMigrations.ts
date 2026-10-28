@@ -9,7 +9,9 @@ import { logger } from "./logger.js";
 
 // A target project's own Postgres migrations (nexus-edge-aquarium
 // AGENTS_TO_DO.md 2026-10-16, tech debt 11 - was the one-off `migrate-extra`
-// container): `config.extraMigrations.dir/*.sql`, in file-name order, each
+// container): each root's (config.extraMigrations.dirs - one or several,
+// a dependency's first - projectRoots.ts) `*.sql`, root by root in file-name
+// order, each
 // applied ONCE and recorded in `extra_migrations` (name, sha256 - the same
 // table and checksums the container kept). Run with psql (in this image), so
 // a file may use psql's \gset / \if. When:
@@ -18,16 +20,38 @@ import { logger } from "./logger.js";
 //   assistant proposes goes through its Install access level);
 // - POST /dnp/migrations/apply (an admin; the assistant - stage 5).
 // A recorded file changed since - reported ("changed"), never re-run: a
-// new migration is written instead.
+// new migration is written instead. Recorded as its file name (the first
+// root - as in the single-root days) or "<root label>/<file name>".
 
 export interface ExtraMigration {
   name: string;
+  file: string;
   checksum: string;
   status: "applied" | "pending" | "changed";
   appliedAt: string | null;
 }
 
 const NAME = /^[A-Za-z0-9_.-]+\.sql$/;
+
+// Run after a batch applied at least one migration (on start or later): the
+// data a plugin derives at its own start (e.g. stored totals) may predate the
+// rows these migrations added - api plugins subscribe via their context.
+type AppliedListener = (applied: string[]) => void | Promise<void>;
+const appliedListeners: AppliedListener[] = [];
+
+export function onProjectMigrationsApplied(fn: AppliedListener): void {
+  appliedListeners.push(fn);
+}
+
+async function notifyApplied(applied: string[]): Promise<void> {
+  for (const fn of appliedListeners) {
+    try {
+      await fn(applied);
+    } catch (err) {
+      logger.error({ err }, "a project-migrations listener failed");
+    }
+  }
+}
 
 async function ensureTable(): Promise<void> {
   await pool.query(`CREATE TABLE IF NOT EXISTS extra_migrations (
@@ -37,25 +61,29 @@ async function ensureTable(): Promise<void> {
   )`);
 }
 
-/** The project's migrations and their state (empty - no directory configured). */
+/** The project's migrations and their state, root by root (empty - no directory configured). */
 export async function listExtraMigrations(): Promise<ExtraMigration[]> {
-  const dir = config.extraMigrations.dir;
-  if (!dir) return [];
+  const roots = config.extraMigrations.dirs;
+  if (roots.length === 0) return [];
   await ensureTable();
   const recorded = new Map(
     (await pool.query<{ name: string; checksum: string; applied_at: Date }>("SELECT name, checksum, applied_at FROM extra_migrations")).rows.map((r) => [r.name, r]),
   );
-  const files = (await readdir(dir)).filter((f) => NAME.test(f)).sort();
   const out: ExtraMigration[] = [];
-  for (const name of files) {
-    const checksum = createHash("sha256").update(await readFile(path.join(dir, name))).digest("hex");
-    const r = recorded.get(name);
-    out.push({
-      name,
-      checksum,
-      status: !r ? "pending" : r.checksum === checksum ? "applied" : "changed",
-      appliedAt: r ? r.applied_at.toISOString() : null,
-    });
+  for (const [i, root] of roots.entries()) {
+    const files = (await readdir(root.dir)).filter((f) => NAME.test(f)).sort();
+    for (const file of files) {
+      const name = i === 0 ? file : `${root.label}/${file}`;
+      const checksum = createHash("sha256").update(await readFile(path.join(root.dir, file))).digest("hex");
+      const r = recorded.get(name);
+      out.push({
+        name,
+        file: path.join(root.dir, file),
+        checksum,
+        status: !r ? "pending" : r.checksum === checksum ? "applied" : "changed",
+        appliedAt: r ? r.applied_at.toISOString() : null,
+      });
+    }
   }
   return out;
 }
@@ -90,7 +118,7 @@ export function applyPendingExtraMigrations(): Promise<{ applied: string[]; fail
     try {
       for (const m of (await listExtraMigrations()).filter((x) => x.status === "pending")) {
         try {
-          await runPsql(path.join(config.extraMigrations.dir!, m.name));
+          await runPsql(m.file);
         } catch (err) {
           logger.error({ err, migration: m.name }, "project migration failed");
           return { applied, failed: { name: m.name, error: err instanceof Error ? err.message : String(err) } };
@@ -102,6 +130,7 @@ export function applyPendingExtraMigrations(): Promise<{ applied: string[]; fail
       return { applied, failed: null };
     } finally {
       running = null;
+      if (applied.length > 0) await notifyApplied(applied);
     }
   })();
   return running;
@@ -109,7 +138,7 @@ export function applyPendingExtraMigrations(): Promise<{ applied: string[]; fail
 
 /** On the api's start: the pending ones applied. */
 export async function runExtraMigrationsOnStart(): Promise<void> {
-  if (!config.extraMigrations.dir) return;
+  if (config.extraMigrations.dirs.length === 0) return;
   const all = await listExtraMigrations();
   const pending = all.filter((m) => m.status === "pending");
   const changed = all.filter((m) => m.status === "changed");

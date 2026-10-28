@@ -19,8 +19,12 @@
  */
 
 import React, { Suspense } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
-import { CContainer, CSpinner } from '@coreui/react'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { useSelector } from 'react-redux'
+import { CAlert, CContainer, CSpinner } from '@coreui/react'
+import { canOpen } from '../access'
+import { isSwitchLanding } from '../roleSwitch'
+import { useMenu } from './useMenu'
 
 // routes config
 import { routes } from '../routes'
@@ -37,9 +41,28 @@ import { routes } from '../routes'
  *
  * @returns {React.ReactElement} Content container with routed views
  */
-const AppContent = () => {
+// a section the person can't open (access.js) - said, not a broken page
+const NoAccess = () => (
+  <CAlert color="warning" className="mt-3">
+    You don&apos;t have access to this section. Ask an administrator if you need it.
+  </CAlert>
+)
+
+// `bleed` - the page takes the whole room (DefaultLayout): no padding, the full height
+const AppContent = ({ bleed = false }) => {
+  const access = useSelector((state) => state.access)
+  // right after a role switch the page it was on - if the new role doesn't open it, its first page
+  // instead (roleSwitch.js); only that one page, only that once
+  const { pathname } = useLocation()
+  const firstPage = useMenu().items.find((item) => item.to)?.to ?? '/dashboard'
+  const closed = (path) =>
+    isSwitchLanding(pathname) && firstPage !== path ? (
+      <Navigate to={firstPage} replace />
+    ) : (
+      <NoAccess />
+    )
   return (
-    <CContainer className="px-4 page-content" lg>
+    <CContainer className={bleed ? 'px-0 page-content page-bleed' : 'px-4 page-content'} lg>
       <Suspense fallback={<CSpinner color="primary" />}>
         <Routes>
           {routes.map((route, idx) => {
@@ -50,7 +73,7 @@ const AppContent = () => {
                   path={route.path}
                   exact={route.exact}
                   name={route.name}
-                  element={<route.element />}
+                  element={canOpen(access, route.path) ? <route.element /> : closed(route.path)}
                 />
               )
             )

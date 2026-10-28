@@ -1,0 +1,21 @@
+nodeType: heat-pump
+description: >
+  An air / water heat pump outdoor unit (monobloc) with its controller.
+  Reference: Vaillant aroTHERM plus (Germany; 12 kW class, natural
+  refrigerant R290, heating and cooling, flow up to 75 C, outdoor
+  -25..+46 C). Reports the flow, return and outdoor temperatures, the
+  water flow, the heat output (+ heating / - cooling) with its counter,
+  the electric power with its counter and the fan speed; switched on /
+  off. Driven by the `heating-control` process (simulated - the COP from
+  the outdoor and the flow temperature).
+bus:
+  type: modbus-tcp
+supports:
+  - temperature
+  - flow-rate
+  - thermal-power
+  - thermal-energy
+  - power
+  - energy
+  - rotational-speed
+  - relay

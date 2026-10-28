@@ -22,6 +22,9 @@ const initialState = {
   // `dispatch({ type: 'set', user })` - the same generic reducer as every
   // other piece of state here, read with `useSelector((state) => state.user)`.
   user: null,
+  // what the person may do (access.js - /auth/me `access`), and whether it is the guest's session
+  access: null,
+  guest: false,
 }
 
 /**

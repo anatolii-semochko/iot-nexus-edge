@@ -1,0 +1,5 @@
+{
+  "id": "device-wind-speed",
+  "name": "Wind Speed",
+  "description": "Wind speed sensor - single Float32 reading (m/s), read-only."
+}

@@ -60,6 +60,9 @@ func (t *Transport) uploadMedia(deviceName, ext string, payload []byte) (string,
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
+	if t.cfg.ServiceAPIToken != "" {
+		req.Header.Set("X-Service-Token", t.cfg.ServiceAPIToken)
+	}
 	resp, err := t.http.Do(req)
 	if err != nil {
 		return "", err

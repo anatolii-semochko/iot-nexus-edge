@@ -7,7 +7,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "lint": "eslint",
+    "lint": "eslint && cd ../../devices && eslint",
     "serve": "vite preview",
     "start": "vite"
   },

@@ -9,6 +9,8 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { loadApiPlugins } from "./apiPlugins.js";
 import { config } from "./config.js";
 import { startEdgexPushBridge } from "./edgexPushBridge.js";
+import { registerAccessGuard } from "./access/guard.js";
+import { startMaintenance } from "./maintenance.js";
 import { recoverInterruptedRuns } from "./ai/calendar.js";
 import { importEnvConnection } from "./ai/connections.js";
 import { startEntityChangeListener } from "./entityChanges.js";
@@ -20,6 +22,7 @@ import { authRoutes } from "./routes/auth.js";
 import { dashboardCardRoutes } from "./routes/dashboardCards.js";
 import { aiRoutes } from "./routes/ai.js";
 import { registryRoutes } from "./routes/registry.js";
+import { accessRoutes } from "./routes/access.js";
 import { dnpRoutes } from "./routes/dnp.js";
 import { dataLoggerControlRoutes } from "./routes/dataLoggerControls.js";
 import { deviceGroupRoutes } from "./routes/deviceGroups.js";
@@ -27,13 +30,16 @@ import { deviceRoutes } from "./routes/devices.js";
 import { heartbeatControlRoutes } from "./routes/heartbeatControls.js";
 import { libraryRoutes } from "./routes/library.js";
 import { logRoutes } from "./routes/logs.js";
+import { mapRoutes } from "./routes/map.js";
 import { mediaRoutes } from "./routes/media.js";
+import { nodeDetailsRoutes } from "./routes/nodeDetails.js";
 import { messageGroupRoutes } from "./routes/messageGroups.js";
 import { messageLevelRoutes } from "./routes/messageLevels.js";
 import { messageSignalTimingRoutes } from "./routes/messageSignalTiming.js";
 import { nodeGroupRoutes } from "./routes/nodeGroups.js";
 import { nodeRoutes } from "./routes/nodes.js";
 import { processGroupRoutes } from "./routes/processGroups.js";
+import { dayNoteRoutes } from "./routes/dayNotes.js";
 import { processRoutes } from "./routes/processes.js";
 import { seriesRoutes } from "./routes/series.js";
 import { serviceRoutes } from "./routes/service.js";
@@ -68,6 +74,8 @@ export async function startApiServer(): Promise<FastifyInstance> {
     secret: config.auth.jwtSecret,
     cookie: { cookieName: config.auth.cookieName, signed: false },
   });
+  // every route's access - one check before any handler (access/guard.ts)
+  registerAccessGuard(app);
   await app.register(fastifyMultipart);
   // Avatars, reachable at /uploads/avatars/<file> - proxied by apps/ui's
   // nginx at /api/uploads/... (AGENTS.md section 13), same as every other
@@ -82,16 +90,15 @@ export async function startApiServer(): Promise<FastifyInstance> {
     prefix: "/library-assets/library/",
     decorateReply: false,
   });
-  if (config.apiPlugins.extraDir) {
-    await app.register(fastifyStatic, {
-      root: config.apiPlugins.extraDir,
-      prefix: "/library-assets/private/",
-      decorateReply: false,
-    });
+  // each project root at /library-assets/<label>/ (projectRoots.ts - the first "private")
+  for (const root of config.apiPlugins.extraDirs) {
+    await app.register(fastifyStatic, { root: root.dir, prefix: `/library-assets/${root.label}/`, decorateReply: false });
   }
 
   await app.register(authRoutes);
   await app.register(mediaRoutes);
+  await app.register(nodeDetailsRoutes);
+  await app.register(mapRoutes);
   await app.register(userRoutes);
   await app.register(userDirectoryRoutes);
   await app.register(nodeRoutes);
@@ -99,11 +106,13 @@ export async function startApiServer(): Promise<FastifyInstance> {
   await app.register(deviceRoutes);
   await app.register(deviceGroupRoutes);
   await app.register(registryRoutes);
+  await app.register(accessRoutes);
   await app.register(heartbeatControlRoutes);
   await app.register(dataLoggerControlRoutes);
   await app.register(libraryRoutes);
   await app.register(processGroupRoutes);
   await app.register(processRoutes);
+  await app.register(dayNoteRoutes);
   await app.register(tabGroupRoutes);
   await app.register(dashboardCardRoutes);
   await app.register(seriesRoutes);
@@ -161,9 +170,12 @@ export async function startApiServer(): Promise<FastifyInstance> {
 
   await app.listen({ port: config.port, host: config.host });
 
+  // the nightly jobs: the guests' conversations and the ended sessions, the logs' retention, the samples' policy (maintenance.ts)
+  startMaintenance();
+
   // The project's own migrations (extraMigrations.ts) - after the core's
-  // (run before this process started) and with the api up; "auto" applies
-  // the pending ones, "confirm" leaves them for a person.
+  // (run before this process started) and with the api up - so the api
+  // plugins are already loaded; they hear of it via onProjectMigrationsApplied.
   void runExtraMigrationsOnStart().catch((err) => app.log.error({ err }, "project migrations on start failed"));
   return app;
 }

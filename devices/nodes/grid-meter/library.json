@@ -1,0 +1,33 @@
+{
+  "id": "node-grid-meter",
+  "name": "Grid Meter",
+  "description": "The grid connection point's three-phase power analyser (reference model Janitza UMG 604-PRO, Modbus TCP): phase voltages, frequency, signed active power (+ import / - export), import and export energy registers. Used by the energy-grid process.",
+  "models": [
+    {
+      "key": "umg-604-pro",
+      "name": "UMG 604-PRO",
+      "maker": "Janitza electronics GmbH, Germany",
+      "image": "model-umg-604-pro.webp",
+      "purpose": "Power quality analyser at the grid connection point - the site's import / export, the phases' voltage, current and frequency.",
+      "specs": [
+        {
+          "label": "Phases",
+          "value": "3"
+        },
+        {
+          "label": "Accuracy class",
+          "value": "0.2S"
+        },
+        {
+          "label": "Interfaces",
+          "value": "Ethernet (Modbus TCP, port 502), Modbus RTU"
+        },
+        {
+          "label": "Extras",
+          "value": "embedded web server"
+        }
+      ],
+      "url": "https://www.janitza.com/en/products/umg-604-pro/technical-details"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "id": "node-heat-pump",
+  "name": "Heat Pump (air / water)",
+  "description": "An air / water heat pump outdoor unit (monobloc) with its controller - reference Vaillant aroTHERM plus (12 kW class, R290, heating and cooling). Flow / return / outdoor temperature, water flow, heat output and counter, electric power and counter, fan speed, an on / off switch. Used by heating-control.",
+  "models": [
+    {
+      "key": "arotherm-plus-12",
+      "name": "aroTHERM plus VWL 125/6 A (12 kW)",
+      "maker": "Vaillant GmbH, Germany",
+      "image": "model-arotherm-plus-12.webp",
+      "purpose": "Air / water monobloc heat pump - heats (and cools) the water of the heating circuit from the outdoor air.",
+      "specs": [
+        {
+          "label": "Heat output class",
+          "value": "12 kW"
+        },
+        {
+          "label": "Refrigerant",
+          "value": "R290 (natural)"
+        },
+        {
+          "label": "Compressor",
+          "value": "inverter, modulating"
+        },
+        {
+          "label": "Modes",
+          "value": "heating, active cooling"
+        },
+        {
+          "label": "Flow temperature",
+          "value": "up to 75 °C"
+        },
+        {
+          "label": "Outdoor range",
+          "value": "-25..+46 °C"
+        },
+        {
+          "label": "Interface",
+          "value": "Modbus TCP via the system controller"
+        }
+      ]
+    }
+  ]
+}

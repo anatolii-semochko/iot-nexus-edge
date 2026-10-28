@@ -1,0 +1,5 @@
+{
+  "id": "device-frequency",
+  "name": "Frequency",
+  "description": "Frequency measurement - single Float32 reading (Hz), read-only: the grid frequency at a connection point."
+}

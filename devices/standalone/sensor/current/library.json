@@ -1,0 +1,5 @@
+{
+  "id": "device-current",
+  "name": "Current",
+  "description": "Electric current measurement - single Float32 reading (A), read-only; signed where it flows both ways (a battery: + discharge / - charge)."
+}

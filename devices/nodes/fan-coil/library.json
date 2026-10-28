@@ -1,0 +1,69 @@
+{
+  "id": "node-fan-coil",
+  "name": "Fan Coil (wall-mounted)",
+  "description": "A hydronic fan coil - reference Daikin FWT (a room's wall-mounted unit, 2-pipe, 3 fan speeds) and Kampmann TOP (a hall's air heater). Room temperature and humidity, the valve (on / off, remote), fan power and speed. Used by heating-control.",
+  "models": [
+    {
+      "key": "fwt-06",
+      "name": "FWT (wall-mounted fan coil)",
+      "maker": "Daikin Europe",
+      "image": "model-fwt-06.webp",
+      "purpose": "A room's heat / cold consumer on the water circuit - a fan blows the room's air over a water coil.",
+      "specs": [
+        {
+          "label": "Pipes",
+          "value": "2-pipe"
+        },
+        {
+          "label": "Modes",
+          "value": "heating, cooling"
+        },
+        {
+          "label": "Fan",
+          "value": "3 speeds"
+        },
+        {
+          "label": "Capacity",
+          "value": "about 2-5 kW by size"
+        },
+        {
+          "label": "Valve",
+          "value": "motorised kit, remote on / off"
+        }
+      ]
+    },
+    {
+      "key": "kampmann-top",
+      "name": "TOP (air heater for halls)",
+      "maker": "Kampmann (Lingen, Germany)",
+      "image": "model-kampmann-top.webp",
+      "purpose": "A hall's heat consumer on the water circuit - wall or ceiling mounted, an axial fan blows the hall's air over a water coil, adjustable louvres direct the jet.",
+      "specs": [
+        {
+          "label": "Pipes",
+          "value": "2-pipe"
+        },
+        {
+          "label": "Modes",
+          "value": "heating (cooling - with a condensate tray)"
+        },
+        {
+          "label": "Fan",
+          "value": "axial, 3 speeds or EC"
+        },
+        {
+          "label": "Capacity",
+          "value": "about 5-50 kW by size"
+        },
+        {
+          "label": "Mounting",
+          "value": "wall or ceiling, louvres"
+        },
+        {
+          "label": "Valve",
+          "value": "motorised, remote on / off"
+        }
+      ]
+    }
+  ]
+}
