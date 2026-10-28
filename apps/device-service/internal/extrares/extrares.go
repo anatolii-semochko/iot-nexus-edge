@@ -17,26 +17,29 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
-// Merge symlinks every *.yaml/*.yml file from
-// $EXTRA_RES_DIR/profiles into resProfilesDir and from
-// $EXTRA_RES_DIR/devices into resDevicesDir. A no-op if EXTRA_RES_DIR is
-// unset (this repo's own docker-compose) or a subdirectory doesn't
-// exist. Fails loudly on a filename collision with a built-in
-// profile/device file rather than silently letting one shadow the
-// other.
+// Merge symlinks every *.yaml/*.yml file from each extra root's
+// profiles/ into resProfilesDir and devices/ into resDevicesDir.
+// EXTRA_RES_DIR is one directory or several, comma-separated (a project
+// built on another project's packages - the demo on the aquarium's; B2,
+// iot AGENTS_TO_DO.md 2026-10-17), merged in order. A no-op if it is
+// unset (this repo's own docker-compose) or a subdirectory doesn't exist.
+// Fails loudly on a filename collision (with a built-in file or another
+// root's) rather than silently letting one shadow the other.
 func Merge(resProfilesDir, resDevicesDir string) error {
-	extraDir := os.Getenv("EXTRA_RES_DIR")
-	if extraDir == "" {
-		return nil
-	}
-
-	if err := mergeInto(filepath.Join(extraDir, "profiles"), resProfilesDir); err != nil {
-		return fmt.Errorf("extrares: profiles: %w", err)
-	}
-	if err := mergeInto(filepath.Join(extraDir, "devices"), resDevicesDir); err != nil {
-		return fmt.Errorf("extrares: devices: %w", err)
+	for _, extraDir := range strings.Split(os.Getenv("EXTRA_RES_DIR"), ",") {
+		extraDir = strings.TrimSpace(extraDir)
+		if extraDir == "" {
+			continue
+		}
+		if err := mergeInto(filepath.Join(extraDir, "profiles"), resProfilesDir); err != nil {
+			return fmt.Errorf("extrares: %s profiles: %w", extraDir, err)
+		}
+		if err := mergeInto(filepath.Join(extraDir, "devices"), resDevicesDir); err != nil {
+			return fmt.Errorf("extrares: %s devices: %w", extraDir, err)
+		}
 	}
 	return nil
 }

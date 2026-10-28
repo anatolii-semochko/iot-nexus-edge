@@ -1,16 +1,21 @@
 import type { FastifyInstance } from "fastify";
 
 import { connectionProblem, deleteConnection, listConnections, saveConnection, clientFor, type ConnectionInput } from "../ai/connections.js";
-import { getInstance, instanceProblem, listInstances, saveInstance, type InstanceInput } from "../ai/instances.js";
+import { getInstance, instanceProblem, listInstances, NEXUS_EDGE_KEY, saveInstance, type InstanceInput } from "../ai/instances.js";
 import { manifestForKind } from "../ai/manifests.js";
 import { createMcpToken, deleteMcpToken, handleMcpRequest, listMcpTokens, updateMcpToken } from "../ai/mcp.js";
 import { systemPromptFor } from "../ai/prompts.js";
-import { decide, listProposals, proposalOwner, type ProposalStatus } from "../ai/proposals.js";
+import { decide, getProposal, listProposals, proposalOwner, type ProposalStatus } from "../ai/proposals.js";
 import { CalendarError, calendarTick, createSchedule, deleteSchedule, listSchedules, runNow, updateSchedule, type ScheduleInput } from "../ai/calendar.js";
 import { secretsAvailable } from "../ai/secrets.js";
 import { runTool, ToolError, toolContracts } from "../ai/tools.js";
-import { AgentError, getConversation, sendMessage, startConversation, type AgentEvent } from "../ai/agent.js";
+import { resolveSubject, subjectProblem, subjectWorkType, type Subject, type SubjectInput } from "../ai/subjects.js";
+import { AgentError, changeTopic, getConversation, sendMessage, startConversation, type AgentEvent } from "../ai/agent.js";
+import { guestSettings } from "../access/guestSettings.js";
 import { requireAdmin, requireAuth, type JwtPayload } from "../auth.js";
+import { can, visibleUnits, type Principal } from "../access/principal.js";
+import { instanceUnits } from "../dnpInstances.js";
+import { config } from "../config.js";
 import { pool } from "../db.js";
 import { ProcessWriteError } from "../processWrites.js";
 
@@ -171,25 +176,91 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
   });
 
   const user = (request: { user: unknown }) => request.user as JwtPayload;
-  const isAdmin = (request: { user: unknown }) => user(request).roles.includes("admin");
-  // a conversation the caller may see (theirs, a scheduled run's, or any for an admin)
-  const ownConversation = async (request: { user: unknown }, id: number) => {
+  // the assistant's administrator (Service -> Config -> AI) sees every conversation and decides any proposal
+  const isAdmin = (request: { principal?: Principal }) => !!request.principal && can(request.principal, "ai.configure");
+  // the instances a person may talk to: the whole system - with ai.use everywhere; a DNP instance - within their units
+  const usableInstance = async (request: { principal?: Principal }) => {
+    const p = request.principal;
+    if (!p) return () => false;
+    const units = visibleUnits(p, "ai.use");
+    if (units === null) return () => true;
+    const map = await instanceUnits();
+    return (i: { processId: number | null }) => i.processId !== null && units.has(map.processUnit.get(i.processId) ?? "");
+  };
+  type Asker = { user: unknown; principal?: Principal; guestSession?: string };
+  // the caller's own: theirs, and in their session for a guest (each browser - its own)
+  const isOwn = (request: Asker, c: { createdBy: number | null; guestSession: string | null }) =>
+    c.createdBy === user(request).sub && (c.guestSession ?? null) === (request.guestSession ?? null);
+  // another guest's conversation a guest reads (the guest's settings - public)
+  const guestReads = async (request: Asker, c: { guestSession: string | null }) =>
+    request.guestSession !== undefined && c.guestSession !== null && (await guestSettings()).conversations === "public";
+  // a conversation the caller may see: theirs, any for an admin, a shared or a scheduled run's one of an
+  // instance they may talk to, another guest's when the guests' are public
+  const ownConversation = async (request: Asker, id: number) => {
     const c = await getConversation(id);
-    return c && (c.createdBy === user(request).sub || c.scheduled || isAdmin(request)) ? c : null;
+    if (!c) return null;
+    if (isOwn(request, c) || isAdmin(request)) return c;
+    if (await guestReads(request, c)) return c;
+    return (c.scheduled || c.shared) && (await usableInstance(request))({ processId: c.processId }) && (c.processId !== null || c.instanceKey === NEXUS_EDGE_KEY) ? c : null;
   };
   // a conversation the caller may continue / delete (theirs; a scheduled run's - an admin)
-  const mayContinue = (request: { user: unknown }, c: { createdBy: number | null; scheduled: boolean }) =>
-    c.createdBy === user(request).sub || (c.scheduled && isAdmin(request));
+  const mayContinue = (request: Asker, c: { createdBy: number | null; scheduled: boolean; guestSession: string | null }) =>
+    isOwn(request, c) || (c.scheduled && isAdmin(request));
   const agentError = (reply: { code(n: number): { send(b: unknown): unknown } }, err: unknown) => {
     if (err instanceof AgentError) return reply.code(err.statusCode).send({ error: err.message });
     throw err;
   };
 
-  app.post<{ Body: { instanceKey?: string; workType?: string; title?: string } }>("/ai/conversations", { preHandler: requireAuth }, async (request, reply) => {
+  // the subject a person may ask about: it exists and its process (if any) is theirs to see
+  const subjectFor = async (request: Parameters<typeof usableInstance>[0], input: SubjectInput): Promise<Subject | null> => {
+    const subject = await resolveSubject(input);
+    if (!subject) return null;
+    if (subject.processId !== null && !(await usableInstance(request))({ processId: subject.processId })) return null;
+    return subject;
+  };
+
+  // the AI button on a thing (2026-10-24): which object and work type the assistant opens with -
+  // the DNP instance of the thing's process when the assistant is on for it, else the whole system
+  app.get<{ Querystring: { type?: string; id?: string; processId?: string; page?: string; view?: string } }>("/ai/subject", { preHandler: requireAuth }, async (request, reply) => {
+    const input = {
+      type: request.query.type,
+      id: request.query.id === undefined ? undefined : Number(request.query.id),
+      processId: request.query.processId ? Number(request.query.processId) : null,
+      page: request.query.page,
+      view: request.query.view ?? null,
+    } as SubjectInput;
+    const problem = subjectProblem(input);
+    if (problem) return reply.code(400).send({ error: problem });
+    const subject = await subjectFor(request, input);
+    if (!subject) return reply.code(404).send({ error: "no such subject" });
+    const connections = new Set((await listConnections()).filter((c) => c.enabled).map((c) => c.id));
+    const usable = await usableInstance(request);
+    const on = (await listInstances()).filter((i) => i.connectionId !== null && connections.has(i.connectionId) && usable(i));
+    const instance = on.find((i) => subject.processId !== null && i.processId === subject.processId) ?? on.find((i) => i.key === NEXUS_EDGE_KEY);
+    if (!instance) return reply.code(409).send({ error: "the assistant is off for this - Service -> Config -> AI" });
+    const wanted = subjectWorkType(subject);
+    const workType = instance.workTypes.find((w) => w.key === wanted)?.key ?? instance.workTypes[0]?.key;
+    return {
+      subject: { type: subject.type, id: subject.id, processId: subject.processId, label: subject.label, page: subject.page, view: subject.view ?? null },
+      instanceKey: instance.key,
+      workType,
+    };
+  });
+
+  app.post<{ Body: { instanceKey?: string; workType?: string; title?: string; subject?: SubjectInput } }>("/ai/conversations", { preHandler: requireAuth }, async (request, reply) => {
     const { instanceKey, workType, title } = request.body ?? {};
     if (!instanceKey || !workType) return reply.code(400).send({ error: "instanceKey and workType are required" });
+    const instance = await getInstance(instanceKey);
+    if (!instance || !(await usableInstance(request))(instance)) return reply.code(404).send({ error: "no such instance" });
+    let subject: Subject | null = null;
+    if (request.body?.subject != null) {
+      const problem = subjectProblem(request.body.subject);
+      if (problem) return reply.code(400).send({ error: problem });
+      subject = await subjectFor(request, request.body.subject);
+      if (!subject) return reply.code(404).send({ error: "no such subject" });
+    }
     try {
-      return await startConversation(instanceKey, workType, title ?? null, user(request).sub);
+      return await startConversation(instanceKey, workType, title ?? null, user(request).sub, null, request.guestSession ?? null, subject);
     } catch (err) {
       return agentError(reply, err);
     }
@@ -197,20 +268,57 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
 
   app.get<{ Querystring: { instanceKey?: string; limit?: string } }>("/ai/conversations", { preHandler: requireAuth }, async (request) => {
     const limit = Math.min(200, Math.max(1, Number(request.query.limit) || 50));
+    const publicGuests = request.guestSession !== undefined && (await guestSettings()).conversations === "public";
     const rows = (
       await pool.query(
-        `SELECT id, instance_key, work_type, title, model, tokens_in, tokens_out, scheduled, created_at, updated_at FROM ai_conversations
-         WHERE (created_by = $1 OR scheduled) AND ($2::text IS NULL OR instance_key = $2) ORDER BY updated_at DESC LIMIT $3`,
-        [user(request).sub, request.query.instanceKey ?? null, limit],
+        `SELECT id, instance_key, process_id, work_type, title, model, tokens_in, tokens_out, scheduled, shared, created_by, guest_session, created_at, updated_at
+           FROM ai_conversations
+          WHERE ((created_by = $1 AND guest_session IS NOT DISTINCT FROM $4::text) OR scheduled OR shared OR ($5 AND guest_session IS NOT NULL))
+            AND ($2::text IS NULL OR instance_key = $2) ORDER BY updated_at DESC LIMIT $3`,
+        [user(request).sub, request.query.instanceKey ?? null, limit, request.guestSession ?? null, publicGuests],
       )
     ).rows;
-    return { conversations: rows };
+    // others' scheduled runs and shared ones - only of the instances this person may talk to; other guests' -
+    // when the guests' are public. `mine` - the caller's own (the rest read only)
+    const usable = await usableInstance(request);
+    return {
+      conversations: rows
+        .map(({ guest_session: guestSession, ...r }) => ({ ...r, mine: isOwn(request, { createdBy: r.created_by, guestSession }), guest: guestSession !== null }))
+        .filter((r) => r.mine || (publicGuests && r.guest) || usable({ processId: r.process_id })),
+    };
+  });
+
+  // another topic on the way (2026-10-24): the object and the work type of a conversation of yours
+  app.patch<{ Params: { id: string }; Body: { instanceKey?: string; workType?: string } }>("/ai/conversations/:id/topic", { preHandler: requireAuth }, async (request, reply) => {
+    const { instanceKey, workType } = request.body ?? {};
+    if (!instanceKey || !workType) return reply.code(400).send({ error: "instanceKey and workType are required" });
+    const c = await ownConversation(request, Number(request.params.id));
+    if (!c || !mayContinue(request, c)) return reply.code(404).send({ error: "no such conversation of yours" });
+    const instance = await getInstance(instanceKey);
+    if (!instance || !(await usableInstance(request))(instance)) return reply.code(404).send({ error: "no such instance" });
+    try {
+      const changed = await changeTopic(c.id, instanceKey, workType);
+      return { ...changed, proposals: (await listProposals({ conversationId: c.id, limit: 500 })).items };
+    } catch (err) {
+      return agentError(reply, err);
+    }
+  });
+
+  // share one's conversation (2026-10-27; the former demo showcase): everyone who may talk to its
+  // instance's assistant reads it (the guest too, when its role lets it)
+  app.patch<{ Params: { id: string }; Body: { shared?: boolean } }>("/ai/conversations/:id/shared", { preHandler: requireAuth }, async (request, reply) => {
+    if (typeof request.body?.shared !== "boolean") return reply.code(400).send({ error: "shared (boolean) is required" });
+    const c = await getConversation(Number(request.params.id));
+    if (!c || c.guestSession !== null || !(isOwn(request, c) || isAdmin(request))) return reply.code(404).send({ error: "no such conversation of yours" });
+    await pool.query("UPDATE ai_conversations SET shared = $2 WHERE id = $1", [c.id, request.body.shared]);
+    return { id: c.id, shared: request.body.shared };
   });
 
   app.get<{ Params: { id: string } }>("/ai/conversations/:id", { preHandler: requireAuth }, async (request, reply) => {
     const c = await ownConversation(request, Number(request.params.id));
     if (!c) return reply.code(404).send({ error: "no such conversation" });
-    return { ...c, proposals: (await listProposals({ conversationId: c.id, limit: 500 })).items };
+    const { guestSession, ...rest } = c;
+    return { ...rest, guest: guestSession !== null, mine: isOwn(request, c), proposals: (await listProposals({ conversationId: c.id, limit: 500 })).items };
   });
 
   app.post<{ Params: { id: string }; Body: { text?: string } }>("/ai/conversations/:id/messages", { preHandler: requireAuth }, async (request, reply) => {
@@ -294,6 +402,10 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
     if (decision !== "accept" && decision !== "reject") return reply.code(404).send({ error: "accept or reject" });
     const id = Number(request.params.id);
     if (!isAdmin(request) && (await proposalOwner(id)) !== user(request).sub) return reply.code(404).send({ error: "no such proposal of yours" });
+    // a change of someone's access - only for a person who manages users (B1.4)
+    const target = await getProposal(id);
+    if (target?.operation === "roles" && !(request.principal && can(request.principal, "users.manage")))
+      return reply.code(403).send({ error: "only a person who manages users decides an access change" });
     try {
       return await decide(id, user(request).sub, decision);
     } catch (err) {
@@ -347,16 +459,29 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
   app.post("/ai/calendar/tick", async () => ({ started: await calendarTick() }));
 
   // what the messenger offers: the instances the assistant is on for
-  app.get("/ai/entities", { preHandler: requireAuth }, async () => {
+  app.get("/ai/entities", { preHandler: requireAuth }, async (request) => {
     const connections = new Map((await listConnections()).filter((c) => c.enabled).map((c) => [c.id, c]));
+    const usable = await usableInstance(request);
+    const instances = await listInstances();
+    // a DNP instance's picture - its package's Library icon (its process type's, else its node type's)
+    const icons = new Map(
+      (
+        await pool.query<{ type_name: string; icon_path: string }>(
+          "SELECT DISTINCT ON (type_name) type_name, icon_path FROM library_items WHERE type_name = ANY($1::text[]) AND icon_path IS NOT NULL ORDER BY type_name, (kind = 'process') DESC",
+          [instances.map((i) => i.kind)],
+        )
+      ).rows.map((r) => [r.type_name, r.icon_path]),
+    );
     return {
-      entities: (await listInstances())
-        .filter((i) => i.connectionId !== null && connections.has(i.connectionId))
+      quickStart: config.ai.quickStart,
+      entities: instances
+        .filter((i) => i.connectionId !== null && connections.has(i.connectionId) && usable(i))
         .map((i) => ({
           key: i.key,
           name: i.name,
           kind: i.kind,
           processId: i.processId,
+          iconPath: icons.get(i.kind) ?? null,
           workTypes: i.workTypes,
           connectionName: connections.get(i.connectionId!)!.name,
           model: connections.get(i.connectionId!)!.model,

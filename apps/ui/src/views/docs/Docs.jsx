@@ -1,5 +1,6 @@
 import React from 'react'
 import { CCard, CCardBody, CCardHeader } from '@coreui/react'
+import PageTitle from '../../components/PageTitle'
 
 /**
  * Local placeholder (AGENTS.md section 15 - CoreUI demo cleanup). Replaces
@@ -12,7 +13,7 @@ const Docs = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <strong>Docs</strong>
+        <PageTitle title="Docs" />
       </CCardHeader>
       <CCardBody>Nothing here yet.</CCardBody>
     </CCard>

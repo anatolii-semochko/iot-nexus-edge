@@ -21,7 +21,13 @@ import ResetFiltersButton from '../../components/ResetFiltersButton'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
-import { formatSmartDateTime, localDateTimeToIso, userInitials, userTitle } from '../../utils/format'
+import {
+  formatSmartDateTime,
+  localDateTimeToIso,
+  userInitials,
+  userTitle,
+} from '../../utils/format'
+import AiButton from '../../components/ai/AiButton'
 
 const ACTIONS = [
   'write',
@@ -92,6 +98,13 @@ const ActorCell = ({ actorUser }) => {
  * matching `onXChange` callbacks, the same prop-per-field convention
  * ProcessesTable.jsx already uses.
  */
+// the record the AI is asked about (its subject's `view`, up to 300 characters)
+const recordView = (item) =>
+  `the command log record: ${new Date(item.created_at).toISOString()}, ${item.actor_user?.username ?? 'orchestrator'}, ${item.action} ${String(formatValue(item.value) ?? '')}`.slice(
+    0,
+    300,
+  )
+
 const CommandLogsTab = ({
   devices,
   users,
@@ -204,6 +217,7 @@ const CommandLogsTab = ({
                 <CTableHeaderCell scope="col">Target</CTableHeaderCell>
                 <CTableHeaderCell scope="col">Action</CTableHeaderCell>
                 <CTableHeaderCell scope="col">Value</CTableHeaderCell>
+                <CTableHeaderCell scope="col" />
               </CTableRow>
             </CTableHead>
             <CTableBody>
@@ -227,6 +241,23 @@ const CommandLogsTab = ({
                   </CTableDataCell>
                   <CTableDataCell>{item.action}</CTableDataCell>
                   <CTableDataCell>{formatValue(item.value)}</CTableDataCell>
+                  <CTableDataCell className="text-end text-nowrap">
+                    {/* the AI on the record's device / process (else the page), the record itself told
+                        (the user, 2026-10-25: "why did this switch?") */}
+                    <AiButton
+                      action
+                      className="align-middle"
+                      subject={{
+                        ...(item.device_id
+                          ? { type: 'device', id: item.device_id }
+                          : item.process_id
+                            ? { type: 'process', id: item.process_id }
+                            : { type: 'page', page: 'Logs' }),
+                        view: recordView(item),
+                      }}
+                      label="this command"
+                    />
+                  </CTableDataCell>
                 </CTableRow>
               ))}
             </CTableBody>

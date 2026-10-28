@@ -1,5 +1,6 @@
 import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { isSwitchLanding } from '../../roleSwitch'
 import {
   CAlert,
   CBreadcrumb,
@@ -32,6 +33,9 @@ import { cardIcon } from '../../dashboardIcons'
 const PREVIEW_WIDTH = 1400
 // the card's picture block (2026-10-16: 9 -> 10.8, the cards 20 % taller)
 const PREVIEW_HEIGHT_REM = 10.8
+// the picture block's height - a framed card's padding (p-2) and divider taken by an unframed one's picture,
+// so every card's title sits at one height (the user, 2026-10-25)
+const PREVIEW_H = `var(--dc-preview-h, ${PREVIEW_HEIGHT_REM}rem)`
 
 const childrenOf = (cards, parentId) =>
   cards
@@ -67,7 +71,11 @@ const ComponentView = ({ card, processes, scale }) => {
   const Component = def.Component
   return (
     <Suspense fallback={<CSpinner size="sm" />}>
-      <Component process={process} {...(scale ? { preview: true } : {})} />
+      <Component
+        process={process}
+        params={card.params ?? {}}
+        {...(scale ? { preview: true } : {})}
+      />
     </Suspense>
   )
 }
@@ -99,7 +107,7 @@ const FitBox = ({ children }) => {
       ref={box}
       style={{
         position: 'relative',
-        height: `${PREVIEW_HEIGHT_REM}rem`,
+        height: PREVIEW_H,
         overflow: 'hidden',
         pointerEvents: 'none',
       }}
@@ -123,6 +131,64 @@ const FitBox = ({ children }) => {
   )
 }
 
+// Draws `children` at their natural size and scales them to fill the box -
+// as large as fits both ways, centered (an unframed card's avatar - to the
+// block's edges, AGENTS_TO_DO.md 2026-10-23 heating 9); `grow` false - only
+// shrunk when larger than the box, never enlarged (a framed card's avatar -
+// as it is, but whole); measured live.
+const StretchBox = ({ grow = true, children }) => {
+  const box = useRef(null)
+  const inner = useRef(null)
+  const [size, setSize] = useState(null)
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (!box.current || !inner.current) return
+      setSize({
+        width: box.current.clientWidth,
+        height: box.current.clientHeight,
+        naturalWidth: inner.current.offsetWidth,
+        naturalHeight: inner.current.offsetHeight,
+      })
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(box.current)
+    observer.observe(inner.current)
+    return () => observer.disconnect()
+  }, [])
+  const scale =
+    size?.naturalWidth && size?.naturalHeight
+      ? Math.min(
+          size.width / size.naturalWidth,
+          size.height / size.naturalHeight,
+          grow ? Infinity : 1,
+        )
+      : 0
+  return (
+    <div
+      ref={box}
+      style={{ position: 'relative', height: PREVIEW_H, overflow: 'hidden' }}
+      aria-hidden="true"
+    >
+      <div
+        ref={inner}
+        style={{
+          position: 'absolute',
+          left: size ? (size.width - size.naturalWidth * scale) / 2 : 0,
+          top: size ? (size.height - size.naturalHeight * scale) / 2 : 0,
+          // its own size, not squeezed to the card's width
+          width: 'max-content',
+          transform: `scale(${scale})`,
+          transformOrigin: '0 0',
+          visibility: scale ? 'visible' : 'hidden',
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 // The avatar a card shows: the one its `preview` names, "auto" - the
 // component's first; null - a scaled copy of the component.
 const avatarOf = (def, preview) =>
@@ -131,17 +197,48 @@ const avatarOf = (def, preview) =>
     : ((def.avatars ?? []).find((a) => preview === 'auto' || a.key === preview) ?? null)
 
 // The card's picture: a folder's icon; a component's avatar - one made for
-// the block (it fills it), or a `fit` one / a copy of the component scaled
-// into the block (FitBox).
-const CardPreview = ({ card, processes }) => {
+// the block (StretchBox: unframed - scaled to the block's edges; framed -
+// as it is, shrunk only when larger than the block), or a `fit` one / a
+// copy of the component scaled into the block (FitBox).
+// a card's own uploaded picture (migration 091) - the URL carries its upload time (the cache)
+export const cardImageUrl = (card, slot) =>
+  card.id && card.picture?.[slot]
+    ? `/api/dashboard-cards/${card.id}/images/${slot}?v=${card.picture[slot].at}`
+    : null
+
+const CardPreview = ({ card, processes, frame }) => {
+  // no picture at all (the user, 2026-10-25) - the block empty (its background, if any, shows)
+  if (card.picture?.hidden) return <div style={{ height: PREVIEW_H }} />
+  // its own picture instead of the icon / the avatar, at its size (a share of the block's height; over
+  // 100 % - larger than the block, only its middle seen)
+  const own = card.picture?.useImage ? cardImageUrl(card, 'icon') : null
+  if (own)
+    return (
+      <div
+        className="d-flex align-items-center justify-content-center position-relative"
+        style={{ height: PREVIEW_H }}
+      >
+        <img
+          src={own}
+          alt=""
+          style={{
+            height: `${card.picture.imageScalePct ?? 80}%`,
+            maxWidth: (card.picture.imageScalePct ?? 80) > 100 ? 'none' : '100%',
+            objectFit: 'contain',
+            flexShrink: 0,
+          }}
+        />
+      </div>
+    )
   if (card.type === 'folder') {
+    // framed - about 60 % of the block's height; unframed - the whole block
+    const size = frame === 'none' ? PREVIEW_H : '6.6rem'
     return (
       <div
         className="d-flex align-items-center justify-content-center text-body-secondary"
-        style={{ height: `${PREVIEW_HEIGHT_REM}rem` }}
+        style={{ height: PREVIEW_H }}
       >
-        {/* about 60 % of the block's height */}
-        <CIcon icon={cardIcon(card)} style={{ width: '6.6rem', height: '6.6rem' }} />
+        <CIcon icon={cardIcon(card)} style={{ width: size, height: size }} />
       </div>
     )
   }
@@ -151,21 +248,18 @@ const CardPreview = ({ card, processes }) => {
   if (avatar && !avatar.fit) {
     const Avatar = avatar.Component
     return (
-      <div
-        style={{ height: `${PREVIEW_HEIGHT_REM}rem`, position: 'relative', overflow: 'hidden' }}
-        aria-hidden="true"
-      >
+      <StretchBox grow={frame === 'none'}>
         <Suspense fallback={<CSpinner size="sm" />}>
-          <Avatar process={process} />
+          <Avatar process={process} params={card.params ?? {}} />
         </Suspense>
-      </div>
+      </StretchBox>
     )
   }
   return (
     <FitBox>
       <Suspense fallback={<CSpinner size="sm" />}>
         {avatar ? (
-          <avatar.Component process={process} />
+          <avatar.Component process={process} params={card.params ?? {}} />
         ) : (
           <ComponentView card={card} processes={processes} scale />
         )}
@@ -174,22 +268,96 @@ const CardPreview = ({ card, processes }) => {
   )
 }
 
-// A folder - a card with its border, background and divider; a component -
-// no border, background or divider: its picture and its name (2026-10-16).
-const BlockCard = ({ card, processes }) => {
-  const folder = card.type === 'folder'
-  return (
-    <Link to={`/dashboard/${card.id}`} className="text-decoration-none text-reset">
-      <CCard className={folder ? 'h-100 shadow-sm' : 'h-100 border-0 bg-transparent shadow-none'}>
-        <div className={folder ? 'border-bottom overflow-hidden' : 'overflow-hidden'}>
-          <CardPreview card={card} processes={processes} />
+// A card's frame (`card.frame`, 2026-10-22): "none" - no border, background
+// or divider, its picture to the block's edges; "border" - a border and the
+// divider, no background, the picture padded; "filled" - a border, the
+// divider and the card's background. Unset - a folder filled, a component
+// none (the rule of 2026-10-16).
+export const cardFrame = (card) => card.frame ?? (card.type === 'folder' ? 'filled' : 'none')
+
+const FRAME_CLASSES = {
+  none: 'h-100 border-0 bg-transparent shadow-none',
+  // the border round the title's block only - the picture above to the card's edges (the user, 2026-10-25:
+  // a light border round a dark image showed a pixel's gap)
+  caption: 'h-100 border-0 bg-transparent shadow-none',
+  border: 'h-100 bg-transparent shadow-none',
+  filled: 'h-100 shadow-sm',
+}
+
+export const BlockCard = ({ card, processes, linked = true }) => {
+  const frame = cardFrame(card)
+  const caption = frame === 'caption'
+  const framed = frame !== 'none' && !caption
+  const body = (
+    <CCard className={FRAME_CLASSES[frame]}>
+      <div
+        className={`position-relative ${framed ? 'border-bottom overflow-hidden p-2' : 'overflow-hidden'}`}
+        // the pictures (an own image, a background) inside the card's rounded corners (the user,
+        // 2026-10-25): framed - the top corners, the block's bottom meets the divider; unframed - all four
+        style={
+          framed
+            ? {
+                borderTopLeftRadius: 'var(--cui-card-inner-border-radius)',
+                borderTopRightRadius: 'var(--cui-card-inner-border-radius)',
+              }
+            : caption
+              ? {
+                  // as tall as a framed one's (its padding, the card's top border) - the titles on one line
+                  '--dc-preview-h': `calc(${PREVIEW_HEIGHT_REM}rem + 1rem + 1.2px)`,
+                  borderTopLeftRadius: 'var(--cui-card-border-radius)',
+                  borderTopRightRadius: 'var(--cui-card-border-radius)',
+                }
+              : {
+                  '--dc-preview-h': `calc(${PREVIEW_HEIGHT_REM}rem + 1rem + 1px)`,
+                  borderRadius: 'var(--cui-card-border-radius)',
+                }
+        }
+      >
+        {/* its own background (migration 091) - the whole top block, under the picture */}
+        {cardImageUrl(card, 'background') && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `url(${cardImageUrl(card, 'background')})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              opacity: (card.picture.backgroundOpacityPct ?? 40) / 100,
+              // its scale: 100 % - covers the block, over - larger (its middle seen), under - smaller, centred
+              transform: `scale(${(card.picture.backgroundScalePct ?? 100) / 100})`,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+        <div className="position-relative">
+          <CardPreview card={card} processes={processes} frame={caption ? 'none' : frame} />
         </div>
-        <CCardBody className={`py-2 d-flex align-items-center gap-2 ${folder ? 'px-3' : 'px-1'}`}>
-          <CIcon icon={cardIcon(card)} className="text-body-secondary flex-shrink-0" />
-          <span className="fw-semibold text-truncate">{card.title}</span>
-        </CCardBody>
-      </CCard>
+      </div>
+      <CCardBody
+        className={`py-2 d-flex align-items-center justify-content-center gap-2 ${framed || caption ? 'px-3' : 'px-1'}`}
+        style={
+          caption
+            ? {
+                border: '1px solid var(--cui-border-color)',
+                borderBottomLeftRadius: 'var(--cui-card-border-radius)',
+                borderBottomRightRadius: 'var(--cui-card-border-radius)',
+                background: 'var(--cui-card-bg, var(--cui-body-bg))',
+              }
+            : undefined
+        }
+      >
+        <CIcon icon={cardIcon(card)} className="text-body-secondary flex-shrink-0" />
+        <span className="fw-semibold text-truncate">{card.title}</span>
+      </CCardBody>
+    </CCard>
+  )
+  return linked ? (
+    <Link to={`/dashboard/${card.id}`} className="text-decoration-none text-reset">
+      {body}
     </Link>
+  ) : (
+    body
   )
 }
 
@@ -283,6 +451,7 @@ const FitHeight = ({ children }) => {
 
 const Dashboard = () => {
   const { cardId } = useParams()
+  const { pathname } = useLocation()
   const navigate = useNavigate()
   const [cards, setCards] = useState(null)
   const [processes, setProcesses] = useState([])
@@ -316,26 +485,34 @@ const Dashboard = () => {
 
   const card = cardId ? cards.find((c) => c.id === Number(cardId)) : null
   if (cardId && !card)
-    return <CAlert color="warning">This card is not there (removed, or not visible to you).</CAlert>
+    // right after a role switch - a folder the new role doesn't see: the Dashboard's top (roleSwitch.js)
+    return isSwitchLanding(pathname) ? (
+      <Navigate to="/dashboard" replace />
+    ) : (
+      <CAlert color="warning">This card is not there (removed, or not visible to you).</CAlert>
+    )
   const path = card ? pathTo(cards, card) : []
 
   // the open level / card - plain text; the ones above it - links
+  // (the AI button moved from here to the page's title - the user, 2026-10-25)
   const crumb = (key, to, title, active) =>
     active ? (
       <CBreadcrumbItem key={key} active>
         {title}
       </CBreadcrumbItem>
     ) : (
-      <CBreadcrumbItem
-        key={key}
-        href={`#${to}`}
-        onClick={(e) => (e.preventDefault(), navigate(to))}
-      >
-        {title}
+      <CBreadcrumbItem key={key}>
+        <a
+          href={`#${to}`}
+          className="link-primary text-decoration-none"
+          onClick={(e) => (e.preventDefault(), navigate(to))}
+        >
+          {title}
+        </a>
       </CBreadcrumbItem>
     )
   const breadcrumb = (
-    <CBreadcrumb className="mb-3">
+    <CBreadcrumb className="mb-3 fw-semibold">
       {crumb('root', '/dashboard', 'Dashboard', !card)}
       {path.map((c, i) => crumb(c.id, `/dashboard/${c.id}`, c.title, i === path.length - 1))}
     </CBreadcrumb>

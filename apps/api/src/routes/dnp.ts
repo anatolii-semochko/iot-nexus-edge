@@ -25,9 +25,8 @@ import { applyPendingExtraMigrations, listExtraMigrations } from "../extraMigrat
 const exists = async (p: string) => stat(p).then(() => true, () => false);
 
 async function projectPlugins(): Promise<object[]> {
-  const dir = config.apiPlugins.extraDir;
-  if (!dir) return [];
   const out: object[] = [];
+  for (const { dir } of config.apiPlugins.extraDirs)
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const root = path.join(dir, entry.name);

@@ -1,4 +1,5 @@
 import { pool } from "./db.js";
+import { instanceUnits } from "./dnpInstances.js";
 import { initUnreadCounts } from "./processMessages.js";
 
 // Clear Logs with a choice (Service -> Database; nexus-edge-aquarium
@@ -33,49 +34,6 @@ const PERMANENT: { key: string; name: string; detail: string }[] = [
   { key: "system", name: "System", detail: "core, users, standalone devices" },
 ];
 
-interface UnitMap {
-  units: Map<string, { name: string; detail: string[] }>;
-  processUnit: Map<number, string>;
-  deviceUnit: Map<number, string>;
-}
-
-// every process and device -> its unit
-async function unitMap(): Promise<UnitMap> {
-  const [nodes, processes, devices] = await Promise.all([
-    pool.query<{ id: number; root: number; root_name: string }>(
-      `WITH RECURSIVE tree AS (
-         SELECT id, id AS root, name AS root_name FROM nodes WHERE parent_id IS NULL
-         UNION ALL
-         SELECT n.id, t.root, t.root_name FROM nodes n JOIN tree t ON n.parent_id = t.id)
-       SELECT id, root, root_name FROM tree`,
-    ),
-    pool.query<{ id: number; name: string; kind: string; node_id: number | null }>("SELECT id, name, kind, node_id FROM processes ORDER BY id"),
-    pool.query<{ id: number; node_id: number | null }>("SELECT id, node_id FROM devices"),
-  ]);
-  const rootOf = new Map(nodes.rows.map((n) => [n.id, n]));
-  const units = new Map<string, { name: string; detail: string[] }>();
-  const processUnit = new Map<number, string>();
-  const deviceUnit = new Map<number, string>();
-  const unitOfNode = (nodeId: number | null) => {
-    const n = nodeId === null ? undefined : rootOf.get(nodeId);
-    if (!n) return null;
-    const key = `node:${n.root}`;
-    if (!units.has(key)) units.set(key, { name: n.root_name, detail: [] });
-    return key;
-  };
-  for (const p of processes.rows) {
-    let key = unitOfNode(p.node_id);
-    if (key) units.get(key)!.detail.push(p.name);
-    else {
-      key = `process:${p.id}`;
-      units.set(key, { name: p.name, detail: [p.kind] });
-    }
-    processUnit.set(p.id, key);
-  }
-  for (const d of devices.rows) deviceUnit.set(d.id, unitOfNode(d.node_id) ?? "system");
-  return { units, processUnit, deviceUnit };
-}
-
 const cutoffOf = (before: string | null) => {
   if (before === null || before === "") return null;
   const t = new Date(before);
@@ -89,7 +47,7 @@ const NOT_ACTIVE = "NOT (resolved_at IS NULL AND hidden = false)";
 /** Every unit with its log volume up to `before` (null - all): the permanent ones first, then the larger first. */
 export async function logVolumes(before: string | null): Promise<LogUnit[]> {
   const cutoff = cutoffOf(before);
-  const map = await unitMap();
+  const map = await instanceUnits();
   const [command, device, messages, conversations, reports, proposals] = await Promise.all([
     pool.query<{ process_id: number | null; device_id: number | null; n: string; bytes: string }>(
       `SELECT process_id, device_id, count(*) AS n, sum(pg_column_size(c.*)) AS bytes FROM log_command c
@@ -149,9 +107,9 @@ export async function logVolumes(before: string | null): Promise<LogUnit[]> {
 }
 
 /** Deletes the logs of `keys` up to `before` (null - all) - the rows deleted per table. */
-export async function clearLogs(before: string | null, keys: string[]): Promise<Record<string, number>> {
+export async function clearLogs(before: string | null, keys: string[], options: { keepShared?: boolean } = {}): Promise<Record<string, number>> {
   const cutoff = cutoffOf(before);
-  const map = await unitMap();
+  const map = await instanceUnits();
   const chosen = new Set(keys);
   const processIds = [...map.processUnit.entries()].filter(([, k]) => chosen.has(k)).map(([id]) => id);
   const deviceIds = [...map.deviceUnit.entries()].filter(([, k]) => chosen.has(k)).map(([id]) => id);
@@ -185,8 +143,13 @@ export async function clearLogs(before: string | null, keys: string[]): Promise<
          OR ($3 AND (process_id IS NULL OR NOT EXISTS (SELECT 1 FROM processes p WHERE p.id = process_id))))`,
       [cutoff, processIds, system],
     );
+    // `keepShared` - the nightly retention keeps the shared conversations (ai routes - "Share"; migration 094)
     if (chosen.has("ai-messenger"))
-      await run("ai_conversations", "DELETE FROM ai_conversations WHERE $1::timestamptz IS NULL OR updated_at < $1", [cutoff]);
+      await run(
+        "ai_conversations",
+        `DELETE FROM ai_conversations WHERE ($1::timestamptz IS NULL OR updated_at < $1) AND NOT ($2 AND shared)`,
+        [cutoff, options.keepShared ?? false],
+      );
     if (chosen.has("ai-reports")) await run("ai_reports", `DELETE FROM ai_reports WHERE ${time}`, [cutoff]);
     if (chosen.has("ai-proposals")) await run("ai_proposals", `DELETE FROM ai_proposals WHERE status <> 'pending' AND ${time}`, [cutoff]);
     await client.query("COMMIT");
@@ -202,4 +165,11 @@ export async function clearLogs(before: string | null, keys: string[]): Promise<
   // numbers. Resynced from the tables, as at boot.
   await initUnreadCounts();
   return deleted;
+}
+
+/** Everything older than `days` days - every unit (the nightly retention, maintenance.ts). */
+export async function clearLogsOlderThan(days: number): Promise<Record<string, number>> {
+  const map = await instanceUnits();
+  const keys = [...PERMANENT.map((p) => p.key), ...map.units.keys()];
+  return clearLogs(new Date(Date.now() - days * 86_400_000).toISOString(), keys, { keepShared: true });
 }

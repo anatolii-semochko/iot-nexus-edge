@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import {
   CAlert,
   CButton,
+  CFormCheck,
   CFormInput,
   CFormLabel,
   CFormSelect,
@@ -38,6 +39,13 @@ const NodeSettingsModal = ({ visible, onClose, node, nodes = [], nodeGroups, onS
   const [location, setLocation] = useState('')
   const [groupId, setGroupId] = useState('')
   const [parentId, setParentId] = useState('')
+  // the information popup's details (AGENTS_TO_DO.md 2026-10-20, X1)
+  const [info, setInfo] = useState(null)
+  const [model, setModel] = useState('')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
+  const [photo, setPhoto] = useState(null)
+  const [removePhoto, setRemovePhoto] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -49,7 +57,17 @@ const NodeSettingsModal = ({ visible, onClose, node, nodes = [], nodeGroups, onS
 
       setGroupId(node.group_id ?? '')
       setParentId(node.parent_id ?? '')
+      setModel(node.model ?? '')
+      setLatitude(node.latitude ?? '')
+      setLongitude(node.longitude ?? '')
+      setPhoto(null)
+      setRemovePhoto(false)
+      setInfo(null)
       setError(null)
+      api
+        .getNodeInfo(node.id)
+        .then(setInfo)
+        .catch(() => {})
     }
   }, [visible, node])
 
@@ -62,14 +80,28 @@ const NodeSettingsModal = ({ visible, onClose, node, nodes = [], nodeGroups, onS
       setError('Name is required')
       return
     }
+    const lat = latitude === '' ? null : Number(latitude)
+    const lon = longitude === '' ? null : Number(longitude)
+    if (
+      (lat === null) !== (lon === null) ||
+      (lat !== null && (Number.isNaN(lat) || Number.isNaN(lon)))
+    ) {
+      setError('Latitude and longitude: both numbers, or both empty')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
+      await api.setNodeDetails(node.id, { model: model || null, latitude: lat, longitude: lon })
+      if (photo) await api.uploadNodePhoto(node.id, photo)
+      else if (removePhoto) await api.deleteNodePhoto(node.id)
       await Promise.all([
         api.renameNode(node.id, trimmedName),
         api.setNodeLocation(node.id, location.trim()),
         api.setNodeGroup(node.id, groupId === '' ? null : Number(groupId)),
-        ...(parentTypes.length > 0 ? [api.setNodeParent(node.id, parentId === '' ? null : Number(parentId))] : []),
+        ...(parentTypes.length > 0
+          ? [api.setNodeParent(node.id, parentId === '' ? null : Number(parentId))]
+          : []),
       ])
       onSaved?.()
       onClose()
@@ -109,10 +141,74 @@ const NodeSettingsModal = ({ visible, onClose, node, nodes = [], nodeGroups, onS
             </option>
           ))}
         </CFormSelect>
+        {info?.models?.length > 0 && (
+          <div className="mt-3">
+            <CFormLabel>Model</CFormLabel>
+            <CFormSelect
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              disabled={busy}
+              title="Which of the node type's reference models this unit is - shown in its information popup"
+            >
+              <option value="">{`Default - ${info.models[0].name}`}</option>
+              {info.models.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.name}
+                </option>
+              ))}
+            </CFormSelect>
+          </div>
+        )}
+        <div className="mt-3">
+          <CFormLabel>Position on the map</CFormLabel>
+          <div className="d-flex gap-2">
+            <CFormInput
+              value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+              disabled={busy}
+              placeholder="Latitude"
+              inputMode="decimal"
+              aria-label="Latitude"
+              title="Latitude, degrees (-90..90) - e.g. 51.3127"
+            />
+            <CFormInput
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+              disabled={busy}
+              placeholder="Longitude"
+              inputMode="decimal"
+              aria-label="Longitude"
+              title="Longitude, degrees (-180..180) - e.g. 9.4797"
+            />
+          </div>
+        </div>
+        <div className="mt-3">
+          <CFormLabel>Photo of the unit</CFormLabel>
+          <CFormInput
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+            disabled={busy}
+            title="A photo of the real unit - shown in its information popup (JPEG, PNG or WebP)"
+          />
+          {info?.photo && !photo && (
+            <CFormCheck
+              className="mt-1"
+              label="Remove the current photo"
+              checked={removePhoto}
+              onChange={(e) => setRemovePhoto(e.target.checked)}
+              disabled={busy}
+            />
+          )}
+        </div>
         {parentTypes.length > 0 && (
           <div className="mt-3">
             <CFormLabel>Attached to</CFormLabel>
-            <CFormSelect value={parentId} onChange={(e) => setParentId(e.target.value)} disabled={busy}>
+            <CFormSelect
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              disabled={busy}
+            >
               <option value="">Not attached</option>
               {parentCandidates.map((n) => (
                 <option key={n.id} value={n.id}>

@@ -1,0 +1,5 @@
+{
+  "id": "device-thermal-energy",
+  "name": "Thermal Energy",
+  "description": "Heat counter - single Float32 reading (kWh), read-only; the heat a circuit delivered since installation (a heat meter register)."
+}

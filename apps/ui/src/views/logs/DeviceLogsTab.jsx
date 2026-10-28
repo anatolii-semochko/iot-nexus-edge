@@ -21,6 +21,7 @@ import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
 import { formatSmartDateTime, localDateTimeToIso } from '../../utils/format'
+import AiButton from '../../components/ai/AiButton'
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
@@ -111,7 +112,9 @@ const DeviceLogsTab = ({
           <CSpinner color="primary" />
         </div>
       ) : items.length === 0 ? (
-        <CAlert color="info" className={'mt-3'}>No device logs match this filter.</CAlert>
+        <CAlert color="info" className={'mt-3'}>
+          No device logs match this filter.
+        </CAlert>
       ) : (
         <>
           <CTable responsive>
@@ -121,6 +124,7 @@ const DeviceLogsTab = ({
                 <CTableHeaderCell scope="col">Device</CTableHeaderCell>
                 <CTableHeaderCell scope="col">Value</CTableHeaderCell>
                 <CTableHeaderCell scope="col">Source</CTableHeaderCell>
+                <CTableHeaderCell scope="col" />
               </CTableRow>
             </CTableHead>
             <CTableBody>
@@ -132,6 +136,24 @@ const DeviceLogsTab = ({
                   <CTableDataCell>{item.device_name ?? `#${item.device_id ?? '?'}`}</CTableDataCell>
                   <CTableDataCell>{formatValue(item.value)}</CTableDataCell>
                   <CTableDataCell>{item.source}</CTableDataCell>
+                  <CTableDataCell className="text-end text-nowrap">
+                    {/* the AI on the device, the record itself told (the user, 2026-10-25) */}
+                    {item.device_id && (
+                      <AiButton
+                        action
+                        className="align-middle"
+                        subject={{
+                          type: 'device',
+                          id: item.device_id,
+                          view: `the device log record: ${new Date(item.created_at).toISOString()}, value ${String(formatValue(item.value) ?? '')}, source ${item.source}`.slice(
+                            0,
+                            300,
+                          ),
+                        }}
+                        label="this record"
+                      />
+                    )}
+                  </CTableDataCell>
                 </CTableRow>
               ))}
             </CTableBody>

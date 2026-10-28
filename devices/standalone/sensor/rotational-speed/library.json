@@ -1,0 +1,5 @@
+{
+  "id": "device-rotational-speed",
+  "name": "Rotational Speed",
+  "description": "Rotational speed - single Float32 reading (rpm), read-only: a rotor, a shaft, a fan."
+}

@@ -33,6 +33,10 @@ export async function request(path, options = {}) {
     try {
       const body = JSON.parse(text)
       message = body.reason ?? body.error ?? message
+      // access control (api access/guard.ts): a refusal said in plain words
+      if (res.status === 403 && body.guest) message = 'Sign in to change this.'
+      else if (res.status === 403 && body.permission)
+        message = `You don't have the permission for this (${body.permission}).`
     } catch {
       // response wasn't JSON - keep the raw-text message above
     }
@@ -96,6 +100,23 @@ export const api = {
     request(`/nodes/${id}/name`, { method: 'PATCH', body: JSON.stringify({ name }) }),
   setNodeLocation: (id, location) =>
     request(`/nodes/${id}/location`, { method: 'PATCH', body: JSON.stringify({ location }) }),
+  // A node's information popup (AGENTS_TO_DO.md 2026-10-20, X1): its type,
+  // its Library model, the photo, the point on the map; the engineer sets
+  // the model / the point / the photo in the node's Settings.
+  getNodeInfo: (id) => request(`/nodes/${id}/info`),
+  setNodeDetails: (id, details) =>
+    request(`/nodes/${id}/details`, { method: 'PATCH', body: JSON.stringify(details) }),
+  uploadNodePhoto: (id, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request(`/nodes/${id}/photo`, { method: 'PUT', body: formData })
+  },
+  deleteNodePhoto: (id) => request(`/nodes/${id}/photo`, { method: 'DELETE' }),
+  // Plain URLs (for <img src>): a path the API returned (a node's photo),
+  // a map tile (the API's tile proxy, routes/map.ts)
+  apiUrl: (path) => `${BASE}${path}`,
+  mapTileUrl: (z, x, y) => `${BASE}/map/tiles/${z}/${x}/${y}`,
+  getMapAttribution: () => request('/map/attribution'),
   // Node -> parent Node (AGENTS.md section 87) - null detaches.
   setNodeParent: (id, parentId) =>
     request(`/nodes/${id}/parent`, { method: 'PATCH', body: JSON.stringify({ parentId }) }),
@@ -198,6 +219,23 @@ export const api = {
   sendAiMessage: (id, text) =>
     request(`/ai/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ text }) }),
   deleteAiConversation: (id) => request(`/ai/conversations/${id}`, { method: 'DELETE' }),
+  // "Show in demo" - an administrator on a demo instance (B2)
+  // the AI button on a thing: the object, work type and label it opens with (2026-10-24)
+  getAiSubject: (subject) =>
+    request(
+      `/ai/subject?${new URLSearchParams(Object.fromEntries(Object.entries(subject).filter(([, v]) => v != null)))}`,
+    ),
+  // another topic on the way - the object and the work type (2026-10-24)
+  setAiConversationTopic: (id, instanceKey, workType) =>
+    request(`/ai/conversations/${id}/topic`, {
+      method: 'PATCH',
+      body: JSON.stringify({ instanceKey, workType }),
+    }),
+  setAiConversationShared: (id, shared) =>
+    request(`/ai/conversations/${id}/shared`, {
+      method: 'PATCH',
+      body: JSON.stringify({ shared }),
+    }),
   listAiLogs: ({ page, pageSize }) =>
     request(`/ai/logs?${new URLSearchParams({ page, pageSize })}`),
   listAiReports: ({ page, pageSize }) =>
@@ -477,10 +515,46 @@ export const api = {
     ),
   // Auth (AGENTS.md section 13 - UI login only, not per-endpoint API
   // authorization).
-  login: (username, password) =>
-    request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  // `account` - a group's link name (accountLink.js)
+  login: (username, password, account) =>
+    request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, ...(account ? { account } : {}) }),
+    }),
   logout: () => request('/auth/logout', { method: 'POST' }),
-  getCurrentUser: () => request('/auth/me'),
+  getCurrentUser: (account) =>
+    request(`/auth/me${account ? `?account=${encodeURIComponent(account)}` : ''}`),
+  // the sign-in page: whether the guest is on ("Continue as a guest") - no guest session started
+  getSignInInfo: async () => {
+    const res = await fetch(`${BASE}/auth/me?signin=1`)
+    const body = await res.json().catch(() => ({}))
+    return { signedIn: res.ok, guestEnabled: Boolean(body.guestEnabled) }
+  },
+  // the guest (Users -> Guest): its account and its conversations' settings
+  getGuest: () => request('/access/guest'),
+  updateGuestSettings: (settings) =>
+    request('/access/guest', { method: 'PUT', body: JSON.stringify(settings) }),
+  // act in another of one's groups (G1) - the session narrowed to it, remembered
+  setAccessContext: (context) =>
+    request('/auth/context', { method: 'POST', body: JSON.stringify({ context }) }),
+  // access management (api routes/access.ts - users.manage): roles as tables object x level
+  getAccessCatalog: () => request('/access/catalog'),
+  // the levels, the system sections and the objects a role's row can name
+  listAccessObjects: () => request('/access/objects'),
+  listRoles: () => request('/access/roles'),
+  // what a role's rights table gives - the actions and the row giving each (before saving)
+  previewRights: (data) =>
+    request('/access/rights/preview', { method: 'POST', body: JSON.stringify(data) }),
+  // `copyOf` - another role's rights, cards and AI tokens
+  createRole: (data) => request('/access/roles', { method: 'POST', body: JSON.stringify(data) }),
+  updateRole: (key, data) =>
+    request(`/access/roles/${encodeURIComponent(key)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteRole: (key) => request(`/access/roles/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+  setUserRoles: (id, roles) =>
+    request(`/access/users/${id}/roles`, { method: 'PUT', body: JSON.stringify({ roles }) }),
   // User management (admin-only server-side - see apps/api/src/routes/users.ts).
   listUsers: () => request('/users'),
   getUser: (id) => request(`/users/${id}`),

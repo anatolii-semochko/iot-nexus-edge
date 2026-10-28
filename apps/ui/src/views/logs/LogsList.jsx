@@ -8,6 +8,7 @@ import AiReportsTab from './AiReportsTab'
 import CommandLogsTab from './CommandLogsTab'
 import DeviceLogsTab from './DeviceLogsTab'
 import ProcessMessageLogsTab from './ProcessMessageLogsTab'
+import PageTitle from '../../components/PageTitle'
 
 const TAB_DEFS = [
   { key: 'commands', label: 'Commands' },
@@ -124,7 +125,7 @@ const LogsList = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <strong>Logs</strong>
+        <PageTitle title="Logs" />
       </CCardHeader>
       <CCardBody>
         <CTabs activeItemKey={activeTab} onChange={setActiveTab}>

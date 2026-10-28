@@ -1,0 +1,10 @@
+{
+  "id": "process-heating-control",
+  "name": "Heating Control",
+  "description": "A site's heating / cooling on water: air / water heat pumps charge buffer tanks, the rooms' fan coils draw from them. Auto heating / cooling by the outdoor temperature (hysteresis) or set by hand; the tanks' start / stop band; room thermostats. Simulated from the weather forecast (COP, tanks, rooms); today's heat, electricity and money with the baselines (direct electric heating, heat pumps without tanks). Commands, WEM, time series, AI tool heating.status. Uses weather-control and energy-grid.",
+  "ai": {
+    "scheduledTypes": [
+      "status-analysis"
+    ]
+  }
+}

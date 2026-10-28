@@ -48,7 +48,10 @@ export function useAnyNodeSimulated() {
   const liveNodes = useNodesLiveState()
 
   useEffect(() => {
-    api.listNodes().then(setNodes).catch(() => {})
+    api
+      .listNodes()
+      .then(setNodes)
+      .catch(() => {})
   }, [])
 
   return nodes.some((node) => (liveNodes[node.id]?.simulated ?? node.simulated) === true)

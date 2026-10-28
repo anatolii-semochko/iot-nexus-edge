@@ -1,0 +1,5 @@
+{
+  "id": "device-rain",
+  "name": "Rain",
+  "description": "Rain sensor - surface wetness, single Float32 reading (0-100 %), read-only."
+}

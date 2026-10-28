@@ -1,0 +1,19 @@
+nodeType: battery-storage
+description: >
+  One commercial battery storage unit: a battery pack with its three-phase
+  battery inverter. Reference: TESVOLT TS HV 70 (Germany; 67 kWh, lithium
+  NMC prismatic cells, 1C, up to 98 % battery efficiency, 6,000 cycles)
+  with SMA Sunny Tripower Storage 60 (60 kW AC, DC 575-1000 V, Modbus
+  TCP). Reports the state of charge, the DC voltage and current, the AC
+  power (+ discharge to the site / - charge) and the temperature; its
+  contactor switches it on / off. Driven by the `energy-field` process
+  (the dispatch; simulated - the SoC integrates the power).
+bus:
+  type: modbus-tcp
+supports:
+  - state-of-charge
+  - voltage
+  - current
+  - power
+  - temperature
+  - relay

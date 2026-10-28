@@ -1,0 +1,10 @@
+{
+  "id": "process-energy-field",
+  "name": "Energy Field",
+  "description": "A site's own generation and storage: PV blocks (string inverters), small wind turbines, one battery array, the site's consumption. Simulated from the weather forecast; the battery array dispatched by the mode (Auto - rules on the grid prices, Manual, Island); the site's balance on the grid meter. Commands, WEM, time series, AI tool energy.field. Depends on weather-control and energy-grid.",
+  "ai": {
+    "scheduledTypes": [
+      "status-analysis"
+    ]
+  }
+}

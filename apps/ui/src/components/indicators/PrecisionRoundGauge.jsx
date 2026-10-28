@@ -37,7 +37,17 @@ const polar = (deg, radius) => {
   return [radius * Math.cos(rad), radius * Math.sin(rad)]
 }
 
-const PrecisionRoundGauge = ({ x, y, r, value, limits, label, unit, decimals = 1, state = 'active' }) => {
+const PrecisionRoundGauge = ({
+  x,
+  y,
+  r,
+  value,
+  limits,
+  label,
+  unit,
+  decimals = 1,
+  state = 'active',
+}) => {
   const { min, max } = limits
   const angleOf = (v) => START + ((Math.min(max, Math.max(min, v)) - min) / (max - min)) * SWEEP
   const hasValue = state !== 'absent' && value != null && !Number.isNaN(value)
@@ -50,8 +60,8 @@ const PrecisionRoundGauge = ({ x, y, r, value, limits, label, unit, decimals = 1
       ? ZONE_COLORS.red
       : state === 'active' && zone === 'yellow'
         ? ZONE_COLORS.yellow
-        : muted ?? INK
-  const textColor = effective === 'error' ? ZONE_COLORS.red : muted ?? INK
+        : (muted ?? INK)
+  const textColor = effective === 'error' ? ZONE_COLORS.red : (muted ?? INK)
 
   const ticks = []
   for (let i = 0; i <= TICKS; i++) {
@@ -83,7 +93,15 @@ const PrecisionRoundGauge = ({ x, y, r, value, limits, label, unit, decimals = 1
       {ticks}
       {hasValue && (
         <g>
-          <line x1={tx} y1={ty} x2={nx} y2={ny} stroke={muted ?? INK} strokeWidth={r * 0.05} strokeLinecap="round" />
+          <line
+            x1={tx}
+            y1={ty}
+            x2={nx}
+            y2={ny}
+            stroke={muted ?? INK}
+            strokeWidth={r * 0.05}
+            strokeLinecap="round"
+          />
           <circle r={r * 0.075} fill={muted ?? INK} />
         </g>
       )}

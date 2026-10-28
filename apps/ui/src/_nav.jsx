@@ -26,6 +26,7 @@ import {
   cilSpeedometer,
 } from '@coreui/icons'
 import { CNavItem, CNavTitle } from '@coreui/react'
+import AiBrainIcon from './components/AiBrainIcon'
 
 /**
  * Navigation menu structure array
@@ -35,7 +36,7 @@ import { CNavItem, CNavTitle } from '@coreui/react'
  * @property {string} name - Display text for the nav item
  * @property {string} [to] - Internal route path (for CNavItem with routing)
  * @property {React.ReactNode} [icon] - Icon element to display
- * @property {boolean} [adminOnly] - Filtered out for non-admins in AppSidebar.jsx
+ * Who sees an entry - by its route's permissions (access.js SECTION_PERMISSIONS, AppSidebar.jsx).
  */
 const _nav = [
   {
@@ -48,22 +49,8 @@ const _nav = [
     component: CNavItem,
     name: 'AI Assistant',
     to: '/ai-assistant',
-    // sparkles - the assistant's mark (views/ai/AiAssistant.jsx)
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-        className="nav-icon"
-        aria-hidden="true"
-      >
-        <path d="M10 3.5l1.6 4.9 4.9 1.6-4.9 1.6L10 16.5l-1.6-4.9L3.5 10l4.9-1.6z" />
-        <path d="M17.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" />
-        <path d="M17.5 3.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z" />
-      </svg>
-    ),
+    // the AI's mark (components/AiBrainIcon.jsx) - still in the menu (it turns everywhere else)
+    icon: <AiBrainIcon size={20} className="nav-icon" still />,
   },
   {
     component: CNavTitle,
@@ -126,7 +113,6 @@ const _nav = [
     // the server-side requireAdmin hook on its own routes is the real
     // guard (same pattern as Users below) - this Commands tab can shut
     // down or restart the host.
-    adminOnly: true,
   },
   {
     component: CNavItem,
@@ -136,7 +122,6 @@ const _nav = [
     // Filtered out for non-admins in AppSidebar.jsx (AGENTS.md section 13) -
     // the server-side 403 on /users is the real guard, this just avoids
     // showing a link that would fail for most signed-in users.
-    adminOnly: true,
   },
   {
     component: CNavItem,

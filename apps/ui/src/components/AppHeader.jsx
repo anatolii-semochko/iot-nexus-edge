@@ -16,8 +16,14 @@
  * )
  */
 
+import { useHideSimulation } from '../presentation'
 import React, { useEffect, useRef } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
+import { useMenu } from './useMenu'
+import { Link } from 'react-router-dom'
+import chipLogo from '../assets/brand/chip-logo.svg'
+import { PROJECT_NAME } from '../projectName'
+import { MESSAGES_PAGE, pageShown } from '../access'
 import {
   CBadge,
   CContainer,
@@ -50,13 +56,20 @@ import SystemTickIndicator from './header/SystemTickIndicator'
  *
  * @returns {React.ReactElement} Header component with navigation and controls
  */
-const AppHeader = () => {
+const AppHeader = ({ bleed = false }) => {
   const headerRef = useRef()
   const { colorMode, setColorMode } = useColorModes('coreui-free-react-admin-template-theme')
 
   const dispatch = useDispatch()
   const sidebarShow = useSelector((state) => state.sidebarShow)
   const anyNodeSimulated = useAnyNodeSimulated()
+  const hideSimulation = useHideSimulation()
+  // no menu (only the Dashboard) - no menu button; the messages - when the role shows them
+  const { hidden: noMenu } = useMenu()
+  const showMessages = pageShown(
+    useSelector((state) => state.access),
+    MESSAGES_PAGE,
+  )
 
   useEffect(() => {
     const handleScroll = () => {
@@ -69,17 +82,29 @@ const AppHeader = () => {
   }, [])
 
   return (
-    <CHeader position="sticky" className="mb-4 p-0" ref={headerRef}>
-      <CContainer className="border-bottom px-4" fluid>
-        <CHeaderToggler
-          onClick={() => dispatch({ type: 'set', sidebarShow: !sidebarShow })}
-          style={{ marginInlineStart: '-14px' }}
-        >
-          <CIcon icon={cilMenu} size="lg" />
-        </CHeaderToggler>
+    <CHeader position="sticky" className={`${bleed ? '' : 'mb-4 '}p-0`} ref={headerRef}>
+      <CContainer className="border-bottom px-3 px-md-4" fluid>
+        {noMenu && (
+          // no menu - the brand (else in the sidebar)
+          <Link
+            to="/"
+            className="d-flex align-items-center text-decoration-none text-body fw-semibold"
+          >
+            <img src={chipLogo} alt="" height={28} className="me-2" />
+            {PROJECT_NAME}
+          </Link>
+        )}
+        {!noMenu && (
+          <CHeaderToggler
+            onClick={() => dispatch({ type: 'set', sidebarShow: !sidebarShow })}
+            style={{ marginInlineStart: '-14px' }}
+          >
+            <CIcon icon={cilMenu} size="lg" />
+          </CHeaderToggler>
+        )}
         <CHeaderNav className="ms-auto">
-          {anyNodeSimulated && (
-            <li className="nav-item d-flex align-items-center py-1 me-3">
+          {anyNodeSimulated && !hideSimulation && (
+            <li className="nav-item d-flex align-items-center py-1 me-1 me-sm-3">
               {/* Blinks only in production, where a node left in
                   simulation is an operational problem worth attention;
                   in development simulation is the normal working state,
@@ -87,21 +112,25 @@ const AppHeader = () => {
                   2026-09-25). */}
               <CBadge
                 color="primary"
-                className={`${IS_PRODUCTION ? 'wem-blink-ring ' : ''}rounded-pill px-3 py-2 me-2`}
+                className={`${IS_PRODUCTION ? 'wem-blink-ring ' : ''}rounded-pill px-2 px-sm-3 py-2 me-sm-2`}
                 role="status"
                 title="At least one node is in simulation mode"
               >
-                Simulation
+                {/* a phone's header has no room for the word */}
+                <span className="d-none d-sm-inline">Simulation</span>
+                <span className="d-sm-none">Sim</span>
               </CBadge>
             </li>
           )}
-          <li className="nav-item d-flex align-items-center py-1 me-3">
+          <li className="nav-item d-flex align-items-center py-1 me-2 me-sm-3">
             <SystemTickIndicator />
           </li>
-          <li className="nav-item d-flex align-items-center py-1">
-            <NotificationCenter />
-          </li>
-          <li className="nav-item py-1">
+          {showMessages && (
+            <li className="nav-item d-flex align-items-center py-1">
+              <NotificationCenter />
+            </li>
+          )}
+          <li className="nav-item py-1 d-none d-sm-block">
             <div className="vr h-100 mx-2 text-body text-opacity-75"></div>
           </li>
           <CDropdown variant="nav-item" placement="bottom-end">
@@ -144,7 +173,7 @@ const AppHeader = () => {
               </CDropdownItem>
             </CDropdownMenu>
           </CDropdown>
-          <li className="nav-item py-1">
+          <li className="nav-item py-1 d-none d-sm-block">
             <div className="vr h-100 mx-2 text-body text-opacity-75"></div>
           </li>
           <AppHeaderDropdown />

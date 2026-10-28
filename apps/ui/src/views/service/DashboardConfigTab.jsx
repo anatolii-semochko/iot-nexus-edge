@@ -18,12 +18,13 @@ import {
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
 import { cilArrowBottom, cilArrowTop, cilPencil, cilPlus, cilTrash } from '@coreui/icons'
-import { api } from '../../api/client'
+import { api, request } from '../../api/client'
 import { availableComponents, dashboardComponents } from '../../dashboardRegistry'
 import { cardIcon, DASHBOARD_ICONS } from '../../dashboardIcons'
 import { useConfirmModal } from '../../hooks/useConfirmModal'
 import IconButton from '../../components/IconButton'
 import UpBreadcrumb from '../../components/UpBreadcrumb'
+import { BlockCard } from '../dashboard/Dashboard'
 
 /**
  * Service -> Config -> Dashboard (Dashboard cards, 2026-10-16): the
@@ -98,6 +99,21 @@ const ComponentSelect = ({ value, options, onChange }) => {
   )
 }
 
+// The popup: the card's preview on the left (on top when narrow), the form
+// in rows - one column of titles, one of fields - on the right.
+const FORM_CSS = `
+.dc-layout { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.dc-preview { flex: 1 1 280px; display: flex; flex-direction: column; align-items: center; }
+.dc-form { flex: 2 1 420px; display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 1rem; row-gap: .75rem; align-items: center; align-content: start; }
+.dc-row { display: contents; }
+.dc-row > label { grid-column: 1; margin: 0; }
+.dc-row > :not(label) { grid-column: 2; }
+@media (max-width: 575.98px) {
+  .dc-form { grid-template-columns: minmax(0, 1fr); }
+  .dc-row > * { grid-column: 1 !important; }
+}
+`
+
 const EMPTY = {
   title: '',
   icon: null,
@@ -106,10 +122,153 @@ const EMPTY = {
   processId: null,
   view: 'fit-height',
   preview: 'auto',
+  params: {},
+  frame: null,
+}
+
+/**
+ * The card's own pictures (migration 091, the user 2026-10-25): the picture - from the set (the icon /
+ * the component's avatar, as before) or an uploaded image with its size; a background under it with
+ * its opacity. Uploaded at once (the card must exist - a new one after its first save).
+ */
+const CardPictureRows = ({ form, set }) => {
+  const [error, setError] = useState(null)
+  const picture = form.picture ?? {}
+  const setPicture = (changes) => set({ picture: { ...picture, ...changes } })
+  const upload = (slot, file) => {
+    if (!file) return
+    setError(null)
+    const body = new FormData()
+    body.append('file', file)
+    request(`/dashboard-cards/${form.id}/images/${slot}`, { method: 'POST', body })
+      .then((card) => set({ picture: card.picture }))
+      .catch((err) => setError(err.message))
+  }
+  const remove = (slot) =>
+    request(`/dashboard-cards/${form.id}/images/${slot}`, { method: 'DELETE' })
+      .then((card) => set({ picture: card.picture }))
+      .catch((err) => setError(err.message))
+  const file = (slot) => (
+    <input
+      type="file"
+      accept="image/png,image/jpeg,image/webp,image/gif"
+      className="form-control form-control-sm"
+      aria-label={`Upload the ${slot}`}
+      onChange={(e) => upload(slot, e.target.files?.[0])}
+    />
+  )
+  if (!form.id)
+    return (
+      <div className="dc-row">
+        <CFormLabel>Own pictures</CFormLabel>
+        <div className="small text-body-secondary">
+          An own picture and a background - after the card is added.
+        </div>
+      </div>
+    )
+  return (
+    <>
+      <div className="dc-row">
+        <CFormLabel>Picture</CFormLabel>
+        <div className="d-flex flex-column gap-2">
+          <CFormSelect
+            size="sm"
+            value={picture.hidden ? 'none' : picture.useImage && picture.icon ? 'image' : 'set'}
+            onChange={(e) =>
+              setPicture({
+                useImage: e.target.value === 'image',
+                hidden: e.target.value === 'none',
+              })
+            }
+            aria-label="The picture's source"
+          >
+            <option value="set">
+              {form.type === 'folder' ? 'From the icons (above)' : 'The avatar (above)'}
+            </option>
+            <option value="image" disabled={!picture.icon}>
+              An own image{picture.icon ? '' : ' - upload it below'}
+            </option>
+            <option value="none">None - no picture (the background only, if any)</option>
+          </CFormSelect>
+          <div className="d-flex gap-2 align-items-center">
+            {file('icon')}
+            {picture.icon && (
+              <CButton size="sm" color="danger" variant="ghost" onClick={() => remove('icon')}>
+                Remove
+              </CButton>
+            )}
+          </div>
+          {picture.icon && (
+            <label className="d-flex align-items-center gap-2 small mb-0">
+              Size
+              <input
+                type="range"
+                min={10}
+                max={300}
+                step={5}
+                value={picture.imageScalePct ?? 80}
+                title="Over 100 % - larger than the block, only its middle seen"
+                onChange={(e) => setPicture({ imageScalePct: Number(e.target.value) })}
+              />
+              {picture.imageScalePct ?? 80} %
+            </label>
+          )}
+        </div>
+      </div>
+      <div className="dc-row">
+        <CFormLabel>Background</CFormLabel>
+        <div className="d-flex flex-column gap-2">
+          <div className="d-flex gap-2 align-items-center">
+            {file('background')}
+            {picture.background && (
+              <CButton
+                size="sm"
+                color="danger"
+                variant="ghost"
+                onClick={() => remove('background')}
+              >
+                Remove
+              </CButton>
+            )}
+          </div>
+          {picture.background && (
+            <>
+              <label className="d-flex align-items-center gap-2 small mb-0">
+                Size
+                <input
+                  type="range"
+                  min={10}
+                  max={300}
+                  step={5}
+                  value={picture.backgroundScalePct ?? 100}
+                  title="100 % - covers the block; over - larger, only its middle seen; under - smaller"
+                  onChange={(e) => setPicture({ backgroundScalePct: Number(e.target.value) })}
+                />
+                {picture.backgroundScalePct ?? 100} %
+              </label>
+              <label className="d-flex align-items-center gap-2 small mb-0">
+                Opacity
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={picture.backgroundOpacityPct ?? 40}
+                  onChange={(e) => setPicture({ backgroundOpacityPct: Number(e.target.value) })}
+                />
+                {picture.backgroundOpacityPct ?? 40} %
+              </label>
+            </>
+          )}
+          {error && <div className="small text-danger">{error}</div>}
+        </div>
+      </div>
+    </>
+  )
 }
 
 // The add / edit popup. `draft` - {type, parentId, ...fields, id?} or null (closed).
-const CardModal = ({ draft, cards, options, onClose, onSave }) => {
+const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) => {
   const [form, setForm] = useState(draft)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -121,7 +280,14 @@ const CardModal = ({ draft, cards, options, onClose, onSave }) => {
   const folders = cards.filter(
     (c) => c.type === 'folder' && !(form.id && subtreeIds(cards, form.id).has(c.id)),
   )
-  const valid = form.title.trim() && (form.type === 'folder' || form.componentKey)
+  // the component's own parameters (e.g. which room) - declared by it, from its process
+  const process = processes.find((p) => p.id === form.processId) ?? null
+  const paramDefs = def?.params ? def.params(process) : []
+  const params = form.params ?? {}
+  const valid =
+    form.title.trim() &&
+    (form.type === 'folder' ||
+      (form.componentKey && paramDefs.every((d) => !d.required || params[d.key] != null)))
   const save = async () => {
     setBusy(true)
     setError(null)
@@ -135,140 +301,202 @@ const CardModal = ({ draft, cards, options, onClose, onSave }) => {
   }
   const noun = form.type === 'folder' ? 'folder' : 'component'
   return (
-    <CModal visible onClose={onClose} alignment="center">
+    <CModal visible onClose={onClose} alignment="center" size="xl">
       <CModalHeader>
         <CModalTitle>{form.id ? `Edit the ${noun}` : `New ${noun}`}</CModalTitle>
       </CModalHeader>
-      <CModalBody className="d-flex flex-column gap-3">
+      <CModalBody>
+        <style>{FORM_CSS}</style>
         {error && <CAlert color="danger">{error}</CAlert>}
-        <div>
-          <CFormLabel>Title</CFormLabel>
-          <CFormInput
-            value={form.title}
-            onChange={(e) => set({ title: e.target.value })}
-            invalid={!form.title.trim()}
-            autoFocus
-            aria-label="Title"
-          />
-        </div>
-        <div>
-          <CFormLabel>In</CFormLabel>
-          <CFormSelect
-            value={form.parentId ?? ''}
-            onChange={(e) =>
-              set({ parentId: e.target.value === '' ? null : Number(e.target.value) })
-            }
-            aria-label="Folder"
-          >
-            <option value="">Dashboard (the top level)</option>
-            {folders.map((f) => (
-              <option key={f.id} value={f.id}>
-                {pathTo(cards, f.id)
-                  .map((c) => c.title)
-                  .join(' / ')}
-              </option>
-            ))}
-          </CFormSelect>
-        </div>
-        {form.type === 'folder' ? (
-          <>
-            <div>
-              <CFormLabel>Icon</CFormLabel>
-              {/* the card icons (dashboardIcons.js); none chosen - the folder icon */}
-              <div className="d-flex flex-wrap gap-1" role="radiogroup" aria-label="Icon">
-                {Object.entries(DASHBOARD_ICONS).map(([key, icon]) => {
-                  const chosen = (form.icon ?? 'cilFolder') === key
-                  return (
-                    <CButton
-                      key={key}
-                      size="sm"
-                      color={chosen ? 'primary' : 'secondary'}
-                      variant={chosen ? undefined : 'ghost'}
-                      role="radio"
-                      aria-checked={chosen}
-                      title={key.slice(3)}
-                      onClick={() => set({ icon: key === 'cilFolder' ? null : key })}
-                      style={{ width: '2.25rem', height: '2.25rem', padding: 0 }}
-                    >
-                      <CIcon icon={icon} />
-                    </CButton>
-                  )
-                })}
-              </div>
-            </div>
-            <div>
-              <CFormLabel>Shows</CFormLabel>
-              <CFormSelect
-                value={form.layout}
-                onChange={(e) => set({ layout: e.target.value })}
-                aria-label="Layout"
-              >
-                <option value="blocks">Its cards as blocks</option>
-                <option value="list">Its cards as a list</option>
-              </CFormSelect>
-            </div>
-          </>
-        ) : (
-          <>
-            <div>
-              <CFormLabel>Component</CFormLabel>
-              <ComponentSelect
-                value={componentValue(form.componentKey, form.processId)}
-                options={options}
-                onChange={(v) => {
-                  const [componentKey, processId] = v.split('|')
-                  set({
-                    componentKey: componentKey || null,
-                    processId: processId ? Number(processId) : null,
-                  })
-                }}
+        <div className="dc-layout">
+          {/* how the card will look on the Dashboard */}
+          <div className="dc-preview" aria-label="Preview">
+            <div className="small text-body-secondary mb-2">On the Dashboard</div>
+            <div style={{ width: '100%', maxWidth: 360 }}>
+              <BlockCard
+                card={{ ...form, type: form.type, title: form.title || 'Untitled' }}
+                processes={processes}
+                linked={false}
               />
-              {form.componentKey && !def && (
-                <div className="small text-warning mt-1">
-                  &quot;{form.componentKey}&quot; is not available (its module is not installed).
-                </div>
-              )}
-              {def?.description && <div className="form-text">{def.description}</div>}
             </div>
-            <div>
-              <CFormLabel>Opened</CFormLabel>
-              <CFormSelect
-                value={form.view}
-                onChange={(e) => set({ view: e.target.value })}
-                aria-label="View"
-              >
-                <option value="fit-height">
-                  On the visible height - scaled to fit, no scrolling
-                </option>
-                <option value="fit-width">On the visible width - laid out in it</option>
-              </CFormSelect>
+          </div>
+          <div className="dc-form">
+            <div className="dc-row">
+              <CFormLabel>Title</CFormLabel>
+              <CFormInput
+                value={form.title}
+                onChange={(e) => set({ title: e.target.value })}
+                invalid={!form.title.trim()}
+                autoFocus
+                aria-label="Title"
+              />
             </div>
-            <div>
-              <CFormLabel>Avatar - the card's picture</CFormLabel>
+            <div className="dc-row">
+              <CFormLabel>In</CFormLabel>
               <CFormSelect
-                value={form.preview}
-                onChange={(e) => set({ preview: e.target.value })}
-                aria-label="Avatar"
+                value={form.parentId ?? ''}
+                onChange={(e) =>
+                  set({ parentId: e.target.value === '' ? null : Number(e.target.value) })
+                }
+                aria-label="Folder"
               >
-                <option value="auto">
-                  {def?.avatars?.length
-                    ? `Auto - ${def.avatars[0].title}`
-                    : 'Auto - a scaled copy (the component has no avatar)'}
-                </option>
-                {/* the component's avatars (dashboardRegistry.js) */}
-                {(def?.avatars ?? []).map((a) => (
-                  <option key={a.key} value={a.key}>
-                    {a.title}
+                <option value="">Dashboard (the top level)</option>
+                {folders.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {pathTo(cards, f.id)
+                      .map((c) => c.title)
+                      .join(' / ')}
                   </option>
                 ))}
-                <option value="scaled">A scaled copy</option>
               </CFormSelect>
             </div>
-          </>
-        )}
-        <div className="small text-body-secondary">
-          Access: everyone signed in. By user groups - with the access rights of the whole system
-          (not built yet).
+            {form.type === 'folder' ? (
+              <>
+                <div className="dc-row">
+                  <CFormLabel>Icon</CFormLabel>
+                  {/* the card icons (dashboardIcons.js); none chosen - the folder icon */}
+                  <div className="d-flex flex-wrap gap-1" role="radiogroup" aria-label="Icon">
+                    {Object.entries(DASHBOARD_ICONS).map(([key, icon]) => {
+                      const chosen = (form.icon ?? 'cilFolder') === key
+                      return (
+                        <CButton
+                          key={key}
+                          size="sm"
+                          color={chosen ? 'primary' : 'secondary'}
+                          variant={chosen ? undefined : 'ghost'}
+                          role="radio"
+                          aria-checked={chosen}
+                          title={key.slice(3)}
+                          onClick={() => set({ icon: key === 'cilFolder' ? null : key })}
+                          style={{ width: '2.25rem', height: '2.25rem', padding: 0 }}
+                        >
+                          <CIcon icon={icon} />
+                        </CButton>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="dc-row">
+                  <CFormLabel>Shows</CFormLabel>
+                  <CFormSelect
+                    value={form.layout}
+                    onChange={(e) => set({ layout: e.target.value })}
+                    aria-label="Layout"
+                  >
+                    <option value="blocks">Its cards as blocks</option>
+                    <option value="list">Its cards as a list</option>
+                  </CFormSelect>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="dc-row">
+                  <CFormLabel>Component</CFormLabel>
+                  <ComponentSelect
+                    value={componentValue(form.componentKey, form.processId)}
+                    options={options}
+                    onChange={(v) => {
+                      const [componentKey, processId] = v.split('|')
+                      set({
+                        componentKey: componentKey || null,
+                        processId: processId ? Number(processId) : null,
+                        params: {},
+                      })
+                    }}
+                  />
+                  {form.componentKey && !def && (
+                    <div className="small text-warning mt-1">
+                      &quot;{form.componentKey}&quot; is not available (its module is not
+                      installed).
+                    </div>
+                  )}
+                  {def?.description && <div className="form-text">{def.description}</div>}
+                </div>
+                {paramDefs.map((d) => (
+                  <div key={d.key} className="dc-row">
+                    <CFormLabel>{d.label}</CFormLabel>
+                    <CFormSelect
+                      value={params[d.key] ?? ''}
+                      onChange={(e) => {
+                        const option = d.options.find((o) => String(o.value) === e.target.value)
+                        set({ params: { ...params, [d.key]: option ? option.value : null } })
+                      }}
+                      aria-label={d.label}
+                      title={d.hint}
+                    >
+                      <option value="">{d.required ? 'Choose…' : 'All'}</option>
+                      {d.options.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </CFormSelect>
+                  </div>
+                ))}
+                <div className="dc-row">
+                  <CFormLabel>Opened</CFormLabel>
+                  <CFormSelect
+                    value={form.view}
+                    onChange={(e) => set({ view: e.target.value })}
+                    aria-label="View"
+                  >
+                    <option value="fit-height">
+                      On the visible height - scaled to fit, no scrolling
+                    </option>
+                    <option value="fit-width">On the visible width - laid out in it</option>
+                  </CFormSelect>
+                </div>
+                <div className="dc-row">
+                  <CFormLabel>Avatar - the card's picture</CFormLabel>
+                  <CFormSelect
+                    value={form.preview}
+                    onChange={(e) => set({ preview: e.target.value })}
+                    aria-label="Avatar"
+                  >
+                    <option value="auto">
+                      {def?.avatars?.length
+                        ? `Auto - ${def.avatars[0].title}`
+                        : 'Auto - a scaled copy (the component has no avatar)'}
+                    </option>
+                    {/* the component's avatars (dashboardRegistry.js) */}
+                    {(def?.avatars ?? []).map((a) => (
+                      <option key={a.key} value={a.key}>
+                        {a.title}
+                      </option>
+                    ))}
+                    <option value="scaled">A scaled copy</option>
+                  </CFormSelect>
+                </div>
+              </>
+            )}
+            <div className="dc-row">
+              <CFormLabel>Frame</CFormLabel>
+              <CFormSelect
+                value={form.frame ?? ''}
+                onChange={(e) => set({ frame: e.target.value || null })}
+                aria-label="Frame"
+                title="How the card is framed on the Dashboard"
+              >
+                <option value="">
+                  {`Default - ${form.type === 'folder' ? 'border and background' : 'none'}`}
+                </option>
+                <option value="none">None - the picture to the block's edges</option>
+                <option value="border">Border - a border and a divider, no background</option>
+                <option value="filled">Border and background</option>
+                <option value="caption">
+                  The title's border only - the picture above to the edges
+                </option>
+              </CFormSelect>
+            </div>
+            <CardPictureRows form={form} set={set} />
+            <div className="dc-row">
+              <span />
+              <div className="small text-body-secondary">
+                Access: everyone signed in. By user groups - with the access rights of the whole
+                system (not built yet).
+              </div>
+            </div>
+          </div>
         </div>
       </CModalBody>
       <CModalFooter>
@@ -322,7 +550,17 @@ const DashboardConfigTab = () => {
     const fields =
       type === 'folder'
         ? { title, icon: form.icon, layout, parentId }
-        : { title, componentKey, processId, view, preview, parentId }
+        : { title, componentKey, processId, view, preview, parentId, params: form.params ?? {} }
+    fields.frame = form.frame ?? null
+    // the own pictures' settings (the images themselves - uploaded at once)
+    if (form.picture)
+      fields.picture = {
+        useImage: !!form.picture.useImage,
+        hidden: !!form.picture.hidden,
+        imageScalePct: form.picture.imageScalePct,
+        backgroundOpacityPct: form.picture.backgroundOpacityPct,
+        backgroundScalePct: form.picture.backgroundScalePct,
+      }
     if (id) await api.updateDashboardCard(id, fields)
     else await api.createDashboardCard({ type, ...fields })
     setDraft(null)
@@ -358,6 +596,7 @@ const DashboardConfigTab = () => {
         draft={draft}
         cards={cards}
         options={options}
+        processes={processes}
         onClose={() => setDraft(null)}
         onSave={saveDraft}
       />
@@ -392,7 +631,7 @@ const DashboardConfigTab = () => {
         </CAlert>
       ) : (
         // a table - the rows' lines, none under the last
-        <CTable align="middle" className="mb-0">
+        <CTable align="middle" hover className="mb-0">
           <CTableBody>
             {level.map((card, i) => (
               <CTableRow key={card.id}>

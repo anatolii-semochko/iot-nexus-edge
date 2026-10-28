@@ -23,8 +23,7 @@ make up-all     # build + start everything, including EdgeX Foundry
   devices need (`EXTRA_RES_DIR`).
 - `migrations/` - this project's own Postgres migrations (applied by the
   api after nexus-edge's own - each once, recorded in `extra_migrations`;
-  automatically or on a person's confirmation - setting
-  `dnp.migrations.apply`).
+  at every api start - they come with a deployment).
 
 Full walkthrough, one section per extension point:
 [`docs/CREATING_A_TARGET_PROJECT.md`](__NEXUS_EDGE_REPO_URL__/blob/main/docs/CREATING_A_TARGET_PROJECT.md)

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { simulationTint, useHideSimulation } from '../../presentation'
 import {
   CAlert,
   CCard,
@@ -18,6 +19,7 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilLibrary, cilSettings } from '@coreui/icons'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
 import GroupsConfigModal from '../../components/GroupsConfigModal'
 import IconButton from '../../components/IconButton'
 import Switch from '../../components/Switch'
@@ -35,6 +37,8 @@ import { useNodesLiveState } from '../../api/useLiveNode'
 import RowStatusBadge from '../../components/table/RowStatusBadge'
 import { formatRelativeTime } from '../../utils/format'
 import NodeSettingsModal from './NodeSettingsModal'
+import AiButton from '../../components/ai/AiButton'
+import PageTitle from '../../components/PageTitle'
 
 // Registration for usePersistedState (AGENTS_TO_DO.md, 2026-08-01, joined
 // 2026-08-02 by `expandedIds`) - flat variant (no tabs), unlike
@@ -105,8 +109,8 @@ const matchesSearch = (node, search) => {
 // `heartbeatStopped`, which despite its name is only the "monitoring
 // paused" toggle and never flips on a real disconnect (found live,
 // 2026-08-15).
-const nodeRowColor = (node) =>
-  node.heartbeatStale === 'error' ? 'danger' : node.simulated ? 'info' : undefined
+const nodeRowColor = (node, hideSimulation = false) =>
+  node.heartbeatStale === 'error' ? 'danger' : simulationTint(node.simulated, hideSimulation)
 
 // Filter dropdown options, keyed by the exact rowColor value above ('' -
 // unset - means OK, the same "anything not danger/info" default
@@ -127,6 +131,9 @@ const STATUS_FILTER_OPTIONS = [
  * Devices' many-to-many Device Groups (DevicesList.jsx).
  */
 const NodesList = () => {
+  // what this person may do here (access.js - the server decides)
+  const can = useCan()
+  const hideSimulation = useHideSimulation()
   const [nodes, setNodes] = useState(null)
   const [nodeGroups, setNodeGroups] = useState([])
   const [error, setError] = useState(null)
@@ -200,7 +207,9 @@ const NodesList = () => {
   const filtered = nodesWithLive
     .filter((node) => matchesSearch(node, search))
     .filter((node) => !groupFilter || String(node.group_id) === groupFilter)
-    .filter((node) => !statusFilter || (nodeRowColor(node) || 'ok') === statusFilter)
+    .filter(
+      (node) => !statusFilter || (nodeRowColor(node, hideSimulation) || 'ok') === statusFilter,
+    )
   const { page, pageSize, pageItems, totalItems, setPage, setPageSize } = usePagination(filtered, {
     pageSize: pageState.pageSize,
     onPageSizeChange: (size) => setPageState({ pageSize: size }),
@@ -215,7 +224,7 @@ const NodesList = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <strong>Nodes</strong>
+        <PageTitle title="Nodes" />
       </CCardHeader>
       <CCardBody>
         {error && <CAlert color="danger">{error}</CAlert>}
@@ -230,7 +239,9 @@ const NodesList = () => {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   aria-label="Filter by status"
                 >
-                  {STATUS_FILTER_OPTIONS.map((opt) => (
+                  {STATUS_FILTER_OPTIONS.filter(
+                    (opt) => !hideSimulation || opt.value !== 'info',
+                  ).map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
@@ -260,13 +271,15 @@ const NodesList = () => {
                 />
               </CCol>
               <CCol className="d-flex justify-content-end gap-2">
-                <IconButton
-                  icon={cilSettings}
-                  size="sm"
-                  center
-                  onClick={() => setConfigVisible(true)}
-                  ariaLabel="Configure Node Groups"
-                />
+                {can('nodes.manage') && (
+                  <IconButton
+                    icon={cilSettings}
+                    size="sm"
+                    center
+                    onClick={() => setConfigVisible(true)}
+                    ariaLabel="Configure Node Groups"
+                  />
+                )}
                 <ResetFiltersButton active={hasActiveFilters} onClick={handleResetFilters} />
               </CCol>
             </CRow>
@@ -307,7 +320,7 @@ const NodesList = () => {
                       // actually expanded.
                       const expandedRow = isExpanded(node.id)
                       const noBorderWhenExpanded = expandedRow ? 'border-bottom-0' : undefined
-                      const rowColor = nodeRowColor(node)
+                      const rowColor = nodeRowColor(node, hideSimulation)
                       return (
                         <React.Fragment key={node.id}>
                           <CTableRow color={rowColor}>
@@ -320,7 +333,9 @@ const NodesList = () => {
                             <CTableDataCell className={noBorderWhenExpanded}>
                               {node.name}
                               {node.parent_name && (
-                                <div className="small text-body-secondary">Attached to {node.parent_name}</div>
+                                <div className="small text-body-secondary">
+                                  Attached to {node.parent_name}
+                                </div>
                               )}
                             </CTableDataCell>
                             <CTableDataCell className={noBorderWhenExpanded}>
@@ -337,27 +352,40 @@ const NodesList = () => {
                             </CTableDataCell>
                             <CTableDataCell className={`text-end ${noBorderWhenExpanded ?? ''}`}>
                               <div className="d-flex justify-content-end align-items-center gap-1 flex-nowrap">
-                                <IconButton
-                                  icon={cilSettings}
-                                  size="sm"
-                                  center
-                                  onClick={() => setSettingsNode(node)}
-                                  ariaLabel={`${node.name} settings`}
+                                <AiButton
+                                  action
+                                  subject={{ type: 'node', id: node.id }}
+                                  label={node.name}
                                 />
-                                <Switch
-                                  checked={node.simulated}
-                                  onChange={() => handleToggleSimulated(node)}
-                                  disabled={!node.simulated && !node.can_enable_simulated}
-                                  activeColor="#e55353"
-                                  inactiveColor="#d3d3d3"
-                                  ariaLabel={
-                                    node.simulated
-                                      ? `${node.name} is simulated - switch to physical`
-                                      : node.can_enable_simulated
-                                        ? `${node.name} is physical - switch to simulated`
-                                        : `${node.name} has no simulated twin provisioned`
-                                  }
-                                />
+                                {can('nodes.manage', { node: node.id }) && (
+                                  <IconButton
+                                    icon={cilSettings}
+                                    size="sm"
+                                    center
+                                    onClick={() => setSettingsNode(node)}
+                                    ariaLabel={`${node.name} settings`}
+                                  />
+                                )}
+                                {(!hideSimulation ||
+                                  can('devices.simulate', { node: node.id })) && (
+                                  <Switch
+                                    checked={node.simulated}
+                                    onChange={() => handleToggleSimulated(node)}
+                                    disabled={
+                                      (!node.simulated && !node.can_enable_simulated) ||
+                                      !can('devices.simulate', { node: node.id })
+                                    }
+                                    activeColor="#e55353"
+                                    inactiveColor="#d3d3d3"
+                                    ariaLabel={
+                                      node.simulated
+                                        ? `${node.name} is simulated - switch to physical`
+                                        : node.can_enable_simulated
+                                          ? `${node.name} is physical - switch to simulated`
+                                          : `${node.name} has no simulated twin provisioned`
+                                    }
+                                  />
+                                )}
                                 <ExpandToggleButton
                                   expanded={isExpanded(node.id)}
                                   onClick={() => toggleOne(node.id)}

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { simulationTint, useHideSimulation } from '../../presentation'
 import {
   CAlert,
   CBadge,
@@ -25,6 +26,7 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilCheck, cilLibrary, cilSettings, cilX } from '@coreui/icons'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
 import { deviceSimulators } from '../../deviceTypeRegistry'
 import GroupsConfigModal from '../../components/GroupsConfigModal'
 import IconButton from '../../components/IconButton'
@@ -50,6 +52,8 @@ import { formatRelativeTime, formatSmartDateTime } from '../../utils/format'
 import DeviceMediaTab from './DeviceMediaTab'
 import DeviceSettingsModal from './DeviceSettingsModal'
 import NumericStepper from './NumericStepper'
+import AiButton from '../../components/ai/AiButton'
+import PageTitle from '../../components/PageTitle'
 
 // How long to wait after the last slider/stepper move before actually
 // sending it (DeviceValueEditor's own handleSimulate below) - dragging a
@@ -237,6 +241,7 @@ const KeyValueTable = ({ title, rows }) => (
 // `listDevices().filter(d => d.backend === 'virtual')` already had, a
 // physical device isn't meant to be poked from the UI this way.
 const DeviceValueEditor = ({ device, value, mode, onWrite, onSimulate, onRelease }) => {
+  const can = useCan()
   const [busy, setBusy] = useState(false)
   const debounceTimer = useRef(null)
   useEffect(() => () => clearTimeout(debounceTimer.current), [])
@@ -264,6 +269,8 @@ const DeviceValueEditor = ({ device, value, mode, onWrite, onSimulate, onRelease
 
   const readOnly = device.capabilities?.readOnly
   const CustomSimulator = deviceSimulators[device.type]
+  // a sensor's value is simulated, an actuator's written - without that right (access.js) no override
+  if (!can(readOnly ? 'devices.simulate' : 'devices.write', { device: device.id })) return null
 
   return (
     <div className="mt-2">
@@ -516,6 +523,8 @@ const DeviceRow = ({
   onReleaseValue,
   effectivelySimulated,
 }) => {
+  // what this person may do with this device (access.js - the server decides)
+  const can = useCan()
   const [fetched, setFetched] = useState(null)
   const live = useDeviceLiveState(device.id)
   // Still needed even though isOverdue/expiresAt are no longer computed
@@ -584,7 +593,8 @@ const DeviceRow = ({
   // precedence ProcessesTable.jsx's own row color already uses.
   // RowStatusBadge (column 1 below) derives its label from this exact
   // value, not a second parallel condition, so the two can't drift.
-  const rowColor = isOverdue ? 'danger' : effectivelySimulated ? 'info' : undefined
+  const hideSimulation = useHideSimulation()
+  const rowColor = isOverdue ? 'danger' : simulationTint(effectivelySimulated, hideSimulation)
   const noBorderWhenExpanded = expanded ? 'border-bottom-0' : undefined
 
   return (
@@ -615,29 +625,36 @@ const DeviceRow = ({
         </CTableDataCell>
         <CTableDataCell className={`text-end ${noBorderWhenExpanded ?? ''}`}>
           <div className="d-flex justify-content-end align-items-center gap-1 flex-nowrap">
-            <IconButton
-              icon={cilSettings}
-              size="sm"
-              center
-              onClick={onOpenSettings}
-              ariaLabel={`${device.name} settings`}
-            />
-            {device.node_id === null && (
-              <Switch
-                checked={device.simulated}
-                onChange={onToggleSimulated}
-                disabled={!device.simulated && !device.edgex_device_name_simulated}
-                activeColor="#e55353"
-                inactiveColor="#d3d3d3"
-                ariaLabel={
-                  device.simulated
-                    ? `${device.name} is simulated - switch to physical`
-                    : device.edgex_device_name_simulated
-                      ? `${device.name} is physical - switch to simulated`
-                      : `${device.name} has no simulated twin provisioned`
-                }
+            <AiButton action subject={{ type: 'device', id: device.id }} label={device.name} />
+            {can('devices.manage', { device: device.id }) && (
+              <IconButton
+                icon={cilSettings}
+                size="sm"
+                center
+                onClick={onOpenSettings}
+                ariaLabel={`${device.name} settings`}
               />
             )}
+            {device.node_id === null &&
+              (!hideSimulation || can('devices.simulate', { device: device.id })) && (
+                <Switch
+                  checked={device.simulated}
+                  onChange={onToggleSimulated}
+                  disabled={
+                    (!device.simulated && !device.edgex_device_name_simulated) ||
+                    !can('devices.simulate', { device: device.id })
+                  }
+                  activeColor="#e55353"
+                  inactiveColor="#d3d3d3"
+                  ariaLabel={
+                    device.simulated
+                      ? `${device.name} is simulated - switch to physical`
+                      : device.edgex_device_name_simulated
+                        ? `${device.name} is physical - switch to simulated`
+                        : `${device.name} has no simulated twin provisioned`
+                  }
+                />
+              )}
             <ExpandToggleButton expanded={expanded} onClick={onToggleExpand} />
           </div>
         </CTableDataCell>
@@ -686,8 +703,8 @@ const deviceEffectivelySimulated = (device) =>
 // color instead uses its live-updated isOverdue (mount fetch + live
 // push) - marginally fresher, but the two agree within one read/push
 // interval of each other.
-const deviceRowColor = (device) =>
-  device.isOverdue ? 'danger' : deviceEffectivelySimulated(device) ? 'info' : undefined
+const deviceRowColor = (device, hideSimulation = false) =>
+  device.isOverdue ? 'danger' : simulationTint(deviceEffectivelySimulated(device), hideSimulation)
 
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -708,6 +725,7 @@ const STATUS_FILTER_OPTIONS = [
  * covers it).
  */
 const DevicesList = () => {
+  const hideSimulation = useHideSimulation()
   const [devices, setDevices] = useState(null)
   const [deviceGroups, setDeviceGroups] = useState([])
   const [nodes, setNodes] = useState([])
@@ -814,7 +832,10 @@ const DevicesList = () => {
       (device) => !groupFilter || (device.device_group_ids ?? []).includes(Number(groupFilter)),
     )
     .filter((device) => !nodeFilter || String(device.node_id) === nodeFilter)
-    .filter((device) => !statusFilter || (deviceRowColor(device) || 'ok') === statusFilter)
+    .filter(
+      (device) =>
+        !statusFilter || (deviceRowColor(device, hideSimulation) || 'ok') === statusFilter,
+    )
   const { page, pageSize, pageItems, totalItems, setPage, setPageSize } = usePagination(filtered, {
     pageSize: pageState.pageSize,
     onPageSizeChange: (size) => setPageState({ pageSize: size }),
@@ -830,7 +851,7 @@ const DevicesList = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <strong>Devices</strong>
+        <PageTitle title="Devices" />
       </CCardHeader>
       <CCardBody>
         {error && <CAlert color="danger">{error}</CAlert>}
@@ -845,7 +866,9 @@ const DevicesList = () => {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   aria-label="Filter by status"
                 >
-                  {STATUS_FILTER_OPTIONS.map((opt) => (
+                  {STATUS_FILTER_OPTIONS.filter(
+                    (opt) => !hideSimulation || opt.value !== 'info',
+                  ).map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>

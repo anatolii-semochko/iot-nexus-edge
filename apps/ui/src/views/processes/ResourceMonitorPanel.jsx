@@ -150,6 +150,39 @@ const ResourceMonitorPanel = ({ process, onConfigChange }) => {
             </CRow>
           )
         })}
+        <CRow className="align-items-center g-4">
+          <CCol xs="auto" style={{ width: '6.5rem' }} />
+          <CCol xs="auto">
+            <div
+              className="text-body-secondary small"
+              title="A raised warning / error holds until its metric falls this far below the threshold (% or °C) - a value hovering at a threshold doesn't raise a new message on every crossing"
+            >
+              Hysteresis
+            </div>
+            <NumericStepper
+              value={process.config.hysteresis ?? 0}
+              step={1}
+              min={0}
+              max={20}
+              onCommit={(v) => handleCommit('hysteresis', v)}
+            />
+          </CCol>
+          <CCol xs="auto">
+            <div
+              className="text-body-secondary small"
+              title="...and holds this long after the metric fell below - a value swinging under load doesn't raise a new message on every swing"
+            >
+              Hold, s
+            </div>
+            <NumericStepper
+              value={process.config.holdSeconds ?? 0}
+              step={10}
+              min={0}
+              max={600}
+              onCommit={(v) => handleCommit('holdSeconds', v)}
+            />
+          </CCol>
+        </CRow>
       </div>
       <div className="flex-grow-1 d-flex flex-column mb-2">
         <ResourceLevelsChartLegend />

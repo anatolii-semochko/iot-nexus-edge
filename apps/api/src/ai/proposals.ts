@@ -2,6 +2,9 @@ import { pool } from "../db.js";
 import { logger } from "../logger.js";
 import { createProcess, giveProcessCommand, type NewProcess, ProcessWriteError, switchProcess, writeProcessConfig } from "../processWrites.js";
 import { createDevice, createNode, type NewDevice, type NewNode, RegistryError } from "../registry.js";
+import { setUserRoles } from "../access/principal.js";
+import { rolesProblem } from "../routes/access.js";
+import { writeDayNote } from "../dayNotes.js";
 import type { Instance, Level } from "./instances.js";
 
 // The AI Assistant's proposals (Nexus Edge AI Assistant, stage 6 - nexus-
@@ -12,14 +15,16 @@ import type { Instance, Level } from "./instances.js";
 //   rejects it (the messenger's card, Logs -> AI Proposals);
 // - Off - the proposing tool isn't offered at all (tools.ts).
 // Install - a DNP instance (a process), a node with its devices, a device
-// (registry.ts, stage 8).
+// (registry.ts, stage 8); a person's roles (B1.4, "roles" - "grants" before 2026-10-27) - a security
+// change: never applied on its own (always pending, whatever the level),
+// decided only by a person who manages users (routes/ai.ts).
 // Applying is processWrites.ts - the same writes a person's edit makes
 // (schema, stamps, command log, author), source "ai". A config proposal
 // keeps the stamps its agent saw: a section someone changed since is
 // refused on Accept (failed), never overwritten unseen.
 
 export type ProposalAccess = "config" | "control" | "install";
-export type Operation = "config" | "command" | "switch" | "create-process" | "create-node" | "create-device";
+export type Operation = "config" | "command" | "switch" | "create-process" | "create-node" | "create-device" | "roles" | "day-note";
 export type ProposalStatus = "pending" | "applied" | "rejected" | "failed";
 
 /** What applies, per operation (`payload`). */
@@ -29,7 +34,9 @@ export type Payload =
   | { action: "ON" | "OFF" } // switch
   | NewProcess // create-process
   | NewNode // create-node (with the devices its node.yaml declares)
-  | NewDevice; // create-device
+  | NewDevice // create-device
+  | { userId: number; roles: string[] } // roles - a person's roles, replaced as a whole
+  | { op: "add" | "update" | "delete"; noteId: number | null; fields: Record<string, unknown> }; // day-note
 
 export interface ProposalInput {
   access: ProposalAccess;
@@ -201,7 +208,7 @@ export async function propose(input: ProposalInput, origin: ProposalOrigin): Pro
       ],
     )
   ).rows[0].id;
-  if (level === "auto") return decide(id, await aiAgentUserId(), "accept");
+  if (level === "auto" && input.operation !== "roles") return decide(id, await aiAgentUserId(), "accept");
   return (await getProposal(id))!;
 }
 
@@ -234,6 +241,22 @@ async function apply(p: ProposalRow, userId: number): Promise<unknown> {
       return createNode(p.payload as NewNode, userId, "ai");
     case "create-device":
       return { deviceId: await createDevice(p.payload as NewDevice, userId, "ai") };
+    case "day-note": {
+      // the AI's note - its source "ai" whoever accepted it
+      const { op, noteId, fields } = p.payload as { op: "add" | "update" | "delete"; noteId: number | null; fields: Record<string, unknown> };
+      const out = await writeDayNote(needProcess(), op, noteId, fields, "ai", userId);
+      if (out.status !== 200) throw new ProcessWriteError(out.error ?? "the note is gone", out.status);
+      return { noteId: out.id };
+    }
+    case "roles": {
+      const { userId: target, roles } = p.payload as { userId: number; roles: string[] };
+      const user = (await pool.query<{ username: string }>("SELECT username FROM users WHERE id = $1", [target])).rows[0];
+      if (!user) throw new ProcessWriteError("the person is gone", 404);
+      const problem = await rolesProblem(user.username, roles);
+      if (problem) throw new ProcessWriteError(problem, 400);
+      await setUserRoles(target, roles);
+      return { roles };
+    }
   }
 }
 

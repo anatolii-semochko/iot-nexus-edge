@@ -22,6 +22,13 @@ export const config = {
     // section 9).
     url: `amqp://${required("RABBITMQ_DEFAULT_USER")}:${required("RABBITMQ_DEFAULT_PASS")}@${required("RABBITMQ_HOST")}:${process.env.RABBITMQ_PORT ?? 5672}`,
   },
+  // The Devices API - asked who a WebSocket client is (its session cookie)
+  // and what the live stream may show them (access.ts). "api" is the
+  // compose service name, the port from env (the orchestrator's pattern).
+  apiUrl: `http://api:${process.env.API_PORT ?? 3001}`,
+  apiRequestTimeoutMs: Number(process.env.API_REQUEST_TIMEOUT_MS ?? 10000),
+  // how often a connected client's scope is asked again (a changed role, an expired session)
+  scopeRefreshMs: Number(process.env.GATEWAY_SCOPE_REFRESH_MS ?? 60000),
   redis: {
     host: required("REDIS_HOST"),
     port: Number(process.env.REDIS_PORT ?? 6379),

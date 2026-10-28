@@ -1,4 +1,5 @@
 import { readdir } from "node:fs/promises";
+import { proposeProcessConfig } from "./ai/dnpProposals.js";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -8,7 +9,10 @@ import { getVisionProvider } from "./ai/vision.js";
 import { requireAuth } from "./auth.js";
 import { logCommand } from "./commandLog.js";
 import { config } from "./config.js";
+import { getMetrics } from "./processRegistry.js";
 import { pool } from "./db.js";
+import { holidaysOf } from "./holidays.js";
+import { dayNotesOf } from "./dayNotes.js";
 import { resizeJpeg } from "./images.js";
 import {
   contentTypeForPart,
@@ -19,6 +23,8 @@ import {
   pluginMediaScope,
 } from "./mediaStore.js";
 import { registerConfigSchema } from "./configSchemas.js";
+import { onProjectMigrationsApplied } from "./extraMigrations.js";
+import { registerTool, type Tool } from "./ai/tools.js";
 import { processStateEvents } from "./processStateEvents.js";
 import { timeSeries } from "./timeSeries.js";
 
@@ -95,6 +101,22 @@ export interface ApiPluginContext {
   series: typeof timeSeries;
   // a process kind's config schema (configSchemas.ts): checks config edits, served to UIs / the AI assistant
   registerConfigSchema: typeof registerConfigSchema;
+  // after the project's migrations applied some (extraMigrations.ts): redo what a plugin derived from the data at its start
+  onProjectMigrationsApplied: typeof onProjectMigrationsApplied;
+  // an AI Assistant tool of the DNP (ai/tools.ts) - reading only: changes go
+  // through the core's proposing tools (config / control / install)
+  registerAiTool: (tool: Omit<Tool, "access">) => void;
+  // external data services' addresses (config.ts `services`, .env)
+  services: typeof config.services;
+  // a process's live metrics (processRegistry - what its process.ts last reported)
+  processMetrics: typeof getMetrics;
+  // the package's own proposal to change its process's config - under the
+  // process's AI instance, its Config level the permission (ai/dnpProposals.ts)
+  proposeConfig: typeof proposeProcessConfig;
+  // a country's public holidays between two dates (holidays.ts - offline, date-holidays)
+  holidaysOf: typeof holidaysOf;
+  // the operational days' notes of processes (dayNotes.ts - the table `day_notes`)
+  dayNotesOf: typeof dayNotesOf;
 }
 
 const pluginContext: ApiPluginContext = {
@@ -116,6 +138,13 @@ const pluginContext: ApiPluginContext = {
   previewMaxSide: config.media.previewMaxSide,
   series: timeSeries,
   registerConfigSchema,
+  onProjectMigrationsApplied,
+  registerAiTool: (tool) => registerTool({ ...tool, access: "read" }),
+  services: config.services,
+  processMetrics: getMetrics,
+  proposeConfig: proposeProcessConfig,
+  holidaysOf,
+  dayNotesOf,
 };
 
 interface ApiPluginSource {
@@ -148,9 +177,8 @@ export async function loadApiPlugins(app: FastifyInstance): Promise<void> {
   const sources: ApiPluginSource[] = [
     { label: "library", dir: config.apiPlugins.builtinDevicesDir },
   ];
-  if (config.apiPlugins.extraDir) {
-    sources.push({ label: "private", dir: config.apiPlugins.extraDir });
-  }
+  // the project's roots in order (a dependency's packages first)
+  sources.push(...config.apiPlugins.extraDirs);
 
   for (const source of sources) {
     const files = await findApiPluginFiles(source.dir);

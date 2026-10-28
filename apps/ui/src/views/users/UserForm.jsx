@@ -19,14 +19,17 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilCheck, cilX } from '@coreui/icons'
 import { api } from '../../api/client'
+import SearchChecklist from '../../components/SearchChecklist'
+import { AiTokensInput, parseAiTokens } from './AiTokens'
 
 const AVATAR_SIZE = '4rem'
 
 /**
- * Create/edit modal (AGENTS.md section 13). `roles` only ever has one
- * meaningful value today ('admin') - a single checkbox, not a generic
- * multi-select, until a second role actually exists server-side
- * (ALLOWED_ROLES in apps/api/src/routes/users.ts).
+ * Create/edit modal (AGENTS.md section 13). Roles - the ones the person
+ * acts as (one at a time - the header's menu; what each allows - Users ->
+ * Roles; 2026-10-27). A new person starts as a viewer. The AI's tokens a day (AiTokens.jsx). An internal service's
+ * account (orchestrator, simulator, AI agent - the role `system`) and the
+ * guest sign in with no password; a service's access is fixed.
  *
  * The avatar field is deliberately NOT wired to live PUT/DELETE calls on
  * every change - it used to upload/remove immediately, which meant
@@ -38,13 +41,16 @@ const AVATAR_SIZE = '4rem'
  * have an avatar picked before it exists - the upload just waits for
  * `createUser`'s response to hand back the new id.
  */
-const UserForm = ({ user, onClose, onSaved }) => {
+const UserForm = ({ user, roles, onClose, onSaved }) => {
   const isEdit = Boolean(user)
   const [username, setUsername] = useState(user?.username ?? '')
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
   const [password, setPassword] = useState('')
-  const [isAdminRole, setIsAdminRole] = useState(user?.roles.includes('admin') ?? false)
+  const [roleKeys, setRoleKeys] = useState(user?.roleKeys ?? ['viewer'])
   const [active, setActive] = useState(user?.active ?? true)
+  const [aiTokens, setAiTokens] = useState(user?.ai_daily_tokens ?? '')
+  const service = Boolean(user?.service)
+  const noPassword = service || Boolean(user?.guest)
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarObjectUrl, setAvatarObjectUrl] = useState(null)
   const [avatarRemoved, setAvatarRemoved] = useState(false)
@@ -85,13 +91,14 @@ const UserForm = ({ user, onClose, onSaved }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const aiDailyTokens = parseAiTokens(aiTokens)
+    if (aiDailyTokens === undefined) return setError('AI tokens a day: empty, 0 or a whole number')
     setBusy(true)
     setError(null)
     try {
-      const roles = isAdminRole ? ['admin'] : []
       let userId = user?.id
       if (isEdit) {
-        const body = { display_name: displayName, roles, active }
+        const body = { display_name: displayName, active, ai_daily_tokens: aiDailyTokens }
         if (password) body.password = password
         await api.updateUser(user.id, body)
       } else {
@@ -99,11 +106,12 @@ const UserForm = ({ user, onClose, onSaved }) => {
           username,
           password,
           display_name: displayName,
-          roles,
           active,
+          ai_daily_tokens: aiDailyTokens,
         })
         userId = created.id
       }
+      if (!service) await api.setUserRoles(userId, roleKeys)
 
       if (avatarFile) {
         await api.uploadAvatar(userId, avatarFile)
@@ -144,25 +152,53 @@ const UserForm = ({ user, onClose, onSaved }) => {
               <CFormInput value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             </CCol>
           </CRow>
-          <CRow className="mb-3">
-            <CCol>
-              <CFormLabel>
-                {isEdit ? 'New password (leave blank to keep current)' : 'Password'}
-              </CFormLabel>
-              <CFormInput
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required={!isEdit}
+          {!noPassword && (
+            <CRow className="mb-3">
+              <CCol>
+                <CFormLabel>
+                  {isEdit ? 'New password (leave blank to keep current)' : 'Password'}
+                </CFormLabel>
+                <CFormInput
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required={!isEdit}
+                />
+              </CCol>
+            </CRow>
+          )}
+          <div className="mb-3">
+            <CFormLabel>Roles</CFormLabel>
+            {service ? (
+              <div className="small text-body-secondary">
+                {roleKeys.map((k) => roles.find((r) => r.key === k)?.name ?? k).join(', ')} - an
+                internal service&apos;s account, fixed.
+              </div>
+            ) : (
+              <SearchChecklist
+                id="user-roles"
+                items={roles
+                  .filter((r) => !r.service)
+                  .map((r) => ({ key: r.key, label: r.name, detail: r.key }))}
+                selected={roleKeys}
+                onToggle={(k) =>
+                  setRoleKeys((ks) => (ks.includes(k) ? ks.filter((x) => x !== k) : [...ks, k]))
+                }
+                disabled={busy}
+                maxHeight="10rem"
               />
-            </CCol>
-          </CRow>
+            )}
+            <div className="form-text">
+              Several - the person switches between them in the menu; none - signs in, sees nothing.
+            </div>
+          </div>
           <CRow className="mb-3">
-            <CCol>
-              <CFormCheck
-                label="Admin role"
-                checked={isAdminRole}
-                onChange={(e) => setIsAdminRole(e.target.checked)}
+            <CCol sm={6}>
+              <AiTokensInput
+                id="user-ai-tokens"
+                value={aiTokens}
+                onChange={setAiTokens}
+                disabled={busy}
               />
             </CCol>
           </CRow>

@@ -16,6 +16,7 @@ import {
 } from '@coreui/react'
 import { cilSettings, cilTrash } from '@coreui/icons'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
 import { useProcessLiveState } from '../../api/useLiveProcess'
 import IconButton from '../../components/IconButton'
 import ResetFiltersButton from '../../components/ResetFiltersButton'
@@ -31,6 +32,7 @@ import { usePagination } from '../../hooks/usePagination'
 import { processPanels } from '../../processTypeRegistry'
 import ProcessSettingsModal from './ProcessSettingsModal'
 import WemRow from './WemRow'
+import AiButton from '../../components/ai/AiButton'
 
 const statusColor = (status) => (status === 'on' ? 'success' : 'secondary')
 
@@ -133,6 +135,10 @@ const ProcessRow = ({
   // Which specific action is in flight, not a single shared boolean - only
   // the button the user actually clicked shows a spinner; the other one
   // (already disabled, since it matches the pre-click status) never did.
+  // what this person may do with this process (access.js - the server decides)
+  const can = useCan()
+  const canControl = can('processes.control', { process: process.id })
+  const canManage = can('processes.manage', { process: process.id })
   const [busyAction, setBusyAction] = useState(null)
   const [settingsVisible, setSettingsVisible] = useState(false)
 
@@ -208,7 +214,7 @@ const ProcessRow = ({
               <Switch
                 checked={status === 'on'}
                 onChange={(next) => handleAction(next ? 'ON' : 'OFF')}
-                disabled={busyAction !== null}
+                disabled={busyAction !== null || !canControl}
                 ariaLabel={`${process.name} power`}
               />
             ) : (
@@ -221,7 +227,7 @@ const ProcessRow = ({
                     style={ACTION_BUTTON_STYLE}
                     color={isCurrent ? statusColor(status) : 'secondary'}
                     variant={isCurrent ? undefined : 'outline'}
-                    disabled={busyAction !== null || isCurrent}
+                    disabled={busyAction !== null || isCurrent || !canControl}
                     onClick={() => handleAction(action)}
                   >
                     {busyAction === action ? <CSpinner size="sm" /> : action}
@@ -229,21 +235,26 @@ const ProcessRow = ({
                 )
               })
             )}
-            <IconButton
-              icon={cilSettings}
-              size="sm"
-              center
-              onClick={() => setSettingsVisible(true)}
-              ariaLabel="Process settings"
-            />
-            <IconButton
-              icon={cilTrash}
-              size="sm"
-              center
-              disabled={deleteBusy}
-              onClick={handleDelete}
-              ariaLabel={`Delete ${process.name}`}
-            />
+            <AiButton action subject={{ type: 'process', id: process.id }} label={process.name} />
+            {canManage && (
+              <IconButton
+                icon={cilSettings}
+                size="sm"
+                center
+                onClick={() => setSettingsVisible(true)}
+                ariaLabel="Process settings"
+              />
+            )}
+            {canManage && (
+              <IconButton
+                icon={cilTrash}
+                size="sm"
+                center
+                disabled={deleteBusy}
+                onClick={handleDelete}
+                ariaLabel={`Delete ${process.name}`}
+              />
+            )}
             {extraAction?.(process)}
             {Panel && <ExpandToggleButton expanded={expanded} onClick={onToggleExpand} />}
           </div>

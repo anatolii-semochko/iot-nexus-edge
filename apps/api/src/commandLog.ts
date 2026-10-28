@@ -5,7 +5,8 @@
 // config changes) alongside device writes, and to record WHO issued each
 // command (`actor_user_id`) rather than the previously meaningless-in-
 // practice `source` string (always literally "api") - see migration
-// 1690000000039. The orchestrator IS the "system" user (routes/users.ts's
+// 1690000000039. The orchestrator IS the "orchestrator" user (the former
+// "system" - migration 1690000000094; routes/users.ts's
 // own protected service account) for this purpose, not a separate
 // synthetic actor type - migration 1690000000040 retired that distinction.
 
@@ -83,8 +84,9 @@ export async function logCommand(entry: CommandLogEntry): Promise<void> {
 let systemActorUserIdCache: number | null = null;
 
 /**
- * The "system" user's id (routes/users.ts's protected, non-deletable
- * service account, seeded by migration 1690000000009) - every
+ * The "orchestrator" user's id (routes/users.ts's protected, non-deletable
+ * service account, seeded by migration 1690000000009 as "system", renamed by
+ * 1690000000094; the role `system`) - every
  * orchestrator-issued command attributes to this real user row
  * (AGENTS_TO_DO.md, 2026-08-01: "system... Це і є оркестратор"). Cached in
  * memory after the first successful lookup (this id never changes once
@@ -94,9 +96,9 @@ let systemActorUserIdCache: number | null = null;
  */
 export async function getSystemActorUserId(): Promise<number> {
   if (systemActorUserIdCache !== null) return systemActorUserIdCache;
-  const result = await pool.query<{ id: number }>("SELECT id FROM users WHERE username = 'system'");
+  const result = await pool.query<{ id: number }>("SELECT id FROM users WHERE username = 'orchestrator'");
   if (!result.rows[0]) {
-    throw new Error("system user not found");
+    throw new Error("orchestrator user not found");
   }
   systemActorUserIdCache = result.rows[0].id;
   return systemActorUserIdCache;
@@ -157,6 +159,8 @@ export interface ListCommandLogsParams {
   to?: string;
   page: number;
   pageSize: number;
+  // a person limited to some DNP instances (access/scope.ts): only these processes' / devices' rows
+  visible?: { processIds: number[]; deviceIds: number[] };
 }
 
 /**
@@ -165,10 +169,14 @@ export interface ListCommandLogsParams {
  * a row targets one or the other, never both.
  */
 export async function listCommandLogs(params: ListCommandLogsParams): Promise<{ items: CommandLogListItem[]; total: number }> {
-  const { deviceId, processIds, action, actorUserId, search, from, to, page, pageSize } = params;
+  const { deviceId, processIds, action, actorUserId, search, from, to, page, pageSize, visible } = params;
   const conditions: string[] = [];
   const values: unknown[] = [];
 
+  if (visible) {
+    values.push(visible.processIds, visible.deviceIds);
+    conditions.push(`(l.process_id = ANY($${values.length - 1}) OR l.device_id = ANY($${values.length}))`);
+  }
   if (processIds !== undefined) {
     values.push(processIds);
     conditions.push(`l.process_id = ANY($${values.length})`);

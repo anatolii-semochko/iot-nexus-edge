@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
   CAlert,
-  CAvatar,
   CBadge,
   CButton,
   CCard,
@@ -15,15 +14,16 @@ import {
   CTableHeaderCell,
   CTableRow,
 } from '@coreui/react'
-import CIcon from '@coreui/icons-react'
-import { cilCheck, cilX } from '@coreui/icons'
 import { api } from '../../api/client'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { usePagination } from '../../hooks/usePagination'
 import { usePersistedState } from '../../hooks/usePersistedState'
 import UserForm from './UserForm'
-import { userTitle } from '../../utils/format'
+import { AiTokensMark } from './AiTokens'
+import { AvatarRow, byStrength, RoleAvatar, UserAvatar } from './Avatars'
+import PageTitle from '../../components/PageTitle'
+import { useCan } from '../../access'
 
 // Registration for usePersistedState (AGENTS_TO_DO.md, 2026-08-01) - flat
 // variant, same shape as NodesList.jsx/DevicesList.jsx.
@@ -32,10 +32,14 @@ const PERSISTED_DEFAULTS = {
   pageSize: 10,
 }
 
-const matchesSearch = (user, search) => {
+// by the name and the roles' names (the roles are circles now - their names in the titles)
+const matchesSearch = (user, search, roles) => {
   if (!search) return true
   const needle = search.toLowerCase()
-  return [user.username, user.display_name].some((field) => field?.toLowerCase().includes(needle))
+  const roleNames = (user.roleKeys ?? []).map((k) => roles.find((r) => r.key === k)?.name ?? k)
+  return [user.username, user.display_name, ...roleNames].some((field) =>
+    field?.toLowerCase().includes(needle),
+  )
 }
 
 // Delete is destructive and rare - arm it with one click, then require a
@@ -84,7 +88,9 @@ const DeleteButton = ({ user, onDeleted, onError }) => {
   )
 }
 
-const UsersList = () => {
+const UsersList = ({ roles, onChanged }) => {
+  // seeing the users (users.view) - no changes without users.manage
+  const manage = useCan()('users.manage')
   const [users, setUsers] = useState(null)
   const [error, setError] = useState(null)
   const [pageState, setPageState] = usePersistedState('nexusedge.usersPage', PERSISTED_DEFAULTS)
@@ -105,7 +111,7 @@ const UsersList = () => {
 
   useEffect(reload, [])
 
-  const filtered = (users ?? []).filter((user) => matchesSearch(user, search))
+  const filtered = (users ?? []).filter((user) => matchesSearch(user, search, roles ?? []))
   const { page, pageSize, pageItems, totalItems, setPage, setPageSize } = usePagination(filtered, {
     pageSize: pageState.pageSize,
     onPageSizeChange: (size) => setPageState({ pageSize: size }),
@@ -124,15 +130,19 @@ const UsersList = () => {
     setEditingUser(null)
     setCreating(false)
     reload()
+    // the roles' members changed too
+    onChanged?.()
   }
 
   return (
     <CCard className="mb-4">
       <CCardHeader className="d-flex justify-content-between align-items-center">
-        <strong>Users</strong>
-        <CButton size="sm" color="primary" onClick={() => setCreating(true)}>
-          Add user
-        </CButton>
+        <PageTitle title="Users" />
+        {manage && (
+          <CButton size="sm" color="primary" onClick={() => setCreating(true)}>
+            Add user
+          </CButton>
+        )}
       </CCardHeader>
       <CCardBody>
         {error && <CAlert color="danger">{error}</CAlert>}
@@ -143,7 +153,7 @@ const UsersList = () => {
               <TableSearchInput
                 value={search}
                 onSearch={setSearch}
-                placeholder="Search by username, name..."
+                placeholder="Search by username, name, role..."
               />
             </div>
             {filtered.length === 0 ? (
@@ -159,6 +169,9 @@ const UsersList = () => {
                       <CTableHeaderCell scope="col">Username</CTableHeaderCell>
                       <CTableHeaderCell scope="col">Display name</CTableHeaderCell>
                       <CTableHeaderCell scope="col">Roles</CTableHeaderCell>
+                      <CTableHeaderCell scope="col" title="The AI's tokens a day">
+                        AI
+                      </CTableHeaderCell>
                       <CTableHeaderCell scope="col">Status</CTableHeaderCell>
                       <CTableHeaderCell scope="col" className="text-end">
                         Actions
@@ -169,46 +182,24 @@ const UsersList = () => {
                     {pageItems.map((user) => (
                       <CTableRow key={user.id}>
                         <CTableDataCell>
-                          <div className="position-relative d-inline-block" title={userTitle(user)}>
-                            {user.avatar_path ? (
-                              <CAvatar src={`/api/uploads/avatars/${user.avatar_path}`} size="md" />
-                            ) : (
-                              <CAvatar color="secondary" textColor="white" size="md">
-                                {(user.display_name ?? user.username)[0].toUpperCase()}
-                              </CAvatar>
-                            )}
-                            {/* Same active/inactive flag as the avatar field
-                                in UserForm.jsx - not an action here either.
-                                Sized smaller here (proportional to the "md"
-                                CAvatar this sits on, vs the form's "4rem"
-                                one) - the form's own 1.25rem badge looked
-                                right against a much bigger avatar, but was
-                                oversized against this smaller one. */}
-                            <CAvatar
-                              color={user.active ? 'success' : 'danger'}
-                              textColor="white"
-                              className="position-absolute p-0 d-flex align-items-center justify-content-center"
-                              style={{
-                                width: '0.85rem',
-                                height: '0.85rem',
-                                top: '-0.15rem',
-                                right: '-0.15rem',
-                              }}
-                            >
-                              <CIcon icon={user.active ? cilCheck : cilX} height={8} width={8} />
-                            </CAvatar>
-                          </div>
+                          <UserAvatar user={user} />
                         </CTableDataCell>
                         <CTableDataCell>{user.username}</CTableDataCell>
                         <CTableDataCell>{user.display_name ?? '-'}</CTableDataCell>
                         <CTableDataCell>
-                          {user.roles.length === 0
-                            ? '-'
-                            : user.roles.map((role) => (
-                                <CBadge key={role} color="info" className="me-1 mb-1">
-                                  {role}
-                                </CBadge>
-                              ))}
+                          <AvatarRow
+                            items={byStrength(
+                              (user.roleKeys ?? []).map(
+                                (k) => roles.find((r) => r.key === k) ?? { key: k, name: k },
+                              ),
+                            )}
+                            render={(r) => <RoleAvatar role={r} />}
+                            titleOf={(r) => r.name}
+                            max={4}
+                          />
+                        </CTableDataCell>
+                        <CTableDataCell>
+                          <AiTokensMark value={user.ai_daily_tokens} />
                         </CTableDataCell>
                         <CTableDataCell>
                           <CBadge color={user.active ? 'success' : 'secondary'} className="mb-1">
@@ -216,26 +207,30 @@ const UsersList = () => {
                           </CBadge>
                         </CTableDataCell>
                         <CTableDataCell className="text-end">
-                          <CButton
-                            size="sm"
-                            color="secondary"
-                            variant="outline"
-                            className="me-1"
-                            onClick={() => setEditingUser(user)}
-                          >
-                            Edit
-                          </CButton>
-                          <CButton
-                            size="sm"
-                            color="secondary"
-                            variant="outline"
-                            className="me-1"
-                            disabled={user.active && !user.deactivatable}
-                            onClick={() => handleToggleActive(user)}
-                          >
-                            {user.active ? 'Deactivate' : 'Activate'}
-                          </CButton>
-                          <DeleteButton user={user} onDeleted={reload} onError={setError} />
+                          {manage && (
+                            <>
+                              <CButton
+                                size="sm"
+                                color="secondary"
+                                variant="outline"
+                                className="me-1"
+                                onClick={() => setEditingUser(user)}
+                              >
+                                Edit
+                              </CButton>
+                              <CButton
+                                size="sm"
+                                color="secondary"
+                                variant="outline"
+                                className="me-1"
+                                disabled={user.active && !user.deactivatable}
+                                onClick={() => handleToggleActive(user)}
+                              >
+                                {user.active ? 'Deactivate' : 'Activate'}
+                              </CButton>
+                              <DeleteButton user={user} onDeleted={reload} onError={setError} />
+                            </>
+                          )}
                         </CTableDataCell>
                       </CTableRow>
                     ))}
@@ -255,6 +250,7 @@ const UsersList = () => {
         {(editingUser || creating) && (
           <UserForm
             user={editingUser}
+            roles={roles}
             onClose={() => {
               setEditingUser(null)
               setCreating(false)

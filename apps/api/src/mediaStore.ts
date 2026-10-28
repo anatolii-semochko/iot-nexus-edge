@@ -16,6 +16,9 @@ export const mediaStore = createFileStore({ rootDir: config.media.dir, maxPartBy
 
 export const mediaScope = (deviceId: number) => [`device-${deviceId}`];
 
+// A node's own files (its photo - AGENTS_TO_DO.md 2026-10-20, X1): <MEDIA_DIR>/node-<id>/.
+export const nodeMediaScope = (nodeId: number) => [`node-${nodeId}`];
+
 // A plugin's own files (not a device's), e.g. an aquarium's photo gallery:
 // <MEDIA_DIR>/plugin-<plugin>/<key...>/ - its own top-level directory, so
 // it never mixes with the device scopes. `key` segments are the plugin's

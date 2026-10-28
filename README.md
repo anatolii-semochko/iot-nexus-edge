@@ -53,10 +53,15 @@ end-to-end today, verified live in a running container stack (see
   1-second tick loop, demonstrated with a temperature controller and an
   independent safety monitor that flags critical states across the whole
   UI.
-- **UI authentication** — JWT in an httpOnly/`SameSite=Strict` cookie,
-  bcrypt-hashed passwords, Postgres-backed users with roles stored as a
-  proper set (not a comma-joined string), protected `admin`/`system`
-  accounts, and avatar upload.
+- **Users and access** — server-side sessions (a JWT in an
+  httpOnly/`SameSite=Strict` cookie; absolute and idle limits), bcrypt
+  passwords, avatars. Roles are tables of object x level (view / control /
+  configure) over the DNP instances and the system sections, with their
+  own Dashboard cards, pages and AI token limit; a person acts in one of
+  their roles at a time ("Act as", checked by the server on every
+  request). An optional built-in guest replaces the sign-in page with a
+  read-only (or as configured) view, with links into its roles
+  (`?account=`).
 - **A universal pagination/filtering toolkit** for admin tables (debounced
   search, page-size control, client-side pagination) — built once, reused
   across every list view in the app.
@@ -106,10 +111,8 @@ end-to-end today, verified live in a running container stack (see
   or any MCP client.
 
 Deliberately **not** done yet, and documented as such rather than left
-quiet: per-endpoint API authorization (today only the UI login and the
-`/users` admin endpoints are gated — device/process control endpoints are
-still open), user groups / access rights per Dashboard card, and an
-automated test suite.
+quiet: an automated test suite beyond the unit tests of the access
+mapping and a few modules.
 
 ## Architecture
 

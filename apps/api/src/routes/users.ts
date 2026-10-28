@@ -6,6 +6,9 @@ import type { MultipartFile } from "@fastify/multipart";
 import type { FastifyInstance } from "fastify";
 
 import { hashPassword, requireAdmin } from "../auth.js";
+import { invalidatePrincipals } from "../access/principal.js";
+import { revokeSessionsOf } from "../access/session.js";
+import { tokenLimit } from "./access.js";
 import { config } from "../config.js";
 import { pool } from "../db.js";
 
@@ -17,15 +20,13 @@ import { pool } from "../db.js";
 // is the one place that distinction is encoded - the UI mirrors it only
 // for display
 // (disabling buttons), never re-implements the rule itself.
-// `ai-agent` - the AI agent's own account (migrations/1690000000067)
-const PROTECTED_USERNAMES = new Set(["admin", "system", "simulator", "ai-agent"]);
+// `ai-agent` - the AI agent's own account (migrations/1690000000067);
+// `orchestrator` - the former `system` (1690000000094); `guest` - the built-in
+// guest (1690000000094: never deleted, switched on / off by `active`).
+// A deactivation or a new password ends the person's sessions.
+const PROTECTED_USERNAMES = new Set(["admin", "orchestrator", "simulator", "ai-agent", "guest"]);
 const NON_DEACTIVATABLE_USERNAMES = new Set(["admin"]);
-
-// The only role that means anything today (gates access to these very
-// routes). `roles` is still a Postgres array, not a single string column,
-// so adding a second meaningful role later is a code change, not a
-// migration.
-const ALLOWED_ROLES = new Set(["admin"]);
+const SERVICE_USERNAMES = new Set(["orchestrator", "simulator", "ai-agent"]);
 
 // Doubles as the allow-list (its keys) and the file extension to save each
 // mimetype under.
@@ -43,6 +44,7 @@ interface UserRow {
   roles: string[];
   avatar_path: string | null;
   active: boolean;
+  ai_daily_tokens: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -53,14 +55,10 @@ function publicUser(user: UserRow) {
     ...rest,
     deletable: !PROTECTED_USERNAMES.has(user.username),
     deactivatable: !NON_DEACTIVATABLE_USERNAMES.has(user.username),
+    // an internal service's account (the role `system`) or the guest - no password, no sign-in
+    service: SERVICE_USERNAMES.has(user.username),
+    guest: user.username === "guest",
   };
-}
-
-function validateRoles(roles: unknown): string[] | null {
-  if (!Array.isArray(roles) || !roles.every((r) => typeof r === "string" && ALLOWED_ROLES.has(r))) {
-    return null;
-  }
-  return roles;
 }
 
 async function findUser(id: string): Promise<UserRow | undefined> {
@@ -92,7 +90,9 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/users", async () => {
     const result = await pool.query<UserRow>("SELECT * FROM users ORDER BY username");
-    return result.rows.map(publicUser);
+    // each person's roles (the Users list's Access column - 2026-10-27)
+    const members = (await pool.query<{ user_id: number; role_key: string }>("SELECT user_id, role_key FROM role_members ORDER BY role_key")).rows;
+    return result.rows.map((u) => ({ ...publicUser(u), roleKeys: members.filter((m) => m.user_id === u.id).map((m) => m.role_key) }));
   });
 
   app.get<{ Params: { id: string } }>("/users/:id", async (request, reply) => {
@@ -102,25 +102,25 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post<{
-    Body: { username: string; password: string; display_name?: string; roles?: string[]; active?: boolean };
+    Body: { username: string; password: string; display_name?: string; active?: boolean; ai_daily_tokens?: number | null };
   }>("/users", async (request, reply) => {
     const username = request.body.username?.trim().toLowerCase();
     const { password } = request.body;
     if (!username || !password) {
       return reply.code(400).send({ error: "username and password are required" });
     }
-    const roles = validateRoles(request.body.roles ?? []);
-    if (!roles) {
-      return reply.code(400).send({ error: "roles must only contain known role names", allowed: [...ALLOWED_ROLES] });
-    }
+
+    const aiTokens = tokenLimit(request.body.ai_daily_tokens ?? null);
+    if (aiTokens === undefined) return reply.code(400).send({ error: "ai_daily_tokens: empty (unlimited), 0 (off) or a whole number" });
 
     const passwordHash = await hashPassword(password);
     try {
       const result = await pool.query<UserRow>(
-        `INSERT INTO users (username, password_hash, display_name, roles, active)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [username, passwordHash, request.body.display_name ?? null, roles, request.body.active ?? true],
+        `INSERT INTO users (username, password_hash, display_name, roles, active, ai_daily_tokens)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [username, passwordHash, request.body.display_name ?? null, [], request.body.active ?? true, aiTokens],
       );
+      // the roles - PUT /access/users/:id/roles (none yet - signs in, sees nothing)
       return reply.code(201).send(publicUser(result.rows[0]));
     } catch (err) {
       if (err instanceof Error && "code" in err && (err as { code: string }).code === "23505") {
@@ -132,7 +132,7 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
 
   app.patch<{
     Params: { id: string };
-    Body: { password?: string; display_name?: string; roles?: string[]; active?: boolean };
+    Body: { password?: string; display_name?: string; active?: boolean; ai_daily_tokens?: number | null };
   }>("/users/:id", async (request, reply) => {
     const user = await findUser(request.params.id);
     if (!user) return reply.code(404).send({ error: "user not found" });
@@ -141,24 +141,20 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: `user '${user.username}' cannot be deactivated` });
     }
 
-    let roles = user.roles;
-    if (request.body.roles !== undefined) {
-      const validated = validateRoles(request.body.roles);
-      if (!validated) {
-        return reply.code(400).send({ error: "roles must only contain known role names", allowed: [...ALLOWED_ROLES] });
-      }
-      roles = validated;
-    }
-
     const passwordHash = request.body.password ? await hashPassword(request.body.password) : user.password_hash;
     const displayName = request.body.display_name ?? user.display_name;
     const active = request.body.active ?? user.active;
+    const aiTokens = request.body.ai_daily_tokens === undefined ? user.ai_daily_tokens : tokenLimit(request.body.ai_daily_tokens);
+    if (aiTokens === undefined) return reply.code(400).send({ error: "ai_daily_tokens: empty (unlimited), 0 (off) or a whole number" });
 
     const result = await pool.query<UserRow>(
-      `UPDATE users SET password_hash = $1, display_name = $2, roles = $3, active = $4, updated_at = now()
+      `UPDATE users SET password_hash = $1, display_name = $2, active = $3, ai_daily_tokens = $4, updated_at = now()
        WHERE id = $5 RETURNING *`,
-      [passwordHash, displayName, roles, active, user.id],
+      [passwordHash, displayName, active, aiTokens, user.id],
     );
+    invalidatePrincipals();
+    // deactivated, or a new password - their sessions are over (not the one changing their own password)
+    if (!active || request.body.password) await revokeSessionsOf(user.id, active ? (request.session?.sid ?? null) : null);
     return publicUser(result.rows[0]);
   });
 
@@ -170,6 +166,7 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
     }
 
     await pool.query("DELETE FROM users WHERE id = $1", [user.id]);
+    invalidatePrincipals();
     if (user.avatar_path) {
       await unlink(path.join(config.uploads.avatarsDir, user.avatar_path)).catch(() => {
         // Best-effort - a missing file on disk shouldn't block the delete.

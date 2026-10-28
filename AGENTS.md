@@ -980,9 +980,10 @@ exists above, or build these before they're actually needed):
 - **Permissions/roles helper** (a generic `roles()` hook reading many
   possible permissions, an `AccessDeniedBlock`) — UI authorization (section
   13) landed with only one meaningful role (`admin`) and a single inline
-  check (`user.roles.includes('admin')`) everywhere it's needed
-  (`AppSidebar.jsx`, `AppHeaderDropdown.jsx`) — a generic multi-permission
-  hook would be solving a problem that doesn't exist yet.
+  check (`user.roles.includes('admin')`) everywhere it's needed — a generic
+  multi-permission hook would be solving a problem that doesn't exist yet.
+  (Superseded: the access rework added `access.js` `useCan` / `canOpen` -
+  see the access section.)
 - **`objectToFormData` / generic file-upload helper** — avatar upload
   (section 13) turned out to need only a single `FormData` + one `<input
   type="file">` call site (`UserForm.jsx`), not a reusable helper; revisit if
@@ -992,16 +993,27 @@ exists above, or build these before they're actually needed):
   `body.reason ?? body.error` from a non-2xx JSON response; no need to add a
   second, separately-named helper that does the same thing.
 
+### Pages without a frame, table rows (2026-10-18)
+
+- A page's own top card - the routed view's root `<CCard>`, a direct child
+  of AppContent's `page-content` container - has no border, header band or
+  side padding (`scss/style.scss`); the container has no max width and the
+  wrapper is the body colour in both themes, so a page is one sheet aligned
+  with the header. Cards inside a page keep their usual look. A new page
+  keeps the convention: one `<CCard>` as its root, its title a `<strong>` in
+  the card header.
+- Every table drops the border under its last row (no opt-in class);
+  badges in a table cell keep a 0.25rem gap below.
+
 ## 13. UI authorization (login, users, roles, avatars)
 
-Login-gates the admin panel itself (AGENTS.md's original "Ми додаємо
-наступні кроки" roadmap, step 2). **Deliberately NOT done here**: per-endpoint
-API authorization — `/nodes`, `/devices`, `/processes`, `/system/*` remain
-completely open, unauthenticated, exactly as before. Only two route groups
-are actually gated: `/auth/*` and `/users/*`. That's a separate, much larger
-future task (would need to decide what an EdgeX-adjacent device-control API
-protected by roles even looks like) — not something this step should block
-on or half-implement.
+Login-gates the admin panel itself. 2026-10-17: **superseded by the access
+control below** ("Access control - permissions, roles, scopes, sessions")
+- every API route is now checked by one guard; the session is server-side
+(2026-10-27); the JWT carries `{sub, username, sid, ctx?, guest?}` (no
+roles). The text of this
+section stays as the history of the first login step; where it disagrees,
+the "Access control" section wins.
 
 **Session mechanism** — one JWT, httpOnly cookie, no refresh token:
 - `POST /auth/login` verifies `bcryptjs` against `users.password_hash`,
@@ -1453,6 +1465,17 @@ sized content instead of nesting percentage heights through it).
 previous CPU sample to diff against (see above) — that one tick reports
 `cpu: 0` and skips both the critical and warning checks entirely rather
 than risk a false reading off a meaningless first sample.
+
+**Hysteresis and hold (2026-10-19, migrations 075 / 076)**: a metric at a
+threshold (a host's CPU temperature swinging 69-91 C within seconds under
+load) raised and resolved its warning tick after tick - each re-raise a new
+`log_messages` row (587 a day on the demo, the header's counters at 99+).
+A raised level (`<metric>_warning` / `_error`) now holds until the value is
+`hysteresis` units (config, the metric's own % or C; default 2) below the
+threshold, and clears only after `holdSeconds` (default 60) below
+continuously. The flags (critical / warning) and the messages use the same
+rule. Per process, in the orchestrator's memory (a restart starts from the
+plain thresholds). The panel: "Hysteresis", "Hold, s".
 
 ## 22. Logging + WEM (Warnings/Errors/Messages)
 
@@ -3853,7 +3876,10 @@ everywhere in this table, rendered with its own real avatar in the
 Commands tab exactly like any human actor - no more special-cased gear
 icon, no more separate "Orchestrator" entry in the actor filter
 dropdown (`GET /users/directory` already returns "system" like any
-other active user, so it appears there for free).
+other active user, so it appears there for free). Since migration 094
+(2026-10-27) the account is `orchestrator` ("Orchestrator", the role
+`system` - the internal services' role; the simulator and the AI agent hold
+it too); `getSystemActorUserId()` looks up `'orchestrator'`.
 
 ### Actor column moved first
 
@@ -6192,6 +6218,25 @@ in either direction.
 
 ## 66. New "weather-node" node type - CORE Library + firmware scaffold, first Device with no EdgeX backend at all
 
+> **Current state (2026-10-19):** the `weather-control` process kind is a
+> whole public CORE Library package - `devices/processes/weather-control/`
+> (`process.ts`, `ui/` - panel, Zones section, `lightLevels.js`, the
+> Dashboard component `weatherControl.panel` with its avatar, `register.js`;
+> `docs/README.md`, `library.json`), loaded like every Library process kind
+> (section 82). The runner moved there from the aquarium project, the UI
+> from `apps/ui/src/views/processes/`. The Aquarium, Energy Field and
+> Heating packages depend on it; a project seeds only its instance. Paths
+> below are the history. Since 2026-10-19 also: the forecast (`api.ts` -
+> Open-Meteo for `config.forecast`, stored in `weather_forecasts`
+> (migration 078), the last good one kept on a failed fetch, `GET
+> /weather-control/:processId/forecast`, AI tool `weather.forecast`;
+> `.env` `OPEN_METEO_URL`, API config `services`, plugin context
+> `services`), a simulated node following the forecast, the wind-speed
+> and rain device types (`devices/standalone/sensor/`), the Settings
+> "Configuration" tab (zones + forecast + simulation). Package routes
+> `/<kind>/:processId/...` are scoped to that process by the access guard
+> (`entityOf`). Details - the package's `docs/README.md`.
+
 2026-08-23. `Node Weather Control.txt` (AGENTS_TO_DO.md) - components
 ordered, not yet in hand; this section is the CORE-side software prep
 done ahead of hardware arrival, same "build simulated first, wire to
@@ -7572,6 +7617,12 @@ kept for places that need precision and fine divisions.
 - Renders an SVG `<g>` at (x, y) with radius r - place it inside your own
   `<svg>`. Also exports `zoneAt(value, limits)` and its palette constants.
 
+`RoundGauge.jsx` (2026-10-20, beside it) - the readable sibling: a white
+dial, bold zone segments by the same `limits` (`zoneAt`), the rim coloured
+by the value's zone, a big value; optional `inner` - a second, smaller
+scale with its own needle and value in its own colour (two related
+readings: flow / return, heat / electric). Also an SVG `<g>` at (x, y).
+
 **Agents: when a task needs a gauge/scale anywhere in the UI, offer this
 component to the user as an option** (alongside any simpler variant the
 target project has - e.g. nexus-edge-aquarium's `SimpleRoundGauge`, now
@@ -7770,10 +7821,9 @@ subtree, POST `/:id/move {up|down}`).
   `/dashboard/:cardId`): a level's cards, breadcrumb, a component card's
   preview / scaled copy, the component on the page by its view. The root
   level is blocks (no setting yet).
-- **Access - a stub**: the system has no user groups (users carry `roles`
-  only); `access_group_ids` is reserved and `cardVisibleTo` lets every
-  signed-in user see every card - to be done with the access-rights
-  package (AGENTS_TO_DO "Доступи / права").
+- **Access**: which cards a person sees - the role's Dashboard list and the
+  rights on the card's object (`routes/dashboardCards.ts` `visibleCards`;
+  see the access section).
 - Icons: `src/dashboardIcons.js` - the card icons (`dashboard_cards.icon`
   = a CoreUI icon key; `cardIcon(card)` - its own, else the folder /
   component default); a folder's icon is picked in its popup. On the page
@@ -7781,12 +7831,17 @@ subtree, POST `/:id/move {up|down}`).
   component has no border, background or divider - its preview (own or a
   copy of the component) drawn at 1400 px and scaled to fit the block
   whole, centered (Dashboard.jsx `FitBox`).
-- Lists (Library, the Dashboard config - both tables with
-  `table-no-last-border`): folder names blue and bold without underline,
+- Lists (Library, the Dashboard config - both tables): folder names blue and bold without underline,
   item / DNP names bold.
 - "fit-height" (Dashboard.jsx `FitHeight`): the component drawn at the
   page's width, scaled down (never up) to the height left above the
   footer, centered - measured live (ResizeObserver, window resize).
+- A component card's own parameters (`dashboard_cards.params`, migration
+  084, 2026-10-21): a component declares them in the registry (`params:
+  (process) => [{ key, label, required, hint, options }]`), the card popup
+  offers them as selects, the component gets `params` beside `process` -
+  one part of a process on its own card: `heatingControl.room` (a room -
+  its fan coil, `nodeId`), `energyField.meter` (a sub-meter, `nodeId`).
 - Known limits: a folder of component cards draws every scaled copy live
   (e.g. ten aquarium scenes at once).
 
@@ -7936,6 +7991,9 @@ Migration 064 (nexus-edge-aquarium AGENTS_TO_DO.md tech debt 6):
   `dnp.migrations.apply` and the Service -> Database -> Migrations card were
   removed 2026-10-17, migration 067; what an AI agent installs goes through
   its Install level). Replaces the one-off `migrate-extra` container.
+  After a batch applied any, the api plugins hear of it
+  (`onProjectMigrationsApplied` in their context - see "Several project
+  roots" below).
 - `system_settings` (migration 065) - a typed key/value table, empty now.
   `library_items.version` - a DNP's version from library.json (optional,
   "0" unset; compared once DNPs get updates).
@@ -7951,8 +8009,10 @@ Migration 064 (nexus-edge-aquarium AGENTS_TO_DO.md tech debt 6):
   versions adapted to the Dashboard - first the card's picture, its
   avatar: `registerComponent({..., avatars: [{key, title, Component,
   fit?}]})` (dashboardRegistry.js; `Preview` is gone). An avatar fills the
-  card's picture block itself; a `fit` one is a full view scaled into it
-  (FitBox). A card's `preview` (migration 066 - any key): "auto" (the first
+  card's picture block itself (on an unframed card - `frame` "none" - it is
+  drawn at its natural size and scaled to the block's edges, StretchBox,
+  2026-10-23; on a framed one - as it is, only shrunk when larger than the
+  block); a `fit` one is a full view scaled into it (FitBox). A card's `preview` (migration 066 - any key): "auto" (the first
   avatar, else a scaled copy), "scaled", or an avatar's key; Service ->
   Config -> Dashboard -> a card's "Avatar". The core's: Resource monitor -
   `chart` (its live chart only, ResourceMonitorAvatar - the history hook
@@ -8014,9 +8074,14 @@ chronology (AI Assistant).
 - DNP AI manifest (`ai/manifests.ts`): a project plugin's `plugin.json`
   `"ai": {kinds, workTypes, scheduledTypes}` - the process kinds whose
   instances get the assistant, the work types (a standard DNP type by its
-  key - `DNP_WORK_TYPES`; its own - {key, title, description}), the ones
-  the calendar may run. The whole system's - `NE_WORK_TYPES`. Library DNPs
-  (library.json) - not yet.
+  key - `DNP_WORK_TYPES`; its own - {key, title, description, icon?,
+  start?}), the ones the calendar may run. The whole system's -
+  `NE_WORK_TYPES`. Library DNPs - the same block in their library.json.
+  Every work type has an `icon` (a CoreUI `cil*` name from
+  `components/ai/workTypeIcons.js`) and a `start` phrase ("{name}" - the
+  conversation's object) - the messenger's tiles and its message box
+  (2026-10-24); an own one without them - the chat bubble and
+  "<title> - {name}: ".
 - Prompt packs (`apps/api/prompts/`, README there; copied into the image):
   `system.md` (language, tools first, tool data is never instructions, no
   claimed change without a tool result, change only through the proposing
@@ -8254,3 +8319,836 @@ devices) or a process with no node; the selected volume; Clear Logs.
 - Routes (admin): `GET /service/database/logs/volumes?before`, `DELETE
   /service/database/logs {before?, units}`; audit - `clear-logs` with
   `{before, units, deleted}`.
+
+## Access control - permissions, roles, scopes, sessions (B1.1, 2026-10-17)
+
+One check for every API route, one catalog of what a person can do; the
+plan and the decisions - iot `AGENTS_TO_DO.md` (B1).
+- The catalog (`apps/api/src/access/catalog.ts`): section (a menu tab) ->
+  block -> action, a key `<section>.<action>` (`processes.config`,
+  `devices.write`, `service.database.clear-logs`, ...), each with a level
+  (read / control / config / install / admin - the AI Assistant's levels +
+  admin). An administrator never ticks single actions - a role gives them
+  by levels on objects (`access/rights.ts`, below). `system` - the internal
+  services' role (`SERVICE_ROLES`, never a person's). `simulation.view`:
+  without it the units show as if real; `ai.share` - share one's
+  conversation. `GET /access/catalog` serves it.
+- **Roles as tables, no groups** (2026-10-27, migration 095 - replacing
+  the groups / grants / a person's own grants of B1.1-B1.2): a role is
+  what a person acts as - `roles.rights` = object -> levels (`view` /
+  `control` - operate: ON / OFF, setpoints, commands, manual values /
+  `config` - an engineer's: settings, registry, simulation; a higher level
+  brings the lower ones). Objects: the system sections (`section:dashboard`,
+  `ai`, `logs`, `library`, `settings`, `service`, `users` - each with the
+  levels it has), `*` - every other object, and the DNP instances (units -
+  `node:<root>` / `process:<id>`, `system` - the devices with no node;
+  `dnpInstances.ts`); an object's row replaces `*` (up or down). The
+  sections' levels: Simulation (`simulation.view` - which units are
+  simulated; on the objects viewed - an engineer's sight apart from
+  configuring, migration 096), Users (view - `users.view`: the Users page
+  read only; config - `users.manage`).
+  `access/rights.ts` - THE mapping (object, level) -> catalog actions
+  (`computeRights`; `rights.test.ts` - every action mapped once); the AI
+  Assistant's and Logs' use is gated - their section's level opens them,
+  on the objects viewed (the whole-system assistant - with every object
+  viewed). The pages and the menu follow from the actions. Also in a role:
+  `dashboard` (null - every card, else the card ids; a process's card -
+  only where its process is seen), `link_key` (`?account=`),
+  `ai_daily_tokens`; its people - `role_members`. `admin` and `system`
+  hold everything by their key (`FULL_ROLES`). The built-in roles:
+  Administrator, Operator, Viewer, Guest, System service; Users -> Roles
+  makes / copies own ones. Migration 095 turned every group into a role of
+  its name (its grants -> rows, its members, its link name), a person's own
+  grants into a role "<name> - own access" (one role everywhere - that
+  role), the cards' groups into the roles' card lists, the last group into
+  the role; the old operator's install-level actions (registering nodes /
+  devices / processes) are now its `config` level.
+- Storage: `roles` (+ `rights`, `dashboard`, `link_key`,
+  `ai_daily_tokens`), `role_members` (migration 095; the groups, the grants
+  and `roles.permissions` of migration 073 are gone); the `demo` account
+  (protected; the `guest` since migration 094). `users.roles` - only kept
+  in step ('admin' for a member of Administrator) for old readers.
+- The guard (`access/guard.ts`, an onRequest hook): the route's permission
+  from ONE table (`access/routes.ts` - its own `config.permission`, an exact
+  "METHOD /pattern", the longest prefix read / write, else a project
+  package's route - `dnp.view` / `dnp.config`; special: public,
+  authenticated, service); internal services - `X-Service-Token` =
+  `SERVICE_API_TOKEN` (the orchestrator's apiClient - and so every process
+  plugin, the device-service's media uploads) act as `orchestrator` (the
+  former `system` account, role `system` - migration 094); else the
+  session cookie -> the principal (`access/principal.ts`, the role acted
+  in - or the union of all for one role, cached `AUTH_PRINCIPAL_CACHE_MS`,
+  dropped on any access change). A route naming a process / node / device
+  checks it on that entity's unit: not even visible -> 404, visible but not
+  allowed -> 403 (the guest's refusal - "sign in to change this", `guest: true`). `requireAuth` /
+  `requireAdmin` remain only as "known person" checks - the guard decides.
+- Limited people (a role with objects' rows) don't see other instances at all:
+  the lists filter (`access/scope.ts` - `/processes`, `/nodes`, `/devices`,
+  `/dashboard-cards` with the role's cards, `/logs/commands`,
+  `/logs/devices`, `/log-messages`), the AI Assistant offers only their DNP
+  instances (the whole-system instance - with `ai.use` everywhere), other
+  people's scheduled runs are hidden; the live stream (messaging gateway)
+  asks `GET /access/stream-scope` with the person's cookie on connect and
+  every `GATEWAY_SCOPE_REFRESH_MS`, closes with 4401 without a session, and
+  sends only their processes / devices / nodes (the fleet-wide unread
+  counters are left out for them).
+- **Acting in one role** (G1, 2026-10-26 - groups then, roles since
+  2026-10-27; migration 093): a person with several roles chooses one at a
+  time in the header's avatar menu ("Act as"; the menu: the name, the
+  roles, Logout / Sign in - the Users page only from the sidebar) - `principalOf(userId,
+  context)` keeps only that role ("role:<key>"); the server checks it (the
+  session's `ctx` claim, the guard). `contextsOf` - their roles, the
+  strongest first; fewer than two - no choice.
+  The choice is remembered (`users.last_context`, POST `/auth/context`) and
+  offered at the next sign-in; the first time - the strongest. `/auth/me`
+  - `contexts`, `context`; the UI reloads on a switch. The AI's tools act in
+  the person's current role. One per session (every tab alike).
+- Sessions (`access/session.ts`; server-side since 2026-10-27, as in
+  sevenstime-backoffice): the cookie's JWT names the person and the session
+  (`sid` - a `user_sessions` row, migration 094); the token and its cookie
+  live `JWT_TOKEN_TTL` seconds (the cookie outlives the browser); the guard
+  checks the row on every request (re-read / its `last_activity_at` written
+  at most every `AUTH_ACTIVITY_WRITE_SECONDS`) - unused for
+  `JWT_TIME_INVALIDATION` seconds, revoked (sign-out), or the person
+  deactivated / given a new password (`revokeSessionsOf`; not the session
+  changing its own password) - 401 "the session is over". Per session, not
+  per person (unlike sevenstime): signing out on one device leaves the
+  others. A context switch re-signs the same session. Ended sessions are
+  removed nightly (`maintenance.guests`). `AUTH_SESSION_IDLE_MINUTES` /
+  `AUTH_SESSION_MAX_HOURS` and the sliding renewal are gone.
+- Dashboard cards (`visibleCards`): whoever holds `dashboard.manage` (the
+  Dashboard's Configure) sees and arranges all; else a card shows when it is
+  in the role's list (`roles.dashboard`, null - all) and its object is seen
+  - a process's card where the process is seen, the core's own
+  (`system.<section>`) with that section's view; a hidden folder hides its
+  subtree, a folder with nothing visible inside is hidden.
+- `.env`: `SERVICE_API_TOKEN` (api, orchestrator, device-service),
+  `JWT_TOKEN_TTL`, `JWT_TIME_INVALIDATION`, `AUTH_ACTIVITY_WRITE_SECONDS`,
+  `GUEST_CLEANUP_AT`, `LOG_RETENTION_DAYS`. The `DEMO_*` block is gone
+  (2026-10-27) - the core knows no demo; a demo is the guest set up by its
+  project's migrations (nexus-edge-tech `demo/migrations/032_demo_guest.sql`).
+- Tests: `access/routes.test.ts` (the table), `access/rights.test.ts` (the
+  mapping, the `*` row and its replacement, the gated sections). Checked live: no session -
+  401 (the stream - 4401); a bad service token - 401; a person on a
+  service-only route - 403; a viewer limited to one aquarium - only its
+  processes / nodes / devices / cards / log rows / stream, another
+  aquarium's process - 404, a change of their own - 403, no AI instance;
+  (2026-10-27) a session idle past `JWT_TIME_INVALIDATION` - 401 and
+  revoked, a signed-out one - 401.
+- The UI (B1.2): `/auth/me` -> `access` (the keys held everywhere; those
+  held on some instances - with their units' process / node / device ids);
+  `ui/src/access.js` - `useCan()` / `canAny()` / `SECTION_PERMISSIONS`: the
+  menu and the pages by a section's permissions (no right - no entry, a
+  direct link - "no access"), Service's tabs, the action buttons (process
+  ON / OFF - control, settings / delete - manage; a device's value -
+  write / simulate, settings - manage; a node's settings, groups,
+  simulation; Library sync / add; a proposal's Accept / Reject -
+  ai.decide); any other refusal - said in words by the API client ("no
+  permission (key)", the guest's "Sign in to change this"). Users -> Users /
+  Roles / Guest (`views/users/`): a person's roles (a checklist); a role
+  (`RolesTab.jsx`) - tabs General (name, key, link name, AI tokens,
+  members) / Sections / Objects / Dashboard / Pages (below); the rights table
+  (the sections' rows; "Every other object" and the objects' own rows, each
+  with View / Control / Configure and a quick choice Viewer / Operator /
+  Engineer; a search over the rows; "Add objects" - a checklist); the
+  Dashboard (every card / the cards chosen - the cards' tree); its members;
+  "Copy" - a new role from it. The form shows only what the choices above
+  make relevant: the Dashboard's cards - with its View (Configure - "sees
+  and arranges every card", no list), the cards of the role's objects only
+  (each with its process and folder path; "show the cards of other
+  objects"), the AI tokens - with the AI Assistant's View. Without
+  `users.manage` the page is read only. Every long list is `components/
+  SearchChecklist.jsx` - a search by a part of a word, "Selected only", the
+  count. An internal service's account (orchestrator, simulator, ai-agent -
+  `service`) has no password field and fixed roles; the guest - no
+  password.
+- The AI's tokens a day (2026-10-27; `users.ai_daily_tokens`,
+  `roles.ai_daily_tokens`, migration 094): empty - unlimited (a green check
+  in the Users / Roles tables), 0 - the AI off (a red cross; the principal
+  loses `ai.use` - every AI entry hides), a number - the limit (shown). The
+  account's own and its roles' - the strictest holds; of several roles -
+  the most generous (`Principal.aiDailyTokens`, `/auth/me`
+  `access.aiDailyTokens`). Counted per account per day (all its
+  conversations - the guest's: all guests together); over it - 429.
+- A role's pages (2026-10-27; `roles.pages`, migration 097; null - every
+  page its rights open): the menu entries / pages it shows, on their own -
+  an owner, an operator, a visitor work on the Dashboard (their rights let
+  it read the devices) and need no Nodes / Devices / Processes pages;
+  `messages` - the header's messages (the notification centre). A page
+  opens when the role shows it AND its rights let it (`access.js`
+  `canOpen` / `pageShown`; the sidebar - `components/useMenu.js`, the
+  routes, the header). One page at most (only the Dashboard) - no sidebar,
+  no menu button, the brand in the header. Shown only - the rights decide
+  what may be read or done. The Pages tab - each page on / off and which
+  row opens it or what it lacks (`POST /access/rights/preview`,
+  `rights.ts` `actionSources`), "The role gets: ...". After a role switch
+  ("Act as" reloads) a page the new role doesn't open is left for its
+  first page (`ui/src/roleSwitch.js` `isSwitchLanding(pathname)` - a mark
+  read once at the load, only for that page, dropped once the person is on
+  another; any other closed page still says "no access"); a Dashboard
+  folder / card it doesn't see - for the Dashboard's top (`Dashboard.jsx`).
+- The users' and roles' tables show circles (`views/users/Avatars.jsx`): a
+  role's Members - the people's avatars (the active flag, the name in the
+  title), "+N" past 8; a person's Roles - the roles' initials coloured by
+  their highest level, the strongest first (`byStrength`), "+N" past 4; a
+  guest's role - outlined. The Roles table: the name (no key, no link - in
+  the form), Rights - the highest level as a badge (`roleLevel`,
+  `RoleLevelBadge`; what on which objects - in its title): None, View,
+  Control, Configure, Administer (Users and access - Configure: can give
+  anyone anything), Full (built in - Administrator), Service (the system's
+  own accounts). The colours read in both themes (Full - the text's own
+  colour). The AI column - a green circle with a check (unlimited), a red
+  one with a cross (off), or the limit as plain text. Both tables search by
+  the names behind them.
+- The objects' list (`GET /access/objects`) says where each sits: a process
+  with no node - its kind; an installation - "used by <processes>" (those
+  running on it, and those naming one of its nodes - a `nodeId` anywhere in
+  `processes.config`).
+- A link into a role (2026-10-27; `roles.link_key`): `?account=<link
+  name>` - before the hash or in it - opens the application in that role
+  of the person (`/auth/me?account=`, the login's `account`;
+  `contextOfLink`), remembered as their last (not the guest's);
+  `ui/src/accountLink.js` reads it once and takes it off the address.
+  API (users.manage): `/access/roles` (GET; POST - `copyOf`; PATCH -
+  name / rights / dashboard / linkKey / aiDailyTokens / memberIds; DELETE -
+  not a built-in), `/access/objects` (the levels, the sections, the
+  objects), `PUT /access/users/:id/roles`; `GET /users` carries each
+  person's `roleKeys`.
+- The guest (2026-10-27, replacing the demo mode of B1.3 - the core knows no
+  demo): the built-in `guest` account (migration 094 - the former `demo`;
+  never deleted, off at first; its role `guest`, its AI tokens 0). On
+  (Users -> Guest - its `active`): `/auth/me` without a live session starts
+  a guest session (`guest: true`; each browser its own - its `sid` keeps
+  the guest's own conversations, `ai_conversations.guest_session`); the
+  application opens with the guest's roles (G1 contexts - the
+  first time the strongest, never remembered on the account; `?account=`
+  links), the menu's "Sign in" goes to the sign-in page (the guest session
+  stays until someone signs in - the login ends it), which offers "Continue
+  as a guest" (`/auth/me?signin=1` - `guestEnabled`, no session started).
+  Off - the sign-in page. A sign-out with the guest on lands on the
+  Dashboard as the guest (AuthGate checks again whenever the person is
+  gone). A new visitor starts in the guest's `defaultRole` (the guest's
+  settings; none - its most allowing role; a link wins). A change - 403
+  "sign in to change this". The
+  guest's settings (`system_settings` 'guest', `access/guestSettings.ts`,
+  `GET/PUT /access/guest`): its conversations private (each browser its
+  own) or public (every guest reads all, continues only their own); kept N
+  days (empty - kept; removed nightly at `GUEST_CLEANUP_AT`); "only relevant
+  questions" - a guest's conversation starts its system prompt with
+  `prompts/guest.md`: an off-topic question is refused and marked
+  `<off-topic/>` on the answer's last line (stripped) - that turn is
+  deleted, the conversation too when empty (the tokens stay counted). A
+  person who can't decide proposals (no `ai.decide` - the guest, a viewer)
+  gets the reading tools only.
+- Shared conversations (2026-10-27; the former demo showcase -
+  `ai_conversations.shared`, migration 094): the owner (`ai.share`; an AI
+  administrator - any) shares one with the star in the AI Assistant's list
+  (`PATCH /ai/conversations/:id/shared`) - everyone who may talk to its
+  instance's assistant reads it (marked "shared"), starts their own; the
+  list's rows carry `mine` (else read only) and `guest`. The log retention
+  keeps the shared ones.
+- The simulation's marks (2026-10-21, by the permission since 2026-10-27):
+  without `simulation.view` the UI (`src/presentation.js` -
+  `useHideSimulation`, `simulationTint`) drops them - the rows' tint, the
+  "Simulation" status, its filter option, the header badge, the simulation
+  switch for those who may not simulate; the simulation itself, the
+  Simulator and the other rights stay.
+- The nightly maintenance (`maintenance.ts`, each job once a day at its
+  local time by the calendar's rule; the last day in `system_settings`):
+  `GUEST_CLEANUP_AT` - the guests' conversations past the guest's kept days
+  and the ended sessions removed; `LOG_RETENTION_DAYS` at
+  `LOG_RETENTION_AT` - every unit's logs older than that
+  (`logCleanup.clearLogsOlderThan`, the shared conversations kept); and at start
+  the TimescaleDB retention of the raw `samples` (`SAMPLES_RETENTION_DAYS`,
+  0 - forever; the aggregates stay).
+- The AI's help (B1.4; roles since 2026-10-27): `access.explain` (a
+  person's roles with their rows, the role acted in, what they hold
+  everywhere / where; for a permission - held now or not and which of
+  their roles give it where) and `access.propose` (a person's roles
+  replaced; by key or name) - the whole-system assistant only; an access
+  proposal (operation `roles`; the pending `grants` ones were rejected by
+  migration 095) is never applied
+  on its own (pending whatever the level) and only a person holding
+  `users.manage` decides it.
+- Checked live (B1.3 - the demo mode, since replaced by the guest; the guest
+  re-checked 2026-10-27 - its session, refusals, public conversations, an
+  off-topic question dropped, `?account=`, the idle / signed-out session):
+  the Users / Roles screens; a limited viewer's UI; the demo
+  - two visitors signed in apart, a change refused, AI answered with
+  reading tools only, visitors isolated, MCP 404, the nightly reset removed
+  the visitors' conversations, the log retention ran once a day; the AI
+  explained why a viewer can't change Bare Tank's settings and proposed an
+  operator role on Bare Tank only; a viewer's Accept - 403, the admin's -
+  applied, the change took effect.
+
+## Several project roots (B2, 2026-10-19)
+
+A target project can be built on another one (the demo in
+`../nexus-edge-tech/demo/` on `../nexus-edge-aquarium`): every extension
+directory takes a comma-separated LIST of roots, a dependency's first.
+
+- `projectRoots.ts` `parseRoots(value, defaultLabel)`: each entry
+  `label=path` or a bare `path`; the first bare one gets the default label
+  ("private" for packages, "project" for migrations) - so a single-root
+  setup reads exactly as before. Used by `EXTRA_API_PLUGINS_DIR`,
+  `EXTRA_PROCESS_PLUGINS_DIR` (orchestrator config), `EXTRA_MIGRATIONS_DIR`;
+  the device-service's `EXTRA_RES_DIR` (extrares.go) - the same list,
+  labels ignored.
+- API packages (`apiPlugins.ts`, `libraryCatalog.ts` - `projectRootOf`,
+  `resolveAbsDir`), static UI files per root (`server.ts`), the Library
+  catalog's private DNPs, AI manifests - from every root.
+- Process kinds (orchestrator `processPlugins.ts`): the roots in reverse
+  plus the Library - a later root's kind overrides an earlier root's (or
+  the Library's) kind of the same name; the same name twice in one source
+  is still an error.
+- Migrations (`extraMigrations.ts`): root by root, file-name order inside;
+  recorded as the plain file name for the first root (as in the
+  single-root days) and `<label>/<file name>` for the others.
+- `onProjectMigrationsApplied(fn)` - in the api plugins' context: called
+  after a batch applied at least one project migration (on start - they run
+  after `listen`, so after the plugins loaded - or later). What a plugin
+  derives from the data at its start (the aquarium light's stored MPT) is
+  recomputed then: a project built on it may seed rows the start predated.
+- How to set one up: `docs/CREATING_A_TARGET_PROJECT.md` section 8
+  "Building on another target project".
+
+## AI tools of a DNP, clearer tool errors (2026-10-19)
+
+- `registerAiTool(tool)` in the api plugins' context (apiPlugins.ts): a
+  DNP adds its own AI Assistant tool to the same registry (ai/tools.ts) -
+  in every instance's tool list and the MCP server. Reading only (the
+  access is forced to "read"); changes go through the core's proposing
+  tools. The first - the aquarium light's `light.plan` (today's plan: the
+  profile, the peak, the power hour by hour, the periods with their
+  spectrum templates).
+- A tool's invalid input is reported as a model can act on it: the unknown
+  field named with the allowed ones, a missing one named (was ajv's bare
+  "must NOT have additional properties"). `series.stats` / `series.points`
+  say their keys are full series keys from `series.list`.
+
+
+## Energy packages - the shared base (2026-10-19)
+
+The public CORE Library packages the Energy Field and Heating target
+packages build on (iot AGENTS_TO_DO.md - the demo site: a small German
+business with generation fields, a battery array and buildings). Each
+package documents itself in its `docs/README.md`; here - what exists:
+
+- **`weather-control`** (`devices/processes/weather-control/` - see the note
+  in section 66): the station, the light-level zones, the **forecast**
+  (Open-Meteo, stored, AI `weather.forecast`), a simulated node following
+  the forecast; device types `wind-speed`, `rain`.
+- **`energy-grid`** (`devices/processes/energy-grid/`): the site's grid
+  connection - the `grid-meter` node type (`devices/nodes/grid-meter/`,
+  reference model Janitza UMG 604-PRO, Modbus TCP - virtual until the
+  device service has a Modbus transport), the purchase price (time-of-use
+  tariff zones or the day-ahead market + surcharge - a dynamic tariff), the
+  sale price (fixed or market), today's account, supply quality and
+  import / export limits as WEM, time series `grid.*`; day-ahead prices
+  from Energy-Charts (aWATTar fallback) stored in `energy_prices`
+  (migration 079); routes `/energy-grid/:processId/prices[...]`, AI
+  `energy.prices`; panel with today's / tomorrow's price chart, settings,
+  Dashboard component `energyGrid.panel`.
+- Generic device types (`devices/standalone/sensor/`): `voltage` (V),
+  `frequency` (Hz), `power` (kW, signed by the measuring point's
+  convention), `energy` (kWh counter), `current` (A, signed),
+  `state-of-charge` (%), `rotational-speed` (rpm); for heating / cooling
+  (2026-10-20) `thermal-power` (kW, + heating / - cooling),
+  `thermal-energy` (kWh heat counter), `flow-rate` (l/min).
+- Heating / cooling node types (2026-10-20, for `heating-control`):
+  `heat-pump` (air / water monobloc - reference Vaillant aroTHERM plus 12
+  kW: flow / return / outdoor temperature, flow, heat output and counter,
+  electric power and counter, fan speed, on / off), `buffer-tank`
+  (reference Vaillant allSTOR plus 800 l: top / middle / bottom
+  temperature - the stored heat is computed), `fan-coil` (reference Daikin
+  FWT: room temperature and humidity, the valve, fan power and speed).
+  Several devices of one type on a node (the temperatures) - the process
+  takes each by its role from its config (`...DeviceId`, by id).
+- **`heating-control`** (`devices/processes/heating-control/`, 2026-10-20):
+  heating / cooling on water - heat pumps charge buffer tanks, the rooms'
+  fan coils draw from them (three blocks, optional groups `{ key, name,
+  block }`); items' devices by role in the config (`devices: { flowTemp:
+  id, ... }`). Mode auto by the outdoor temperature (hysteresis) or by
+  hand (heating / cooling / off); the tanks' start / stop band; room
+  thermostats. Models (`model.ts`, pure): COP / EER as a share of the
+  Carnot COP, output vs the outdoor temperature, the tank's energy balance
+  and stratification, the room's heat balance, the fan coil's output.
+  Today's account with the Energy Ledger's baselines (direct electric
+  heating; heat pumps without tanks). Metrics `electricKw` - the Energy
+  Field adds it to the site's consumption (`loadProcessIds`). Commands
+  `setMode`, `setSetpoint`, `setEnabled`; WEM (frost, a hot tank, low COP,
+  empty tanks); series `heat.*`; AI `heating.status`. UI: the scene
+  (`HeatingScene` - the weather widget, the blocks, the warm / cold lines
+  with their gauges) as the process row's panel and the Dashboard
+  component `heatingControl.scene`.
+- The sky picture `SkyIcon` lives in `weather-control/ui/SkyIcon.jsx`
+  (colours `--wx-*`); energy-field re-exports it.
+- **`energy-ledger`** (`devices/processes/energy-ledger/`, 2026-10-20 -
+  L1): the site's energy and money journal - one record a day
+  (`ledger_days`, migration 081) from the field's, the grid's and the
+  heatings' "today" counters (by increments - every figure over the same
+  time; mid-day start - `partial`) plus its own "all bought" integral (the
+  consumption x the slot's price); the savings bridge (`ledger.ts` - without
+  the system - heat pumps - heat storage - own energy - sales = paid, EUR
+  and kWh, summing exactly); `GET /energy-ledger/:id/period`, AI
+  `ledger.history`; `LedgerScene` (panel, Dashboard `energyLedger.scene`):
+  Day / Month / Year, the bridge, KPIs, the month's calendar. heating-control's
+  today adds `noStorageKwh` for it. L2 (2026-10-21) - the batteries' plan:
+  15-minute slots to the end of the day-ahead prices, the forecast from the
+  field's models on the weather and its profile plus the heating
+  (degree-hours learnt from the journal), dynamic programming over the SoC
+  with the wear (`plan.ts`), re-made hourly / on new prices / on a SoC drift
+  (`ledger_plans`, migration 082); the field's Auto follows its slot now
+  (`ledgerProcessId`); the Plan view, AI `ledger.plan`. L3 - strategies
+  (cost, self-sufficiency, reserve, peak shaving, sales - `strategies.ts`,
+  each valued in the real money), the selection fixed / propose (a cheaper
+  one through the core's `proposeConfig` - the ledger's AI instance's
+  Config level is the permission), the heating's SG-Ready signal that
+  heating-control follows. L4 - the learning (`learning.ts`): a sample per
+  slot - forecast vs actual (`ledger_samples`, migration 083) -> the PV /
+  wind factors and the consumption by weekday-hour in the forecast, the
+  day's forecast accuracy, the best strategy in hindsight (the selection
+  proposes one best on most recent days). L5 - the AI's daily report: the
+  work type `daily-report` (the package's prompt), the tool
+  `ledger.anomalies` (a PV block / a turbine under its neighbours, low
+  forecast accuracy, batteries under the reserve, curtailment, rooms off
+  their setpoint); the field's per-unit `todayKwh`, its simulated
+  `pvLosses` fault. A source's missing "today" (an API restart) never
+  counts as a new day. Its pure logic (bridge, optimiser, strategies,
+  learning) - `ledger.test.ts`, run by the api's vitest (its config
+  includes `devices/processes/**/*.test.ts` - a package's tests live next
+  to its code).
+- A Library process package may declare an AI manifest - the `ai` block of
+  its `library.json` (as a project plugin's `plugin.json`; kinds - the
+  package's own by default; a project's kind of the same name wins) - its
+  processes get AI instances (2026-10-21: weather-control, energy-grid,
+  energy-field, heating-control, energy-ledger). The plugin context's
+  `proposeConfig(processId, sections, reason)` (`ai/dnpProposals.ts`) - a
+  package's own proposal of its process's config change under the
+  process's AI instance (Auto applies, Confirm - a card, Off - none; a
+  pending identical one not repeated).
+- The energy field's `consumer.subMeters` (2026-10-21): the rooms' /
+  areas' meters (power-meter nodes) - a simulated one gets its `share` of
+  the profile's consumption (`withLoads` - plus the loadProcessIds'
+  electricity), a real one is read; metrics `subMeters[]` (kW, today's kWh
+  and EUR), series `field.meter.<nodeId>.kw`; the Dashboard component
+  `energyField.meter`. heating-control's `heatingControl.room` - one room's
+  climate (its fan coil, valve, temperature, humidity, setpoint + / -).
+- A node's information popup (2026-10-20, X1): `nodes.model` (a key of
+  the node type's Library `models`, null - the first), `latitude` /
+  `longitude` (the map), `photo_media_id` (Media Store scope `node-<id>`)
+  - migration 080; a node type's `library.json` `models[]` - `{ key, name,
+  maker, purpose, specs: [{ label, value }], image (a file in the type's
+  folder), url }` (`getLibraryModels`). Routes `GET /nodes/:id/info` (the
+  node, its type, its model, the photo URL, the position), `PATCH
+  /nodes/:id/details`, `GET | PUT | DELETE /nodes/:id/photo`; the node's
+  Settings edit them. Map tiles through the API (`routes/map.ts` - `GET
+  /map/tiles/:z/:x/:y`, a bounded in-memory cache, `GET /map/attribution`;
+  `.env` `MAP_TILES_URL`, `MAP_TILES_ATTRIBUTION`, `MAP_TILES_USER_AGENT`,
+  `MAP_TILES_CACHE_SIZE` - the browser never calls the tile server). UI core
+  `components/nodeInfo/`: `UnitPopup` (2026-10-22 C - every package's unit
+  popup: tabs Status / Model / Photo / Map, one tab - no switcher; Status -
+  the scene's live picture, a root `<svg>` scaled by CSS to the height of
+  the readings and charts on its right, at most 40 % wide - a wide one held
+  by the width, above them below 700 px; `footer` - the controls; no
+  `children` - the node's information only; `className` - on the modal, a
+  scene's colour-variables class, since the modal renders outside the
+  scene, e.g. energy-field's `ef-colors`), `NodeModel` (the Model tab -
+  the model's real picture `models[].image` (a file in the type's folder;
+  the demo's are WebP, at most 640 px), else the type's icon, else the
+  scene's drawing; the data), `TileMap` (slippy tiles around one point, a
+  pin, zoom - no map library), `ModelLink` (a card's model line opening
+  UnitPopup without Status). `components/charts/SeriesChart` (today's
+  series, moved from energy-field) - one chart per key, one under another,
+  each on its own Y axis, `labels` - their names; the lower and the upper
+  limit lines at practical values (a multiple of half the decade above
+  the peak +5 %: 53 -> 60, 3.9 -> 4.5).
+- External services' addresses - API config `services` (`.env`
+  `OPEN_METEO_URL`, `ENERGY_CHARTS_URL`, `AWATTAR_URL`), passed to the
+  packages in the plugin context; the data's licences are credited where it
+  is shown.
+- Package routes `/<kind>/:processId/...` are scoped to their process by
+  the access guard (`entityOf` - `:processId`).
+- **`energy-field`** (`devices/processes/energy-field/`): a site's own
+  generation and storage - PV blocks (`pv-inverter` - SMA Sunny Tripower
+  10.0), wind turbines (`wind-turbine` - Braun ANTARIS small ones, Northern
+  Power NPS 100C-24 mid-size), one battery
+  array (`battery-storage` - TESVOLT TS HV 70 + SMA Sunny Tripower Storage
+  60), one consumer (`power-meter` - Janitza UMG 96-PA); items in the config
+  by node, their devices found by type on the node; groups (one level).
+  Models (`model.ts` - pure): PV from radiation and temperature, wind power
+  curve at the hub height with per-turbine gusts, a consumption profile;
+  the battery dispatch by mode - Auto (rules on the grid's price rank),
+  Manual, Island - within SoC bounds and the connection's limits
+  (curtailment, load shed). The site's balance goes to the grid meter's
+  power device. Commands `setMode`, `setManualPower`, `setExport`,
+  `setReserve`, `setEnabled` (patch the config); WEM; metrics for the scene;
+  series `field.*`; AI `energy.field`; the engineer's panel; the user's
+  scene - Dashboard component `energyField.scene` with its card picture
+  (the package's docs/README.md "UI").
+- Node types (`devices/nodes/`): `grid-meter`, `pv-inverter`,
+  `wind-turbine`, `battery-storage`, `power-meter` - each with its
+  reference model's documents in `docs/README.md`; all Modbus TCP, virtual
+  until the device service has a Modbus transport.
+- Plugin context: `processMetrics(id)` - a process's live metrics (a
+  package's AI tool reads its process's state).
+- Coming: `energy-ledger` (the day's journal and the strategy planner,
+  shared by Energy Field and Heating), Heating.
+
+## Key values (2026-10-22)
+
+The figures a person looks for first (power, energy, money, prices,
+percentages) stand out from their text: bold, about a fifth larger, tabular
+lining digits; the unit smaller and regular. `components/KeyValue.jsx`
+(`<KeyValue value decimals unit color title />`) or the classes `.kv` /
+`.kv-unit` (scss/style.scss). Seven-segment digits only for device displays
+and gauges. The standard is also the iot skill `ui-key-values`
+(`iot/.claude/skills/`). Applied in the energy field's scene and popups,
+the heating scene's summaries and popups, the meters, the Ledger's KPIs.
+A labelled reading (a popup's Status row, the Ledger's KPI) -
+`components/StatTile.jsx` (`<StatTile label hint>` - the label small and
+muted, the value `.kv-tile`: semibold tabular digits, its figures as
+KeyValue).
+
+## The packages' UI is linted (2026-10-22)
+
+`devices/eslint.config.mjs` takes apps/ui's `packagesConfig` (the same
+React rules and Prettier options as the core UI; ESLint lints nothing
+outside its config's folder, hence a config there); apps/ui's `npm run
+lint` runs both. The rules: the React hooks' (purity - "now" by
+`hooks/useNow`, never `Date.now()` in a render) and `react/jsx-no-undef`
+(a missing import - the build doesn't catch it).
+
+## Dashboard cards: frames, the card popup (2026-10-22)
+
+`dashboard_cards.frame` (migration 085): `none` (no border, background or
+divider - the picture to the block's edges), `border` (a border and the
+divider, no background, padded), `filled` (border, divider, background);
+null - by type (folder filled, component none). The card's caption is
+centred. Service -> Config -> Dashboard: the table rows highlight on
+hover; the card popup is wide - the card's preview (`BlockCard`, not
+linked) on the left (on top when narrow), the form in rows (one column of
+titles, one of fields), the frame's select. The Dashboard's breadcrumb -
+`fw-semibold`, its links `link-primary text-decoration-none`.
+
+## The anemometer and the energy scene's pictures (2026-10-22)
+
+`weather-control/ui/anemometer/` - the user's anemometer animation
+(since 2026-10-24: `images/Anemometer_Animation_grey.gif` - the cups dark
+grey, cropped to the cups' turn, 20 % lower - instead of the first ten vector frames
+from the video): 24 frames of one third of a turn in one strip
+(`anemometer-sprite.webp`, README there); `AnemometerIcon` shows them in
+turn by a CSS `steps()` animation at a speed from the wind, still when
+calm. The energy field: the PV panel and the
+turbine redrawn (one height with the pylon and the consumer -
+`GEN_ICON_HEIGHT`), the generation's power larger and close to its icon,
+the flows larger and the side ones centred between their neighbours, the
+battery's charge with one gap all round, the Dashboard picture with the
+money's icon, full labels, centred. (The sun's / wind's widgets - since
+2026-10-24 the shared weather widgets, the next section.)
+
+## The cost accounts, the estate's pictures (2026-10-23)
+
+- energy-ledger `accounts[]` (`accounts.ts`, pure; its README) - who the
+  energy is for: `private` (the owner's), `business`, `tenant` (a let unit -
+  what to re-bill; no invoices): an account's meters (the field's
+  sub-meters) at the slots' purchase prices plus its heat meters (a
+  heating's fan coils, or its whole delivered heat) at that system's cost of
+  heat today; `otherEur` - the rest. In the metrics, in the day's record
+  (`data.accounts`) and the period's sum (`addAccounts`); the Journal's
+  "Who the energy was for" (`AccountsView`).
+- fan-coil Library: the Kampmann TOP model (a hall's air heater -
+  `nodes.model` `kampmann-top`). Dashboard icons for rooms and buildings
+  (cilIndustry, cilRoom, cilBed, cilChild, cilShower, cilWc, cilDoor,
+  cilGarage, cilCouch, cilBriefcase, cilCalculator, cilStorage).
+- The turbine icon: the tower masked out under the rotating blades (the
+  ink colour - CoreUI's body colour - is translucent). The heating's tank:
+  two gauges and its caption below; the lines' gauges ~0.74 of the blocks'
+  gap.
+
+## The weather widgets, heat trends, signed values, summary lines (2026-10-24)
+
+The user's UI rounds of 2026-10-24 over the energy field and the heating
+(iot AGENTS_TO_DO.md, archive 29) - the state they left:
+
+**The weather widgets** - weather-control `ui/WeatherWidgets.jsx`, shared:
+`SunWidget` (radiation, clouds), `WindWidget` (speed, gusts) in the energy
+field, `TemperatureWidget` (outside, in 3 h) on top of the heating scene.
+- One look (`images/fix-weather-widjet.png`): `cardClass` - the scene's
+  card frame, the colours their own `--wx-*`; `WIDGET_PX` 112 high - the
+  picture that high (at most 40 % of the widget's width; on top under
+  `NARROW_PX` 440), on its right one line (a `SummaryLine`, nothing wraps -
+  cut) and the curve in the rest.
+- The pictures cropped to their drawing: `SkyIcon` (sun, partly, cloud,
+  dusk, night - `skyAspect`), `AnemometerIcon` - the strip
+  `anemometer-sprite.webp` (README there), turning by the wind.
+- The curve (`HourCurve`): the last day and the next (`dayAround` - the
+  forecast keeps a past day, one hourly point past each edge -
+  `CURVE_EDGE_MS` - so it runs edge to edge), "now" dashed in the middle, a
+  light 3 % body between two grey lines; the hours every 6 by the clock in
+  HTML under it (0.8em), an edge label moved inside (CSS `clamp`,
+  `LABEL_DIGIT_EM`).
+- A click - a wide popup: the detailed charts one under another, two days /
+  a week / a month, the next day's forecast shaded after "now". The history:
+  `GET /weather-control/:processId/history?days=N` (at most 31) -
+  Open-Meteo's `past_days` (the model's past, not measurements), nothing
+  stored, reused 30 min in memory (an older one served when a fetch fails).
+
+**A block's summary line** - `src/components/SummaryLine.jsx` (`title`,
+`items` - `{ v }` figures and word strings in order, `color` - the block's,
+`hint`, `children` - muted extras), three classes in `scss/style.scss`:
+`.sum-title` (bold 1.3rem), `.sum-value` (bold 1.5em, tabular), `.sum-text`
+(the words, the unit included). The energy field's Generation and
+Batteries, the weather widgets' line, the heating's Heat pumps (on top of
+the mode's buttons) / Heat storage / Consumers - in the heat's colour (the
+cold's when cooling).
+
+**The energy field's scene**
+- `UnitPower` - a PV block's, a turbine's, a battery's power alike: the
+  figure bold, "kW" small and light grey (no rpm - in the popup);
+  `.ef-unit-power` lives in this scene only, a battery tile's 5 px under it.
+- A battery tile: its power over the chevrons (the state colours), the %
+  and the stored kWh inside the battery (`BatteryIcon figures` - a small
+  pink bolt by the % while charging, dark figures, the fill by the level);
+  the Dashboard avatar keeps the big bolt (`figures` false).
+- `Flow` with no power - the one no-flow sign: three still grey dots where
+  the chevrons run - the four flows between the blocks and the tiles.
+- The grid's icon (`GridIcon tariff`): the tariff's gauge top left, the
+  bolt's mirror - one arc segment per purchase zone of the grid's config
+  (deduplicated by key, ranked by price, green to red), the needle in the
+  zone now; the zones, hours, prices (and the market price in the market
+  mode) only in its `<title>` (`tariffOf`); no zones - no gauge; not on the
+  34 px avatar.
+- The middle row: the flows' columns never narrower than their figures
+  (`minmax(max-content, 1fr)`), the centre at least `MID_MIN_PX` (440), the
+  row stacked under `MID_STACK_PX` (1080 px of scene) - nothing overlaps
+  between (`images/bug-electricity-blocks.png`); the wide layout as before.
+
+**The heating's scene**
+- No own padding; the heat pumps' head: the summary line and the mode on
+  the left, the state and today's figures on the right (stacked on the left
+  under `HEAD_STACK_PX` 720, a container query).
+- A tank's gauges 8 px from it (`TANK_GAUGE_GAP`), the next tank as before.
+- The water lines: the gauges on the left (the left rim on the cards'
+  border line), `HeatTrend` stretched to the right - the heat produced
+  (`heat.heatKw`) above the tanks, used (`heat.consumersKw`) under them, a
+  day / a week, a gap in the history left a gap.
+- `heat.tanksKw` - the tanks' net (+ storing / - giving back) = `heatKw -
+  consumersKw` (both signed by the mode); in the tank popup. (The demo's
+  database got its history back-filled from those two once; elsewhere it
+  starts on the first run.)
+
+**Signed values and the gauges' limits**
+- `SeriesChart signed` - the keys swinging both ways: zero in the middle,
+  the range the same up and down, the zero line dashed (also wherever an
+  unsigned series crosses zero); a gap in the history breaks the line
+  (`GAP_STEPS`). Signed: the field's battery and grid power, `heat.tanksKw`.
+  (The heat pumps' and the consumers' charts stay from zero - one sign per
+  mode.)
+- `RoundGauge` with min < 0 < max marks its zero across the band exactly
+  (`band` - the band's own radius and width). Both ways
+  (`signedLimits(end, warn, err)` in `heatIcons.jsx`): a tank's power, the
+  heat pump's heat (its electricity 0..max), the lines' heat carried.
+- Coloured limits only where they mean something (`waterLimits(mode,
+  supply)`): the supply water (heating 55 / 62 C, cooling 6 / 4 C) - the
+  pump's flow and the lines' supply needle (warm in heating, cold in
+  cooling); a tank's temperatures - red under 5 C, yellow over its `tMaxC`
+  (the process's messages; the heating scale lengthened to show it); the
+  pumps' and the lines' power - beyond the rating either way; COP and the
+  fans as before. None on a tank's power, the return water, the pump's
+  electricity.
+- Every page: `.page-content` 1.5 rem at the bottom.
+
+## AI Assistant: the start by tiles, the topic on the way, the side panel, the AI button (2026-10-24)
+
+The assistant's rework (iot AGENTS_TO_DO.md, archive 30 - stages A-C with
+the user's answers). The state it left:
+
+**The AI's mark** - `components/AiBrainIcon.jsx`: the user's
+`images/ai-brain-2.png` (a brain with circuit lines going out) cropped and
+traced to one path (potrace); the text's colour (currentColor) as every
+other icon, one drawing for every size (it reads at 16 px). In the menu,
+the assistant's avatar (white on the primary colour), the messenger's
+start and the AI buttons.
+
+**Work types** carry `icon` (a CoreUI `cil*` name from
+`components/ai/workTypeIcons.js`) and `start` - the phrase put in the
+message box, "{name}" the subject's label, else the instance's name / "the
+whole system" (the manifests section above). `GET /ai/entities` adds each
+instance's `iconPath` (its package's Library icon) and `quickStart` (the
+whole system's work types offered first - `AI_QUICK_START`).
+
+**The conversation** - `components/ai/AiConversation.jsx`, shared by the
+messenger page and the side panel; `components/ai/useAiEntities.js` reads
+GET /ai/entities once per page load.
+- A new one (not in the panel - `compact`): tiles - "Quick start" (one
+  click puts its phrase in the box), the objects (the system, then the DNP
+  instances by package; their names on the tiles, no group titles), then
+  the object's work types ("Back" first); a work type puts its start phrase
+  in the box, Send is all that is left.
+- The composer: the topic's icon (its title - the connection and the
+  model), the object and the work type in two rows, the message, Send two
+  rows high (a phone and the panel: the selects in a row above).
+- The topic changes on the way - the selects stay free: `PATCH
+  /ai/conversations/:id/topic { instanceKey, workType }` (`ai.use`, your
+  own) moves it to another object / work type - its system prompt,
+  connection and model (`changeTopic`); a `topic` message (migration 086)
+  marks the change - a dashed divider, a note "(The conversation's topic is
+  now: ...)" before the next question for the model. The start phrase fills
+  the box only when it holds nothing of the person's own.
+
+**The messenger page** (`views/ai/AiAssistant.jsx`): the list and the
+conversation; the route's `bleed: true` (`routes.js`) - `DefaultLayout`
+drops the footer and the header's margin, `AppContent` the padding
+(`.page-content.page-bleed`), exactly the window's height; on a phone the
+list hides behind "Conversations". A conversation made on the page gets
+its address without being loaded again (its answer may still stream).
+
+**The subject** (migration 087 - `ai_conversations.subject`):
+`ai/subjects.ts` names a node / device / process / WEM message / Dashboard
+card with its ids and finds its process (the caller's `processId` first);
+`GET /ai/subject` (`ai.use`) - the object (the DNP instance of that process
+when the assistant is on for it, else the whole system), the work type (a
+message - WEM analysis, else status analysis) and the label; `POST
+/ai/conversations { subject }` keeps it - the system prompt says "Subject:
+..." (also after a topic change), the title names it. Only a subject whose
+process the person may see.
+
+**The side panel** - `components/ai/AiPanel.jsx`: `AiPanelProvider` in
+`DefaultLayout`, `useAiPanel().open({ type, id, processId? })`; fixed on
+the right (above the modals, no backdrop - a unit's popup stays seen and
+usable; the modals' focus trap only catches Tab), "Open in AI Assistant";
+its conversations are normal ones.
+
+**The AI button** - `components/ai/AiButton.jsx` (`ai.use`, the assistant
+on anywhere; the colour of the text beside it; `action` - a table row's
+outline button, as high as the row's IconButtons): before every page title
+- `components/PageTitle.jsx` (the mark and the title in one flex line, the
+title at the start; Nodes, Devices, Simulator, Processes, Live Events, Logs,
+Service, Users, Library, Docs; the Energy Field's, the heating's and the
+ledger's scenes on a Dashboard page) - before the title of every unit popup
+(`UnitPopup processId`), in the weather popup, in the rows of Processes,
+Nodes, Devices, the WEM messages and Logs -> Commands / Devices (the record
+itself as the subject's `view` - "why did this switch?"). The Dashboard's
+breadcrumb has none (2026-10-25).
+
+**The subject's page and view** (2026-10-25): the subject type `page` (`{
+type: 'page', page }` - a page's title; opens with "help"); every subject's
+`view` - what the person looks at: the open popup's / the page's active tabs
+and sub-tabs read at the click (`AiPanel` `viewOnScreen`), declared
+(`useAiView`) or given (a log record) - in the system prompt ("the person is
+looking at: ..."). Every conversation also gets today's and tomorrow's day
+notes of the whole site, fresh each turn (`notesForPrompt` - below).
+
+**The mark turns** about its vertical axis every 10 s (0.9 s, a sine's pace -
+`.ai-mark-flip`, every mark at once by the clock's phase) to be noticed -
+only before a page's or a popup's title; still (`AiBrainIcon still`) in the
+side menu, the table rows' actions and the conversation, and with reduced
+motion.
+
+## The energy management: who decides, the day's review and notes, similar days, the AI's day plan (2026-10-25)
+
+The ledger decides on its own, the AI on top (autonomy - the user); the
+Energy Ledger's README has the details.
+- **Who manages what**: the energy field - the plant and its hard limits
+  (`socMinPct` / `socMaxPct`, its mode); the ledger - the strategy and the
+  operating parameters (`strategy.reservePct`, `exportAllowed`,
+  `gridChargeAllowed` over the field's - the field reads them too);
+  `planNow.floorPct` (an outage's slot - the field's `socMinPct`), `loadKw`,
+  `gridKw`. The ledger's commands `setOperating { ..., replan }`, `replan`;
+  the field's `setExport` / `setReserve` are passed on to the ledger. A
+  temporary change ("For") is put back by the process itself (`reverts` in
+  the ledger's / the field's config).
+- **The day's review** (`energy-ledger/review.ts`): when a day closes, what
+  it could have saved at best (every strategy on the day as it was), split
+  into the forecast's and the strategy's parts, the parameters that would
+  have paid, the recommendation; the samples carry `batA`; the record also
+  `dayType`, `prices`. Money everywhere (the review, the strategy cards, the
+  plan's slots) without the optimiser's steering penalties (the import
+  limit, the peak).
+- **The operational days' notes** - the core's `day_notes` (migrations
+  088 -> 090; api `dayNotes.ts`, routes `/processes/:id/day-notes` -
+  processes.view / processes.control; UI `components/dayNotes/DayNotes.jsx`):
+  each note of its process, every panel its own - the energy field's
+  technical (outage, maintenance - "The plant today"), the ledger's logic
+  (holiday, day-off, workday - "Today's operation", with the day's type and
+  description; its `calendar`'s public holidays - `holidaysOf`,
+  `apps/api/src/holidays.ts`, the offline `date-holidays`), a heating's
+  (maintenance, room-closed - "The heating today"); `other` anywhere. The
+  ledger's plan weighs all three (an outage islands the slots -
+  `PlanSlot.gridOff`, `PlanLimits.hardMinPct`; maintenance takes units out -
+  `batteryFactor`, `heatingFactor`; a day off / a working weekend - the
+  consumption's profile), shades the windows on its chart, re-plans on a
+  change. The heating reacts itself (units out, a closed room set back by
+  `closedSetbackK`, no working-hours gains on a day off). The AI writes them
+  through `daynote.propose` (the proposal operation `day-note`, the Control
+  level); changes logged as the command `day-note`. TODO(access rework):
+  who writes which panel's notes.
+- **The similar days** (`energy-ledger/similar.ts`): the nearest recorded
+  days by the sun, wind, temperature, working or not, the prices' level and
+  spread, the season, the best-run first; `strategy.selection` "analog" -
+  each morning and on the notes' change the ledger applies their strategy
+  itself; the AI tool `ledger.similarDays`.
+- **The AI's day plan**: the work type `day-plan` (scheduled, e.g. from
+  06:00 every 2 hours - the AI calendar's repeat `hours`, `every_hours`
+  1..12, migration 089); its `Summary:` line is the day's description over
+  the ledger's own (`metrics.summary`).
+- **The ledger's views**: Plan (the similar days, the windows), Journal (the
+  day's review), **Tenants** (`/energy-ledger/:id/tenants` - the let units'
+  consumption and what they pay over a day / week / month / year / all, the
+  closed days); its card picture `LedgerAvatar`.
+- **The engineer's settings** (Processes -> Settings, staged with '*'):
+  `EnergyFieldSettingsSection` (the groups - `block` generation / batteries
+  - and the assignment, the hard band, the critical states' thresholds),
+  `HeatingSettingsSection` (each block's groups, the auto thresholds, the
+  tanks' bands and room, the closed-room setback), `LedgerSettingsSection`
+  (the operating and the strategies' parameters, the plan's timing and
+  wear, the calendar; the accounts - JSON for now). The Dashboard - the
+  operator; the process's settings - the engineer.
+
+## The energy scene: flows, critical states, limits, operating changes (2026-10-25)
+
+- **Flows**: three colours (orange - against us, green - for us, grey - none)
+  and two alarms (`energy-field/alerts.ts`, config `alerts`: red - an error:
+  the connection's import limit, the ledger's peak limit, a unit over its
+  rating; yellow - a warning: the import / the consumption well over the
+  plan's). Each main flow's state in its title; a click opens its popup -
+  the grid, the consumption, the generation (PV and wind, a composite icon)
+  and the batteries together.
+- **Limits on the charts**: `SeriesChart` `limits` (constant or over-the-day
+  dashed lines - red / yellow; one far above the day's values named at the
+  edge) - the grid's import / export / peak limits and the plan's
+  expectation plus the tolerance (`ui/useFlowLimits.js`); `absolute` - a
+  power counted one way: the heat pumps' and the rooms' heat or cold from
+  zero (the pumps' and the lines' gauges too) - only the tanks keep the zero
+  in the middle.
+- **Operating changes** (the grid connection, selling, the reserve -
+  switches, one line): a popup asks Why (optional - the command log and a
+  day note the AI reads), For (until changed / 20 min / 1 h / 4 h / the day's
+  end / other) and whether to adapt the plan (Adapt / Only switch / Cancel).
+- The scene groups its units by the engineer's groups ("Other" for the
+  rest), each battery group with its charge, kWh and power.
+
+## Dashboard cards' pictures, the key values' style (2026-10-25)
+
+- **A card's own pictures** (migrations 091, 092): an uploaded image
+  instead of the icon set / the component's avatar (`picture.useImage`,
+  `imageScalePct` 10..300 - over 100 only its middle seen) or none at all
+  (`picture.hidden`); a background over the whole top block
+  (`backgroundScalePct` 10..300 - 100 covers it, `backgroundOpacityPct`).
+  The images in the database (`dashboard_card_images`, PNG / JPEG / WebP /
+  GIF up to `DASHBOARD_IMAGE_MAX_BYTES`), GET / POST / DELETE
+  `/dashboard-cards/:id/images/:slot`; uploaded at once from the card's
+  form. The frame `caption` - the border round the title's block only, the
+  picture above to the card's edges; every frame's picture block equally
+  tall (the titles on one line); the pictures within the rounded corners.
+- **Card pictures with figures**: the ledger's (saved today, paid, the
+  efficiency, the strategy, the self-sufficiency, what the plan saves), the
+  weather's "summary" (its default - temperature and in 3 h, wind, sun and
+  clouds, humidity, rain, today's low / high).
+- **Key values' style** (the user's images/fix-important-values-style-*.png):
+  the figure in its block's colour; every word around it grey (`.sum-text`);
+  a figure's unit grey and slanted (`.kv-unit`, `.sum-unit` - SummaryLine
+  slants the unit the words after a figure start with); the flows' big
+  figures keep their unit in the flow's colour. The skill ui-key-values
+  holds the rule.

@@ -50,4 +50,15 @@ describe("calendarTime", () => {
     expect(nextRun(year, at(2027, 1, 1, 0, 0))?.getTime()).toBe(at(2027, 2, 28, 9, 0));
     expect(dueOccurrence({ ...year, last_run_date: null }, at(2027, 2, 28, 9, 5), 30)).toBe("2027-02-28");
   });
+
+  it("runs every N hours from its time to the day's end, once per occurrence", () => {
+    const s = { repeat: "hours" as const, weekday: null, month_day: null, month: null, time: "06:00", every_hours: 2, last_run_date: null };
+    expect(dueOccurrence(s, at(2026, 10, 17, 5, 59), 30)).toBeNull();
+    expect(dueOccurrence(s, at(2026, 10, 17, 6, 10), 30)).toBe("2026-10-17 06:00");
+    expect(dueOccurrence({ ...s, last_run_date: "2026-10-17 06:00" }, at(2026, 10, 17, 6, 20), 30)).toBeNull();
+    expect(dueOccurrence({ ...s, last_run_date: "2026-10-17 06:00" }, at(2026, 10, 17, 8, 5), 30)).toBe("2026-10-17 08:00");
+    expect(dueOccurrence(s, at(2026, 10, 17, 7, 0), 30)).toBeNull();
+    expect(nextRun(s, at(2026, 10, 17, 22, 30))!.getTime()).toBe(at(2026, 10, 18, 6, 0));
+    expect(nextRun(s, at(2026, 10, 17, 9, 0))!.getTime()).toBe(at(2026, 10, 17, 10, 0));
+  });
 });

@@ -37,7 +37,7 @@ import chipLogo from '../assets/brand/chip-logo.svg'
 import { PROJECT_NAME } from '../projectName'
 
 // sidebar nav config
-import navigation from '../_nav'
+import { useMenu } from './useMenu'
 
 /**
  * AppSidebar functional component
@@ -55,11 +55,9 @@ const AppSidebar = () => {
   const dispatch = useDispatch()
   const unfoldable = useSelector((state) => state.sidebarUnfoldable)
   const sidebarShow = useSelector((state) => state.sidebarShow)
-  const user = useSelector((state) => state.user)
-  // `adminOnly` items (AGENTS.md section 13, e.g. Users) are hidden for
-  // everyone else - the real guard is the server-side 403 on those routes,
-  // this just avoids showing a link most signed-in users can't use.
-  const items = navigation.filter((item) => !item.adminOnly || user?.roles?.includes('admin'))
+  // the pages the role shows and its rights open (useMenu); only the Dashboard - no menu at all
+  const { items, hidden } = useMenu()
+  if (hidden) return null
 
   return (
     <CSidebar

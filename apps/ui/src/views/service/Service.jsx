@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react'
+import { useSelector } from 'react-redux'
+import { canAny, useCan } from '../../access'
 import {
   CAlert,
   CBadge,
@@ -26,6 +28,7 @@ import SubTabs, { SubTabIcon } from '../../components/SubTabs'
 import AiConfigTab from './AiConfigTab'
 import DashboardConfigTab from './DashboardConfigTab'
 import DatabaseTab from './DatabaseTab'
+import PageTitle from '../../components/PageTitle'
 
 // Service page (AGENTS_TO_DO.md, 2026-08-30) - admin-only (server-side
 // requireAdmin on every /service/* route, same pattern as UsersList.jsx's
@@ -33,10 +36,19 @@ import DatabaseTab from './DatabaseTab'
 // that, it trusts the 403). Tabs will grow (user's own "буде
 // розширюватися"). Config - its sub-tabs: Dashboard (the Dashboard page's
 // card tree, DashboardConfigTab, 2026-10-16); Database and Commands.
+// `permissions` - any of them opens the tab (access.js)
 const TABS = [
-  { key: 'config', label: 'Config' },
-  { key: 'database', label: 'Database' },
-  { key: 'commands', label: 'Commands' },
+  { key: 'config', label: 'Config', permissions: ['dashboard.manage', 'ai.configure'] },
+  {
+    key: 'database',
+    label: 'Database',
+    permissions: [
+      'service.database.backup',
+      'service.database.restore',
+      'service.database.clear-logs',
+    ],
+  },
+  { key: 'commands', label: 'Commands', permissions: ['service.system'] },
 ]
 
 const PLACEHOLDER_TABS = new Set([])
@@ -46,6 +58,7 @@ const CONFIG_TABS = [
   {
     key: 'dashboard',
     label: 'Dashboard',
+    permission: 'dashboard.manage',
     icon: (
       <SubTabIcon>
         <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.5" />
@@ -58,6 +71,7 @@ const CONFIG_TABS = [
   {
     key: 'ai',
     label: 'AI',
+    permission: 'ai.configure',
     // sparkles - a large four-pointed star and two small ones
     icon: (
       <SubTabIcon>
@@ -70,10 +84,13 @@ const CONFIG_TABS = [
 ]
 
 const ConfigTab = () => {
-  const [tab, setTab] = useState(CONFIG_TABS[0].key)
+  const can = useCan()
+  const tabs = CONFIG_TABS.filter((t) => can(t.permission))
+  const [chosen, setTab] = useState(tabs[0]?.key)
+  const tab = tabs.some((t) => t.key === chosen) ? chosen : tabs[0]?.key
   return (
     <div className="pt-3">
-      <SubTabs tabs={CONFIG_TABS} tab={tab} onChange={setTab} />
+      <SubTabs tabs={tabs} tab={tab} onChange={setTab} />
       {tab === 'dashboard' && <DashboardConfigTab />}
       {tab === 'ai' && <AiConfigTab />}
     </div>
@@ -209,20 +226,22 @@ const PERSISTED_DEFAULTS = { activeTab: TABS[0].key }
 
 const Service = () => {
   const [pageState, setPageState] = usePersistedState('nexusedge.servicePage', PERSISTED_DEFAULTS)
-  const activeTab = TABS.some((t) => t.key === pageState.activeTab)
+  const access = useSelector((state) => state.access)
+  const tabs = TABS.filter((t) => canAny(access, t.permissions))
+  const activeTab = tabs.some((t) => t.key === pageState.activeTab)
     ? pageState.activeTab
-    : TABS[0].key
+    : tabs[0]?.key
   const setActiveTab = (key) => setPageState({ activeTab: key })
 
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <strong>Service</strong>
+        <PageTitle title="Service" />
       </CCardHeader>
       <CCardBody>
         <CTabs activeItemKey={activeTab} onChange={setActiveTab}>
           <CTabList variant="tabs" className="mb-3">
-            {TABS.map((tab) => (
+            {tabs.map((tab) => (
               <CTab key={tab.key} itemKey={tab.key}>
                 {tab.label}
               </CTab>

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
+import { scopeFilter, scopeIds } from "../access/scope.js";
 import { requireAuth } from "../auth.js";
 import { logCommand } from "../commandLog.js";
 import { config } from "../config.js";
@@ -101,9 +102,11 @@ const PROCESS_SELECT = `
 `;
 
 export async function processRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/processes", async () => {
+  app.get("/processes", async (request) => {
     const result = await pool.query<ProcessRow>(`${PROCESS_SELECT} ORDER BY g.name, p.name`);
-    return Promise.all(result.rows.map(withLiveState));
+    // a person limited to some DNP instances sees only theirs (access/scope.ts)
+    const scope = await scopeFilter(request, "processes.view");
+    return Promise.all(result.rows.filter((p) => !scope || scope.process(p.id)).map(withLiveState));
   });
 
   // AGENTS_TO_DO.md, 2026-08-14 process management - live create/delete
@@ -470,9 +473,12 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   }>("/log-messages", async (request) => {
     const { type, scope, search, from, to } = request.query;
     const processId = request.query.processId ? Number(request.query.processId) : undefined;
-    const processIds = request.query.processIds
+    const asked = request.query.processIds
       ? request.query.processIds.split(",").map(Number).filter(Number.isFinite)
       : undefined;
+    // a person limited to some DNP instances sees only their processes' messages (access/scope.ts)
+    const visible = await scopeIds(request, "processes.view");
+    const processIds = visible ? (asked ?? visible.processIds).filter((id) => visible.processIds.includes(id)) : asked;
     const page = Math.max(1, Number(request.query.page ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(request.query.pageSize ?? 20)));
     return processMessages.listProcessMessages({ type, scope, processId, processIds, search, from, to, page, pageSize });

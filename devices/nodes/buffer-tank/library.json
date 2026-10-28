@@ -1,0 +1,32 @@
+{
+  "id": "node-buffer-tank",
+  "name": "Buffer Tank (heat storage)",
+  "description": "A heating / cooling buffer tank (stratified heat storage) - reference Vaillant allSTOR plus (800 l). Temperatures at the top, the middle and the bottom; the stored heat is computed from them. Used by heating-control.",
+  "models": [
+    {
+      "key": "allstor-plus-800",
+      "name": "allSTOR plus VPS 800/3-5 (800 l)",
+      "maker": "Vaillant GmbH, Germany",
+      "image": "model-allstor-plus-800.webp",
+      "purpose": "Heating / cooling buffer tank - stores heat between the heat pumps and the consumers, stratified (hot on top).",
+      "specs": [
+        {
+          "label": "Volume",
+          "value": "800 l (range 300-2000 l)"
+        },
+        {
+          "label": "Charging",
+          "value": "stratified"
+        },
+        {
+          "label": "Insulation",
+          "value": "high-grade"
+        },
+        {
+          "label": "Sensors",
+          "value": "wells at several heights"
+        }
+      ]
+    }
+  ]
+}
