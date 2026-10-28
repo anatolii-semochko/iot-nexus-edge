@@ -46,12 +46,27 @@ describe("rights", () => {
     expect([...(c.scoped.get("simulation.view") ?? [])]).toEqual(["node:1"]);
   });
 
+  it("a process's row covers the installations it uses; their own rows and other processes' stay", () => {
+    const units = ["process:1", "node:10", "node:11", "node:12", "process:2"];
+    // House heating (process:1) uses its pumps and rooms (node:10, node:11)
+    const covers = new Map([["node:10", ["process:1"]], ["node:11", ["process:1"]]]);
+    const c = computeRights({ "process:1": ["control"], "node:11": ["view"] }, units, covers);
+    expect([...(c.scoped.get("devices.write") ?? [])].sort()).toEqual(["node:10", "process:1"]);
+    expect([...(c.scoped.get("nodes.view") ?? [])].sort()).toEqual(["node:10", "node:11", "process:1"]);
+    // not used by it - nothing
+    expect(c.scoped.get("nodes.view")?.has("node:12")).toBe(false);
+    // a covering row before "*": the "*" row's View doesn't lower the covered pump's Control
+    const d = computeRights({ "*": ["view"], "process:1": ["control"] }, units, covers);
+    expect(d.scoped.get("devices.write")?.has("node:10")).toBe(true);
+    expect(d.global.has("nodes.view")).toBe(true);
+  });
+
   it("checks a form's rights", () => {
     const units = new Set(["node:1"]);
     expect(rightsProblem({ "node:9": ["view"] }, units)).toMatch(/unknown object/);
     expect(rightsProblem({ "node:1": ["write"] }, units)).toMatch(/no level/);
     // a section keeps only the levels it offers
-    expect(rightsProblem({ "section:users": ["config"], "section:logs": ["config"], "section:service": ["config"] }, units)).toEqual({ "section:users": ["view", "config"], "section:logs": ["view", "config"], "section:service": ["control", "config"] });
+    expect(rightsProblem({ "section:users": ["config"], "section:logs": ["config"], "section:service": ["config"] }, units)).toEqual({ "section:users": ["view", "config"], "section:logs": ["view", "config"], "section:service": ["view", "control", "config"] });
     expect(rightsProblem({ "node:1": ["config"] }, units)).toEqual({ "node:1": ["view", "control", "config"] });
   });
 });

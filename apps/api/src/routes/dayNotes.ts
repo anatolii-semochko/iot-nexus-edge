@@ -10,7 +10,8 @@ const today = () => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "
 /**
  * A process's operational days' notes (dayNotes.ts): GET (processes.view) from .. to (default today and 14
  * days on); people's CRUD (processes.control - the day's facts steer the plans, as the processes' commands
- * do). TODO(access rework): who may write which panel's notes - one package with the rights' rework.
+ * do) - on that process, so each panel's notes by its own rights; a linked process's Control writes them
+ * too when its manifest says so (access/linked.ts).
  */
 export async function dayNoteRoutes(app: FastifyInstance): Promise<void> {
   const exists = async (id: number) => (await pool.query("SELECT 1 FROM processes WHERE id = $1", [id])).rowCount === 1;

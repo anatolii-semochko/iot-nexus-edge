@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useSelector } from 'react-redux'
 import {
   CAlert,
   CCard,
@@ -20,6 +21,7 @@ import DashboardTab from './DashboardTab'
 import ProcessesTable from './ProcessesTable'
 import SettingsTab from './SettingsTab'
 import PageTitle from '../../components/PageTitle'
+import { canEverywhere } from '../../access'
 
 // Registration for usePersistedState (AGENTS.md section 22) - a separate,
 // independent registration from the older 'nexusedge.processes' key
@@ -86,7 +88,12 @@ const ProcessesList = () => {
   const [searchResetToken, setSearchResetToken] = useState(0)
   const [error, setError] = useState(null)
   const [pageState, setPageState] = usePersistedState('nexusedge.processesPage', PERSISTED_DEFAULTS)
-  const { activeTab, expandedIds } = pageState
+  const access = useSelector((state) => state.access)
+  const systemSettings =
+    canEverywhere(access, 'processes.manage') || canEverywhere(access, 'settings.config')
+  const { activeTab: savedTab, expandedIds } = pageState
+  // a remembered Settings tab the role no longer opens - All
+  const activeTab = savedTab === 'settings' && !systemSettings ? 'all' : savedTab
   const setExpandedIds = (ids) => setPageState({ expandedIds: ids })
   const setActiveTab = (key) => setPageState({ activeTab: key })
 
@@ -183,7 +190,8 @@ const ProcessesList = () => {
     ...tabGroups.map((group) => ({ key: `tg:${group.id}`, label: group.name })),
     { key: 'controllable', label: 'Controllable' },
     { key: 'permanent', label: 'Permanent' },
-    { key: 'settings', label: 'Settings' },
+    // the system's process / tab / message groups and levels - Configure everywhere (2026-10-28), else hidden
+    ...(systemSettings ? [{ key: 'settings', label: 'Settings' }] : []),
   ]
 
   const commonTableProps = (tabKey) => ({

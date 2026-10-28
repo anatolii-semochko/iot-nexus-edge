@@ -46,7 +46,7 @@ import { serviceRoutes } from "./routes/service.js";
 import { serviceDatabaseRoutes } from "./routes/serviceDatabase.js";
 import { systemTickRoutes } from "./routes/systemTick.js";
 import { tabGroupRoutes } from "./routes/tabGroups.js";
-import { userDirectoryRoutes, userRoutes } from "./routes/users.js";
+import { profileRoutes, userDirectoryRoutes, userRoutes } from "./routes/users.js";
 
 /**
  * Builds, wires and starts the whole API service - the "nexus-edge as a
@@ -101,6 +101,7 @@ export async function startApiServer(): Promise<FastifyInstance> {
   await app.register(mapRoutes);
   await app.register(userRoutes);
   await app.register(userDirectoryRoutes);
+  await app.register(profileRoutes);
   await app.register(nodeRoutes);
   await app.register(nodeGroupRoutes);
   await app.register(deviceRoutes);

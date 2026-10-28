@@ -4,7 +4,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { getSystemActorUserId } from "../commandLog.js";
 import { config } from "../config.js";
+import { requestContext, withRequestContext } from "../requestContext.js";
 import { instanceUnits } from "../dnpInstances.js";
+import { linkedAllows } from "./linked.js";
+import { SYSTEM_WIDE_CONFIG } from "./rights.js";
 import { can, principalOf, SERVICE_PRINCIPAL, type Principal } from "./principal.js";
 import { entityOf, permissionFor } from "./routes.js";
 import { sessionAlive, type SessionPayload } from "./session.js";
@@ -30,6 +33,8 @@ declare module "fastify" {
     session?: SessionPayload;
     // a guest's own session id - their conversations (routes/auth.ts); none for a person
     guestSession?: string;
+    // a process's command / day note refused on its own rights - decided on the body (access/linked.ts)
+    linkedCheck?: { processId: number; dayNotes: boolean };
   }
   interface FastifyContextConfig {
     // a route's own permission key (a DNP plugin's) - else access/routes.ts decides
@@ -45,7 +50,25 @@ const tokenMatches = (given: string) => {
 
 const isRead = (method: string) => method === "GET" || method === "HEAD";
 
+// the routes a linked process's rights may open: -> whether it is a day note's (else a command's)
+const LINKABLE = new Map([
+  ["POST /processes/:id/commands", false],
+  ["POST /processes/:id/day-notes", true],
+]);
+
 export function registerAccessGuard(app: FastifyInstance): void {
+  // each request its own context (requestContext.ts) - the hooks and the handler after it run inside
+  app.addHook("onRequest", (_request, _reply, done) => withRequestContext(done));
+  // the deferred linked check (above) - the command's action is in the body
+  app.addHook("preHandler", async (request: FastifyRequest, reply: FastifyReply) => {
+    const check = request.linkedCheck;
+    if (!check || !request.principal) return;
+    const action = check.dayNotes ? "dayNotes" : String((request.body as { action?: unknown } | undefined)?.action ?? "");
+    if (action && (await linkedAllows(request.principal, check.processId, action))) return;
+    const guest = request.principal.guest;
+    return reply.code(403).send({ error: guest ? "sign in to change this" : "forbidden", permission: "processes.control", ...(guest ? { guest: true } : {}) });
+  });
+
   app.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
     const pattern = request.routeOptions.url;
     if (!pattern) return; // no route - Fastify answers 404
@@ -74,6 +97,8 @@ export function registerAccessGuard(app: FastifyInstance): void {
     if (!principal) return reply.code(401).send({ error: "unauthorized" });
     request.principal = principal;
     request.session = session;
+    const context = requestContext();
+    if (context) context.actedAs = principal.roleNames.join(", ") || null;
     request.guestSession = session.guest ? session.sid : undefined;
     if (permission === "authenticated") return;
 
@@ -85,6 +110,15 @@ export function registerAccessGuard(app: FastifyInstance): void {
       // can't even see the instance - for them it doesn't exist
       const viewKey = `${permission.split(".")[0]}.view`;
       if (!can(principal, viewKey, unit)) return reply.code(404).send({ error: "not found" });
+      // a command / a day note a linked process may give (its manifest's "access.linked") - on the body
+      const linkable = LINKABLE.get(`${request.method} ${pattern}`);
+      if (linkable !== undefined && entity.kind === "process") {
+        request.linkedCheck = { processId: entity.id, dayNotes: linkable };
+        return;
+      }
+    } else if (!isRead(request.method) && SYSTEM_WIDE_CONFIG.has(permission)) {
+      // a configuration change with no object named - the whole system's (rights.ts SYSTEM_WIDE_CONFIG)
+      if (principal.global.has("*") || principal.global.has(permission)) return;
     } else if (can(principal, permission)) {
       return;
     }

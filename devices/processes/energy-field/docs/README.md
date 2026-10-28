@@ -76,6 +76,13 @@ distribution over buildings is a later package's.
 `setReserve {pct}`, `setEnabled {nodeId, enabled}` - each patches the
 config (kept) and takes effect at once.
 
+With an Energy Ledger linked (`ledgerProcessId`) the reserve and selling
+switches are the Ledger's operating parameters - the scene sends them to
+it (`setOperating`, `replan`) with a day note. Control on the field is
+enough: the manifest's `access.linked` (library.json) opens those Ledger
+commands and its day notes to whoever operates the field, nothing else of
+the Ledger (nexus-edge AGENTS.md, "A linked process's commands").
+
 ## API, AI
 
 - The config schema (`api.ts`) - config edits and command patches checked.

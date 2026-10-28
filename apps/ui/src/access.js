@@ -23,6 +23,10 @@ export function canWith(access, permission, entity) {
   return false
 }
 
+/** Whether `permission` is held everywhere - a change of the whole system's (the groups, the kinds), not one object's. */
+export const canEverywhere = (access, permission) =>
+  Boolean(access && (access.global.includes('*') || access.global.includes(permission)))
+
 /** `can(permission, entity?)` for the signed-in person. */
 export function useCan() {
   const access = useSelector((state) => state.access)
@@ -46,6 +50,7 @@ export const SECTION_PERMISSIONS = {
   '/library': ['library.view'],
   '/users': ['users.view', 'users.manage'],
   '/service': [
+    'service.view',
     'dashboard.manage',
     'ai.configure',
     'service.database.backup',

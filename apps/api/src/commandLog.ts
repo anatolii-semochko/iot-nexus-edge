@@ -12,6 +12,7 @@
 
 import { logger } from "./logger.js";
 import { pool } from "./db.js";
+import { requestContext } from "./requestContext.js";
 
 export type DeviceCommandAction =
   | "write"
@@ -51,6 +52,8 @@ export interface CommandLogEntry {
   value?: unknown;
   source: string;
   actorUserId: number;
+  // the roles the person acted in (2026-10-28) - by default the current request's (requestContext.ts)
+  actedAs?: string | null;
 }
 
 // Best-effort, same principle as messaging.ts's publish() - a logging
@@ -65,8 +68,8 @@ export interface CommandLogEntry {
 export async function logCommand(entry: CommandLogEntry): Promise<void> {
   try {
     await pool.query(
-      `INSERT INTO log_command (device_id, process_id, action, value, source, actor_user_id)
-       VALUES ($1, $2, $3, $4::jsonb, $5, $6)`,
+      `INSERT INTO log_command (device_id, process_id, action, value, source, actor_user_id, acted_as)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)`,
       [
         entry.deviceId ?? null,
         entry.processId ?? null,
@@ -74,6 +77,7 @@ export async function logCommand(entry: CommandLogEntry): Promise<void> {
         entry.value === undefined ? null : JSON.stringify(entry.value),
         entry.source,
         entry.actorUserId,
+        entry.actedAs !== undefined ? entry.actedAs : (requestContext()?.actedAs ?? null),
       ],
     );
   } catch (err) {
@@ -128,6 +132,8 @@ export interface CommandLogListItem {
   // (migration 1690000000039's backfill had no way to know which human
   // issued an old write/release/simulate command - only that it was one).
   actor_user: CommandLogActorUser | null;
+  // the roles the person acted in (their names then; null - a service's or an older row)
+  acted_as: string | null;
   created_at: string;
 }
 
@@ -144,6 +150,7 @@ interface CommandLogRawRow {
   actor_display_name: string | null;
   actor_username: string | null;
   actor_avatar_path: string | null;
+  acted_as: string | null;
   created_at: string;
 }
 
@@ -222,7 +229,7 @@ export async function listCommandLogs(params: ListCommandLogsParams): Promise<{ 
   const [{ rows: items }, { rows: countRows }] = await Promise.all([
     pool.query<CommandLogRawRow>(
       `SELECT l.id, l.device_id, d.name AS device_name, l.process_id, p.name AS process_name,
-              l.action, l.value, l.source, l.created_at,
+              l.action, l.value, l.source, l.acted_as, l.created_at,
               u.id AS actor_user_id, u.display_name AS actor_display_name,
               u.username AS actor_username, u.avatar_path AS actor_avatar_path
        ${FROM_CLAUSE}
@@ -255,6 +262,7 @@ export async function listCommandLogs(params: ListCommandLogsParams): Promise<{ 
             avatar_path: row.actor_avatar_path,
           }
         : null,
+      acted_as: row.acted_as,
       created_at: row.created_at,
     })),
     total: Number(countRows[0].count),

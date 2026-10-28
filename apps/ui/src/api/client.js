@@ -568,6 +568,15 @@ export const api = {
     return request(`/users/${id}/avatar`, { method: 'POST', body: formData })
   },
   deleteAvatar: (id) => request(`/users/${id}/avatar`, { method: 'DELETE' }),
+  // the person's own profile (apps/api/src/routes/users.ts profileRoutes)
+  getProfile: () => request('/profile'),
+  updateProfile: (data) => request('/profile', { method: 'PATCH', body: JSON.stringify(data) }),
+  uploadProfileAvatar: (file) => {
+    const formData = new FormData()
+    formData.append('avatar', file)
+    return request('/profile/avatar', { method: 'POST', body: formData })
+  },
+  deleteProfileAvatar: () => request('/profile/avatar', { method: 'DELETE' }),
   // Service->Commands (admin-only server-side - see apps/api/src/routes/service.ts).
   listSystemCommands: () => request('/service/commands'),
   runSystemCommand: (id) => request(`/service/commands/${id}/run`, { method: 'POST' }),

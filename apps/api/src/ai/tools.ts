@@ -10,6 +10,7 @@ import { checkDevice, checkNode, nodeTypeOf, RegistryError } from "../registry.j
 import { isPermission } from "../access/catalog.js";
 import { can, FULL_ROLES, principalOf, resolveContext } from "../access/principal.js";
 import { computeRights, type Rights } from "../access/rights.js";
+import { processUsage } from "../access/usage.js";
 import { rolesProblem } from "../routes/access.js";
 import { instanceUnits } from "../dnpInstances.js";
 import { querySeries, seriesStats } from "../timeSeries.js";
@@ -854,9 +855,10 @@ registerTool({
     const context = await resolveContext(person.id, null);
     const principal = await principalOf(person.id, context);
     const perm = input.permission as string | undefined;
+    const { coveredBy } = await processUsage();
     const gives = (r: { key: string; rights: Rights }, p: string) => {
       if (FULL_ROLES.has(r.key)) return "everywhere";
-      const c = computeRights(r.rights ?? {}, unitKeys);
+      const c = computeRights(r.rights ?? {}, unitKeys, coveredBy);
       return c.global.has(p) ? "everywhere" : c.scoped.has(p) ? [...c.scoped.get(p)!].map(objectName) : null;
     };
     return {

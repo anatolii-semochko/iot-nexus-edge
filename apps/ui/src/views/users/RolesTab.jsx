@@ -215,6 +215,32 @@ const personName = (u) => u.display_name ?? u.username
 
 const has = (rights, key, level) => (rights[key] ?? []).includes(level)
 
+/**
+ * The objects as a tree (2026-10-28 - an object is a process with its nodes): each process with no node,
+ * then the installations its row covers (api access/usage.ts - `coveredBy`), indented; the rest after,
+ * by name. An installation several processes use - under the first.
+ */
+const objectTree = (objects) => {
+  const byName = (a, b) => a.name.localeCompare(b.name)
+  const placed = new Set()
+  const out = []
+  for (const p of objects.filter((o) => o.key.startsWith('process:')).sort(byName)) {
+    out.push({ ...p, depth: 0 })
+    placed.add(p.key)
+    for (const o of objects.filter((x) => x.coveredBy?.[0] === p.key).sort(byName)) {
+      out.push({ ...o, depth: 1 })
+      placed.add(o.key)
+    }
+  }
+  return [
+    ...out,
+    ...objects
+      .filter((o) => !placed.has(o.key))
+      .sort(byName)
+      .map((o) => ({ ...o, depth: 0 })),
+  ]
+}
+
 /** The cards as a tree list (folders first by position), with each card's depth. */
 const cardTree = (cards) => {
   const children = new Map()
@@ -548,8 +574,10 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
         {tab === 'objects' && !full && (
           <>
             <div className="small text-body-secondary">
-              The installations and processes. &quot;Every other object&quot; - the level of every
-              object without a row of its own; an object&apos;s row replaces it (up or down).
+              The installations and processes. A process&apos;s row covers the installations it uses
+              (its pumps, rooms, meters) - one row for the whole of it; an installation&apos;s own
+              row replaces it. &quot;Every other object&quot; - the level of every object without a
+              row of its own or of its process; an object&apos;s row replaces it (up or down).
             </div>
             <div className="d-flex gap-2 align-items-center mb-1">
               <span className="small text-body-secondary">
@@ -590,9 +618,9 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
                 <SearchChecklist
                   id="role-add-objects"
                   label="Add objects with rights of their own"
-                  items={objectsInfo.objects
+                  items={objectTree(objectsInfo.objects)
                     .filter((o) => !(o.key in rights))
-                    .map((o) => ({ key: o.key, label: o.name, detail: o.detail }))}
+                    .map((o) => ({ key: o.key, label: o.name, detail: o.detail, depth: o.depth }))}
                   selected={adding}
                   onToggle={(k) =>
                     setAdding((a) => (a.includes(k) ? a.filter((x) => x !== k) : [...a, k]))

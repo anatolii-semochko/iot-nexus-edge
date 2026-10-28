@@ -24,6 +24,13 @@ const OBJECT_ACTIONS: Record<Level, string[]> = {
   config: ["processes.config", "processes.manage", "nodes.manage", "devices.manage", "devices.simulate", "dnp.config"],
 };
 
+/**
+ * An object's configuration actions - a change of them with no object named (a new process, the process /
+ * tab / device groups, the kinds) is the whole system's: held everywhere ("*" - Configure), never by one
+ * object's row (2026-10-28 - a process's engineer is not the system's).
+ */
+export const SYSTEM_WIDE_CONFIG = new Set(OBJECT_ACTIONS.config);
+
 export interface SystemSection {
   key: string;
   label: string;
@@ -47,7 +54,12 @@ export const SYSTEM_SECTIONS: SystemSection[] = [
   {
     key: "service",
     label: "Service",
-    levels: { control: ["service.database.backup"], config: ["service.database.restore", "service.database.clear-logs", "service.system", "service.dnp"] },
+    // View - its pages, nothing changed (2026-10-28); Control - the backups; Configure - the rest
+    levels: {
+      view: ["service.view"],
+      control: ["service.database.backup"],
+      config: ["service.database.restore", "service.database.clear-logs", "service.system", "service.dnp"],
+    },
   },
   // which units are simulated (the rows' tint, the badge) - an engineer's sight, apart from changing things;
   // on the objects viewed (2026-10-27)
@@ -83,12 +95,21 @@ export interface Computed {
   scoped: Map<string, Set<string>>;
 }
 
-/** A role's rights -> the actions held everywhere and on some objects (`units` - every object now). */
-export function computeRights(rights: Rights, units: string[]): Computed {
+/**
+ * A role's rights -> the actions held everywhere and on some objects (`units` - every object now).
+ * `covers` - an installation -> the processes (with no node) using it (access/usage.ts): with no row of
+ * its own, the rows of those processes decide it (the most of them), before the "*" row - an object is a
+ * process with its nodes (2026-10-28).
+ */
+export function computeRights(rights: Rights, units: string[], covers: Map<string, string[]> = new Map()): Computed {
   const global = new Set<string>();
   const scoped = new Map<string, Set<string>>();
   const fallback = withLower(rights[ALL_OBJECTS] ?? []);
-  const levelsOf = (u: string) => (rights[u] ? withLower(rights[u]) : fallback);
+  const levelsOf = (u: string) => {
+    if (rights[u]) return withLower(rights[u]);
+    const by = (covers.get(u) ?? []).filter((p) => rights[p]);
+    return by.length ? withLower(by.flatMap((p) => rights[p])) : fallback;
+  };
   // the objects holding a level: everywhere (null) - the "*" row has it and no object's row lowers it
   const holding = (l: Level): Set<string> | null => {
     const on = new Set(units.filter((u) => levelsOf(u).has(l)));

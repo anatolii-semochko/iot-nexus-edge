@@ -65,7 +65,8 @@ const EXACT: Record<string, RoutePermission> = {
   // processes: control and configuration
   "POST /processes/:id/action": "processes.control",
   "POST /processes/:id/commands": "processes.control",
-  // the operational days' notes (dayNotes.ts) - TODO(access rework): per panel
+  // the operational days' notes (dayNotes.ts) - by the panel's process (its Control); a linked process's
+  // Control too, when its manifest says so (access/linked.ts - the Energy Field's notes on the Ledger)
   "GET /processes/:id/day-notes": "processes.view",
   "POST /processes/:id/day-notes": "processes.control",
   "PATCH /processes/:id/day-notes/:noteId": "processes.control",
@@ -96,10 +97,10 @@ const EXACT: Record<string, RoutePermission> = {
   "POST /ai/proposals/:id/:decision": "ai.decide",
 
   // service -> database
-  "GET /service/database/stats": "service.database.backup",
+  "GET /service/database/stats": "service.view",
   "GET /service/database/download": "service.database.backup",
   "GET /service/database/download-logs": "service.database.backup",
-  "GET /service/database/stamps": "service.database.backup",
+  "GET /service/database/stamps": "service.view",
   "POST /service/database/stamps": "service.database.backup",
   "DELETE /service/database/stamps/:filename": "service.database.backup",
   "POST /service/database/stamps/:filename/apply": "service.database.restore",
@@ -132,10 +133,13 @@ const PREFIX: [string, RoutePermission, RoutePermission][] = [
   ["/message-levels", "settings.view", "settings.config"],
   ["/message-signal-timing", "settings.view", "settings.config"],
   ["/heartbeat-controls", "settings.view", "settings.config"],
-  ["/service/commands", "service.system", "service.system"],
-  ["/service", "service.database.backup", "service.database.restore"],
-  ["/dnp", "service.dnp", "service.dnp"],
+  // the Service pages are seen with service.view (2026-10-28); the downloads - service.database.backup (above)
+  ["/service/commands", "service.view", "service.system"],
+  ["/service", "service.view", "service.database.restore"],
+  ["/dnp", "service.view", "service.dnp"],
   ["/users", "users.view", "users.manage"],
+  // the person's own profile (routes/users.ts profileRoutes - not the guest's, checked there)
+  ["/profile", "authenticated", "authenticated"],
   ["/access", "users.view", "users.manage"],
 ];
 

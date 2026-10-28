@@ -68,6 +68,8 @@ export interface ProcessFleetSnapshot {
   // counters, assembled by apps/api's processBroadcast.ts and relayed
   // as-is here, same as `processes`.
   unreadCounts: Record<string, number>;
+  // per process - {id: [message, warning, error]} (access.ts sums a limited person's)
+  unreadByProcess?: Record<string, number[]>;
   timestamp: string;
   source: string;
 }
