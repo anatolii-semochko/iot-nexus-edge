@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import { instanceUnits } from "../dnpInstances.js";
+import { processUsage } from "./usage.js";
 import { pool } from "../db.js";
 import { computeRights, type Rights } from "./rights.js";
 
@@ -30,6 +31,8 @@ export interface Principal {
   // the pages / menu entries shown ("dashboard", "nodes", ... and "messages" - the header's; null - every
   // one the rights open): the role's list (several roles - their union). Shown only - the rights decide.
   pages: Set<string> | null;
+  // the roles it acts in - their names (the command log's "As" - 2026-10-28); none for a service
+  roleNames: string[];
 }
 
 export const SERVICE_PRINCIPAL = (userId: number): Principal => ({
@@ -42,6 +45,7 @@ export const SERVICE_PRINCIPAL = (userId: number): Principal => ({
   aiDailyTokens: null,
   dashboardCards: null,
   pages: null,
+  roleNames: [],
 });
 
 /** The roles holding everything (by their key - no rights table). */
@@ -102,12 +106,13 @@ async function load(userId: number, context: string | null = null): Promise<Prin
   const global = new Set<string>();
   const scoped = new Map<string, Set<string>>();
   const unitKeys = [...(await instanceUnits()).units.keys(), "system"];
+  const { coveredBy } = await processUsage();
   for (const r of roles) {
     if (FULL_ROLES.has(r.key)) {
       global.add("*");
       continue;
     }
-    const c = computeRights(r.rights ?? {}, unitKeys);
+    const c = computeRights(r.rights ?? {}, unitKeys, coveredBy);
     c.global.forEach((a) => global.add(a));
     for (const [a, units] of c.scoped) scoped.set(a, new Set([...(scoped.get(a) ?? []), ...units]));
   }
@@ -124,7 +129,7 @@ async function load(userId: number, context: string | null = null): Promise<Prin
     roles.length === 0 ? new Set<number>() : roles.some((r) => FULL_ROLES.has(r.key) || r.dashboard === null) ? null : new Set(roles.flatMap((r) => r.dashboard ?? []));
   const pages =
     roles.length === 0 ? new Set<string>() : roles.some((r) => FULL_ROLES.has(r.key) || r.pages === null) ? null : new Set(roles.flatMap((r) => r.pages ?? []));
-  return { kind: "user", userId: user.id, username: user.username, global, scoped, guest: user.username === GUEST_USERNAME, aiDailyTokens, dashboardCards, pages };
+  return { kind: "user", userId: user.id, username: user.username, global, scoped, guest: user.username === GUEST_USERNAME, aiDailyTokens, dashboardCards, pages, roleNames: roles.map((r) => r.name) };
 }
 
 /** A person's principal (null - no such active user); `context` - the role they act in (null - all their roles). */

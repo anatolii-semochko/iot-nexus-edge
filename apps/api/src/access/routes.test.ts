@@ -14,7 +14,8 @@ describe("permissionFor", () => {
   it("falls back to the longest prefix, read or write", () => {
     expect(permissionFor("GET", "/processes")).toBe("processes.view");
     expect(permissionFor("DELETE", "/processes/:id")).toBe("processes.manage");
-    expect(permissionFor("GET", "/service/commands")).toBe("service.system");
+    expect(permissionFor("GET", "/service/commands")).toBe("service.view");
+    expect(permissionFor("POST", "/service/commands/:id/run")).toBe("service.system");
     expect(permissionFor("POST", "/service/database/stamps")).toBe("service.database.backup");
     expect(permissionFor("GET", "/node-groups")).toBe("nodes.view");
   });

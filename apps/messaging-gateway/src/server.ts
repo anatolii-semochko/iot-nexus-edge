@@ -176,6 +176,7 @@ export function buildServer() {
 function toProcessStateEntry(snapshot: {
   processes: unknown[];
   unreadCounts: Record<string, number>;
+  unreadByProcess?: Record<string, number[]>;
   timestamp: string;
   source: string;
 }) {
@@ -186,6 +187,7 @@ function toProcessStateEntry(snapshot: {
       eventType: "snapshot",
       processes: snapshot.processes,
       unreadCounts: snapshot.unreadCounts,
+      unreadByProcess: snapshot.unreadByProcess,
       timestamp: snapshot.timestamp,
       source: snapshot.source,
     },

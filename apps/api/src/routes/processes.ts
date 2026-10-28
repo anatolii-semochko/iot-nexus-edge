@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 
+import { can } from "../access/principal.js";
 import { scopeFilter, scopeIds } from "../access/scope.js";
+import { instanceUnits } from "../dnpInstances.js";
 import { requireAuth } from "../auth.js";
 import { logCommand } from "../commandLog.js";
 import { config } from "../config.js";
@@ -445,8 +447,15 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   app.patch<{ Params: { messageId: string }; Body: { hidden: boolean } }>(
     "/log-messages/:messageId",
     { preHandler: requireAuth },
-    async (request) => {
-      await processMessages.setHidden(Number(request.params.messageId), request.body.hidden, request.user.sub);
+    async (request, reply) => {
+      // the message's process - the guard can't tell it by the route (2026-10-28): Control on it, else - for
+      // one who can't even see it - not there
+      const id = Number(request.params.messageId);
+      const row = (await pool.query<{ process_id: number }>("SELECT process_id FROM log_messages WHERE id = $1", [id])).rows[0];
+      const unit = row ? ((await instanceUnits()).processUnit.get(row.process_id) ?? null) : null;
+      if (!row || !can(request.principal!, "processes.view", unit)) return reply.code(404).send({ error: "message not found" });
+      if (!can(request.principal!, "processes.control", unit)) return reply.code(403).send({ error: "forbidden", permission: "processes.control" });
+      await processMessages.setHidden(id, request.body.hidden, request.user.sub);
       return { status: "ok" };
     },
   );
@@ -478,7 +487,10 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       : undefined;
     // a person limited to some DNP instances sees only their processes' messages (access/scope.ts)
     const visible = await scopeIds(request, "processes.view");
-    const processIds = visible ? (asked ?? visible.processIds).filter((id) => visible.processIds.includes(id)) : asked;
+    // (the one `processId` too - one of theirs only, else nothing)
+    const processIds = visible
+      ? (asked ?? (processId !== undefined ? [processId] : visible.processIds)).filter((id) => visible.processIds.includes(id))
+      : asked;
     const page = Math.max(1, Number(request.query.page ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(request.query.pageSize ?? 20)));
     return processMessages.listProcessMessages({ type, scope, processId, processIds, search, from, to, page, pageSize });

@@ -43,12 +43,13 @@ const TABS = [
     key: 'database',
     label: 'Database',
     permissions: [
+      'service.view',
       'service.database.backup',
       'service.database.restore',
       'service.database.clear-logs',
     ],
   },
-  { key: 'commands', label: 'Commands', permissions: ['service.system'] },
+  { key: 'commands', label: 'Commands', permissions: ['service.view', 'service.system'] },
 ]
 
 const PLACEHOLDER_TABS = new Set([])
@@ -108,14 +109,15 @@ const ConfigTab = () => {
 // rather than the button cell - keeping it there would make the button
 // column's own auto-width fight between rows that have a badge and rows
 // that don't.
-const CommandRow = ({ command, onRun }) => (
+// `allowed` - the person may run commands (service.system); else the list only (Service: View)
+const CommandRow = ({ command, onRun, allowed }) => (
   <CTableRow>
     <CTableDataCell>
       <CButton
         className={'w-100'}
         color={command.enabled ? 'danger' : 'secondary'}
         variant="outline"
-        disabled={!command.enabled}
+        disabled={!command.enabled || !allowed}
         onClick={() => onRun(command)}
       >
         {command.label}
@@ -133,6 +135,7 @@ const CommandRow = ({ command, onRun }) => (
 )
 
 const CommandsTab = () => {
+  const canRun = useCan()('service.system')
   const [commands, setCommands] = useState(null)
   const [error, setError] = useState(null)
   const [pending, setPending] = useState(null)
@@ -183,7 +186,7 @@ const CommandsTab = () => {
       <CTable borderless>
         <CTableBody>
           {commands.map((command) => (
-            <CommandRow key={command.id} command={command} onRun={setPending} />
+            <CommandRow key={command.id} command={command} onRun={setPending} allowed={canRun} />
           ))}
         </CTableBody>
       </CTable>

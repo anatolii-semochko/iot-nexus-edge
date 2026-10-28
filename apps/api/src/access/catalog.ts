@@ -103,6 +103,7 @@ export const CATALOG: CatalogSection[] = [
         key: "database",
         label: "Database",
         actions: [
+          a("service.view", "See the Service pages - the database's sizes, the saved states, the commands (no change)", "read"),
           a("service.database.backup", "Save and download the state and logs", "admin"),
           a("service.database.restore", "Apply or upload a saved state", "admin"),
           a("service.database.clear-logs", "Clear logs", "admin"),

@@ -68,6 +68,9 @@ export interface ProcessFleetSnapshot {
   // per the user's own direction: one systematic feed, not a second
   // parallel one just for this.
   unreadCounts: Record<processMessages.MessageType, number>;
+  // the same per process - {id: [message, warning, error]}; the gateway sums a limited person's processes
+  // and drops this before sending (2026-10-28)
+  unreadByProcess: Record<string, number[]>;
   timestamp: string;
   // Why this particular broadcast fired - "timer" for the periodic
   // cadence, or what triggered an urgent one ("critical", "warning",
@@ -132,8 +135,9 @@ async function assembleSnapshot(source: string): Promise<ProcessFleetSnapshot> {
   }
 
   const unreadCounts = await processMessages.getUnreadCounts();
+  const unreadByProcess = await processMessages.getUnreadByProcess();
 
-  return { processes, unreadCounts, timestamp: new Date().toISOString(), source };
+  return { processes, unreadCounts, unreadByProcess, timestamp: new Date().toISOString(), source };
 }
 
 async function broadcastNow(source: string): Promise<void> {

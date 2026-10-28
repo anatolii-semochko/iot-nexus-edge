@@ -217,6 +217,9 @@ const CommandLogsTab = ({
                 <CTableHeaderCell scope="col">Target</CTableHeaderCell>
                 <CTableHeaderCell scope="col">Action</CTableHeaderCell>
                 <CTableHeaderCell scope="col">Value</CTableHeaderCell>
+                <CTableHeaderCell scope="col" title="The role the person acted in">
+                  As
+                </CTableHeaderCell>
                 <CTableHeaderCell scope="col" />
               </CTableRow>
             </CTableHead>
@@ -241,6 +244,10 @@ const CommandLogsTab = ({
                   </CTableDataCell>
                   <CTableDataCell>{item.action}</CTableDataCell>
                   <CTableDataCell>{formatValue(item.value)}</CTableDataCell>
+                  {/* the role "Act as" chose then (2026-10-28); none - a service's or an older record */}
+                  <CTableDataCell className="small text-body-secondary">
+                    {item.acted_as ?? '-'}
+                  </CTableDataCell>
                   <CTableDataCell className="text-end text-nowrap">
                     {/* the AI on the record's device / process (else the page), the record itself told
                         (the user, 2026-10-25: "why did this switch?") */}

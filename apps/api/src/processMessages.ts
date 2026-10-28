@@ -177,7 +177,7 @@ export async function syncActiveMessages(
   }
 
   if (newEntryCount > 0) {
-    await bumpUnreadCount(type, newEntryCount);
+    await bumpUnreadCount(type, newEntryCount, processId);
   }
 
   if (changed) {
@@ -214,7 +214,7 @@ export async function logEvents(processId: number, entries: MessageInput[]): Pro
     );
     inserted += result.rowCount ?? 0;
   }
-  if (inserted > 0) await bumpUnreadCount("message", inserted);
+  if (inserted > 0) await bumpUnreadCount("message", inserted, processId);
 }
 
 // True the moment a process has *any* active (unresolved) entry, of any
@@ -319,7 +319,7 @@ export async function setHidden(messageId: number, hidden: boolean, userId: numb
   const row = rows[0];
   if (!row) return; // already at this state - no-op, same principle as setCritical/setWarning
 
-  await bumpUnreadCount(row.type, hidden ? -1 : 1);
+  await bumpUnreadCount(row.type, hidden ? -1 : 1, row.process_id);
   processStateEvents.emit("urgent", { reason: "read", messageId, source: "api" });
 
   const activeMessages = await listActiveMessages(row.process_id);
@@ -339,6 +339,9 @@ const UNREAD_COUNT_TYPES: MessageType[] = ["message", "warning", "error"];
 function unreadCountKey(type: MessageType): string {
   return `wem:unread:${type}`;
 }
+// the same counts per process (2026-10-28 - a person limited to some processes sees only theirs; the
+// messaging gateway sums their processes'): one Redis hash, a field per "<process id>:<type>"
+const UNREAD_BY_PROCESS_KEY = "wem:unread:by-process";
 
 /** Recomputes every counter from Postgres - call once at boot. Redis is
  * ephemeral (a restart, a flushed cache) while Postgres is the source of
@@ -351,6 +354,26 @@ export async function initUnreadCounts(): Promise<void> {
   await Promise.all(
     UNREAD_COUNT_TYPES.map((type) => redis.set(unreadCountKey(type), counts.get(type) ?? "0")),
   );
+  const perProcess = await pool.query<{ process_id: number; type: MessageType; count: string }>(
+    `SELECT process_id, type, COUNT(*) FROM log_messages WHERE hidden = false GROUP BY process_id, type`,
+  );
+  await redis.del(UNREAD_BY_PROCESS_KEY);
+  if (perProcess.rows.length)
+    await redis.hset(UNREAD_BY_PROCESS_KEY, Object.fromEntries(perProcess.rows.map((r) => [`${r.process_id}:${r.type}`, r.count])));
+}
+
+/** Unread counts per process - {id: [message, warning, error]}, only the processes with any. */
+export async function getUnreadByProcess(): Promise<Record<string, number[]>> {
+  const all = await redis.hgetall(UNREAD_BY_PROCESS_KEY);
+  const out: Record<string, number[]> = {};
+  for (const [field, value] of Object.entries(all)) {
+    const [id, type] = field.split(":");
+    const n = Number(value) || 0;
+    const i = UNREAD_COUNT_TYPES.indexOf(type as MessageType);
+    if (n <= 0 || i < 0) continue;
+    (out[id] ??= [0, 0, 0])[i] = n;
+  }
+  return out;
 }
 
 export async function getUnreadCounts(): Promise<Record<MessageType, number>> {
@@ -362,8 +385,9 @@ export async function getUnreadCounts(): Promise<Record<MessageType, number>> {
   return counts;
 }
 
-async function bumpUnreadCount(type: MessageType, delta: number): Promise<void> {
+async function bumpUnreadCount(type: MessageType, delta: number, processId: number): Promise<void> {
   await redis.incrby(unreadCountKey(type), delta);
+  await redis.hincrby(UNREAD_BY_PROCESS_KEY, `${processId}:${type}`, delta);
 }
 
 export interface ProcessMessageListItem extends ProcessMessage {

@@ -4,6 +4,7 @@ import { SERVICE_ROLES } from "../access/catalog.js";
 import { guestSettings, guestSettingsProblem, saveGuestSettings } from "../access/guestSettings.js";
 import { FULL_ROLES, invalidatePrincipals, setUserRoles } from "../access/principal.js";
 import { actionSources, computeRights, rightsCatalog, rightsProblem, type Rights } from "../access/rights.js";
+import { processUsage } from "../access/usage.js";
 import { pool } from "../db.js";
 import { instanceUnits } from "../dnpInstances.js";
 
@@ -140,35 +141,26 @@ export async function accessRoutes(app: FastifyInstance): Promise<void> {
     // each object's processes (the role editor's Dashboard - which cards the role sees) and their names
     const processes = (await pool.query<{ id: number; name: string }>("SELECT id, name FROM processes")).rows;
     const processIds = (key: string) => [...map.processUnit].filter(([, u]) => u === key).map(([id]) => id);
-    // which processes use an object (where it sits - many objects share a kind of name): those running on
-    // it, and those naming one of its nodes in their settings (a "nodeId" anywhere in processes.config)
-    const refs = (
-      await pool.query<{ process_id: number; node_id: number }>(
-        `WITH RECURSIVE j(pid, v) AS (
-           SELECT id, config FROM processes
-           UNION ALL
-           SELECT j.pid, e.value FROM j, LATERAL (
-             SELECT value FROM jsonb_each(CASE WHEN jsonb_typeof(j.v) = 'object' THEN j.v ELSE '{}'::jsonb END)
-             UNION ALL
-             SELECT value FROM jsonb_array_elements(CASE WHEN jsonb_typeof(j.v) = 'array' THEN j.v ELSE '[]'::jsonb END)) e)
-         SELECT DISTINCT pid AS process_id, (v->>'nodeId')::int AS node_id FROM j
-          WHERE jsonb_typeof(v) = 'object' AND jsonb_typeof(v->'nodeId') = 'number'`,
-      )
-    ).rows;
+    // which processes use an object (where it sits - many objects share a kind of name) - access/usage.ts;
+    // a process with no node - which installations its row covers
+    const { usedBy: users, coveredBy } = await processUsage();
     const name = new Map(processes.map((p) => [p.id, p.name]));
-    const usedBy = new Map<string, Set<string>>();
-    const use = (unit: string | undefined, processId: number) => {
-      if (unit && name.has(processId)) usedBy.set(unit, new Set([...(usedBy.get(unit) ?? []), name.get(processId)!]));
-    };
-    for (const [id, unit] of map.processUnit) if (unit.startsWith("node:")) use(unit, id);
-    for (const r of refs) use(map.nodeUnit.get(r.node_id), r.process_id);
+    const usedBy = new Map([...users].map(([unit, ids]) => [unit, new Set([...ids].map((id) => name.get(id)).filter((n): n is string => !!n))]));
+    const covering = new Map<string, number>();
+    for (const list of coveredBy.values()) for (const p of list) covering.set(p, (covering.get(p) ?? 0) + 1);
     const units = [...map.units]
       .map(([key, u]) => ({
         key,
         name: u.name,
         // a process with no node - its kind; an installation - the processes using it
-        detail: key.startsWith("process:") ? u.detail.join(", ") : usedBy.has(key) ? `used by ${[...usedBy.get(key)!].sort().join(", ")}` : "",
+        detail: key.startsWith("process:")
+          ? [u.detail.join(", "), covering.get(key) ? `with ${covering.get(key)} installation${covering.get(key) === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ")
+          : usedBy.has(key) && usedBy.get(key)!.size
+            ? `used by ${[...usedBy.get(key)!].sort().join(", ")}`
+            : "",
         processIds: processIds(key),
+        // an installation - the processes whose rows cover it (with no row of its own)
+        ...(coveredBy.has(key) ? { coveredBy: coveredBy.get(key) } : {}),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
     return {
@@ -186,7 +178,7 @@ export async function accessRoutes(app: FastifyInstance): Promise<void> {
     if (request.body?.full) return { global: ["*"], scoped: {}, sources };
     const rights = rightsProblem(request.body?.rights ?? {}, keys);
     if (typeof rights === "string") return bad(reply, rights);
-    const c = computeRights(rights, [...keys]);
+    const c = computeRights(rights, [...keys], (await processUsage()).coveredBy);
     return { global: [...c.global], scoped: Object.fromEntries([...c.scoped].map(([a, u]) => [a, u.size])), sources };
   });
 

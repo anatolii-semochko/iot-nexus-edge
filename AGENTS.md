@@ -8390,8 +8390,13 @@ plan and the decisions - iot `AGENTS_TO_DO.md` (B1).
   people's scheduled runs are hidden; the live stream (messaging gateway)
   asks `GET /access/stream-scope` with the person's cookie on connect and
   every `GATEWAY_SCOPE_REFRESH_MS`, closes with 4401 without a session, and
-  sends only their processes / devices / nodes (the fleet-wide unread
-  counters are left out for them).
+  sends only their processes / devices / nodes, and the header's unread
+  counters summed over their processes (2026-10-28: the API keeps them per
+  process too - Redis hash `wem:unread:by-process`, `getUnreadByProcess`;
+  the fleet snapshot carries `unreadByProcess`, the gateway sums a limited
+  person's and drops it before sending - `scopedProcessSnapshot`). A
+  message's hide (`PATCH /log-messages/:messageId`) needs Control on its
+  process; `GET /log-messages?processId=` - one of theirs only.
 - **Acting in one role** (G1, 2026-10-26 - groups then, roles since
   2026-10-27; migration 093): a person with several roles chooses one at a
   time in the header's avatar menu ("Act as"; the menu: the name, the
@@ -8500,10 +8505,56 @@ plan and the decisions - iot `AGENTS_TO_DO.md` (B1).
   colour). The AI column - a green circle with a check (unlimited), a red
   one with a cross (off), or the limit as plain text. Both tables search by
   the names behind them.
-- The objects' list (`GET /access/objects`) says where each sits: a process
-  with no node - its kind; an installation - "used by <processes>" (those
-  running on it, and those naming one of its nodes - a `nodeId` anywhere in
-  `processes.config`).
+- **An object is a process with its nodes** (2026-10-28; `access/usage.ts`
+  `processUsage`): which installations a process uses - those its processes
+  run on, and those naming one of its nodes in `processes.config` (a
+  `nodeId` anywhere - a heating plant's pumps and rooms, the field's PV
+  blocks and meters). A role's row of a process with no node covers the
+  installations it uses (`computeRights(rights, units, covers)`): with no
+  row of their own they take the covering processes' levels (the most of
+  them), before the "*" row - one row "House heating" instead of a row per
+  room. The objects' list (`GET /access/objects`) says where each sits: a
+  process - its kind and "with N installations"; an installation - "used by
+  <processes>" and `coveredBy`; the role editor's "Add objects" lists each
+  process with its installations under it.
+- **A linked process's commands** (2026-10-28; `access/linked.ts`): a DNP
+  package's manifest (`library.json` / a plugin's `plugin.json`) may say
+  which commands of the process its config links to are part of operating
+  its own - `"access": {"linked": [{"configKey": "ledgerProcessId",
+  "commands": ["setOperating", "replan"], "dayNotes": true}]}` (the Energy
+  Field's reserve / selling switches are the Energy Ledger's operating
+  parameters). Control on the field then sends those commands - and day
+  notes - to the ledger it names, without Control on the ledger; nothing
+  else of it. The guard defers these two routes (`POST
+  /processes/:id/commands`, `POST /processes/:id/day-notes`) to a
+  preHandler that reads the command's action from the body.
+- **A system-wide change** (2026-10-28; `rights.ts` `SYSTEM_WIDE_CONFIG`): an
+  object's configuration action with no object named (a new process, the
+  process / tab / device / node groups, the kinds) needs it everywhere
+  ("*" - Configure), never one object's row - a process's engineer is not
+  the system's. Processes -> Settings is shown only to those
+  (`canEverywhere(access, 'processes.manage')` or `settings.config`).
+- **The roles in the command log** (2026-10-28; migration 099
+  `log_command.acted_as`): the names of the roles the person acted in,
+  kept as they were then (Logs -> Commands "As"). The guard opens a request
+  context (`requestContext.ts`, AsyncLocalStorage) and fills it with the
+  principal's `roleNames`; `logCommand` reads it - no write passes it on.
+- **Service: View** (2026-10-28; `service.view`): the Service pages seen -
+  the database's sizes, the saved states, the commands - with every action
+  off (Database: each by its own right, Commands: `service.system`); the
+  downloads stay `service.database.backup`.
+- **The person's profile** (2026-10-28; `routes/users.ts` `profileRoutes`,
+  `ui/src/components/header/ProfileForm.jsx`): the user menu's "Profile" -
+  the username (fixed), the display name, the email (migration 098
+  `users.email`, optional, unique case-insensitive; the admin's form has
+  it too), the avatar (on Save) and a new password - with its repeat and the
+  current one (a tab left open must not let another change it); a new
+  password ends the person's other sessions. `GET / PATCH /profile`, `POST /
+  DELETE /profile/avatar` - any signed-in person, not the guest, not a
+  service account.
+- The AI button on a subject the person only views (decided 2026-10-28):
+  shown - asking is reading; the AI acts only within the person's rights
+  and says "no access" about what they can't see.
 - A link into a role (2026-10-27; `roles.link_key`): `?account=<link
   name>` - before the hash or in it - opens the application in that role
   of the person (`/auth/me?account=`, the login's `account`;

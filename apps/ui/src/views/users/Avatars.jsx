@@ -156,7 +156,7 @@ export const AvatarRow = ({ items, render, titleOf, max = 6 }) => {
   const shown = items.slice(0, items.length > max ? max - 1 : max)
   const rest = items.slice(shown.length)
   return (
-    <div className="d-flex align-items-center flex-wrap gap-3">
+    <div className="d-flex align-items-center flex-wrap gap-2">
       {shown.map((item, i) => (
         <React.Fragment key={i}>{render(item)}</React.Fragment>
       ))}

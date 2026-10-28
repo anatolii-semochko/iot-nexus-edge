@@ -37,11 +37,19 @@ export function eventAllowed(scope: StreamScope, routingKey: string): boolean {
 }
 
 /**
- * The fleet's process-state snapshot for a limited person: only their
- * processes; the unread counters (fleet-wide) are left out for them.
+ * The fleet's process-state snapshot for a person: limited - only their processes, and the unread
+ * counters summed over those (`unreadByProcess`, 2026-10-28); the per-process counts never go out.
  */
 export function scopedProcessSnapshot(scope: StreamScope, event: unknown): unknown {
-  if (scope.processes === null || typeof event !== "object" || event === null) return event;
-  const snapshot = event as { processes?: { id: number }[] };
-  return { ...snapshot, processes: (snapshot.processes ?? []).filter((p) => allowed(scope.processes, p.id)), unreadCounts: {} };
+  if (typeof event !== "object" || event === null) return event;
+  const { unreadByProcess, ...snapshot } = event as { processes?: { id: number }[]; unreadByProcess?: Record<string, number[]> };
+  if (scope.processes === null) return snapshot;
+  const sum = [0, 0, 0];
+  for (const [id, counts] of Object.entries(unreadByProcess ?? {}))
+    if (allowed(scope.processes, Number(id))) counts.forEach((n, i) => (sum[i] += Number(n) || 0));
+  return {
+    ...snapshot,
+    processes: (snapshot.processes ?? []).filter((p) => allowed(scope.processes, p.id)),
+    unreadCounts: { message: sum[0], warning: sum[1], error: sum[2] },
+  };
 }

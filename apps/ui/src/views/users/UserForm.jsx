@@ -45,6 +45,7 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
   const isEdit = Boolean(user)
   const [username, setUsername] = useState(user?.username ?? '')
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
+  const [email, setEmail] = useState(user?.email ?? '')
   const [password, setPassword] = useState('')
   const [roleKeys, setRoleKeys] = useState(user?.roleKeys ?? ['viewer'])
   const [active, setActive] = useState(user?.active ?? true)
@@ -98,7 +99,7 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
     try {
       let userId = user?.id
       if (isEdit) {
-        const body = { display_name: displayName, active, ai_daily_tokens: aiDailyTokens }
+        const body = { display_name: displayName, email, active, ai_daily_tokens: aiDailyTokens }
         if (password) body.password = password
         await api.updateUser(user.id, body)
       } else {
@@ -106,6 +107,7 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
           username,
           password,
           display_name: displayName,
+          email,
           active,
           ai_daily_tokens: aiDailyTokens,
         })
@@ -150,6 +152,12 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
             <CCol>
               <CFormLabel>Display name</CFormLabel>
               <CFormInput value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            </CCol>
+          </CRow>
+          <CRow className="mb-3">
+            <CCol>
+              <CFormLabel>Email</CFormLabel>
+              <CFormInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </CCol>
           </CRow>
           {!noPassword && (

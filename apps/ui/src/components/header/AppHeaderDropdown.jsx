@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -10,11 +10,12 @@ import {
   CDropdownMenu,
   CDropdownToggle,
 } from '@coreui/react'
-import { cilAccountLogout, cilCheckAlt, cilLockLocked } from '@coreui/icons'
+import { cilAccountLogout, cilCheckAlt, cilLockLocked, cilUser } from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
 import { userInitials, userTitle } from '../../utils/format'
 import { api } from '../../api/client'
 import { markRoleSwitch } from '../../roleSwitch'
+import ProfileForm from './ProfileForm'
 
 /**
  * The logged-in-user menu (AGENTS.md section 13). Replaces the CoreUI demo
@@ -33,6 +34,8 @@ const AppHeaderDropdown = () => {
   const context = useSelector((state) => state.accessContext)
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  // the person's own profile (2026-10-28) - not the guest's
+  const [profileOpen, setProfileOpen] = useState(false)
 
   if (!user) return null
 
@@ -66,50 +69,78 @@ const AppHeaderDropdown = () => {
   }
 
   return (
-    <CDropdown variant="nav-item">
-      <CDropdownToggle placement="bottom-end" className="py-0 pe-0" caret={false}>
-        {/* the toggle doesn't pass a title on - the avatar's own wrapper does */}
-        <span title={userTitle(user)}>
-          {user.avatar_path ? (
-            <CAvatar src={`/api/uploads/avatars/${user.avatar_path}`} size="md" />
-          ) : (
-            <CAvatar color="secondary" textColor="white" size="md">
-              {userInitials(user)}
-            </CAvatar>
+    <>
+      <CDropdown variant="nav-item">
+        <CDropdownToggle placement="bottom-end" className="py-0 pe-0" caret={false}>
+          {/* the toggle doesn't pass a title on - the avatar's own wrapper does */}
+          <span title={userTitle(user)}>
+            {user.avatar_path ? (
+              <CAvatar src={`/api/uploads/avatars/${user.avatar_path}`} size="md" />
+            ) : (
+              <CAvatar color="secondary" textColor="white" size="md">
+                {userInitials(user)}
+              </CAvatar>
+            )}
+          </span>
+        </CDropdownToggle>
+        <CDropdownMenu className="pt-0" placement="bottom-end">
+          <CDropdownHeader className="bg-body-secondary fw-semibold mb-2">
+            {user.display_name ?? user.username}
+          </CDropdownHeader>
+          {contexts.length > 1 && (
+            <>
+              <div className="px-3 pb-1 small text-body-secondary">Act as</div>
+              {contexts.map((c) => (
+                <CDropdownItem
+                  key={c.key}
+                  onClick={() => switchTo(c.key)}
+                  active={c.key === context}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <CIcon
+                    icon={cilCheckAlt}
+                    className="me-2"
+                    style={{ visibility: c.key === context ? 'visible' : 'hidden' }}
+                  />
+                  {c.name}
+                </CDropdownItem>
+              ))}
+              <CDropdownDivider />
+            </>
           )}
-        </span>
-      </CDropdownToggle>
-      <CDropdownMenu className="pt-0" placement="bottom-end">
-        <CDropdownHeader className="bg-body-secondary fw-semibold mb-2">
-          {user.display_name ?? user.username}
-        </CDropdownHeader>
-        {contexts.length > 1 && (
-          <>
-            <div className="px-3 pb-1 small text-body-secondary">Act as</div>
-            {contexts.map((c) => (
-              <CDropdownItem
-                key={c.key}
-                onClick={() => switchTo(c.key)}
-                active={c.key === context}
-                style={{ cursor: 'pointer' }}
-              >
-                <CIcon
-                  icon={cilCheckAlt}
-                  className="me-2"
-                  style={{ visibility: c.key === context ? 'visible' : 'hidden' }}
-                />
-                {c.name}
+          {!guest && (
+            <>
+              <CDropdownItem onClick={() => setProfileOpen(true)} style={{ cursor: 'pointer' }}>
+                <CIcon icon={cilUser} className="me-2" />
+                Profile
               </CDropdownItem>
-            ))}
-            <CDropdownDivider />
-          </>
-        )}
-        <CDropdownItem onClick={handleLogout} style={{ cursor: 'pointer' }}>
-          <CIcon icon={guest ? cilAccountLogout : cilLockLocked} className="me-2" />
-          {guest ? 'Sign in' : 'Logout'}
-        </CDropdownItem>
-      </CDropdownMenu>
-    </CDropdown>
+              <CDropdownDivider />
+            </>
+          )}
+          <CDropdownItem onClick={handleLogout} style={{ cursor: 'pointer' }}>
+            <CIcon icon={guest ? cilAccountLogout : cilLockLocked} className="me-2" />
+            {guest ? 'Sign in' : 'Logout'}
+          </CDropdownItem>
+        </CDropdownMenu>
+      </CDropdown>
+      {profileOpen && (
+        <ProfileForm
+          onClose={() => setProfileOpen(false)}
+          onSaved={(p) => {
+            setProfileOpen(false)
+            dispatch({
+              type: 'set',
+              user: {
+                ...user,
+                display_name: p.display_name,
+                email: p.email,
+                avatar_path: p.avatar_path,
+              },
+            })
+          }}
+        />
+      )}
+    </>
   )
 }
 

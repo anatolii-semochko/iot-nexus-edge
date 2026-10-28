@@ -61,7 +61,8 @@ end-to-end today, verified live in a running container stack (see
   their roles at a time ("Act as", checked by the server on every
   request). An optional built-in guest replaces the sign-in page with a
   read-only (or as configured) view, with links into its roles
-  (`?account=`).
+  (`?account=`). Each person edits their own profile (name, email, avatar,
+  password - with the current one).
 - **A universal pagination/filtering toolkit** for admin tables (debounced
   search, page-size control, client-side pagination) — built once, reused
   across every list view in the app.

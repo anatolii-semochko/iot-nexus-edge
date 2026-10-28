@@ -20,6 +20,7 @@ import {
   CTableRow,
 } from '@coreui/react'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
 import { formatBytes, formatSmartDateTime } from '../../utils/format'
 import ClearLogsModal from './ClearLogsModal'
 
@@ -162,7 +163,8 @@ function triggerDownload(url) {
   a.remove()
 }
 
-const StampRow = ({ stamp, onApply, onDeleted, onError }) => {
+// `may` - {apply, remove}: the person's rights (Service: View - the list only)
+const StampRow = ({ stamp, onApply, onDeleted, onError, may }) => {
   const [deleteArmed, setDeleteArmed] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -200,7 +202,7 @@ const StampRow = ({ stamp, onApply, onDeleted, onError }) => {
             size="sm"
             color="primary"
             variant="outline"
-            disabled={busy}
+            disabled={busy || !may.apply}
             onClick={() => onApply(stamp)}
           >
             Apply
@@ -209,7 +211,7 @@ const StampRow = ({ stamp, onApply, onDeleted, onError }) => {
             size="sm"
             color={deleteArmed ? 'danger' : 'secondary'}
             variant={deleteArmed ? undefined : 'outline'}
-            disabled={busy}
+            disabled={busy || !may.remove}
             onClick={handleDelete}
           >
             {deleteArmed ? 'Confirm?' : 'Delete'}
@@ -230,7 +232,17 @@ const StampRow = ({ stamp, onApply, onDeleted, onError }) => {
  * збережених станів") - the top action table is Save/Download/Upload/Clear
  * Logs only.
  */
+// each action's right (2026-10-28 - Service: View sees the page, changes nothing)
+const ACTION_PERMISSION = {
+  save: 'service.database.backup',
+  download: 'service.database.backup',
+  'download-logs': 'service.database.backup',
+  upload: 'service.database.restore',
+  'clear-logs': 'service.database.clear-logs',
+}
+
 const DatabaseTab = () => {
+  const can = useCan()
   const [stats, setStats] = useState(null)
   const [stamps, setStamps] = useState(null)
   const [error, setError] = useState(null)
@@ -378,6 +390,7 @@ const DatabaseTab = () => {
                     className={'w-100'}
                     color={row.key === 'clear-logs' ? 'danger' : 'primary'}
                     variant="outline"
+                    disabled={!can(ACTION_PERMISSION[row.key])}
                     onClick={() => runAction(row.key)}
                   >
                     {row.label}
@@ -410,6 +423,10 @@ const DatabaseTab = () => {
           <CTableBody>
             {stamps.map((stamp) => (
               <StampRow
+                may={{
+                  apply: can('service.database.restore'),
+                  remove: can('service.database.backup'),
+                }}
                 key={stamp.filename}
                 stamp={stamp}
                 onApply={setApplyTarget}
