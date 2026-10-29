@@ -4,6 +4,7 @@ import { isSwitchLanding } from '../../roleSwitch'
 import {
   CAlert,
   CBreadcrumb,
+  CButton,
   CBreadcrumbItem,
   CCard,
   CCardBody,
@@ -11,7 +12,8 @@ import {
   CSpinner,
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
-import { cilChevronRight } from '@coreui/icons'
+import { cilChevronRight, cilResizeHeight, cilResizeWidth } from '@coreui/icons'
+import { usePersistedState } from '../../hooks/usePersistedState'
 import { api } from '../../api/client'
 import { dashboardComponents, dashboardContent } from '../../dashboardRegistry'
 import { cardIcon } from '../../dashboardIcons'
@@ -20,9 +22,11 @@ import { cardIcon } from '../../dashboardIcons'
  * The Dashboard (Dashboard cards, 2026-10-16): the card tree built in
  * Service -> Config -> Dashboard (one for the whole system). A level -
  * the root or a folder - shows its cards as blocks or a list (the
- * folder's own `layout`); a folder opens its children, a component card
- * opens its component on the whole page by its `view`. Each card has its
- * address (`#/dashboard/<id>`) - Back and links work. A component card
+ * folder's own `layout`); a folder opens its children, an avatar card
+ * opens its component on the whole page by its `view` (or the viewer's own
+ * fit - `userFit`); a component card is drawn at the level's full width
+ * under its blocks (migration 100). Each card has its
+ * address (`#/dashboard/<id>`) - Back and links work. An avatar card
  * shows the avatar its card chose (`preview` - the component's avatars,
  * dashboardRegistry.js; "auto" - its first), else a scaled copy of it.
  * While the tree is empty - the older single slot (a target project's
@@ -82,7 +86,7 @@ const ComponentView = ({ card, processes, scale }) => {
 
 // Draws `children` at PREVIEW_WIDTH and scales it to fit the box whole -
 // its width and height, nothing cut - centered both ways; measured live.
-const FitBox = ({ children }) => {
+const FitBox = ({ factor = 1, children }) => {
   const box = useRef(null)
   const inner = useRef(null)
   const [size, setSize] = useState(null)
@@ -101,7 +105,9 @@ const FitBox = ({ children }) => {
     observer.observe(inner.current)
     return () => observer.disconnect()
   }, [])
-  const scale = size?.natural ? Math.min(size.width / PREVIEW_WIDTH, size.height / size.natural) : 0
+  const scale = size?.natural
+    ? Math.min(size.width / PREVIEW_WIDTH, size.height / size.natural) * factor
+    : 0
   return (
     <div
       ref={box}
@@ -136,7 +142,7 @@ const FitBox = ({ children }) => {
 // block's edges, AGENTS_TO_DO.md 2026-10-23 heating 9); `grow` false - only
 // shrunk when larger than the box, never enlarged (a framed card's avatar -
 // as it is, but whole); measured live.
-const StretchBox = ({ grow = true, children }) => {
+const StretchBox = ({ grow = true, factor = 1, children }) => {
   const box = useRef(null)
   const inner = useRef(null)
   const [size, setSize] = useState(null)
@@ -162,7 +168,7 @@ const StretchBox = ({ grow = true, children }) => {
           size.width / size.naturalWidth,
           size.height / size.naturalHeight,
           grow ? Infinity : 1,
-        )
+        ) * factor
       : 0
   return (
     <div
@@ -196,22 +202,26 @@ const avatarOf = (def, preview) =>
     ? null
     : ((def.avatars ?? []).find((a) => preview === 'auto' || a.key === preview) ?? null)
 
-// The card's picture: a folder's icon; a component's avatar - one made for
-// the block (StretchBox: unframed - scaled to the block's edges; framed -
-// as it is, shrunk only when larger than the block), or a `fit` one / a
-// copy of the component scaled into the block (FitBox).
 // a card's own uploaded picture (migration 091) - the URL carries its upload time (the cache)
 export const cardImageUrl = (card, slot) =>
   card.id && card.picture?.[slot]
     ? `/api/dashboard-cards/${card.id}/images/${slot}?v=${card.picture[slot].at}`
     : null
 
-const CardPreview = ({ card, processes, frame }) => {
-  // no picture at all (the user, 2026-10-25) - the block empty (its background, if any, shows)
-  if (card.picture?.hidden) return <div style={{ height: PREVIEW_H }} />
-  // its own picture instead of the icon / the avatar, at its size (a share of the block's height; over
-  // 100 % - larger than the block, only its middle seen)
-  const own = card.picture?.useImage ? cardImageUrl(card, 'icon') : null
+/** The picture's source (migration 100): "none" | "avatar" | "icon" | "file"; unset - the type's default. */
+export const pictureSource = (card) =>
+  card.picture?.source ?? (card.type === 'folder' ? 'icon' : 'avatar')
+
+// The card's picture by its source: none - the block empty (its background, if any, shows); an uploaded
+// file or an icon from the set - at its size (a share of the block's height; over 100 % - larger than the
+// block, only its middle seen); the component's avatar - one made for the block (StretchBox: unpadded -
+// scaled to the block's edges, padded - as it is, shrunk only when larger), or a `fit` one / a copy of the
+// component scaled into the block (FitBox), its size slider a factor on that.
+const CardPreview = ({ card, processes, padded }) => {
+  const source = pictureSource(card)
+  const sizePct = card.picture?.imageScalePct
+  if (source === 'none') return <div style={{ height: PREVIEW_H }} />
+  const own = source === 'file' ? cardImageUrl(card, 'icon') : null
   if (own)
     return (
       <div
@@ -222,33 +232,34 @@ const CardPreview = ({ card, processes, frame }) => {
           src={own}
           alt=""
           style={{
-            height: `${card.picture.imageScalePct ?? 80}%`,
-            maxWidth: (card.picture.imageScalePct ?? 80) > 100 ? 'none' : '100%',
+            height: `${sizePct ?? 80}%`,
+            maxWidth: (sizePct ?? 80) > 100 ? 'none' : '100%',
             objectFit: 'contain',
             flexShrink: 0,
           }}
         />
       </div>
     )
-  if (card.type === 'folder') {
-    // framed - about 60 % of the block's height; unframed - the whole block
-    const size = frame === 'none' ? PREVIEW_H : '6.6rem'
+  if (source !== 'avatar' || card.type === 'folder') {
+    // padded - about 60 % of the block's height; unpadded - the whole block
+    const size = `${sizePct ?? (padded ? 60 : 100)}%`
     return (
       <div
         className="d-flex align-items-center justify-content-center text-body-secondary"
         style={{ height: PREVIEW_H }}
       >
-        <CIcon icon={cardIcon(card)} style={{ width: size, height: size }} />
+        <CIcon icon={cardIcon(card)} style={{ width: 'auto', height: size, flexShrink: 0 }} />
       </div>
     )
   }
   const { def, process, problem } = resolve(card, processes)
   if (problem) return <div className="small text-warning p-2">{problem}</div>
   const avatar = avatarOf(def, card.preview)
+  const factor = (sizePct ?? 100) / 100
   if (avatar && !avatar.fit) {
     const Avatar = avatar.Component
     return (
-      <StretchBox grow={frame === 'none'}>
+      <StretchBox grow={!padded} factor={factor}>
         <Suspense fallback={<CSpinner size="sm" />}>
           <Avatar process={process} params={card.params ?? {}} />
         </Suspense>
@@ -256,7 +267,7 @@ const CardPreview = ({ card, processes, frame }) => {
     )
   }
   return (
-    <FitBox>
+    <FitBox factor={factor}>
       <Suspense fallback={<CSpinner size="sm" />}>
         {avatar ? (
           <avatar.Component process={process} params={card.params ?? {}} />
@@ -268,50 +279,52 @@ const CardPreview = ({ card, processes, frame }) => {
   )
 }
 
-// A card's frame (`card.frame`, 2026-10-22): "none" - no border, background
-// or divider, its picture to the block's edges; "border" - a border and the
-// divider, no background, the picture padded; "filled" - a border, the
-// divider and the card's background. Unset - a folder filled, a component
-// none (the rule of 2026-10-16).
-export const cardFrame = (card) => card.frame ?? (card.type === 'folder' ? 'filled' : 'none')
+// A card's frame (migration 100, the user 2026-10-29): its parts, each on or off - `top` the picture's
+// block bordered (the picture padded), `middle` the line between it and the title, `bottom` the title's
+// block bordered, `fill` the card's background; top and bottom both - one border round the card. Unset -
+// a folder all of them, an avatar none (the rule of 2026-10-16).
+const ALL_PARTS = { top: true, middle: true, bottom: true, fill: true }
+const NO_PARTS = { top: false, middle: false, bottom: false, fill: false }
+export const cardFrame = (card) => card.frame ?? (card.type === 'folder' ? ALL_PARTS : NO_PARTS)
 
-const FRAME_CLASSES = {
-  none: 'h-100 border-0 bg-transparent shadow-none',
-  // the border round the title's block only - the picture above to the card's edges (the user, 2026-10-25:
-  // a light border round a dark image showed a pixel's gap)
-  caption: 'h-100 border-0 bg-transparent shadow-none',
-  border: 'h-100 bg-transparent shadow-none',
-  filled: 'h-100 shadow-sm',
-}
+const BORDER = '1px solid var(--cui-border-color)'
+const RADIUS = 'var(--cui-card-border-radius)'
 
 export const BlockCard = ({ card, processes, linked = true }) => {
-  const frame = cardFrame(card)
-  const caption = frame === 'caption'
-  const framed = frame !== 'none' && !caption
+  const { top, middle, bottom, fill } = cardFrame(card)
+  const outline = top && bottom
+  // the four cases: one border round the card (the middle line inside, if on); the picture's block in
+  // its own box; the title's block in its own box (the frame of 2026-10-25 "caption"); no box - the
+  // middle line only, if on. The pictures (an own image, a background) inside the rounded corners (the
+  // user, 2026-10-25).
+  const box = { border: BORDER }
+  const pictureStyle = outline
+    ? {
+        borderTopLeftRadius: 'var(--cui-card-inner-border-radius)',
+        borderTopRightRadius: 'var(--cui-card-inner-border-radius)',
+        ...(middle ? { borderBottom: BORDER } : {}),
+      }
+    : top
+      ? { ...box, borderRadius: RADIUS }
+      : bottom
+        ? { borderTopLeftRadius: RADIUS, borderTopRightRadius: RADIUS }
+        : { borderRadius: RADIUS, ...(middle ? { borderBottom: BORDER } : {}) }
+  const captionStyle =
+    bottom && !outline
+      ? { ...box, borderBottomLeftRadius: RADIUS, borderBottomRightRadius: RADIUS }
+      : undefined
   const body = (
-    <CCard className={FRAME_CLASSES[frame]}>
+    <CCard
+      className={`h-100 ${outline ? '' : 'border-0'} ${fill ? 'shadow-sm' : 'bg-transparent shadow-none'}`}
+    >
       <div
-        className={`position-relative ${framed ? 'border-bottom overflow-hidden p-2' : 'overflow-hidden'}`}
-        // the pictures (an own image, a background) inside the card's rounded corners (the user,
-        // 2026-10-25): framed - the top corners, the block's bottom meets the divider; unframed - all four
-        style={
-          framed
-            ? {
-                borderTopLeftRadius: 'var(--cui-card-inner-border-radius)',
-                borderTopRightRadius: 'var(--cui-card-inner-border-radius)',
-              }
-            : caption
-              ? {
-                  // as tall as a framed one's (its padding, the card's top border) - the titles on one line
-                  '--dc-preview-h': `calc(${PREVIEW_HEIGHT_REM}rem + 1rem + 1.2px)`,
-                  borderTopLeftRadius: 'var(--cui-card-border-radius)',
-                  borderTopRightRadius: 'var(--cui-card-border-radius)',
-                }
-              : {
-                  '--dc-preview-h': `calc(${PREVIEW_HEIGHT_REM}rem + 1rem + 1px)`,
-                  borderRadius: 'var(--cui-card-border-radius)',
-                }
-        }
+        className={`position-relative overflow-hidden ${top ? 'p-2' : ''}`}
+        style={{
+          ...pictureStyle,
+          // the picture's block as tall in every frame - the titles on one line (the padding and the
+          // border it lacks given to the picture)
+          ...(top ? {} : { '--dc-preview-h': `calc(${PREVIEW_HEIGHT_REM}rem + 1rem + 1px)` }),
+        }}
       >
         {/* its own background (migration 091) - the whole top block, under the picture */}
         {cardImageUrl(card, 'background') && (
@@ -331,21 +344,12 @@ export const BlockCard = ({ card, processes, linked = true }) => {
           />
         )}
         <div className="position-relative">
-          <CardPreview card={card} processes={processes} frame={caption ? 'none' : frame} />
+          <CardPreview card={card} processes={processes} padded={top} />
         </div>
       </div>
       <CCardBody
-        className={`py-2 d-flex align-items-center justify-content-center gap-2 ${framed || caption ? 'px-3' : 'px-1'}`}
-        style={
-          caption
-            ? {
-                border: '1px solid var(--cui-border-color)',
-                borderBottomLeftRadius: 'var(--cui-card-border-radius)',
-                borderBottomRightRadius: 'var(--cui-card-border-radius)',
-                background: 'var(--cui-card-bg, var(--cui-body-bg))',
-              }
-            : undefined
-        }
+        className={`py-2 d-flex align-items-center justify-content-center gap-2 ${top || bottom ? 'px-3' : 'px-1'}`}
+        style={captionStyle}
       >
         <CIcon icon={cardIcon(card)} className="text-body-secondary flex-shrink-0" />
         <span className="fw-semibold text-truncate">{card.title}</span>
@@ -361,17 +365,31 @@ export const BlockCard = ({ card, processes, linked = true }) => {
   )
 }
 
+// A level's components (migration 100) - each at the level's full width under its blocks, its title
+// over it, laid out in the width (a component on the whole page is an avatar's)
+const InlineComponents = ({ items, processes }) =>
+  items.map((c) => (
+    <section key={c.id} className="mt-4" aria-label={c.title}>
+      <div className="fw-semibold mb-2">{c.title}</div>
+      <div style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
+        <ComponentView card={c} processes={processes} />
+      </div>
+    </section>
+  ))
+
 const Level = ({ cards, items, layout, processes }) => {
+  const blocks = items.filter((c) => c.type !== 'component')
+  const inline = items.filter((c) => c.type === 'component')
   if (items.length === 0)
     return (
       <CAlert color="info">
         Nothing here yet - add cards in Service {'->'} Config {'->'} Dashboard.
       </CAlert>
     )
-  if (layout === 'list') {
-    return (
+  const top =
+    blocks.length === 0 ? null : layout === 'list' ? (
       <div className="list-group">
-        {items.map((c) => (
+        {blocks.map((c) => (
           <Link
             key={c.id}
             to={`/dashboard/${c.id}`}
@@ -386,20 +404,24 @@ const Level = ({ cards, items, layout, processes }) => {
           </Link>
         ))}
       </div>
+    ) : (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(16rem, 1fr))',
+          gap: '1rem',
+        }}
+      >
+        {blocks.map((c) => (
+          <BlockCard key={c.id} card={c} processes={processes} />
+        ))}
+      </div>
     )
-  }
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(16rem, 1fr))',
-        gap: '1rem',
-      }}
-    >
-      {items.map((c) => (
-        <BlockCard key={c.id} card={c} processes={processes} />
-      ))}
-    </div>
+    <>
+      {top}
+      <InlineComponents items={inline} processes={processes} />
+    </>
   )
 }
 
@@ -453,6 +475,8 @@ const Dashboard = () => {
   const { cardId } = useParams()
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  // the viewer's own fit of an opened avatar (its card's "Viewer can switch the fit"): {cardId: view}
+  const [viewed, setViewed] = usePersistedState('nexusedge.dashboard', { fit: {} })
   const [cards, setCards] = useState(null)
   const [processes, setProcesses] = useState([])
   const [error, setError] = useState(null)
@@ -511,22 +535,49 @@ const Dashboard = () => {
         </a>
       </CBreadcrumbItem>
     )
+  const opened = card && card.type !== 'folder'
+  // the card's `view` - the default; with "Viewer can switch the fit" - the viewer's own choice, kept
+  const view = (opened && card.userFit && viewed.fit?.[card.id]) || card?.view
+  const fitSwitch = opened && card.userFit && (
+    <div className="btn-group" role="group" aria-label="Fit">
+      {[
+        ['fit-width', cilResizeWidth, 'Fit the width - laid out in it'],
+        ['fit-height', cilResizeHeight, 'Fit the height - scaled to fit, no scrolling'],
+      ].map(([key, icon, hint]) => (
+        <CButton
+          key={key}
+          size="sm"
+          color="secondary"
+          variant={view === key ? undefined : 'outline'}
+          aria-pressed={view === key}
+          title={hint}
+          aria-label={hint}
+          onClick={() => setViewed({ fit: { ...viewed.fit, [card.id]: key } })}
+        >
+          <CIcon icon={icon} />
+        </CButton>
+      ))}
+    </div>
+  )
   const breadcrumb = (
-    <CBreadcrumb className="mb-3 fw-semibold">
-      {crumb('root', '/dashboard', 'Dashboard', !card)}
-      {path.map((c, i) => crumb(c.id, `/dashboard/${c.id}`, c.title, i === path.length - 1))}
-    </CBreadcrumb>
+    <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
+      <CBreadcrumb className="mb-0 fw-semibold">
+        {crumb('root', '/dashboard', 'Dashboard', !card)}
+        {path.map((c, i) => crumb(c.id, `/dashboard/${c.id}`, c.title, i === path.length - 1))}
+      </CBreadcrumb>
+      {fitSwitch}
+    </div>
   )
 
-  if (card?.type === 'component') {
-    // fit-height - scaled to the visible height (FitHeight); fit-width -
-    // the visible width: the component lays itself out in it (2026-10-16:
-    // was its natural width - a wide part, e.g. a table, pushed the rest
-    // out of view); what still can't shrink scrolls sideways
+  if (opened) {
+    // an avatar's component on the whole page (a component card opened by its address - the same);
+    // fit-height - scaled to the visible height (FitHeight); fit-width - the visible width: the
+    // component lays itself out in it (2026-10-16: was its natural width - a wide part, e.g. a table,
+    // pushed the rest out of view); what still can't shrink scrolls sideways
     return (
       <div>
         {breadcrumb}
-        {card.view === 'fit-width' ? (
+        {view === 'fit-width' ? (
           <div style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
             <ComponentView card={card} processes={processes} />
           </div>

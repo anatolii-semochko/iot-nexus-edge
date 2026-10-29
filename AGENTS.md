@@ -1178,13 +1178,18 @@ it was first caught on.
 **Persisted page state** (`hooks/usePersistedState.js` +
 `utils/cookies.js`): filters, search text, page size, and which rows are
 expanded are the kind of thing someone sets up while actually using a
-page and expects to survive a refresh - not durable data, so a cookie, not
-Postgres. `usePersistedState(cookieName, defaults)` treats `defaults` as a
+page and expects to survive a refresh - not durable data, so the browser,
+not Postgres: `localStorage` since 2026-10-29 (was a cookie - one mechanism
+for every page and the Dashboard's fit, the one that lasts: no expiry,
+unlike a cookie's 400 days at most, and not sent with every request; an
+old cookie of the same name is moved over on its first read and deleted;
+storage off - the state lasts while the page is open).
+`usePersistedState(key, defaults)` treats `defaults` as a
 **registration**, not just a fallback: its keys are exactly what gets
-read from / written to the cookie (as one JSON blob), its values are what
-a first visit (or a field a stale cookie doesn't have yet) starts from. A
+read from / written to the storage (as one JSON blob), its values are what
+a first visit (or a field a stale saved state doesn't have yet) starts from. A
 field removed from `defaults` later stops being read even if an old
-cookie still has it - the schema decides what exists, not the cookie.
+saved state still has it - the schema decides what exists, not the storage.
 Returns `[state, setState]` where `setState(partial)` shallow-merges and
 re-persists the whole object, same ergonomics as the app's Redux
 `dispatch({type:'set', ...})` pattern elsewhere.
@@ -7795,9 +7800,14 @@ an action stays a `syncMessages(..., "message", ...)`.
 
 One tree for the whole system (`dashboard_cards`, migration 058; api
 `routes/dashboardCards.ts`): a card is a folder (its children as blocks or
-a list - `layout`) or a component (`component_key` + `process_id` - a named
-process instance; null - a system component), ordered by `position`
-among its siblings. GET - any signed-in user; edits - admin only (POST,
+a list - `layout`), an avatar (a block - the component's picture, opening
+the component on the whole page) or a component (the component itself,
+drawn at the level's full width under its blocks, its title over it) -
+the last two with `component_key` + `process_id` (a named process
+instance; null - a system component); ordered by `position` among its
+siblings (migration 100, 2026-10-29: the former "component" card is the
+avatar - a target project's seed written before it that inserts
+'component' converts its own rows after it, as the demo's 036 does). GET - any signed-in user; edits - admin only (POST,
 PATCH incl. a move to another folder with a cycle check, DELETE with the
 subtree, POST `/:id/move {up|down}`).
 - Components: `dashboardRegistry.registerComponent({key, title,
@@ -7842,6 +7852,18 @@ subtree, POST `/:id/move {up|down}`).
   offers them as selects, the component gets `params` beside `process` -
   one part of a process on its own card: `heatingControl.room` (a room -
   its fan coil, `nodeId`), `energyField.meter` (a sub-meter, `nodeId`).
+- The overviews (2026-10-29) - components made for a folder's full width
+  under its blocks: `energyField.overview` (EnergyOverview.jsx - three
+  columns: the generation over the grid, the Energy Ledger the field's
+  `ledgerProcessId` names - its card picture, the batteries over the
+  consumption; the flows between them in the scene's colours and
+  directions; narrow - one column) and `heatingControl.overview`
+  (HeatingOverview.jsx, a system component - every heating system the
+  person sees together: the outdoor air, one heat pump, one tank, one fan
+  coil, the heat's flows yellow while heating, blue while cooling; powers
+  and energy summed, temperatures averaged, the COP the heat over the
+  electricity, the modes counted). The heating's one is a mockup until the
+  heating's logic is reworked.
 - Known limits: a folder of component cards draws every scaled copy live
   (e.g. ten aquarium scenes at once).
 
@@ -8870,17 +8892,37 @@ lint` runs both. The rules: the React hooks' (purity - "now" by
 `hooks/useNow`, never `Date.now()` in a render) and `react/jsx-no-undef`
 (a missing import - the build doesn't catch it).
 
-## Dashboard cards: frames, the card popup (2026-10-22)
+## Dashboard cards: frames, the card popup, the viewer's fit (2026-10-22, 2026-10-29)
 
-`dashboard_cards.frame` (migration 085): `none` (no border, background or
-divider - the picture to the block's edges), `border` (a border and the
-divider, no background, padded), `filled` (border, divider, background);
-null - by type (folder filled, component none). The card's caption is
-centred. Service -> Config -> Dashboard: the table rows highlight on
-hover; the card popup is wide - the card's preview (`BlockCard`, not
-linked) on the left (on top when narrow), the form in rows (one column of
-titles, one of fields), the frame's select. The Dashboard's breadcrumb -
-`fw-semibold`, its links `link-primary text-decoration-none`.
+- **The frame** (`dashboard_cards.frame` jsonb, migrations 085, 100): its
+  parts, each on or off - `top` (the picture's block bordered, the picture
+  padded), `middle` (the line between the picture and the title), `bottom`
+  (the title's block bordered), `fill` (the card's background); top and
+  bottom both - one border round the card; null - by type (a folder all
+  of them, an avatar none). `cardFrame(card)`, `BlockCard` (Dashboard.jsx)
+  draw the four cases: one border round the card, the picture's block in
+  its own box, the title's block in its own box, no box (the middle line
+  only). The card's caption is centred.
+- **The card popup** (Service -> Config -> Dashboard; +Folder / +Avatar /
+  +Component): wide - the card's preview (`BlockCard`, not linked) on the
+  left (on top when narrow), the form in rows (one column of titles, one of
+  fields), in groups apart: the title, "In" (the folders as a cascade - each
+  select the folders inside the one above it, "- here -" stops there), what
+  it shows (a folder's layout; the component and its parameters); the
+  frame's four switches; the pictures (the source - No / Avatar (an
+  avatar's) / Icon / File, its size; the background, its size and opacity -
+  the sliders in one column); how an avatar opens. A component card - the
+  first group only. Who sees a card - the role's Dashboard tab (the hint
+  under the form).
+- **The viewer's fit**: an avatar's `view` (fit-height / fit-width) is the
+  default; with `user_fit` ("Viewer can switch the fit", migration 100) the
+  opened avatar's page shows two buttons right of the breadcrumb (the width
+  / the height) and keeps each viewer's choice per card
+  (`usePersistedState('nexusedge.dashboard', {fit})`). Only there - the
+  levels with folders and avatars are laid out by the width (the user,
+  2026-10-29); whether a component suits the height is the admin's choice.
+- The Dashboard's breadcrumb - `fw-semibold`, its links `link-primary
+  text-decoration-none`.
 
 ## The anemometer and the energy scene's pictures (2026-10-22)
 
@@ -9182,16 +9224,16 @@ Energy Ledger's README has the details.
 
 ## Dashboard cards' pictures, the key values' style (2026-10-25)
 
-- **A card's own pictures** (migrations 091, 092): an uploaded image
-  instead of the icon set / the component's avatar (`picture.useImage`,
-  `imageScalePct` 10..300 - over 100 only its middle seen) or none at all
-  (`picture.hidden`); a background over the whole top block
+- **A card's own pictures** (migrations 091, 092, 100): the picture's
+  source `picture.source` - "none" (no picture), "avatar" (the component's
+  - an avatar card's default), "icon" (from the set - a folder's default),
+  "file" (an uploaded image), its size `imageScalePct` 10..300 (over 100
+  only its middle seen; on an avatar - a factor on its fitted size); a background over the whole top block
   (`backgroundScalePct` 10..300 - 100 covers it, `backgroundOpacityPct`).
   The images in the database (`dashboard_card_images`, PNG / JPEG / WebP /
   GIF up to `DASHBOARD_IMAGE_MAX_BYTES`), GET / POST / DELETE
   `/dashboard-cards/:id/images/:slot`; uploaded at once from the card's
-  form. The frame `caption` - the border round the title's block only, the
-  picture above to the card's edges; every frame's picture block equally
+  form. Every frame's picture block equally
   tall (the titles on one line); the pictures within the rounded corners.
 - **Card pictures with figures**: the ledger's (saved today, paid, the
   efficiency, the strategy, the self-sufficiency, what the plan saves), the

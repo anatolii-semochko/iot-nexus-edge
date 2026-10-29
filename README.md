@@ -94,9 +94,11 @@ end-to-end today, verified live in a running container stack (see
   Schema (edits checked server-side, served to UIs); per-section change
   stamps refuse an edit over someone else's newer one; one-shot commands
   go through a process command channel, not the config.
-- **Dashboard cards** — one tree of folders and components (each bound
-  to a named process instance), configured in Service -> Config ->
-  Dashboard; components bring their own avatars for the cards.
+- **Dashboard cards** — one tree of folders, avatars (a component's
+  block, opening it on the whole page) and components (drawn at a
+  folder's full width under its blocks - e.g. the energy and heating
+  overviews), configured in Service -> Config -> Dashboard; components
+  bring their own avatars for the cards.
 - **DNP API** — the installed DNPs (Library catalog and project plugins,
   versions), core and project migrations (applied once each at start);
   nodes (with the devices their type declares) and devices registered at

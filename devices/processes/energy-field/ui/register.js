@@ -28,6 +28,16 @@ dashboardRegistry.registerComponent({
   ],
 })
 
+// the whole picture at a glance - made for a folder's full width under its blocks (a component card)
+dashboardRegistry.registerComponent({
+  key: 'energyField.overview',
+  title: 'Energy - the overview',
+  description:
+    'The generation and the grid, the Energy Ledger, the batteries and the consumption - with the flows between them',
+  processKind: 'energy-field',
+  Component: React.lazy(() => import('./EnergyOverview')),
+})
+
 dashboardRegistry.registerComponent({
   key: 'energyField.meter',
   title: 'Energy - a meter',
