@@ -28,6 +28,16 @@ dashboardRegistry.registerComponent({
   ],
 })
 
+// every heating system together, at a glance - made for a folder's full width under its blocks (a
+// component card); a mockup until the heating's rework (iot AGENTS_TO_DO.md 2026-10-29)
+dashboardRegistry.registerComponent({
+  key: 'heatingControl.overview',
+  title: 'Heating - the overview',
+  description:
+    'Every heating system together: the outdoor air, the heat pumps, the heat storage, the rooms - with the heat flows between them',
+  Component: React.lazy(() => import('./HeatingOverview')),
+})
+
 dashboardRegistry.registerComponent({
   key: 'heatingControl.room',
   title: 'Heating - a room',
@@ -40,7 +50,10 @@ dashboardRegistry.registerComponent({
       label: 'Room',
       required: true,
       hint: 'The room - its fan coil',
-      options: (process?.config?.consumers ?? []).map((c) => ({ value: c.nodeId, label: c.name })),
+      options: (process?.config?.consumers ?? []).map((c) => ({
+        value: c.nodeId,
+        label: c.name,
+      })),
     },
   ],
 })

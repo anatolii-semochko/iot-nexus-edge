@@ -1,9 +1,9 @@
 /**
- * Minimal document.cookie read/write - no external dependency for what's
- * two small string operations. Used by hooks/usePersistedState.js to
- * remember a page's own filter/search/pagination/expansion state across a
- * refresh (AGENTS.md section 17) - never for anything that belongs in
- * Postgres or the session cookie apps/api sets.
+ * Minimal document.cookie read / delete - no external dependency for what's
+ * two small string operations. Only hooks/usePersistedState.js uses it: the
+ * page state was kept in cookies before 2026-10-29 (now localStorage) - an
+ * old cookie is read once, moved over and deleted. Never for anything that
+ * belongs in Postgres or the session cookie apps/api sets.
  */
 
 export function readCookie(name) {
@@ -12,7 +12,6 @@ export function readCookie(name) {
   return match ? decodeURIComponent(match[1]) : null
 }
 
-export function writeCookie(name, value, days = 365) {
-  const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString()
-  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`
+export function deleteCookie(name) {
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`
 }
