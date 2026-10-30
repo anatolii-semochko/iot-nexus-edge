@@ -20,6 +20,7 @@ const CONFIG_SCHEMA = {
     fieldProcessId: { type: "integer" },
     gridProcessId: { type: "integer" },
     heatingProcessIds: { type: "array", maxItems: 20, items: { type: "integer" } },
+    heatingPlannerProcessId: { type: "integer", description: "the heating-planner whose planned electricity is the heating's part of the forecast" },
     intervalSeconds: { type: "integer", minimum: 10, maximum: 3600 },
     saveMinutes: { type: "integer", minimum: 1, maximum: 60 },
     plan: {

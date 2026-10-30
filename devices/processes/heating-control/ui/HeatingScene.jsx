@@ -17,7 +17,7 @@ import {
   waterLimits,
   TankIcon,
 } from './heatIcons'
-import HeatingPopup from './HeatingPopup'
+import HeatingPopup, { FlowPopup } from './HeatingPopup'
 import HeatTrend from './HeatTrend'
 import { fmt, useHeatingData } from './useHeatingData'
 
@@ -64,7 +64,10 @@ const SCENE_CSS = `
 /* a water line's gauges on the left (their rim on the cards' border line), its heat over time
    stretched to the right (images/fix-heat-streams.png, 2026-10-24); the chart under them when narrow */
 .ht-stream { display: flex; align-items: stretch; gap: 16px; flex-wrap: wrap; }
-.ht-stream > .ht-lines { flex: none; display: flex; }
+/* the line's gauges open its popup (the power today, big - 2026-10-29) */
+.ht-stream > .ht-lines-open { flex: none; display: flex; border: 0; padding: 0; background: transparent; cursor: pointer; border-radius: 8px; }
+.ht-stream > .ht-lines-open:focus-visible { outline: 2px solid var(--cui-primary); outline-offset: 2px; }
+.ht-lines-open > .ht-lines { flex: none; display: flex; }
 .ht-stream > .ht-trend { flex: 1 1 240px; padding: 10px 0 6px; }
 .ht-tank-unit { margin-right: ${16 - TANK_GAUGE_GAP}px; }
 .ht-caption { font-size: .8rem; color: var(--ht-muted); }
@@ -336,6 +339,19 @@ const HeatingScene = ({ process, params }) => {
               >
                 {modeText}
               </span>
+              {m.plan && m.plan.source === 'planner' && (
+                <span
+                  className="ms-2 badge bg-info"
+                  title={`The heating planner's plan: ${m.plan.units} unit(s), ${m.plan.heatKw} kW${m.plan.roomOffsetK ? `, the rooms ${m.plan.roomOffsetK} K off their setpoint` : ''}`}
+                >
+                  by the plan
+                </span>
+              )}
+              {m.plan && m.plan.source === 'band' && m.plan.why && m.plan.why !== 'no planner' && (
+                <span className="ms-2 text-body-secondary" title={`Not by the plan: ${m.plan.why}`}>
+                  by the band
+                </span>
+              )}
               {m.charging && (
                 <span
                   className="ms-2 text-body-secondary"
@@ -394,12 +410,19 @@ const HeatingScene = ({ process, params }) => {
       </section>
 
       <div className="ht-stream">
-        <Lines
-          line={m.lines?.pumpsTanks}
-          mode={m.mode}
-          maxKw={ratedKw * 1.2}
-          title="The heat pumps' water to and from the tanks"
-        />
+        <button
+          type="button"
+          className="ht-lines-open"
+          aria-label="The power to the tanks today - the details"
+          onClick={() => setPopup({ kind: 'flow', flow: 'pumpsTanks' })}
+        >
+          <Lines
+            line={m.lines?.pumpsTanks}
+            mode={m.mode}
+            maxKw={ratedKw * 1.2}
+            title="The heat pumps' water to and from the tanks"
+          />
+        </button>
         <HeatTrend
           seriesKey={`process:${process.id}:heat.heatKw`}
           label={cooling ? 'Cold produced' : 'Heat produced'}
@@ -442,12 +465,19 @@ const HeatingScene = ({ process, params }) => {
       </section>
 
       <div className="ht-stream">
-        <Lines
-          line={m.lines?.tanksConsumers}
-          mode={m.mode}
-          maxKw={coils.length * 6}
-          title="The tanks' water to and from the consumers"
-        />
+        <button
+          type="button"
+          className="ht-lines-open"
+          aria-label="The power to the rooms today - the details"
+          onClick={() => setPopup({ kind: 'flow', flow: 'tanksConsumers' })}
+        >
+          <Lines
+            line={m.lines?.tanksConsumers}
+            mode={m.mode}
+            maxKw={coils.length * 6}
+            title="The tanks' water to and from the consumers"
+          />
+        </button>
         <HeatTrend
           seriesKey={`process:${process.id}:heat.consumersKw`}
           label={cooling ? 'Cold used' : 'Heat used'}
@@ -512,7 +542,10 @@ const HeatingScene = ({ process, params }) => {
         />
       </section>
       {error && <div className="text-danger small mt-2">{error}</div>}
-      {popup && (
+      {popup?.kind === 'flow' && (
+        <FlowPopup flow={popup.flow} process={process} m={m} onClose={() => setPopup(null)} />
+      )}
+      {popup && popup.kind !== 'flow' && (
         <HeatingPopup
           popup={popup}
           process={process}

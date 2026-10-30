@@ -11,16 +11,22 @@
  *     hysteresis) or set by hand (heating / cooling / off);
  *  2. the items' readings - each device by its role from the item's config
  *     (`devices.flowTemp`, ... - by id, never by name);
- *  3. the tanks: the heat pumps charge them while their average temperature
+ *  3. the tanks - by the heating planner's slot now (`plannerProcessId`: the
+ *     units, their power, the rooms' offset; while its plan is fresh and the
+ *     tanks within their safe range), else by the band: the heat pumps charge them while their average temperature
  *     is out of the band (`tank.heating` / `tank.cooling` - start / stop),
- *     all running units at one modulation;
+ *     staged - as few units as the need takes, all running ones at one
+ *     modulation; the running ones keep running (`pumpOrder`: the least run
+ *     hours or the user's priority pick the next one);
  *  4. the rooms: each fan coil's thermostat drives its fan from the room's
  *     temperature and the setpoint; it draws from the tanks;
  *  5. a simulated item gets its readings from the models (model.ts): the
  *     heat pumps' COP from the weather, the tanks' energy balance, the
  *     rooms' heat balance (the outside, the people, the fan coil);
- *  6. the switches (relay, AUTO): a heat pump's operation and a fan coil's
- *     valve follow the config (`disabled`, the mode off);
+ *  6. the switches (relay, AUTO): a heat pump's operation follows its stage
+ *     (runs / stands), switched one by one `pumpStaggerS` apart - between the
+ *     ticks, every second the orchestrator calls (stops first, then starts);
+ *     a fan coil's valve follows the config (`disabled`, the mode off);
  *  7. today's account (heat, cold, electricity, money - the actual cost and
  *     the two baselines: direct electric heating, heat pumps without tanks);
  *  8. WEM, metrics (the panel, the AI, the Energy Field's load), series `heat.*`.
@@ -36,7 +42,9 @@ import {
   heatPumpRun,
   maxOutputKw,
   stagePumps,
+  stageUnits,
   performance,
+  pumpOrder,
   roomStep,
   tankStep,
   tankStored,
@@ -61,6 +69,7 @@ interface Item {
   model?: string;
 }
 interface PumpItem extends Item, HeatPumpSpec {
+  priority?: number; // the start order when `control.pumpOrder` is "priority" (1 first)
   devices?: { flowTemp?: number; returnTemp?: number; outdoorTemp?: number; flowRate?: number; heatPower?: number; heatEnergy?: number; power?: number; energy?: number; fanSpeed?: number; relay?: number };
 }
 interface TankItem extends Item, TankSpec {
@@ -80,6 +89,10 @@ interface Control {
   tankRoomC: number;
   // a closed room's fan coil set back by this much (heating - lower, cooling - higher; a day note room-closed)
   closedSetbackK: number;
+  // the heat pumps started / stopped one by one, this many seconds apart (the inrush currents)
+  pumpStaggerS: number;
+  // which unit starts first: "auto" - the least run hours, "priority" - each unit's `priority`
+  pumpOrder: "auto" | "priority";
 }
 interface HeatingConfig {
   timeZone?: string;
@@ -95,7 +108,18 @@ interface HeatingConfig {
   // the energy-ledger whose heating signal (SG-Ready) the tanks follow: 3 - store more heat now (cheap /
   // sunny), 1 - hold off (dear - the tanks carry it), 2 - normal; none / no fresh signal - normal
   ledgerProcessId?: number;
+  // the heating planner whose plan the heat pumps and the rooms follow (2026-10-29): its slot now -
+  // the units, their power, the rooms' offset; none / no fresh plan / the tanks out of their safe
+  // range - the band above
+  plannerProcessId?: number;
 }
+
+// a plan older than this - not followed (the planner stopped)
+const PLAN_MAX_AGE_MS = 2 * 3_600_000;
+// the tanks' safe range while following a plan: heating - over the coldest tank's tMinC by this much
+// (else the band charges them), under the hottest allowed by this much (else no more heat)
+const PLAN_SAFE_LOW_K = 5;
+const PLAN_SAFE_HIGH_K = 2;
 
 // a day note (the core's day_notes - GET /processes/:id/day-notes)
 interface DayNote {
@@ -116,6 +140,8 @@ const DEFAULT_CONTROL: Control = {
   tank: { heating: { startC: 42, stopC: 50 }, cooling: { startC: 14, stopC: 9 } },
   tankRoomC: 15,
   closedSetbackK: 4,
+  pumpStaggerS: 2,
+  pumpOrder: "auto",
 };
 
 type Today = {
@@ -162,7 +188,8 @@ export default function registerHeatingControl(register: any, { apiClient, logge
       weather: { at: number; hourly: Record<string, number | null>[] } | null;
       prices: { at: number; slots: { t: number; minutes: number; buyCtKwh: number | null }[] } | null;
       today: Today;
-      declared: boolean;
+      // the series declared for these units (their ids) - declared again when the plant changes
+      declared: string | null;
       // the heat pumps' run hours (the lead - the least run) and the fan coils' working / idle state
       runHours: Map<number, number>;
       working: Map<number, boolean>;
@@ -170,8 +197,27 @@ export default function registerHeatingControl(register: any, { apiClient, logge
       roomKwh: { date: string; kwh: Map<number, number> };
       // today's day notes - its own and its ledger's (read every few minutes)
       notes: { at: number; date: string; list: DayNote[] } | null;
+      // the heat pumps' operation switches: what each relay should be, what it was last set to, the
+      // queue still to switch (one per `pumpStaggerS`) and when the last one was switched
+      relays: { written: Map<number, boolean>; queue: { relay: number; on: boolean; nodeId: number }[]; lastAt: number; staggerMs: number };
+      // the units that ran last round - kept first in the order
+      runningIds: Set<number>;
     }
   >();
+
+  // one switch from the queue when its time came (every orchestrator call - each second)
+  async function switchNext(processId: number, relays: { written: Map<number, boolean>; queue: { relay: number; on: boolean; nodeId: number }[]; lastAt: number; staggerMs: number }, now: number) {
+    if (!relays.queue.length || now - relays.lastAt < relays.staggerMs) return;
+    const next = relays.queue.shift()!;
+    relays.lastAt = now;
+    try {
+      await apiClient.setDeviceAuto(next.relay, next.on);
+      relays.written.set(next.relay, next.on);
+    } catch (err) {
+      // retried on the next tick's queue (written stays unknown)
+      logger.warn({ processId, nodeId: next.nodeId, err }, "heating-control: the heat pump's switch didn't take");
+    }
+  }
 
   const localParts = (ms: number, timeZone: string) => {
     const parts = new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", weekday: "short", hourCycle: "h23" }).formatToParts(new Date(ms));
@@ -227,6 +273,7 @@ export default function registerHeatingControl(register: any, { apiClient, logge
     let config: HeatingConfig = process.config ?? {};
     if ((process.commands ?? []).length) config = await applyCommands(process, config);
     const intervalMs = (config.simulation?.intervalSeconds ?? DEFAULT_INTERVAL_S) * 1000;
+    if (st) await switchNext(process.id, st.relays, now);
     if (st && now - st.lastRun < intervalMs && !(process.commands ?? []).length) return;
     const timeZone = config.timeZone || systemTimeZone;
     const local = localParts(now, timeZone);
@@ -239,10 +286,12 @@ export default function registerHeatingControl(register: any, { apiClient, logge
         weather: null,
         prices: null,
         today: saved?.date === local.date ? { ...emptyToday(local.date), ...saved } : emptyToday(local.date),
-        declared: false,
+        declared: null,
         runHours: new Map((process.metrics?.pumps ?? []).map((x: any) => [x.nodeId, Number(x.runHours) || 0])),
         working: new Map((process.metrics?.consumers ?? []).map((x: any) => [x.nodeId, x.working === true])),
         notes: null,
+        relays: { written: new Map(), queue: [], lastAt: 0, staggerMs: 0 },
+        runningIds: new Set((process.metrics?.pumps ?? []).filter((x: any) => x.running).map((x: any) => x.nodeId)),
         roomKwh: {
           date: local.date,
           kwh: new Map(saved?.date === local.date ? (process.metrics?.consumers ?? []).map((x: any) => [x.nodeId, Number(x.todayKwh) || 0]) : []),
@@ -292,6 +341,22 @@ export default function registerHeatingControl(register: any, { apiClient, logge
     else if (control.mode === "auto" && outdoorC !== null) mode = autoMode(st.mode, outdoorC, control.heatBelowC, control.coolAboveC);
     if (mode !== st.mode) st.charging = false;
     if (mode) st.mode = mode;
+
+    // --- the heating planner's slot now ------------------------------------------------
+    let planned: { heatKw: number; units: number; roomOffsetK: number; madeAt: number } | null = null;
+    let planWhy: string | null = config.plannerProcessId ? null : "no planner";
+    if (config.plannerProcessId && mode && control.mode !== "off") {
+      try {
+        const p = await apiClient.request(`/heating-planner/${config.plannerProcessId}/now?heating=${process.id}`);
+        if (!p.slot) planWhy = "no slot now";
+        else if (now - p.madeAt > PLAN_MAX_AGE_MS) planWhy = "the plan is old";
+        else if (p.mode !== mode) planWhy = "the plan is for the other mode";
+        else planned = { heatKw: Number(p.slot.heatKw) || 0, units: Number(p.slot.units) || 0, roomOffsetK: Number(p.slot.roomOffsetK) || 0, madeAt: p.madeAt };
+      } catch (err) {
+        planWhy = "the planner didn't answer";
+        logger.warn({ processId: process.id, err }, "heating-control: no plan");
+      }
+    } else if (config.plannerProcessId) planWhy = "off";
 
     // --- the readings ------------------------------------------------------------
     const pumps = config.heatPumps ?? [];
@@ -346,6 +411,14 @@ export default function registerHeatingControl(register: any, { apiClient, logge
       const avg = middle ?? (top !== null && bottom !== null ? (top + bottom) / 2 : null);
       return { item: t, avg, top: top ?? avg, bottom: bottom ?? avg, perK: (t.volumeL * 1.163) / 1000 };
     });
+    // a simulated tank never read yet (new) starts at its neighbours' average (else its useful range's
+    // middle) - a simulation's start, not a guess about a real one
+    const known = tankNow.filter((t) => t.avg !== null);
+    for (const t of tankNow) {
+      if (t.avg !== null || !simulated(t.item)) continue;
+      const startC = known.length ? known.reduce((a, x) => a + x.avg!, 0) / known.length : (t.item.tMinC + t.item.tMaxC) / 2;
+      Object.assign(t, { avg: startC, top: startC, bottom: startC });
+    }
     const live = tankNow.filter((t) => t.avg !== null);
     const perK = live.reduce((a, t) => a + t.perK, 0);
     const avgC = perK > 0 ? live.reduce((a, t) => a + t.avg! * t.perK, 0) / perK : null;
@@ -371,13 +444,27 @@ export default function registerHeatingControl(register: any, { apiClient, logge
       if (st.charging) demand = Math.min(1, need / Math.max(1, Math.abs(band.stopC - band.startC)) + 0.3);
     } else st.charging = false;
     const pumpReturnC = mode === "cooling" ? (topC ?? 20) : (bottomC ?? 20);
-    // staged: as few units as the need takes, the least run one leading
-    const outputs = pumps.map((p) => (!disabled.has(p.nodeId) && simulated(p) && mode && outdoorC !== null ? maxOutputKw(p, mode, outdoorC) : 0));
-    const order = pumps
-      .map((p, i) => i)
-      .filter((i) => outputs[i] > 0)
-      .sort((a, b) => (st!.runHours.get(pumps[a].nodeId) ?? 0) - (st!.runHours.get(pumps[b].nodeId) ?? 0) || a - b);
-    const staged = stagePumps(demand, outputs, order);
+    // staged: as few units as the need takes; the running ones keep running, the next - by the policy
+    // (a real unit too: its relay - its operation - follows the stage, it modulates itself)
+    const outputs = pumps.map((p) => (!disabled.has(p.nodeId) && control.mode !== "off" && mode && outdoorC !== null ? maxOutputKw(p, mode, outdoorC) : 0));
+    const order = pumpOrder(
+      pumps.map((p, i) => i).filter((i) => outputs[i] > 0),
+      (i) => st!.runningIds.has(pumps[i].nodeId),
+      control.pumpOrder === "priority" ? "priority" : "auto",
+      (i) => st!.runHours.get(pumps[i].nodeId) ?? 0,
+      (i) => (Number.isFinite(pumps[i].priority) ? pumps[i].priority : undefined),
+    );
+    // the plan - while the tanks are within their safe range (else the band above)
+    if (planned && mode && avgC !== null) {
+      const lowC = Math.max(...live.map((t) => t.item.tMinC)) + PLAN_SAFE_LOW_K;
+      const highC = Math.min(...live.map((t) => t.item.tMaxC)) - PLAN_SAFE_HIGH_K;
+      if (mode === "heating" && avgC < lowC) [planned, planWhy] = [null, "the tanks too cold - the band charges them"];
+      else if (mode === "heating" && avgC > highC) planned = { ...planned, heatKw: 0, units: 0 };
+      else if (mode === "cooling" && avgC > control.tank.cooling.startC + PLAN_SAFE_HIGH_K) [planned, planWhy] = [null, "the tanks too warm - the band charges them"];
+    }
+    const staged = planned ? stageUnits(planned.units, planned.heatKw, outputs, order) : stagePumps(demand, outputs, order);
+    if (planned) st.charging = staged.some((x) => x > 0);
+    st.runningIds = new Set(pumps.filter((p, i) => staged[i] > 0).map((p) => p.nodeId));
     const pumpView = pumps.map((p, i) => {
       const on = !disabled.has(p.nodeId);
       if (simulated(p)) {
@@ -414,7 +501,9 @@ export default function registerHeatingControl(register: any, { apiClient, logge
       const isClosed = closedAll || closed.has(c.nodeId);
       const baseC = mode ? (c.setpointC?.[mode] ?? control.setpointC[mode]) : null;
       // a closed room rests - its setpoint set back (still kept from frost / heat)
-      const setpointC = baseC !== null && isClosed ? baseC + (mode === "heating" ? -control.closedSetbackK : control.closedSetbackK) : baseC;
+      // the plan's comfort margin: the rooms a little off their setpoint in its dear hours
+      const offsetK = (isClosed ? control.closedSetbackK : 0) + (planned?.roomOffsetK ?? 0);
+      const setpointC = baseC !== null ? baseC + (mode === "heating" ? -offsetK : offsetK) : baseC;
       if (!simulated(c)) {
         const fanW = (num(c.devices?.power) ?? 0) * 1000;
         return { item: c, on, roomC, humidityPct: num(c.devices?.humidity), setpointC, fan: fanW > 0 ? 1 : 0, heatKw: 0, fanW, fanRpm: num(c.devices?.fanSpeed) ?? 0 };
@@ -445,10 +534,14 @@ export default function registerHeatingControl(register: any, { apiClient, logge
       const share = perK > 0 && t.avg !== null ? t.perK / perK : 0;
       // the tank's share of the flows: + charged (heat in when heating, cold in when cooling), - drawn
       const chargeKw = (pumpsHeatKw - coilsHeatKw) * share * (mode === "cooling" ? -1 : 1);
+      // its two heat exchangers apart (2026-10-29): what comes in from the heat pumps, what goes out to
+      // the fan coils - both at once, each by its size (heat or cold)
+      const inKw = Math.abs(pumpsHeatKw) * share;
+      const outKw = Math.abs(coilsHeatKw) * share;
       const flowing = (Math.abs(pumpsHeatKw) + Math.abs(coilsHeatKw)) * share > 0.05;
-      if (!simulated(t.item) || t.avg === null) return { ...t, ...tankStored(t.item, t.avg ?? t.item.tMinC), lossKw: 0, chargeKw, flowing };
+      if (!simulated(t.item) || t.avg === null) return { ...t, ...tankStored(t.item, t.avg ?? t.item.tMinC), lossKw: 0, chargeKw, inKw, outKw, flowing };
       const step = tankStep(t.item, t.avg, (pumpsHeatKw - coilsHeatKw) * share, (Math.abs(pumpsHeatKw) + Math.abs(coilsHeatKw)) * share, control.tankRoomC, hours);
-      return { ...t, avg: step.avgC, top: step.topC, bottom: step.bottomC, lossKw: step.lossKw, chargeKw, flowing, ...tankStored(t.item, step.avgC) };
+      return { ...t, avg: step.avgC, top: step.topC, bottom: step.bottomC, lossKw: step.lossKw, chargeKw, inKw, outKw, flowing, ...tankStored(t.item, step.avgC) };
     });
     const storedKwh = tankView.reduce((a, t) => a + t.kwh, 0);
     const fullKwh = tankView.reduce((a, t) => a + t.fullKwh, 0);
@@ -483,12 +576,24 @@ export default function registerHeatingControl(register: any, { apiClient, logge
     }
     if (writes.length) await apiClient.simulateDevices(writes);
 
-    // the switches follow the config (AUTO): a heat pump's operation, a fan coil's valve
-    // (one switch failing - e.g. its device not provisioned yet - doesn't stop the rest)
-    const switches: [number | undefined, boolean, number][] = [
-      ...pumps.map((p): [number | undefined, boolean, number] => [p.devices?.relay, !disabled.has(p.nodeId) && control.mode !== "off", p.nodeId]),
-      ...coils.map((c): [number | undefined, boolean, number] => [c.devices?.valve, !disabled.has(c.nodeId) && control.mode !== "off", c.nodeId]),
-    ];
+    // the heat pumps' operation follows the stage, one switch per `pumpStaggerS` (the inrush currents
+    // never all at once): the queue - the stops first (in the reverse order), then the starts (in the
+    // order); a relay never set yet (a restart) - queued too
+    const wantOn = new Map(pumps.map((p, i) => [p.nodeId, staged[i] > 0]));
+    const changes = pumps
+      .filter((p) => typeof p.devices?.relay === "number" && st!.relays.written.get(p.devices.relay) !== wantOn.get(p.nodeId))
+      .map((p) => ({ relay: p.devices!.relay!, on: wantOn.get(p.nodeId)!, nodeId: p.nodeId }));
+    const at = (id: number) => {
+      const k = order.findIndex((i) => pumps[i].nodeId === id);
+      return k < 0 ? Infinity : k;
+    };
+    st.relays.queue = [...changes.filter((x) => !x.on).sort((a, b) => at(b.nodeId) - at(a.nodeId)), ...changes.filter((x) => x.on).sort((a, b) => at(a.nodeId) - at(b.nodeId))];
+    st.relays.staggerMs = Math.max(0, Number(control.pumpStaggerS) || 0) * 1000;
+    await switchNext(process.id, st.relays, now);
+
+    // a fan coil's valve follows the config (AUTO); one switch failing - e.g. its device not
+    // provisioned yet - doesn't stop the rest
+    const switches: [number | undefined, boolean, number][] = coils.map((c) => [c.devices?.valve, !disabled.has(c.nodeId) && control.mode !== "off", c.nodeId]);
     for (const [relay, on, nodeId] of switches) {
       if (typeof relay !== "number") continue;
       try {
@@ -546,7 +651,26 @@ export default function registerHeatingControl(register: any, { apiClient, logge
     if (outdoorC !== null) values["heat.outdoorC"] = r(outdoorC, 1);
     if (cop !== null) values["heat.cop"] = r(cop, 2);
     if (fullKwh > 0) values["heat.tankPct"] = r((storedKwh / fullKwh) * 100, 1);
-    if (!st.declared) {
+    // each unit's own (its popup's charts, 2026-10-29): a heat pump's heat and COP, a tank's heat in /
+    // out and charge, a fan coil's heat and its room
+    for (const x of pumpView) {
+      values[`heat.pump.${x.item.nodeId}.kw`] = r(x.heatKw, 3);
+      if (x.cop !== null) values[`heat.pump.${x.item.nodeId}.cop`] = r(x.cop, 2);
+    }
+    for (const x of tankView) {
+      values[`heat.tank.${x.item.nodeId}.inKw`] = r(x.inKw, 3);
+      values[`heat.tank.${x.item.nodeId}.outKw`] = r(x.outKw, 3);
+      if (x.avg !== null) values[`heat.tank.${x.item.nodeId}.pct`] = r(x.pct, 1);
+    }
+    for (const x of coilView) {
+      values[`heat.coil.${x.item.nodeId}.kw`] = r(x.heatKw, 3);
+      if (x.roomC !== null) values[`heat.coil.${x.item.nodeId}.roomC`] = r(x.roomC, 1);
+    }
+    // the series between the blocks: what the heat pumps give the tanks, what the tanks give the rooms (abs)
+    values["heat.tanksInKw"] = r(Math.abs(pumpsHeatKw), 3);
+    values["heat.tanksOutKw"] = r(Math.abs(coilsHeatKw), 3);
+    const plant = [...pumps, ...tanks, ...coils].map((u) => u.nodeId).join(",");
+    if (st.declared !== plant) {
       try {
         await apiClient.declareSeries(process.id, [
           { valueKey: "heat.outdoorC", name: "Outdoor temperature", unit: "C", kind: "gauge", mode: "period", periodS: 300 },
@@ -556,8 +680,23 @@ export default function registerHeatingControl(register: any, { apiClient, logge
           { valueKey: "heat.cop", name: "COP / EER", unit: "", kind: "gauge", mode: "period", periodS: 300 },
           { valueKey: "heat.tankPct", name: "Tanks' stored heat", unit: "%", kind: "gauge", mode: "period", periodS: 300 },
           { valueKey: "heat.tanksKw", name: "Tanks (+ storing / - giving back)", unit: "kW", kind: "gauge", mode: "period", periodS: 300 },
+          { valueKey: "heat.tanksInKw", name: "Tanks - heat in (from the heat pumps)", unit: "kW", kind: "gauge", mode: "period", periodS: 300 },
+          { valueKey: "heat.tanksOutKw", name: "Tanks - heat out (to the fan coils)", unit: "kW", kind: "gauge", mode: "period", periodS: 300 },
+          ...pumps.flatMap((u) => [
+            { valueKey: `heat.pump.${u.nodeId}.kw`, name: `${u.name} - heat (+ heat / - cold)`, unit: "kW", kind: "gauge", mode: "period", periodS: 300 },
+            { valueKey: `heat.pump.${u.nodeId}.cop`, name: `${u.name} - COP / EER`, unit: "", kind: "gauge", mode: "period", periodS: 300 },
+          ]),
+          ...tanks.flatMap((u) => [
+            { valueKey: `heat.tank.${u.nodeId}.inKw`, name: `${u.name} - heat in`, unit: "kW", kind: "gauge", mode: "period", periodS: 300 },
+            { valueKey: `heat.tank.${u.nodeId}.outKw`, name: `${u.name} - heat out`, unit: "kW", kind: "gauge", mode: "period", periodS: 300 },
+            { valueKey: `heat.tank.${u.nodeId}.pct`, name: `${u.name} - stored heat`, unit: "%", kind: "gauge", mode: "period", periodS: 300 },
+          ]),
+          ...coils.flatMap((u) => [
+            { valueKey: `heat.coil.${u.nodeId}.kw`, name: `${u.name} - heat (+ heat / - cold)`, unit: "kW", kind: "gauge", mode: "period", periodS: 300 },
+            { valueKey: `heat.coil.${u.nodeId}.roomC`, name: `${u.name} - room temperature`, unit: "C", kind: "gauge", mode: "period", periodS: 300 },
+          ]),
         ]);
-        st.declared = true;
+        st.declared = plant;
       } catch (err) {
         logger.warn({ processId: process.id, err }, "heating-control: failed to declare the series");
       }
@@ -568,6 +707,10 @@ export default function registerHeatingControl(register: any, { apiClient, logge
       control: control.mode,
       charging: st.charging,
       signal,
+      // what the heat pumps follow now: the planner's slot or the band (and why)
+      plan: planned
+        ? { source: "planner", heatKw: r(planned.heatKw), units: planned.units, roomOffsetK: r(planned.roomOffsetK), madeAt: planned.madeAt }
+        : { source: "band", why: planWhy },
       // the electricity the heating takes now - the Energy Field counts it in the site's consumption
       electricKw: r(pumpsElectricKw + fansKw, 3),
       outdoor: outdoorC === null ? null : { temperatureC: r(outdoorC, 1), humidityPct: outdoorRh === null ? null : r(outdoorRh, 0), in3hC: outdoorIn3h === null ? null : r(outdoorIn3h, 1) },
@@ -604,6 +747,9 @@ export default function registerHeatingControl(register: any, { apiClient, logge
         flowLpm: r(x.flowLpm, 1),
         fanRpm: r(x.fanRpm, 0),
         ratedHeatKw: x.item.ratedHeatKw,
+        priority: x.item.priority ?? null,
+        // waiting for its turn to start / stop (the stagger)
+        switching: st!.relays.queue.some((q) => q.nodeId === x.item.nodeId),
         runHours: r(st!.runHours.get(x.item.nodeId) ?? 0, 2),
         // out for maintenance now (a day note)
         maintenance: outForWork.has(x.item.nodeId),
@@ -623,6 +769,8 @@ export default function registerHeatingControl(register: any, { apiClient, logge
         fullKwh: r(x.fullKwh, 1),
         pct: r(x.pct, 1),
         chargeKw: r(x.chargeKw),
+        inKw: r(x.inKw),
+        outKw: r(x.outKw),
         flowing: x.flowing,
       })),
       consumers: coilView.map((x) => ({
@@ -639,6 +787,7 @@ export default function registerHeatingControl(register: any, { apiClient, logge
         fanW: r(x.fanW, 0),
         fanRpm: r(x.fanRpm, 0),
         fanRatedW: x.item.fanRatedW,
+        ratedKw: x.item.ratedKw,
         // working - heating / cooling now (the fan turns), else idle
         working: x.fan > 0,
         // the room closed now (a day note) - its setpoint set back; out for maintenance

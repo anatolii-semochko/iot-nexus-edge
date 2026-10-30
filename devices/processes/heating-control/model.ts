@@ -175,6 +175,37 @@ export function stagePumps(need: number, outputs: number[], order: number[], min
   return demand;
 }
 
+/**
+ * The heat pumps' order (2026-10-29): the running ones first - a unit is never swapped for another
+ * mid-run (no needless starts) - then by the policy: "auto" - the least run hours lead (the wear
+ * spread over time), "priority" - the user's priority (1 first; none - after the numbered ones).
+ * Ties - the config's order. `units` - the available units' indices.
+ */
+export function pumpOrder(
+  units: number[],
+  running: (i: number) => boolean,
+  policy: "auto" | "priority",
+  runHours: (i: number) => number,
+  priority: (i: number) => number | undefined,
+): number[] {
+  const rank = (i: number) => (policy === "priority" ? (priority(i) ?? Infinity) : runHours(i));
+  return [...units].sort((a, b) => Number(running(b)) - Number(running(a)) || rank(a) - rank(b) || a - b);
+}
+
+/**
+ * The heat pumps as a plan says (the heating planner, 2026-10-29): `units` of them - the first in
+ * `order` - giving `kw` together, each the same share (at least `minModulation`, at most full).
+ */
+export function stageUnits(units: number, kw: number, outputs: number[], order: number[], minModulation = 0.3): number[] {
+  const demand = outputs.map(() => 0);
+  const running = order.slice(0, Math.max(0, Math.round(units)));
+  const capacity = running.reduce((a, i) => a + outputs[i], 0);
+  if (!running.length || kw <= 0 || capacity <= 0) return demand;
+  const share = Math.max(minModulation, Math.min(1, kw / capacity));
+  for (const i of running) demand[i] = share;
+  return demand;
+}
+
 /** What a fan coil gives now (+ heat / - cold), its fan power and speed. */
 export function fanCoilRun(spec: FanCoilSpec, fan: number, waterC: number, roomC: number) {
   if (fan <= 0) return { heatKw: 0, fanW: 0, fanRpm: 0 };

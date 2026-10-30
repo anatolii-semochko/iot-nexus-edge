@@ -7,6 +7,9 @@
  * learning.ts) applied: the PV's and the wind's factors, the consumption's
  * by weekday and hour; the operational days' notes (notes.ts): a holiday /
  * a working weekend's profile, units in maintenance, an outage's island.
+ * The heating's part - the heating planner's planned electricity of the slot
+ * when there is one (2026-10-29), else the degree-hour model; each slot's
+ * `heatKw` says which it took.
  */
 import { loadAt, pvPower, turbinePower, windAtHub, type LoadProfile, type PvBlockSpec, type TurbineSpec } from "../energy-field/model.ts";
 import { NO_CORRECTIONS, type Corrections } from "./learning.ts";
@@ -63,6 +66,7 @@ export function forecastSlots(
   timeZone: string,
   corrections: Corrections = NO_CORRECTIONS,
   effects: NoteEffects = NO_EFFECTS,
+  heatingPlan: Map<number, number> | null = null,
 ): PlanSlot[] {
   const out: PlanSlot[] = [];
   for (const p of prices) {
@@ -78,7 +82,7 @@ export function forecastSlots(
     const local = localParts(mid, timeZone);
     const weekday = effects.profileWeekday(mid, local.weekday);
     const base = field.profile ? loadAt(field.profile, local.minute, weekday) : 0;
-    const heat = heating ? heating.kwPerK * Math.max(0, heating.baseC - temperature) * effects.heatingFactor(mid) : 0;
+    const heat = heatingPlan?.has(p.t) ? heatingPlan.get(p.t)! : heating ? heating.kwPerK * Math.max(0, heating.baseC - temperature) * effects.heatingFactor(mid) : 0;
     const pv = pvRaw * corrections.pvFactor;
     const wt = wtRaw * corrections.windFactor;
     const loadFix = corrections.load[`${weekday}-${local.hour}`] ?? 0;
@@ -93,6 +97,7 @@ export function forecastSlots(
       pvKw: pv,
       windKw: wt,
       loadKw: Math.max(0, base + heat + loadFix),
+      heatKw: heat,
       ...(effects.gridOff(mid) ? { gridOff: true } : {}),
       ...(batteryFactor < 1 ? { batteryFactor } : {}),
     });

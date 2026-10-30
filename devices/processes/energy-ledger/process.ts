@@ -36,6 +36,9 @@ interface LedgerConfig {
   fieldProcessId?: number;
   gridProcessId?: number;
   heatingProcessIds?: number[];
+  // the heating planner whose planned electricity is the heating's part of the forecast (2026-10-29);
+  // taken at each plan made - its own replan never triggers one (the planner follows the Ledger)
+  heatingPlannerProcessId?: number;
   intervalSeconds?: number;
   saveMinutes?: number;
   // L2 - the plan: re-made every `intradayMinutes`, when new day-ahead
@@ -225,6 +228,15 @@ export default function registerEnergyLedger(register: any, { apiClient, logger 
     const strategy = operatingOf(fieldCfg, config);
     const limits = gridProc?.config?.limits ?? {};
     const heating = heatingModelOf([...src.history, st.day]);
+    let heatingPlan: Map<number, number> | null = null;
+    if (config.heatingPlannerProcessId) {
+      try {
+        const hp = (await apiClient.request(`/heating-planner/${config.heatingPlannerProcessId}/plan`)).plan;
+        if (hp?.electricity?.length) heatingPlan = new Map(hp.electricity.map((x: { t: number; kw: number }) => [x.t, x.kw]));
+      } catch (err) {
+        logger.warn({ processId, err }, "energy-ledger: no heating plan - the degree-hour model");
+      }
+    }
     const slots = forecastSlots(
       now,
       src.prices,
@@ -237,6 +249,7 @@ export default function registerEnergyLedger(register: any, { apiClient, logger 
         pumps: (config.heatingProcessIds ?? []).flatMap((id) => (byIdOf(id)?.config?.heatPumps ?? []).map((p: any) => ({ nodeId: p.nodeId, ratedKw: Number(p.ratedHeatKw) || 0 }))),
         coils: (config.heatingProcessIds ?? []).flatMap((id) => (byIdOf(id)?.config?.consumers ?? []).map((c: any) => ({ nodeId: c.nodeId, ratedKw: Number(c.ratedKw) || 0 }))),
       }),
+      heatingPlan,
     );
     if (!slots.length || !units.length) return;
     const sp = { ...STRATEGY_DEFAULTS, ...(config.strategy ?? {}) };
@@ -341,6 +354,7 @@ export default function registerEnergyLedger(register: any, { apiClient, logger 
           pvKw: r(x.pvKw ?? 0, 1),
           windKw: r(x.windKw ?? 0, 1),
           loadKw: r(x.loadKw, 1),
+          heatKw: r(x.heatKw ?? 0, 1),
           batteryKw: r(planned[i].batteryKw, 1),
           gridKw: r(planned[i].gridKw, 1),
           curtailedKw: r(planned[i].curtailedKw, 1),

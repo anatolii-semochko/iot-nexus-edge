@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fanControl, heatPumpRun, performance, stagePumps } from "./model.ts";
+import { fanControl, heatPumpRun, performance, pumpOrder, stagePumps, stageUnits } from "./model.ts";
 
 const pump = { ratedHeatKw: 12, ratedCoolKw: 10, nominalFlowLpm: 34, fanRatedRpm: 650 };
 
@@ -25,6 +25,29 @@ describe("the heat pumps", () => {
     const half = stagePumps(0.5, outputs, [0, 1, 2, 3]);
     expect(half.filter((d) => d > 0)).toHaveLength(2);
     expect(stagePumps(0, outputs, [0, 1, 2, 3]).every((d) => d === 0)).toBe(true);
+  });
+});
+
+describe("the heat pumps' order", () => {
+  const hours = [5, 1, 3, 0];
+  const prio = [2, 1, undefined, 3];
+  it("auto - the least run lead; the running ones stay first (no swap mid-run)", () => {
+    expect(pumpOrder([0, 1, 2, 3], () => false, "auto", (i) => hours[i], (i) => prio[i])).toEqual([3, 1, 2, 0]);
+    expect(pumpOrder([0, 1, 2, 3], (i) => i === 0, "auto", (i) => hours[i], (i) => prio[i])).toEqual([0, 3, 1, 2]);
+  });
+  it("priority - the user's numbers, the unnumbered last", () => {
+    expect(pumpOrder([0, 1, 2, 3], () => false, "priority", (i) => hours[i], (i) => prio[i])).toEqual([1, 0, 3, 2]);
+    expect(pumpOrder([0, 1, 2, 3], (i) => i === 2, "priority", (i) => hours[i], (i) => prio[i])).toEqual([2, 1, 0, 3]);
+  });
+});
+
+describe("the heat pumps as the plan says", () => {
+  it("the first units of the order, sharing the planned power", () => {
+    const d = stageUnits(2, 12, [10, 10, 10], [2, 0, 1]);
+    expect(d).toEqual([0.6, 0, 0.6]);
+    expect(stageUnits(1, 2, [10, 10], [1, 0])).toEqual([0, 0.3]); // at least the lowest modulation
+    expect(stageUnits(0, 10, [10, 10], [0, 1])).toEqual([0, 0]);
+    expect(stageUnits(5, 100, [10, 10], [0, 1])).toEqual([1, 1]);
   });
 });
 

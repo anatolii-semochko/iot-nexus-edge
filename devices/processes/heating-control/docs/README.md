@@ -33,6 +33,17 @@ average); `tankRoomC` 15 (the tanks' room - their standing loss).
 `ledgerProcessId` - the energy-ledger whose signal (SG-Ready) the tanks
 follow: 3 - start 5 K earlier, stop 8 K hotter (within `tMaxC` - 5; cooling -
 3 K colder), 1 - start 6 K later (cooling 4 K); the metrics' `signal`.
+`pumpOrder` - which heat pump starts next: `auto` (the least run hours - the
+wear spread evenly) or `priority` (each heat pump's `priority`, 1 first;
+none - after the numbered); `pumpStaggerS` 2 - the pause between two heat
+pumps' starts (and stops) - the inrush currents never all at once.
+`plannerProcessId` - the heating-planner whose plan it follows (its slot
+now: the units, their power, the rooms' offset on their setpoints - see
+heating-planner's README); without a fresh plan (2 h), in the other mode,
+the planner not answering or the tanks out of their safe range (under the
+coldest `tMinC` + 5 K, over the hottest `tMaxC` - 2 K; cooling - over the
+band's start + 2 K) - the band below; the metrics' `plan` (`source`
+planner / band, `why`).
 
 ## The run (every `simulation.intervalSeconds`, default 30)
 
@@ -40,10 +51,7 @@ follow: 3 - start 5 K earlier, stop 8 K hotter (within `tMaxC` - 5; cooling -
 2. The readings by role. A **simulated** item (its node Simulated) gets them
    from the models (`model.ts`):
    - heat pump: the output at the outdoor temperature (less heat in the cold,
-     less cold in the heat); the units staged - as few as the tanks' need
-     takes, the one with the least run hours leading (one runs longer rather
-     than all briefly; more join for a large need or the cheap tariff's
-     charge), the running ones at one modulation (at least `minModulation`); the water from the tanks'
+     less cold in the heat); the water from the tanks'
      bottom (heating) / top (cooling), the flow temperature from the flow
      and the output; the COP / EER - the Carnot COP of the refrigerant's
      temperatures (5 K past the water and the air) x `carnotEfficiency`,
@@ -62,9 +70,20 @@ follow: 3 - start 5 K earlier, stop 8 K hotter (within `tMaxC` - 5; cooling -
      hours), the loss to the outside; the humidity from the outside air's,
      dried by heating, condensed on a cooling coil.
    A reading not readable now (a device not ready) - that item sits the
-   round out, never integrated on a guess.
-3. The switches (relay, AUTO): a heat pump's operation and a fan coil's
-   valve - on unless `disabled` or the mode `off`.
+   round out, never integrated on a guess; a simulated tank never read yet
+   (just added) starts at its neighbours' average.
+   The heat pumps (simulated or real) are **staged** - as few as the tanks'
+   need takes (one runs longer rather than all briefly; more join for a
+   large need or the cheap tariff's charge), the running ones at one
+   modulation (at least `minModulation`). A running unit keeps running - it
+   is never swapped for another mid-run (no needless starts); the next to
+   start - by `pumpOrder`.
+3. The switches (relay, AUTO): a heat pump's operation (`relay`) follows its
+   stage - runs / stands - switched **one by one, `pumpStaggerS` apart**:
+   between the rounds, on the orchestrator's every-second call; the stops
+   first (the last in the order first), then the starts (the lead first); a
+   relay not set since a restart is set too. A fan coil's valve - on unless
+   `disabled` or the mode `off`.
 4. **Today** (in the metrics, restored after a restart): heat and cold made,
    heat delivered to the rooms, the heat pumps' and the fans' electricity;
    with the grid's prices - the cost and two baselines for the Energy
@@ -77,11 +96,17 @@ follow: 3 - start 5 K earlier, stop 8 K hotter (within `tMaxC` - 5; cooling -
 6. Metrics: `mode`, `control`, `charging`, `electricKw` (the Energy Field's
    `loadProcessIds` add it to the site's consumption), `outdoor` (now, in 3
    h), `totals`, `lines` (pumps - tanks, tanks - consumers: warm / cold C,
-   kW), `price`, `groups`, `pumps[]`, `tanks[]` (each also `chargeKw` - + charged /
-   - drawn, `flowing`), `consumers[]`, `today`;
-   series `heat.outdoorC`, `heat.heatKw`, `heat.electricKw`,
+   kW), `price`, `groups`, `pumps[]` (each also `priority`, `switching` -
+   waiting for its turn), `tanks[]` (each also `inKw` / `outKw` - its two
+   heat exchangers at once: in from the heat pumps, out to the fan coils, by
+   size; `chargeKw` - the net, + charged / - drawn; `flowing`), `consumers[]`
+   (each also `ratedKw`), `today`;
+   series (5 min) `heat.outdoorC`, `heat.heatKw`, `heat.electricKw`,
    `heat.consumersKw`, `heat.cop`, `heat.tankPct`, `heat.tanksKw` (the
-   tanks' net: + storing / - giving back) (5 min).
+   tanks' net), `heat.tanksInKw` / `heat.tanksOutKw` (between the blocks, by
+   size) and each unit's own - `heat.pump.<nodeId>.kw` / `.cop`,
+   `heat.tank.<nodeId>.inKw` / `.outKw` / `.pct`, `heat.coil.<nodeId>.kw` /
+   `.roomC` (declared again when the plant changes).
 
 ## Commands
 
@@ -102,15 +127,28 @@ Tool `heating.status` - the state now (`items: true` - every unit).
 control's `TemperatureWidget`; the heat pumps, the tanks, the consumers,
 each with its summary line; between them the water lines - their gauges
 and the heat over time, a day / a week (`HeatTrend`); unit popups). The
-powers count one way - the heat or the cold alike, up from zero (the pumps'
-and the lines' gauges, the pumps' and the rooms' charts); only a tank's gauge
-and chart have their zero in the middle (it takes and gives back); coloured limits only where they mean something (the
-supply water, a tank's frost / top temperature, over the rating). `HeatingRoom` - the Dashboard component
+powers count one way - the heat or the cold alike, up from zero (all the
+gauges and charts). A tank (2026-10-29): two power gauges - the heat in (top)
+and out (below); its indicator - the average temperature (small) over the %
+(big) over the kWh (small). A fan coil's gauge - the heat it gives (kW, to
+its rating; the fan's watts - in its popup); a unit switched off - dimmed
+(`OFF_STYLE`). Coloured limits only where they mean something (the supply
+water, over the rating). The popups (the core's UnitPopup - big, for the
+charts) show the unit's own today: a heat pump's heat and COP, a tank's in
+and out on one chart (amber / teal) and its charge, a fan coil's heat and
+its room (with the setpoint); a water line's gauges open its popup
+(`FlowPopup`) - the power it carries today (to the tanks with the
+electricity, to the rooms with the outdoor temperature) and its
+temperatures. `HeatingRoom` - the Dashboard component
 `heatingControl.room` (`params.nodeId` - the room's fan coil): its valve,
 temperature, humidity, setpoint + / -, working / idle and what it gives now,
 the room's heat meter today (`consumers[].todayKwh`), the mode and the
-Energy Ledger's signal. `HeatingAvatar` - the card picture: a heat pump, a
-tank, a fan coil with their figures.
+Energy Ledger's signal. `HeatingAvatar` - the card picture (the mockup
+fix-heating-avatar-1.png, 2026-10-29): a heat pump (its power and the mode,
+the COP only when there is one), a tank in the icons' middle with an arrow
+on each side - in (left) and out (right), only while flowing, yellow heat /
+blue cold - its in / out kW on the left and % over kWh on the right, a fan
+coil (the power to the rooms).
 
 ## Settings and notes (2026-10-25)
 
@@ -118,8 +156,9 @@ tank, a fan coil with their figures.
   `ui/HeatingSettingsSection.jsx`, processes.config): the groups of each
   block (heat pumps, tanks, fan coils; one level) and the units'
   assignment, the auto mode's thresholds (`heatBelowC`, `coolAboveC`), the
-  tanks' bands (heating / cooling start / stop) and their room's
-  temperature. The scene shows each block by its groups - none used: all
+  heat pumps' start order (automatic / explicit - then each one's priority)
+  and the pause between their starts, the tanks' bands (heating / cooling
+  start / stop) and their room's temperature. The scene shows each block by its groups - none used: all
   together; some: by groups, the rest in "Other". The operation (the mode,
   the setpoints, a unit on / off) stays on the scene.
 - **The heating today** - the scene's notes block (the core's day notes of

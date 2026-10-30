@@ -8826,14 +8826,18 @@ package documents itself in its `docs/README.md`; here - what exists:
   by the width, above them below 700 px; `footer` - the controls; no
   `children` - the node's information only; `className` - on the modal, a
   scene's colour-variables class, since the modal renders outside the
-  scene, e.g. energy-field's `ef-colors`), `NodeModel` (the Model tab -
+  scene, e.g. energy-field's `ef-colors`; big - 2026-10-29: the dialog
+  `.chart-popup` (`style.scss` - nearly the window's width, the weather's
+  chart popup too), its charts taller - the `ChartSize` context), `NodeModel` (the Model tab -
   the model's real picture `models[].image` (a file in the type's folder;
   the demo's are WebP, at most 640 px), else the type's icon, else the
   scene's drawing; the data), `TileMap` (slippy tiles around one point, a
   pin, zoom - no map library), `ModelLink` (a card's model line opening
   UnitPopup without Status). `components/charts/SeriesChart` (today's
   series, moved from energy-field) - one chart per key, one under another,
-  each on its own Y axis, `labels` - their names; the lower and the upper
+  each on its own Y axis, `labels` - their names; an array entry - its
+  series on one chart and one axis (`legends`, `colors`; 2026-10-29), the
+  height `height` / the `ChartSize` context / 130; the lower and the upper
   limit lines at practical values (a multiple of half the decade above
   the peak +5 %: 53 -> 60, 3.9 -> 4.5).
 - External services' addresses - API config `services` (`.env`
@@ -9194,10 +9198,61 @@ Energy Ledger's README has the details.
   `EnergyFieldSettingsSection` (the groups - `block` generation / batteries
   - and the assignment, the hard band, the critical states' thresholds),
   `HeatingSettingsSection` (each block's groups, the auto thresholds, the
-  tanks' bands and room, the closed-room setback), `LedgerSettingsSection`
+  heat pumps' start order and pause, the tanks' bands and room, the
+  closed-room setback), `LedgerSettingsSection`
   (the operating and the strategies' parameters, the plan's timing and
   wear, the calendar; the accounts - JSON for now). The Dashboard - the
   operator; the process's settings - the engineer.
+
+## The heating: staged starts, the tanks' two exchangers, the unit's own charts (2026-10-29)
+
+- **The heat pumps' starts** (heating-control): a heat pump's `relay` (its
+  operation) follows its stage - the real ones too (they modulate
+  themselves); the switches one by one, `control.pumpStaggerS` (2 s) apart,
+  between the 30 s rounds on the orchestrator's every-second call (stops
+  first, then starts) - the inrush currents never all at once. A running
+  unit is never swapped mid-run; the next by `control.pumpOrder` - `auto`
+  (the least run hours) or `priority` (each unit's `priority`) - the
+  model's `pumpOrder()`. How much and when - the heating planner's slot
+  (below), else the tanks' band and the Ledger's signal.
+- **A tank's two heat exchangers** work at once: `inKw` (from the heat
+  pumps) and `outKw` (to the fan coils), each by size; the scene's two
+  power gauges, the avatar's two arrows, the popup's two curves.
+- **Each unit's own series** (`heat.pump|tank|coil.<nodeId>.*`) - its popup
+  shows it, not the block's sum; the water lines' gauges open `FlowPopup`.
+- A fan coil's gauge - the heat it gives (kW), not its fan's watts; a unit
+  switched off dimmed. The demo: one 800 l tank more in the hangar and the
+  workshop (30..50 l per kW of the heat pumps; demo 037).
+
+## The heating planner (2026-10-29, P1)
+
+- **`heating-planner`** (`devices/processes/heating-planner/`) - plans the
+  heating systems' heat pumps ahead, all of them together, on the Energy
+  Ledger's plan (its 15-minute slots, prices, planned export - the sun's
+  surplus - and heating signal). For each system and slot: the heat, the
+  units, the rooms' offset - the least money (`model.ts`, pure: the rooms'
+  need from the weather and their `uaKwK` / gains; one store - the tanks'
+  band and, under it, the rooms' comfort margin `comfortK` x
+  `capacityKwhK`; the COP at the store's temperature; the penalties - a
+  start, a unit-hour, over the comfort modulation, the margin held, the
+  signal 1; dynamic programming over the level and the units). The
+  systems in turn, each taking the surplus the earlier left. Made every
+  `replanMinutes`, on a new Ledger plan, a config change, a start.
+- The plan - `heating_plans` (migration 101): PUT / GET
+  `/heating-planner/:id/plan`, a system's slot now - GET `.../now?heating=`.
+- **Executed** by heating-control (`plannerProcessId`): the units and
+  their power (`stageUnits`), the rooms' offset on the setpoints; the band
+  control instead without a fresh plan (2 h) / in the other mode / with
+  the tanks out of their safe range; metrics `plan` (`source` planner /
+  band, `why`), the scene's "by the plan" / "by the band".
+- **The Ledger** (`heatingPlannerProcessId`): the planner's `electricity`
+  is the heating's part of its forecast (each slot's `heatKw`); taken at
+  each Ledger plan - the planner's own replan never triggers one (no loop).
+- UI (P2): `HeatingPlanScene` - the process row's panel and the Dashboard
+  component `heatingPlanner.plan` (KPIs against the band, a system's switch,
+  `PlanChart` - prices and signal, heat planned / need, units, store, the
+  rooms' margin - the plan in words, the systems), the card picture
+  `HeatingPlanAvatar`. The strategies (P3), the AI (P4) - iot AGENTS_TO_DO.md.
 
 ## The energy scene: flows, critical states, limits, operating changes (2026-10-25)
 

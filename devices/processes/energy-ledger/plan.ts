@@ -17,6 +17,7 @@ export interface PlanSlot {
   pvKw?: number; // its parts (the learning compares each with the actual)
   windKw?: number;
   loadKw: number; // the forecast - the site's consumption (the heating included)
+  heatKw?: number; // its heating part (the heating planner's plan, else the degree-hour model)
   gridOff?: boolean; // an outage (the day's notes): no import, no export - the batteries carry the site
   batteryFactor?: number; // the batteries' power share left (units in maintenance), 1 - all
 }

@@ -325,3 +325,9 @@ body {
   font-weight: 600;
   font-variant-numeric: tabular-nums lining-nums;
 }
+
+// A popup with charts (the user, 2026-10-29 - "all the popups with charts big"): nearly the window's
+// width - UnitPopup, the weather's chart popup; their charts taller too.
+.chart-popup .modal-dialog {
+  max-width: min(96vw, 1680px);
+}
