@@ -67,6 +67,7 @@ means for them.
 | `temperatureDeviceId`, `humidityDeviceId`, `pressureDeviceId` | no | shown by the panel; a non-numeric reading logs a warning |
 | `windSpeedDeviceId`, `rainDeviceId` | no | wind speed (m/s), rain (wetness %) - shown, followed in simulation |
 | `forecast` | no | `{ latitude, longitude, place?, refreshMinutes?, days? }` - no location, no forecast |
+| `scene` | no | the Dashboard scene's thresholds - the warnings, the PV's sun day, the heating's base (UI) |
 | `simulation` | no | `{ followForecast (default true), intervalSeconds (default 300) }` |
 
 The config schema is registered (api.ts) - config edits are checked.
@@ -77,8 +78,33 @@ The config schema is registered (api.ts) - config edits are checked.
   location - the forecast (the next 12 hours, the days, Refresh).
 - Settings -> Configuration: the zone boundaries against the live raw
   value, the forecast's location and refresh, the simulation.
-- Dashboard component `weatherControl.panel` ("Weather") with the avatar
-  "Sun, cloud, rain, temperature".
+- Dashboard component `weatherControl.panel` ("Weather") - the user's scene
+  (`ui/WeatherScene.jsx`, 2026-10-30; the process row keeps the engineer's
+  panel), a page to scroll (its cards open on the visible width):
+  - the next 24 hours' warnings, only when there are any - frost, a storm's
+    gusts (the turbines may stop), heavy rain, heat;
+  - now: the sky, the station's temperature big, the weather in words (the
+    WMO code), as it feels (Steadman's apparent temperature), today's low /
+    high; the sun's day - its arc from the rise to the set with the sun now,
+    the daylight, the day's sun in kWh/m2;
+  - the tiles: the wind (the anemometer, Beaufort, the gusts, the compass -
+    where it blows from), the humidity and the dew point, the pressure and
+    its 3 hours' tendency (rising / falling / steady at 1 hPa), the rain (the
+    next 6 hours, when it starts, the station's wetness), the clouds, the
+    light level;
+  - the scenes' widgets (temperature, sun, wind - their curves and detailed
+    charts);
+  - the next 24 hours hour by hour (the sky or the rain, °C, the rain's bar,
+    the wind's arrow and speed); the days - the low / high bar on the days'
+    common range, the rain, the strongest wind, the sun for the PV (good /
+    fair / poor) and the heating's degree-days.
+  The station's readings first, the forecast's hour where there is none.
+  The figures - `ui/weatherMath.js` (tested, `weatherMath.test.ts`); config
+  `scene` - the thresholds (`frostC` 0, `stormGustMs` 17.2, `heavyRainMmH`
+  4, `heatC` 30, `sunGoodKwhM2` 4, `sunFairKwhM2` 2, `heatingBaseC` 18) -
+  Settings -> "The scene (Dashboard)".
+  Its avatars: "summary" (the figures) and "picture" (sun, cloud, rain,
+  temperature).
 - The weather widgets for other packages' scenes (`ui/WeatherWidgets.jsx`):
   `SunWidget`, `WindWidget` (the Energy Field), `TemperatureWidget` (the
   Heating) - the picture (`SkyIcon`, `AnemometerIcon`), one line of the main

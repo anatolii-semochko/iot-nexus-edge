@@ -14,9 +14,11 @@ processTypeRegistry.registerSettingsSection('weather-control', WeatherSettingsSe
 dashboardRegistry.registerComponent({
   key: 'weatherControl.panel',
   title: 'Weather',
-  description: 'The weather station: its zones and readings',
+  description:
+    "The weather now and ahead: the station's readings, the warnings, the next hours and days - the sun for the PV, the heating's need",
   processKind: 'weather-control',
-  Component: React.lazy(() => import('./WeatherControlPanel')),
+  // the user's scene (2026-10-30); the process row keeps the engineer's panel
+  Component: React.lazy(() => import('./WeatherScene')),
   avatars: [
     // the figures first (the default "auto"), the static picture still to choose
     {
