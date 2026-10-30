@@ -6240,7 +6240,11 @@ in either direction.
 > and rain device types (`devices/standalone/sensor/`), the Settings
 > "Configuration" tab (zones + forecast + simulation). Package routes
 > `/<kind>/:processId/...` are scoped to that process by the access guard
-> (`entityOf`). Details - the package's `docs/README.md`.
+> (`entityOf`). Since 2026-10-30 the Dashboard component is the user's
+> weather scene (`ui/WeatherScene.jsx` - the warnings, now and the sun's day,
+> the tiles, the widgets, the next 24 hours, the days with the PV's sun and
+> the heating's degree-days; config `scene` - its thresholds), the process
+> row keeps the engineer's panel. Details - the package's `docs/README.md`.
 
 2026-08-23. `Node Weather Control.txt` (AGENTS_TO_DO.md) - components
 ordered, not yet in hand; this section is the CORE-side software prep
@@ -9024,12 +9028,12 @@ cold's when cooling).
   the Dashboard avatar keeps the big bolt (`figures` false).
 - `Flow` with no power - the one no-flow sign: three still grey dots where
   the chevrons run - the four flows between the blocks and the tiles.
-- The grid's icon (`GridIcon tariff`): the tariff's gauge top left, the
-  bolt's mirror - one arc segment per purchase zone of the grid's config
-  (deduplicated by key, ranked by price, green to red), the needle in the
-  zone now; the zones, hours, prices (and the market price in the market
-  mode) only in its `<title>` (`tariffOf`); no zones - no gauge; not on the
-  34 px avatar.
+- The grid's prices (2026-10-30, replacing the tariff's gauge on the
+  tower): two `PriceGauge`s under the grid's title - buy and sell now, three
+  parts by the next 24 hours' quarters (`priceLevels.js` - the cheapest
+  quarter, the middle, the dearest), green where the price is good for us
+  (a purchase cheap - left; a sale dear - right), the figure under each in
+  its level's colour; the volts and hertz only in the grid's popup.
 - The middle row: the flows' columns never narrower than their figures
   (`minmax(max-content, 1fr)`), the centre at least `MID_MIN_PX` (440), the
   row stacked under `MID_STACK_PX` (1080 px of scene) - nothing overlaps
@@ -9238,7 +9242,7 @@ Energy Ledger's README has the details.
   switched off dimmed. The demo: one 800 l tank more in the hangar and the
   workshop (30..50 l per kW of the heat pumps; demo 037).
 
-## The heating planner (2026-10-29, P1)
+## The heating planner (2026-10-29 - 10-30, P1-P4)
 
 - **`heating-planner`** (`devices/processes/heating-planner/`) - plans the
   heating systems' heat pumps ahead, all of them together, on the Energy
@@ -9280,6 +9284,32 @@ Energy Ledger's README has the details.
   planner's own `metrics.summary`) on the page; the need with the day's notes
   (a holiday / day off - no working gains, a working weekend, a closed room
   set back).
+
+## Energy and heating UI rounds, the weather's scene (2026-10-30)
+
+- **The Energy Ledger's block** (`energy-field/ui/LedgerBlock.jsx`) - the
+  Energy scene's centre and the energy overview's (the mode, the operating
+  switches and their questions, the prices by hour - cheap / middle / dear /
+  now, the price now coloured by its level, today's bought / sold / balance /
+  generated / consumed, self-sufficiency coloured by `selfSufficiencyLevels`).
+- **The heating's avatar and overview**: the avatar per the user's layout
+  (electricity and COP coloured by `copLevels`, heat and the loop's
+  temperature; the tank's % and °C, kWh; the fan coils' heat and the rooms'
+  mean); the overview's outdoors in two floors (the weather, the
+  electricity - each its own flow), the compact fan coil
+  (`FanCoilCompactIcon`), the COP the heat's size.
+- **Popups with charts** (core `UnitPopup` `charts`, `SeriesChart`
+  `ChartSpace`): the window's width, the picture in a narrow column, the
+  charts filling the window's height, opened without a jump (above, the
+  components' paragraph).
+- **Dashboard**: a component card's title may be off (`frame.title`); the
+  card pictures scaled by CSS `zoom` (no shimmering text beside the
+  animations).
+- **The weather's scene** - `weatherControl.panel` (`WeatherScene.jsx`, the
+  package's README): warnings, now and the sun's day, tiles, the widgets,
+  the next 24 hours, the days with the PV's sun and the heating's
+  degree-days; config `scene` - the thresholds.
+- Aquarium's History charts - the same style (a light tint, two grey lines).
 
 ## The energy scene: flows, critical states, limits, operating changes (2026-10-25)
 

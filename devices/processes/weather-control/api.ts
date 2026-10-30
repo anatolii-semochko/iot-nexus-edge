@@ -133,6 +133,21 @@ const CONFIG_SCHEMA = {
       },
     },
     forecast: FORECAST_SCHEMA,
+    scene: {
+      type: "object",
+      description:
+        "The Dashboard scene's thresholds: the next 24 hours' warnings - frost at frostC (0) °C, a storm's gusts from stormGustMs (17.2, 8 Bft) m/s, heavy rain from heavyRainMmH (4) mm/h, heat from heatC (30) °C; the day's sun for the PV - good from sunGoodKwhM2 (4), fair from sunFairKwhM2 (2) kWh/m2; the heating's degree-days under heatingBaseC (18) °C",
+      properties: {
+        frostC: { type: "number", minimum: -30, maximum: 10 },
+        stormGustMs: { type: "number", minimum: 5, maximum: 60 },
+        heavyRainMmH: { type: "number", minimum: 0.5, maximum: 100 },
+        heatC: { type: "number", minimum: 15, maximum: 50 },
+        sunGoodKwhM2: { type: "number", minimum: 0, maximum: 12 },
+        sunFairKwhM2: { type: "number", minimum: 0, maximum: 12 },
+        heatingBaseC: { type: "number", minimum: 5, maximum: 25 },
+      },
+      additionalProperties: false,
+    },
     simulation: {
       type: "object",
       properties: {
