@@ -18,6 +18,7 @@ project seeds its instance (the nodes and one process).
 | `consumer` | `power-meter` (Janitza UMG 96-PA) | `profile` - `baseKw`, `weekdayPeakKw`, `weekendPeakKw`, `workFrom`, `workTo` |
 | `loadProcessIds` | - | processes whose electricity is part of the site's consumption - their metrics' `electricKw` added to a simulated consumer's profile (e.g. `heating-control`) |
 | `ledgerProcessId` | - | the `energy-ledger` whose plan Auto follows - its slot's battery power (discharge above the reserve, within the array's limits); no fresh plan - the rules on the prices |
+| `selfSufficiencyLevels` | - | the Ledger block's self-sufficiency today coloured: green from `good` (60) %, yellow from `fair` (30) %, red under it |
 | `simulation.pvLosses` | - | a simulated fault the forecast doesn't know: PV block nodeId -> the share it really gives (e.g. 0.78 - soiled); the learning and the AI's anomalies find it. Each block / turbine's `todayKwh` is in the metrics |
 | `consumer.subMeters` | `power-meter` (Janitza UMG 96-PA) | the rooms' / areas' meters: `nodeId`, `name`, `share` (a simulated one - its share of the profile's consumption), `withLoads` (plus the loadProcessIds' electricity - e.g. the heating plant's room: `true` - all of them, or a list of their process ids), `of` (a main meter - a building's - summing those sub-meters' node ids on top); metrics `subMeters[]` - kW, `todayKwh`, `todayEur`; series `field.meter.<nodeId>.kw`; Dashboard component `energyField.meter` (`params.nodeId`) |
 
@@ -98,10 +99,14 @@ the Ledger (nexus-edge AGENTS.md, "A linked process's commands").
   the last day and the next as a curve, a click - the detailed charts); the
   generation by groups - every PV block and turbine with its power over it
   (its rotor turning at its own speed slowed x6), off grey, a storm amber; the icons' size by their count, the rows wrapping
-  by the width; the grid (phases, frequency, buy / sell, the zone; the
-  voltage sign pink / red blinking / grey; the tariff's gauge - one
-  segment per tariff zone, the needle in the zone now, the prices in its
-  tooltip) -> the control block -> the consumer (the row stacks on a narrow
+  by the width; the grid (the voltage sign pink / red blinking / grey;
+  under its title two price gauges - buy and sell now (2026-10-30,
+  images/fix-icon-energy-tower-1.png): three parts, the next 24 hours'
+  cheapest quarter, the middle, the dearest quarter (`priceLevels.js`),
+  green where the price is good for us - a purchase cheap on the left, a
+  sale dear on the right - the needle at the price now, the figure under it
+  in the same colour; the phases and the frequency - its popup) ->
+  the control block -> the consumer (the row stacks on a narrow
   scene); the battery array (each tile: its power, the current's triple
   arrows - red over the limit - and the battery with its % and kWh inside,
   the fill green / yellow / red, a small pink bolt while charging). The
@@ -115,13 +120,22 @@ the Ledger (nexus-edge AGENTS.md, "A linked process's commands").
   over the plan's, the consumption well over the plan's, a unit over its
   rating (the reason in the tooltip). The blocks'
   summary lines (Generation, Batteries) - the core's `SummaryLine`.
-- **The control block**: the mode (Auto / Manual / Island), the
-  decision, the next 24 hours' prices (cheap - charge, dear - sell, now),
-  today (generated, bought, sold, the balance in EUR, self-sufficiency),
-  "Grid connected" (Island), "Selling allowed", the outage reserve - the
-  process's commands (processes.control).
+- **The control block** (`LedgerBlock.jsx` - the Energy Ledger's block, the
+  same in the energy's overview, 2026-10-30): the mode (Auto / Manual /
+  Island), self-sufficiency today (green / yellow / red by the config's
+  `selfSufficiencyLevels` - `good` 60, `fair` 30 %, the engineer's
+  settings), the decision, the next 24 hours' prices by hour (cheap -
+  charge, middle, dear - sell, now outlined), the price now (buy / sell -
+  coloured as the grid's gauges), today (bought, sold, the balance in EUR,
+  generated, consumed), "Grid connected" (Island), "Selling allowed", the
+  outage reserve - the process's commands (processes.control), the
+  operating ones asked about (why, for how long, adapt the plan).
+- **The overview** (`EnergyOverview.jsx`, Dashboard component
+  `energyField.overview`): the generation over the grid, the Ledger block,
+  the batteries over the consumption, the flows between them.
 - **Popups**: every device - its readings, today's chart (the field's
-  series; the batteries - SoC and power), "In operation" (`setEnabled`);
+  series; the batteries - SoC and power - right of the picture under the
+  readings, as tall as the window lets them), "In operation" (`setEnabled`);
   the grid, the consumer.
 - **Settings** (the engineer's - Processes -> Settings,
   `ui/EnergyFieldSettingsSection.jsx`): the groups (one level, generation

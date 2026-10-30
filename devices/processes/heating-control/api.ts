@@ -115,6 +115,12 @@ const CONFIG_SCHEMA = {
       additionalProperties: false,
     },
     ledgerProcessId: { type: "integer", description: "the energy-ledger whose heating signal (SG-Ready) the tanks follow" },
+    copLevels: {
+      type: "object",
+      description: "the COP's colour levels on the card: from good - green, from fair - yellow, under - red",
+      properties: { good: { type: "number", minimum: 1, maximum: 10 }, fair: { type: "number", minimum: 1, maximum: 10 } },
+      additionalProperties: false,
+    },
     plannerProcessId: { type: "integer", description: "the heating-planner whose plan the heat pumps and the rooms follow (else the tanks' band)" },
     disabled: { type: "array", items: { type: "integer" } },
     simulation: { type: "object", properties: { intervalSeconds: { type: "integer", minimum: 5, maximum: 3600 } }, additionalProperties: false },

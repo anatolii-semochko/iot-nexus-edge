@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useLayoutEffect, useState } from 'react'
 import { CSpinner } from '@coreui/react'
 import { request } from 'src/api/client'
 
@@ -19,11 +19,28 @@ import { request } from 'src/api/client'
 // out); its label - a string (the chart's) and the legend from `legends[i]`. `colors[i]` - the entry's
 // colour (an array for an array entry). The height - `height`, else the context's (a popup's charts are
 // taller - ChartSize below), else 130.
-const W = 680
+const BASE_W = 680
 const DEFAULT_H = 130
 
-/** The charts' height (viewBox units at 680 wide) for the charts inside - UnitPopup sets a taller one. */
+/**
+ * The charts inside a popup (UnitPopup sets it - the user, 2026-10-30: the charts as wide as the dialog):
+ * their height in pixels - each drawn at its box's real width, so a wider dialog gives a wider chart, not
+ * a taller one. Unset - the viewBox at 680 wide, scaled with the box (the scenes' small charts).
+ */
 export const ChartSize = createContext(null)
+
+/**
+ * The height all the charts inside may take together, px (UnitPopup sets it - the user, 2026-10-30: a
+ * popup's charts as tall as the window lets them, the dialog fitting them): each chart's share of it, its
+ * label's line taken off, never under MIN_FILL_H (then the dialog scrolls).
+ */
+export const ChartSpace = createContext(null)
+const MIN_FILL_H = 160
+// a chart's label line and the gap between two charts, px
+const LABEL_H = 22
+const CHART_GAP = 8
+// a chart's limits' legend line under it, px
+const LIMITS_H = 18
 const PAD = { left: 40, right: 8, top: 10, bottom: 22 }
 const COLORS = ['var(--cui-success)', 'var(--cui-info)', 'var(--cui-warning)', 'var(--cui-primary)']
 const HEADROOM = 1.05 // the curve's peak stays below the upper limit line
@@ -53,7 +70,39 @@ const SeriesChart = ({
   height,
 }) => {
   const contextH = useContext(ChartSize)
-  const H = height ?? contextH ?? DEFAULT_H
+  const space = useContext(ChartSpace)
+  // a popup's chart - drawn at its box's width in pixels (measured)
+  const fluid = contextH != null && height == null
+  const shown = keys
+    .map((k) => (Array.isArray(k) ? k.filter(Boolean) : k ? [k] : []))
+    .filter((ks) => ks.length)
+  const count = shown.length || 1
+  // the charts with a named limit - a legend line under each (known before the data - no jump)
+  const legendLines = shown.filter((ks) =>
+    ks.some((k) => (limits[k] ?? []).some((l) => l.label)),
+  ).length
+  const H =
+    height ??
+    (fluid && space
+      ? Math.max(
+          MIN_FILL_H,
+          Math.floor(
+            (space - count * LABEL_H - legendLines * LIMITS_H - (count - 1) * CHART_GAP) / count,
+          ),
+        )
+      : null) ??
+    contextH ??
+    DEFAULT_H
+  const [boxPx, setBoxPx] = useState(null)
+  const [box, setBox] = useState(null)
+  // measured before the paint (a ResizeObserver reports in the frame it starts) - no jump as it opens
+  useLayoutEffect(() => {
+    if (!fluid || !box) return undefined
+    const ro = new ResizeObserver(([e]) => setBoxPx(Math.round(e.contentRect.width)))
+    ro.observe(box)
+    return () => ro.disconnect()
+  }, [fluid, box])
+  const W = fluid && boxPx ? Math.max(320, boxPx) : BASE_W
   const [series, setSeries] = useState(null)
   const [error, setError] = useState(null)
   // "now" - when the data was read (a render stays pure)
@@ -163,8 +212,10 @@ const SeriesChart = ({
   })
   if (lines.every((l) => l.curves.every((c) => !c.path)))
     return <div className="small text-body-secondary">No points yet today.</div>
+  // a popup's chart - drawn once its width is known
+  if (fluid && !boxPx) return <div ref={setBox} style={{ height: lines.length * (H + LABEL_H) }} />
   return (
-    <div className="d-grid gap-2">
+    <div className="d-grid gap-2" ref={setBox}>
       {lines.map((l) => (
         <div key={l.key}>
           {(l.label || l.curves.some((c) => c.legend)) && (

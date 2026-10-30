@@ -288,7 +288,7 @@ const PORTS_Y = [232, 248, 264, 280]
  * indicator symmetric about the column's middle (the user, 2026-10-29): the average temperature
  * (small) over the % (big) over the stored kWh (small).
  */
-export const TankIcon = ({ tank, height = 200 }) => {
+export const TankIcon = ({ tank, height = 200, labels = 'all' }) => {
   const id = svgId(useId())
   const pct = Math.max(0, Math.min(100, tank.pct ?? 0))
   const x = 45
@@ -374,15 +374,19 @@ export const TankIcon = ({ tank, height = 200 }) => {
       <rect x={x - 4} y={y - 4} width={w + 8} height={h + 8} rx="9" fill="#2a2e33" />
       <rect x={x} y={y} width={w} height={h} rx="5" fill={`url(#${id}col)`} />
       {ticks}
-      {[
-        [
-          y + h / 2 - 26,
-          13,
-          600,
-          tank.avgC == null ? '- °C' : `${Number(tank.avgC).toFixed(1)} °C`,
-        ],
-        [y + h / 2 + 34, 13, 600, `${Number(tank.storedKwh ?? 0).toFixed(1)} kWh`],
-      ].map(([ty, size, weight, text]) => (
+      {/* `labels` "pct" - the % alone (a small tank - the card's; its other figures beside it) */}
+      {(labels === 'pct'
+        ? []
+        : [
+            [
+              y + h / 2 - 26,
+              13,
+              600,
+              tank.avgC == null ? '- °C' : `${Number(tank.avgC).toFixed(1)} °C`,
+            ],
+            [y + h / 2 + 34, 13, 600, `${Number(tank.storedKwh ?? 0).toFixed(1)} kWh`],
+          ]
+      ).map(([ty, size, weight, text]) => (
         <text
           key={ty}
           x="80"
@@ -638,6 +642,117 @@ export const FanCoilIcon = ({ coil, mode, width = 330 }) => {
           r={34}
           value={heat}
           limits={{ min: 0, max: Math.ceil(ratedKw) }}
+          unit="kW"
+          decimals={1}
+          state={coil.on ? (heat > 0.05 ? 'active' : 'inactive') : 'inactive'}
+        />
+      </g>
+    </svg>
+  )
+}
+
+export const FAN_COIL_COMPACT_VIEW = { w: 440, h: 252 }
+
+/**
+ * A fan coil, compact (the user's mockup images/fancoil-2.png, 2026-10-29 - the heating overview's
+ * rooms): the room's temperature over its humidity, the fan, the heat gauge (kW, to `ratedKw`), the
+ * louvres below - no switch, no name.
+ */
+export const FanCoilCompactIcon = ({ coil, mode, width = 220 }) => {
+  const id = svgId(useId())
+  const running = coil.on && coil.fan > 0
+  const heat = Math.abs(coil.heatKw ?? 0)
+  const ratedKw = coil.ratedKw ?? 5
+  const fan = { cx: 240, cy: 82, r: 50 }
+  const grilleR = fan.r - 5
+  const louvres = [
+    [184, 4],
+    [196, 3.2],
+    [208, 2.4],
+  ]
+  const textFill = coil.on ? '#1d2430' : '#5d6878'
+  return (
+    <svg
+      width={width}
+      height={(width * FAN_COIL_COMPACT_VIEW.h) / FAN_COIL_COMPACT_VIEW.w}
+      viewBox={`0 0 ${FAN_COIL_COMPACT_VIEW.w} ${FAN_COIL_COMPACT_VIEW.h}`}
+      role="img"
+      aria-label={`${coil.name} - fan coil`}
+      style={coil.on === false ? OFF_STYLE : undefined}
+    >
+      <title>
+        {`${coil.name}: room ${coil.roomC ?? '-'} C, humidity ${coil.humidityPct ?? '-'} %; ${running ? `${mode === 'cooling' ? 'cooling' : 'heating'} ${heat.toFixed(1)} kW` : 'idle'}`}
+      </title>
+      <Gradients id={id} />
+      <radialGradient id={`${id}hole`} cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0.8" stopColor="#c3c8ce" />
+        <stop offset="1" stopColor="#a9afb6" />
+      </radialGradient>
+      <clipPath id={`${id}hc`}>
+        <circle cx={fan.cx} cy={fan.cy} r={fan.r - 2} />
+      </clipPath>
+      <clipPath id={`${id}hg`}>
+        <circle cx={fan.cx} cy={fan.cy} r={grilleR} />
+      </clipPath>
+      <rect
+        x="4"
+        y="4"
+        width="432"
+        height="244"
+        rx="18"
+        fill={`url(#${id}body)`}
+        stroke="#b9bec4"
+        strokeWidth="1.5"
+      />
+      <path d="M16 150 H424" stroke="#b9bec4" strokeWidth="1.5" />
+      <path d="M16 153 H424" stroke="#fff" strokeWidth="1.5" />
+      <text x="24" y="78" fontSize="44" fontWeight="700" fill={textFill}>
+        {`${coil.roomC ?? '-'} °C`}
+      </text>
+      <text x="24" y="134" fontSize="44" fontWeight="700" fill={textFill}>
+        {`${coil.humidityPct ?? '-'} %`}
+      </text>
+      <circle
+        cx={fan.cx}
+        cy={fan.cy}
+        r={fan.r + 4}
+        fill={`url(#${id}hole)`}
+        stroke="#9ea4ab"
+        strokeWidth="1.5"
+      />
+      <g clipPath={`url(#${id}hc)`}>
+        <Fan id={id} cx={fan.cx} cy={fan.cy} r={fan.r - 10} rpm={running ? coil.fanRpm : 0} />
+      </g>
+      <g clipPath={`url(#${id}hg)`}>
+        <Grille cx={fan.cx} cy={fan.cy} r={grilleR} stepX={26} stepY={7.5} width={1.6} />
+      </g>
+      <rect x="36" y="172" width="332" height="50" rx="6" fill="#2b2f34" />
+      {louvres.map(([ly, w]) => (
+        <line key={ly} x1="42" y1={ly} x2="362" y2={ly} stroke="#c9ced3" strokeWidth={w} />
+      ))}
+      {[64, 200, 336].map((lx) => (
+        <rect
+          key={lx}
+          x={lx}
+          y="176"
+          width="9"
+          height="42"
+          rx="2"
+          fill="#eceef0"
+          stroke="#9aa0a6"
+        />
+      ))}
+      <circle cx="404" cy="182" r="3" fill={running ? '#3cb371' : '#a3adb8'} />
+      <circle cx="404" cy="194" r="3" fill="#a3adb8" />
+      <rect x="392" y="208" width="24" height="12" rx="3" fill="#e8eaec" stroke="#b9bec4" />
+      <g>
+        <title>{`${mode === 'cooling' ? 'Cold' : 'Heat'} to the rooms ${heat.toFixed(1)} kW`}</title>
+        <RoundGauge
+          x={360}
+          y={fan.cy}
+          r={52}
+          value={heat}
+          limits={{ min: 0, max: Math.max(1, Math.ceil(ratedKw)) }}
           unit="kW"
           decimals={1}
           state={coil.on ? (heat > 0.05 ? 'active' : 'inactive') : 'inactive'}

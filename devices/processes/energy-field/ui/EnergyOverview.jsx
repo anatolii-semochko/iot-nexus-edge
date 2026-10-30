@@ -1,31 +1,33 @@
-import React, { Suspense, useEffect, useState } from 'react'
+import React from 'react'
 import { CSpinner } from '@coreui/react'
-import { request } from 'src/api/client'
 import KeyValue from 'src/components/KeyValue'
-import LedgerAvatar from '../../energy-ledger/ui/LedgerAvatar'
+import LedgerBlock from './LedgerBlock'
 import { BatteryIcon, ConsumerIcon, Flow, GenerationIcon, GridIcon, SCENE_CSS } from './fieldIcons'
 import { fmt, useFieldData } from './useFieldData'
 
 // The energy's overview (iot AGENTS_TO_DO.md 2026-10-29, the user's layout): a Dashboard component drawn
 // at a folder's full width under its blocks - the whole picture at a glance. Three columns, the energy's
 // flows between them: the generation over the grid on the left, each with its flow to the right; the
-// Energy Ledger in the middle (its card's picture - what the system saved, the plan, the strategy); the
+// Energy Ledger in the middle (the Energy scene's own Ledger block - the mode, the prices, today's figures,
+// the operating switches - the user, 2026-10-30); the
 // batteries over the consumption on the right, each with its flow from the left. The flows - the scene's
 // three colours (green - for us, orange - against us, grey - none) and directions (the grid's export and
-// the batteries' discharge point back). Narrow - one column, the flows turned down.
+// the batteries' discharge point back), a margin each side (2026-10-30). Narrow - one column, the flows
+// turned down.
 
 const FLOW_SIZE = 56
 const ICON_HEIGHT = 72
-const STACK_PX = 820
+// the Ledger block's least width (its five day figures side by side) and the width the grid stacks under
+const MID_MIN_PX = 540
+const STACK_PX = 1100
 
 const CSS = `
 .eo { container-type: inline-size; }
-.eo-grid { display: grid; grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1.3fr) max-content minmax(0, 1fr); gap: 10px; align-items: stretch }
+.eo-grid { display: grid; grid-template-columns: minmax(0, 1fr) max-content minmax(${MID_MIN_PX}px, 2fr) max-content minmax(0, 1fr); gap: 10px; align-items: stretch }
 .eo-side { display: grid; grid-template-rows: 1fr 1fr; gap: 10px }
 .eo-flows { display: grid; grid-template-rows: 1fr 1fr; gap: 10px; align-items: center; justify-items: center }
 .eo-block { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border: 1px solid var(--ef-line); border-radius: 12px; background: var(--ef-card) }
 .eo-block .kv.eo-main { font-size: 1.35rem }
-.eo-mid { border: 2px solid var(--ef-panel-grid); border-radius: 12px; background: var(--ef-card); padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 100% }
 .eo-flow { display: flex; flex-direction: column; align-items: center; line-height: 1.1 }
 .eo-flow .kv { font-size: 1.05rem }
 @container (max-width: ${STACK_PX}px) {
@@ -51,7 +53,7 @@ const Block = ({ icon, title, value, unit = 'kW', color, children }) => (
 
 /** A flow between two columns - its chevrons, its power under them. */
 const FlowCell = ({ dir, kw, color, scaleKw, label }) => (
-  <div className="eo-flow">
+  <div className="eo-flow mx-3">
     <Flow
       dir={dir}
       kw={Math.abs(kw)}
@@ -68,26 +70,9 @@ const FlowCell = ({ dir, kw, color, scaleKw, label }) => (
   </div>
 )
 
-/** The ledger's process row - the field's config names it; null while loading or when there is none. */
-const useLedger = (ledgerId) => {
-  const [state, setState] = useState({ ledger: null, error: null })
-  useEffect(() => {
-    if (!ledgerId) return undefined
-    let cancelled = false
-    request(`/processes/${ledgerId}`)
-      .then((p) => !cancelled && setState({ ledger: p, error: null }))
-      .catch((err) => !cancelled && setState({ ledger: null, error: err.message }))
-    return () => {
-      cancelled = true
-    }
-  }, [ledgerId])
-  return state
-}
-
 const EnergyOverview = ({ process }) => {
-  const { m, gridMetrics } = useFieldData(process)
-  const ledgerId = process.config?.ledgerProcessId ?? null
-  const { ledger, error } = useLedger(ledgerId)
+  const data = useFieldData(process)
+  const { m, gridMetrics } = data
   const t = m.totals
   if (!t) return <CSpinner size="sm" />
   const generation = (t.pvKw ?? 0) + (t.windKw ?? 0)
@@ -153,22 +138,7 @@ const EnergyOverview = ({ process }) => {
             label={`Grid ${gridFlow} ${kwText(t.gridKw)} kW`}
           />
         </div>
-        <div className="eo-mid">
-          <div className="fw-semibold">Energy Ledger</div>
-          {ledger ? (
-            <Suspense fallback={<CSpinner size="sm" />}>
-              <LedgerAvatar process={ledger} />
-            </Suspense>
-          ) : (
-            <span className="small ef-muted text-center">
-              {!ledgerId
-                ? 'No Energy Ledger linked (the field’s settings)'
-                : error
-                  ? `The Energy Ledger - ${error}`
-                  : 'The Energy Ledger…'}
-            </span>
-          )}
-        </div>
+        <LedgerBlock process={process} data={data} />
         <div className="eo-flows">
           <FlowCell
             dir={batteryDir === 'discharge' ? 'left' : 'right'}

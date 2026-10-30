@@ -50,6 +50,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
   })
   const [strategy, setStrategy] = useState(c.strategy ?? {})
   const [alerts, setAlerts] = useState(c.alerts ?? {})
+  const [selfLevels, setSelfLevels] = useState(c.selfSufficiencyLevels ?? {})
   const stage = (section, value) => {
     extraConfigRef.current = { ...(extraConfigRef.current ?? {}), [section]: value }
   }
@@ -82,6 +83,12 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
     if (value === undefined) delete next[key]
     setAlerts(next)
     stage('alerts', next)
+  }
+  const editSelfLevels = (key, value) => {
+    const next = { ...selfLevels, [key]: value }
+    if (value === undefined) delete next[key]
+    setSelfLevels(next)
+    stage('selfSufficiencyLevels', next)
   }
   const rows = [
     ...units.pvBlocks.map((x, i) => ['pvBlocks', 'PV block', 'generation', x, i]),
@@ -274,6 +281,36 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
             value={alerts.overRatedPct ?? ''}
             placeholder="2"
             onChange={(e) => editAlerts('overRatedPct', numberOr(e.target.value))}
+          />
+        </CCol>
+      </CRow>
+
+      <h6 className="mt-3">Self-sufficiency&apos;s colour</h6>
+      <p className="small text-body-secondary mb-2">
+        Today&apos;s self-sufficiency in the Energy Ledger&apos;s block: green from the first share,
+        yellow from the second, red under it.
+      </p>
+      <CRow className="g-3">
+        <CCol sm={4}>
+          <CFormLabel>Good from, %</CFormLabel>
+          <CFormInput
+            type="number"
+            min={0}
+            max={100}
+            value={selfLevels.good ?? ''}
+            placeholder="60"
+            onChange={(e) => editSelfLevels('good', numberOr(e.target.value))}
+          />
+        </CCol>
+        <CCol sm={4}>
+          <CFormLabel>Fair from, %</CFormLabel>
+          <CFormInput
+            type="number"
+            min={0}
+            max={100}
+            value={selfLevels.fair ?? ''}
+            placeholder="30"
+            onChange={(e) => editSelfLevels('fair', numberOr(e.target.value))}
           />
         </CCol>
       </CRow>

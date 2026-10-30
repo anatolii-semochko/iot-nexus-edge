@@ -141,20 +141,36 @@ const FitBox = ({ factor = 1, children }) => {
 // as large as fits both ways, centered (an unframed card's avatar - to the
 // block's edges, AGENTS_TO_DO.md 2026-10-23 heating 9); `grow` false - only
 // shrunk when larger than the box, never enlarged (a framed card's avatar -
-// as it is, but whole); measured live.
+// as it is, but whole); measured live. Scaled by CSS `zoom`, not a transform
+// (the user, 2026-10-30 - the cards' texts shimmered): a zoomed picture is laid
+// out at its real size, its text drawn as any other, never a scaled raster
+// re-drawn beside the cards' animations; its place on whole pixels.
 const StretchBox = ({ grow = true, factor = 1, children }) => {
   const box = useRef(null)
   const inner = useRef(null)
+  // the zoom now applied - the natural size is the drawn one over it
+  const applied = useRef(1)
   const [size, setSize] = useState(null)
   useLayoutEffect(() => {
     const measure = () => {
       if (!box.current || !inner.current) return
-      setSize({
+      const rect = inner.current.getBoundingClientRect()
+      const next = {
         width: box.current.clientWidth,
         height: box.current.clientHeight,
-        naturalWidth: inner.current.offsetWidth,
-        naturalHeight: inner.current.offsetHeight,
-      })
+        naturalWidth: Math.round(rect.width / applied.current),
+        naturalHeight: Math.round(rect.height / applied.current),
+      }
+      // the same within a pixel - no new render (the zoom's own rounding never loops)
+      setSize((prev) =>
+        prev &&
+        prev.width === next.width &&
+        prev.height === next.height &&
+        Math.abs(prev.naturalWidth - next.naturalWidth) <= 1 &&
+        Math.abs(prev.naturalHeight - next.naturalHeight) <= 1
+          ? prev
+          : next,
+      )
     }
     measure()
     const observer = new ResizeObserver(measure)
@@ -170,26 +186,34 @@ const StretchBox = ({ grow = true, factor = 1, children }) => {
           grow ? Infinity : 1,
         ) * factor
       : 0
+  // eslint-disable-next-line react-hooks/refs -- the zoom drawn this render, read by the next measure
+  applied.current = scale || 1
   return (
     <div
       ref={box}
-      style={{ position: 'relative', height: PREVIEW_H, overflow: 'hidden' }}
+      // the picture is the card's (a link) - its own titles' tooltips would flicker over it (the user,
+      // 2026-10-29), so no pointer events inside, as FitBox
+      style={{ position: 'relative', height: PREVIEW_H, overflow: 'hidden', pointerEvents: 'none' }}
       aria-hidden="true"
     >
       <div
-        ref={inner}
         style={{
           position: 'absolute',
-          left: size ? (size.width - size.naturalWidth * scale) / 2 : 0,
-          top: size ? (size.height - size.naturalHeight * scale) / 2 : 0,
-          // its own size, not squeezed to the card's width
-          width: 'max-content',
-          transform: `scale(${scale})`,
-          transformOrigin: '0 0',
-          visibility: scale ? 'visible' : 'hidden',
+          left: size ? Math.round((size.width - size.naturalWidth * scale) / 2) : 0,
+          top: size ? Math.round((size.height - size.naturalHeight * scale) / 2) : 0,
         }}
       >
-        {children}
+        <div
+          ref={inner}
+          style={{
+            // its own size, not squeezed to the card's width
+            width: 'max-content',
+            zoom: scale || 1,
+            visibility: scale ? 'visible' : 'hidden',
+          }}
+        >
+          {children}
+        </div>
       </div>
     </div>
   )
@@ -366,11 +390,12 @@ export const BlockCard = ({ card, processes, linked = true }) => {
 }
 
 // A level's components (migration 100) - each at the level's full width under its blocks, its title
-// over it, laid out in the width (a component on the whole page is an avatar's)
+// over it (unless its frame's `title` is off - the user, 2026-10-30), laid out in the width (a component
+// on the whole page is an avatar's)
 const InlineComponents = ({ items, processes }) =>
   items.map((c) => (
     <section key={c.id} className="mt-4" aria-label={c.title}>
-      <div className="fw-semibold mb-2">{c.title}</div>
+      {c.frame?.title !== false && <div className="fw-semibold mb-2">{c.title}</div>}
       <div style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
         <ComponentView card={c} processes={processes} />
       </div>

@@ -7,6 +7,7 @@ import {
   TURBINE_TOWER,
   TURBINE_VIEW,
 } from './genIcons/genIconPaths'
+import { PRICE_QUARTER } from './priceLevels'
 
 // The Energy Field's pictures in one style (images/AQUARIUM V16-V19.png,
 // the reviewed mockup 2026-10-19): filled shapes with a currentColor
@@ -282,64 +283,66 @@ export const BatteryIcon = ({
   )
 }
 
-// The tariff's gauge (the user, 2026-10-24, images/speedometer-gauges-low-medium-high-vector.avif):
-// top left, the bolt's mirror - an arc over the top, one segment per tariff zone from green (the
-// cheapest) to red (the dearest), the needle in the zone now; no figures (they are in its title).
+// A price's gauge (the user, 2026-10-24 images/speedometer-gauges-low-medium-high-vector.avif; 2026-10-30
+// images/fix-icon-energy-tower-1.png - two under the grid's tower, buy and sell): an arc over the top in
+// three parts - the next 24 hours' cheapest quarter, the middle, the dearest quarter (priceLevels.js) -
+// green where the price is good for us (a purchase - the cheap end on the left; a sale - the dear end on
+// the right, `higherIsBetter`), red where it is not; the needle at the price now. No figures - under it.
 const GAUGE = { cx: 19, cy: 16, r: 9, from: 210, sweep: 240, gapDeg: 5, needle: 7.5 }
 const gaugePoint = (deg, r) => {
   const a = (deg * Math.PI) / 180
   return [GAUGE.cx + r * Math.cos(a), GAUGE.cy - r * Math.sin(a)]
 }
-// green -> yellow -> red by the zone's rank (hue 120 -> 0)
-const zoneColor = (i, n) => `hsl(${n > 1 ? 120 - (120 * i) / (n - 1) : 120} 80% 45%)`
+const GAUGE_PARTS = [0, PRICE_QUARTER, 1 - PRICE_QUARTER, 1]
+const PART_COLORS = ['var(--cui-success)', 'var(--cui-warning)', 'var(--cui-danger)']
 
-const TariffGauge = ({ index, count, title }) => {
-  const step = GAUGE.sweep / count
-  const needle = gaugePoint(GAUGE.from - step * (index + 0.5), GAUGE.needle)
+export const PriceGauge = ({ share, higherIsBetter = false, width = 56, title }) => {
+  const colors = higherIsBetter ? [...PART_COLORS].reverse() : PART_COLORS
+  const needle = gaugePoint(GAUGE.from - GAUGE.sweep * (share ?? 0.5), GAUGE.needle)
+  const gap = GAUGE.gapDeg / 2
   return (
-    <g>
+    <svg width={width} height={(width * 20) / 26} viewBox="6 4 26 20" role="img" aria-label={title}>
       <title>{title}</title>
-      {/* the face - a hover target as big as the gauge */}
-      <circle cx={GAUGE.cx} cy={GAUGE.cy} r={GAUGE.r + 3} fill="transparent" />
-      {Array.from({ length: count }, (_, i) => {
-        const gap = count > 1 ? GAUGE.gapDeg / 2 : 0
-        const [x0, y0] = gaugePoint(GAUGE.from - step * i - gap, GAUGE.r)
-        const [x1, y1] = gaugePoint(GAUGE.from - step * (i + 1) + gap, GAUGE.r)
+      {colors.map((color, i) => {
+        const [x0, y0] = gaugePoint(
+          GAUGE.from - GAUGE.sweep * GAUGE_PARTS[i] - (i ? gap : 0),
+          GAUGE.r,
+        )
+        const [x1, y1] = gaugePoint(
+          GAUGE.from - GAUGE.sweep * GAUGE_PARTS[i + 1] + (i < 2 ? gap : 0),
+          GAUGE.r,
+        )
+        const deg = GAUGE.sweep * (GAUGE_PARTS[i + 1] - GAUGE_PARTS[i])
         return (
           <path
             key={i}
-            d={`M${x0.toFixed(2)} ${y0.toFixed(2)} A${GAUGE.r} ${GAUGE.r} 0 ${step - 2 * gap > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`}
+            d={`M${x0.toFixed(2)} ${y0.toFixed(2)} A${GAUGE.r} ${GAUGE.r} 0 ${deg > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`}
             fill="none"
-            stroke={zoneColor(i, count)}
+            stroke={color}
             strokeWidth="4"
           />
         )
       })}
-      <line
-        x1={GAUGE.cx}
-        y1={GAUGE.cy}
-        x2={needle[0]}
-        y2={needle[1]}
-        stroke="var(--ef-ink)"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <circle cx={GAUGE.cx} cy={GAUGE.cy} r="2" fill="var(--ef-ink)" />
-    </g>
+      {share != null && (
+        <>
+          <line
+            x1={GAUGE.cx}
+            y1={GAUGE.cy}
+            x2={needle[0]}
+            y2={needle[1]}
+            stroke="var(--ef-ink)"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <circle cx={GAUGE.cx} cy={GAUGE.cy} r="2" fill="var(--ef-ink)" />
+        </>
+      )}
+    </svg>
   )
 }
 
-/**
- * `voltage` ok | bad | none - the sign: pink, red blinking, grey. `tariff` - { index, count,
- * title } the zone now among the tariff's zones (cheapest first), null - no gauge.
- */
-export const GridIcon = ({
-  height = 104,
-  flow = 'none',
-  voltage = 'ok',
-  outage = false,
-  tariff = null,
-}) => (
+/** `voltage` ok | bad | none - the sign: pink, red blinking, grey (the prices' gauges - under it). */
+export const GridIcon = ({ height = 104, flow = 'none', voltage = 'ok', outage = false }) => (
   <svg
     width={(height * 88) / 104}
     height={height}
@@ -369,7 +372,6 @@ export const GridIcon = ({
             : 'var(--ef-volt)'
       }
     />
-    {tariff && tariff.count > 0 && tariff.index >= 0 && <TariffGauge {...tariff} />}
   </svg>
 )
 
@@ -385,6 +387,8 @@ export const ConsumerIcon = ({ height = 104, state = 'on' }) => {
       />
       <rect x="31" y="80" width="26" height="6" rx="2" fill={color} />
       <rect x="34" y="89" width="20" height="6" rx="2" fill={color} />
+      {/* the cap's contact (the user's mockup images/fix-lamp-consumer-1.png) */}
+      <path d="M39 97.5 h10 v0.5 a5 3.5 0 0 1 -10 0 Z" fill={color} />
       <path
         d="M36 22 v12 M52 22 v12 M31 34 h26 v6 a13 13 0 0 1 -26 0 Z M44 53 v14"
         fill="none"
