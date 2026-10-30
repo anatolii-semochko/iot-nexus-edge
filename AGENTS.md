@@ -8034,7 +8034,9 @@ Migration 064 (nexus-edge-aquarium AGENTS_TO_DO.md tech debt 6):
   card's picture block itself (on an unframed card - `frame` "none" - it is
   drawn at its natural size and scaled to the block's edges, StretchBox,
   2026-10-23; on a framed one - as it is, only shrunk when larger than the
-  block); a `fit` one is a full view scaled into it (FitBox). A card's `preview` (migration 066 - any key): "auto" (the first
+  block; scaled by CSS `zoom`, not a transform - 2026-10-30: a transformed
+  picture's text shimmered beside the cards' animations on a GPU; its place
+  on whole pixels, no pointer events inside); a `fit` one is a full view scaled into it (FitBox). A card's `preview` (migration 066 - any key): "auto" (the first
   avatar, else a scaled copy), "scaled", or an avatar's key; Service ->
   Config -> Dashboard -> a card's "Avatar". The core's: Resource monitor -
   `chart` (its live chart only, ResourceMonitorAvatar - the history hook
@@ -8821,14 +8823,24 @@ package documents itself in its `docs/README.md`; here - what exists:
   `MAP_TILES_CACHE_SIZE` - the browser never calls the tile server). UI core
   `components/nodeInfo/`: `UnitPopup` (2026-10-22 C - every package's unit
   popup: tabs Status / Model / Photo / Map, one tab - no switcher; Status -
-  the scene's live picture, a root `<svg>` scaled by CSS to the height of
-  the readings and charts on its right, at most 40 % wide - a wide one held
+  the scene's live picture, a root `<svg>` in a narrow column, the
+  readings and charts on its right - a wide one held
   by the width, above them below 700 px; `footer` - the controls; no
   `children` - the node's information only; `className` - on the modal, a
   scene's colour-variables class, since the modal renders outside the
   scene, e.g. energy-field's `ef-colors`; big - 2026-10-29: the dialog
-  `.chart-popup` (`style.scss` - nearly the window's width, the weather's
-  chart popup too), its charts taller - the `ChartSize` context), `NodeModel` (the Model tab -
+  `.chart-popup` (`style.scss` - the window's width less the modal's
+  margins, as the aquarium's History popup; the weather's chart popup too);
+  `charts` (2026-10-30) - right of the picture (a column 12 % wide, the
+  picture by its width - the charts' height never moves it),
+  under the readings, each `SeriesChart` drawn at its box's real width in
+  pixels and together as tall as the window lets them (`ChartSpace` - the
+  window's height less the margins and everything in the dialog but the
+  charts, measured; each chart its share, at least 160 px) - the dialog
+  fits the window; narrow (under 700 px) - one column, the charts
+  `ChartSize` 220 px, the dialog scrolls; opening without a jump - the
+  charts' room held from the first frame, a chart drawn once its width is
+  known, both measured before the paint, the limits' legend lines counted), `NodeModel` (the Model tab -
   the model's real picture `models[].image` (a file in the type's folder;
   the demo's are WebP, at most 640 px), else the type's icon, else the
   scene's drawing; the data), `TileMap` (slippy tiles around one point, a
@@ -8903,7 +8915,9 @@ lint` runs both. The rules: the React hooks' (purity - "now" by
   padded), `middle` (the line between the picture and the title), `bottom`
   (the title's block bordered), `fill` (the card's background); top and
   bottom both - one border round the card; null - by type (a folder all
-  of them, an avatar none). `cardFrame(card)`, `BlockCard` (Dashboard.jsx)
+  of them, an avatar none). A component card - only `title` (2026-10-30):
+  false - no title over the component (the card popup's "Its title"
+  switch; unset - shown). `cardFrame(card)`, `BlockCard` (Dashboard.jsx)
   draw the four cases: one border round the card, the picture's block in
   its own box, the title's block in its own box, no box (the middle line
   only). The card's caption is centred.
@@ -9252,7 +9266,20 @@ Energy Ledger's README has the details.
   component `heatingPlanner.plan` (KPIs against the band, a system's switch,
   `PlanChart` - prices and signal, heat planned / need, units, store, the
   rooms' margin - the plan in words, the systems), the card picture
-  `HeatingPlanAvatar`. The strategies (P3), the AI (P4) - iot AGENTS_TO_DO.md.
+  `HeatingPlanAvatar`.
+- **The strategies** (P3, `strategies.ts`): Least cost, Gentle (few starts,
+  low power), Comfort (no margin), The sun (the surplus stored, the tanks
+  hotter) - each planned for each system and valued in the real money
+  (electricity, saving, starts, the rooms' K-h off, the sun's kWh); config
+  `strategy { key, selection fixed / cheapest }`, commands `setStrategy`,
+  `setSelection`; the page's cards.
+- **The AI and the day's notes** (P4): the work type Heating Plan
+  (`heating-plan`, scheduled - the strategy and `comfortK` proposed by
+  config.propose under the AI Config level, the Summary line), the tool
+  `heatingPlanner.plan`, GET `.../summary` (the AI's Summary today over the
+  planner's own `metrics.summary`) on the page; the need with the day's notes
+  (a holiday / day off - no working gains, a working weekend, a closed room
+  set back).
 
 ## The energy scene: flows, critical states, limits, operating changes (2026-10-25)
 

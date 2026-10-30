@@ -140,6 +140,12 @@ const CONFIG_SCHEMA = {
       },
       additionalProperties: false,
     },
+    selfSufficiencyLevels: {
+      type: "object",
+      description: "the Ledger block's self-sufficiency today coloured: green from `good` (60) %, yellow from `fair` (30) %, red under it",
+      properties: { good: { type: "number", minimum: 0, maximum: 100 }, fair: { type: "number", minimum: 0, maximum: 100 } },
+      additionalProperties: false,
+    },
     loadProcessIds: { type: "array", maxItems: 20, items: { type: "integer" }, description: "processes whose electricity (metrics electricKw) is part of the site's consumption - e.g. heating-control" },
     disabled: { type: "array", items: { type: "integer" } },
     simulation: {

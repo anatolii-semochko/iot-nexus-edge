@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useState } from 'react'
 import {
   CModal,
   CModalBody,
@@ -13,27 +13,34 @@ import { api } from 'src/api/client'
 import NodeModel from './NodeModel'
 import TileMap from './TileMap'
 import AiButton from '../ai/AiButton'
-import { ChartSize } from '../charts/SeriesChart'
+import { ChartSize, ChartSpace } from '../charts/SeriesChart'
 
 // A unit's popup (AGENTS_TO_DO.md 2026-10-22, C - images/device-popup.png):
-// tabs "Status" (the scene's live picture on the left - as tall as the
-// readings and charts on its right, a wide one held by the width; the
-// readings, the charts, `footer` - the controls), "Model" (the node type's
+// tabs "Status" (the scene's live picture on the left - a narrow column, its
+// readings and charts on its right; `footer` - the controls), "Model" (the node type's
 // Library model - its real picture, the data), "Photo" (the real unit -
 // when the node has one), "Map" (where it stands - when placed). No
 // `children` - the node's information only (Model first). One tab - no
 // switcher. `picture` - a root <svg> (its viewBox keeps the proportions).
 // `processId` - the process the unit is shown in (the AI button's subject). `className` - on the modal: a scene's class whose colour variables its
 // picture uses (the modal renders outside the scene). Big - for the charts (the user, 2026-10-29): the
-// dialog nearly the window's width, its charts taller (ChartSize).
+// dialog as wide as the window lets it (`.chart-popup`, style.scss - the aquarium's history popup's
+// width). `charts` (the user, 2026-10-30): under the readings, right of the picture, each drawn at its
+// real width and together as tall as the window lets them - the dialog fits the window, its charts fill
+// what the rest leaves (ChartSpace); narrow - one column, the charts CHART_H tall, the dialog scrolls.
 
 const STACK_BELOW_PX = 700 // narrower - the picture above the readings
 const STACKED_PICTURE_PX = 220
-// the charts' height inside (viewBox units at 680 wide); the dialog's width - `.chart-popup` (style.scss)
+// the charts' height when they don't fill the window (narrow, no room), px
 const CHART_H = 220
+// the picture's column beside the readings - this share of the row (the user, 2026-10-30: 2.5 times
+// smaller than the 30 % before), its width not its height (the charts' height never moves it)
+const PICTURE_SHARE = '12%'
 const PICTURE_CSS = `
 .unit-picture { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .unit-picture > svg { height: 100%; width: auto; max-width: 100%; }
+.unit-picture.side { align-self: flex-start; }
+.unit-picture.side > svg { width: 100%; height: auto; }
 `
 
 const UnitPopup = ({
@@ -42,6 +49,7 @@ const UnitPopup = ({
   processId = null,
   picture,
   children,
+  charts,
   footer,
   className,
   onClose,
@@ -52,9 +60,9 @@ const UnitPopup = ({
   const [tab, setTab] = useState(hasStatus ? 'status' : 'model')
   // the elements by callback refs - the modal mounts its body after the first effects
   const [row, setRow] = useState(null)
-  const [right, setRight] = useState(null)
-  const [rightPx, setRightPx] = useState(null)
   const [rowPx, setRowPx] = useState(null)
+  const [chartsBox, setChartsBox] = useState(null)
+  const [space, setSpace] = useState(null)
 
   useEffect(() => {
     if (!nodeId) return undefined
@@ -68,19 +76,36 @@ const UnitPopup = ({
     }
   }, [nodeId])
 
-  // the picture follows the readings' height (and the row's width - stacked when narrow)
-  useEffect(() => {
-    if (!row || !right) return undefined
-    const ro = new ResizeObserver((entries) => {
-      for (const e of entries) {
-        if (e.target === right) setRightPx(Math.round(e.contentRect.height))
-        if (e.target === row) setRowPx(Math.round(e.contentRect.width))
-      }
-    })
-    ro.observe(right)
+  // the row's width - stacked when narrow (reported before the frame's paint)
+  useLayoutEffect(() => {
+    if (!row) return undefined
+    const ro = new ResizeObserver(([e]) => setRowPx(Math.round(e.contentRect.width)))
     ro.observe(row)
     return () => ro.disconnect()
-  }, [row, right])
+  }, [row])
+
+  // the charts' room: the window's height less the dialog's margins and everything in it but the charts
+  // (measured with them - their own height taken off, so a new height never moves it); before the paint
+  useLayoutEffect(() => {
+    if (!chartsBox) return undefined
+    const content = chartsBox.closest('.modal-content')
+    const dialog = chartsBox.closest('.modal-dialog')
+    if (!content || !dialog) return undefined
+    const measure = () => {
+      const style = getComputedStyle(dialog)
+      const margins = parseFloat(style.marginTop) + parseFloat(style.marginBottom)
+      const rest = content.getBoundingClientRect().height - chartsBox.getBoundingClientRect().height
+      setSpace(Math.floor(window.innerHeight - margins - rest - 2))
+    }
+    const ro = new ResizeObserver(measure)
+    ro.observe(content)
+    window.addEventListener('resize', measure)
+    measure()
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [chartsBox])
 
   const tabs = [
     ...(hasStatus ? [['status', 'Status', 'The unit now - its readings and today']] : []),
@@ -91,7 +116,7 @@ const UnitPopup = ({
   const stacked = rowPx != null && rowPx < STACK_BELOW_PX
   const pictureStyle = stacked
     ? { height: STACKED_PICTURE_PX, flexBasis: '100%' }
-    : { height: rightPx ?? STACKED_PICTURE_PX, maxWidth: '40%' }
+    : { width: PICTURE_SHARE }
 
   return (
     <CModal
@@ -143,12 +168,33 @@ const UnitPopup = ({
           <>
             <div ref={setRow} className="d-flex gap-4 flex-wrap">
               {picture && (
-                <div className="unit-picture" style={pictureStyle} title="The unit now">
+                <div
+                  className={`unit-picture${stacked ? '' : ' side'}`}
+                  style={pictureStyle}
+                  title="The unit now"
+                >
                   {picture}
                 </div>
               )}
-              <div ref={setRight} style={{ flex: '1 1 420px', minWidth: 0 }}>
-                <ChartSize.Provider value={CHART_H}>{children}</ChartSize.Provider>
+              <div
+                // its own content's height (not the row's) - the picture follows it, never the other way
+                style={{ flex: '1 1 420px', minWidth: 0, alignSelf: 'flex-start' }}
+              >
+                <ChartSize.Provider value={CHART_H}>
+                  {children}
+                  {charts && (
+                    // the room held from the first frame - the dialog opens at its height, the charts
+                    // loading in it
+                    <div
+                      ref={setChartsBox}
+                      style={!stacked && space ? { minHeight: space } : undefined}
+                    >
+                      <ChartSpace.Provider value={stacked ? null : space}>
+                        {charts}
+                      </ChartSpace.Provider>
+                    </div>
+                  )}
+                </ChartSize.Provider>
               </div>
             </div>
             {footer}

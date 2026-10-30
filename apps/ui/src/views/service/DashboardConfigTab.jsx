@@ -419,7 +419,7 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
             ) : (
               <div className="small text-body-secondary text-center">
                 The component itself, at the full width under the level&apos;s blocks, its title
-                over it.
+                over it (unless switched off).
               </div>
             )}
           </div>
@@ -497,6 +497,18 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
                     </CFormSelect>
                   </Row>
                 ))}
+              </>
+            )}
+            {!block && (
+              <>
+                <div className="dc-group" />
+                <Row label="Its title" hint="The card's title over the component">
+                  <Switch
+                    checked={form.frame?.title !== false}
+                    ariaLabel="Its title"
+                    onChange={(on) => set({ frame: { ...frame, title: on } })}
+                  />
+                </Row>
               </>
             )}
             {block && (

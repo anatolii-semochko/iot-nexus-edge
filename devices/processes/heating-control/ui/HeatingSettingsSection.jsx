@@ -56,6 +56,13 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
     consumers: c.consumers ?? [],
   })
   const [control, setControl] = useState(c.control ?? {})
+  const [copLevels, setCopLevels] = useState(c.copLevels ?? {})
+  const editCop = (key, value) => {
+    const next = { ...copLevels, [key]: value }
+    if (value === undefined) delete next[key]
+    setCopLevels(next)
+    stage('copLevels', next)
+  }
   const stage = (section, value) => {
     extraConfigRef.current = { ...(extraConfigRef.current ?? {}), [section]: value }
   }
@@ -303,6 +310,34 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
         </CTable>
       )}
       {control.pumpOrder !== 'priority' && <div className="mb-4" />}
+
+      <h6>The COP on the card</h6>
+      <p className="small text-body-secondary mb-2">
+        The Dashboard card&apos;s COP (EER when cooling) coloured: from the first - green, from the
+        second - yellow, under it - red.
+      </p>
+      <CRow className="g-3 mb-4">
+        <CCol sm={4}>
+          <CFormLabel>Good from</CFormLabel>
+          <CFormInput
+            type="number"
+            step="0.1"
+            value={copLevels.good ?? ''}
+            placeholder="3.5"
+            onChange={(e) => editCop('good', numberOr(e.target.value))}
+          />
+        </CCol>
+        <CCol sm={4}>
+          <CFormLabel>Fair from</CFormLabel>
+          <CFormInput
+            type="number"
+            step="0.1"
+            value={copLevels.fair ?? ''}
+            placeholder="2.5"
+            onChange={(e) => editCop('fair', numberOr(e.target.value))}
+          />
+        </CCol>
+      </CRow>
 
       <h6>The tanks</h6>
       <p className="small text-body-secondary mb-2">

@@ -21,14 +21,16 @@ const TYPES: CardType[] = ["folder", "avatar", "component"];
 /** The kinds that show a component (its key, process and parameters). */
 const showsComponent = (type: string): boolean => type === "avatar" || type === "component";
 
-// the frame's parts (migration 100) - null: the type's default
+// the frame's parts (migration 100) - null: the type's default; `title` - a component card's title over it
+// (unset - shown; the user, 2026-10-30: an overview without its title)
 interface Frame {
   top: boolean;
   middle: boolean;
   bottom: boolean;
   fill: boolean;
+  title?: boolean;
 }
-const FRAME_PARTS = ["top", "middle", "bottom", "fill"] as const;
+const FRAME_PARTS = ["top", "middle", "bottom", "fill", "title"] as const;
 const PICTURE_SOURCES = ["none", "avatar", "icon", "file"];
 
 interface CardRow {
@@ -122,7 +124,9 @@ const jsonOrNull = (v: unknown): string | null => (v === null || v === undefined
 
 /** The frame's parts from a request (each a boolean); null - the type's default. */
 const frameOf = (body: CardBody["frame"]): Frame | null =>
-  body === null || body === undefined ? null : { top: !!body.top, middle: !!body.middle, bottom: !!body.bottom, fill: !!body.fill };
+  body === null || body === undefined
+    ? null
+    : { top: !!body.top, middle: !!body.middle, bottom: !!body.bottom, fill: !!body.fill, ...(body.title !== undefined ? { title: !!body.title } : {}) };
 
 /**
  * The cards a person sees (B1; by the role since 2026-10-27): whoever arranges the dashboard
@@ -193,7 +197,7 @@ const problemOf = (body: CardBody, type: string | undefined): string | null => {
   if (body.params !== undefined && (body.params === null || typeof body.params !== "object" || Array.isArray(body.params) || JSON.stringify(body.params).length > MAX_PARAMS_CHARS))
     return "params must be an object (a component's own parameters)";
   if (body.frame !== undefined && body.frame !== null && (typeof body.frame !== "object" || Array.isArray(body.frame) || Object.keys(body.frame).some((k) => !(FRAME_PARTS as readonly string[]).includes(k))))
-    return "frame must be {top, middle, bottom, fill} or null";
+    return "frame must be {top, middle, bottom, fill, title} or null";
   if (body.picture?.source != null && !PICTURE_SOURCES.includes(body.picture.source)) return `picture.source must be one of ${PICTURE_SOURCES.join(", ")}`;
   return null;
 };

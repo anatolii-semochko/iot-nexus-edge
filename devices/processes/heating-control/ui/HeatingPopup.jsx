@@ -76,6 +76,35 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
   )
   return (
     <UnitPopup
+      // the unit's own today (2026-10-29 - not all of the block's)
+      charts={
+        <SeriesChart
+          absolute={[unitKey('kw'), unitKey('inKw'), unitKey('outKw')]}
+          keys={
+            kind === 'pump'
+              ? [unitKey('kw'), unitKey('cop')]
+              : kind === 'tank'
+                ? [[unitKey('inKw'), unitKey('outKw')], unitKey('pct')]
+                : [unitKey('kw'), unitKey('roomC')]
+          }
+          labels={
+            kind === 'pump'
+              ? [`${cooling ? 'Cold' : 'Heat'}, kW`, cooling ? 'EER' : 'COP']
+              : kind === 'tank'
+                ? [`${cooling ? 'Cold' : 'Heat'} in and out, kW`, 'Stored heat, %']
+                : [`${cooling ? 'Cold' : 'Heat'} to the room, kW`, 'The room, °C']
+          }
+          legends={kind === 'tank' ? [['in - from the heat pumps', 'out - to the fan coils']] : []}
+          colors={kind === 'tank' ? [TANK_FLOW_COLORS] : []}
+          limits={
+            kind === 'coil' && x.setpointC != null
+              ? {
+                  [unitKey('roomC')]: [{ value: x.setpointC, level: 'warning', label: 'setpoint' }],
+                }
+              : {}
+          }
+        />
+      }
       title={x.name}
       nodeId={nodeId}
       processId={process.id}
@@ -158,31 +187,6 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
           </>
         )}
       </div>
-      {/* the unit's own today (2026-10-29 - not all of the block's) */}
-      <SeriesChart
-        absolute={[unitKey('kw'), unitKey('inKw'), unitKey('outKw')]}
-        keys={
-          kind === 'pump'
-            ? [unitKey('kw'), unitKey('cop')]
-            : kind === 'tank'
-              ? [[unitKey('inKw'), unitKey('outKw')], unitKey('pct')]
-              : [unitKey('kw'), unitKey('roomC')]
-        }
-        labels={
-          kind === 'pump'
-            ? [`${cooling ? 'Cold' : 'Heat'}, kW`, cooling ? 'EER' : 'COP']
-            : kind === 'tank'
-              ? [`${cooling ? 'Cold' : 'Heat'} in and out, kW`, 'Stored heat, %']
-              : [`${cooling ? 'Cold' : 'Heat'} to the room, kW`, 'The room, °C']
-        }
-        legends={kind === 'tank' ? [['in - from the heat pumps', 'out - to the fan coils']] : []}
-        colors={kind === 'tank' ? [TANK_FLOW_COLORS] : []}
-        limits={
-          kind === 'coil' && x.setpointC != null
-            ? { [unitKey('roomC')]: [{ value: x.setpointC, level: 'warning', label: 'setpoint' }] }
-            : {}
-        }
-      />
     </UnitPopup>
   )
 }
@@ -200,6 +204,21 @@ export const FlowPopup = ({ flow, process, m, onClose }) => {
   const line = m.lines?.[flow]
   return (
     <UnitPopup
+      charts={
+        <SeriesChart
+          absolute={[key('tanksInKw'), key('tanksOutKw')]}
+          keys={
+            pumps ? [[key('tanksInKw'), key('electricKw')]] : [key('tanksOutKw'), key('outdoorC')]
+          }
+          labels={
+            pumps
+              ? [`${what} to the tanks and the heating's electricity, kW`]
+              : [`${what} to the rooms, kW`, 'Outdoor, °C']
+          }
+          legends={pumps ? [[`${what.toLowerCase()} to the tanks`, 'electricity']] : []}
+          colors={pumps ? [[TANK_FLOW_COLORS[0], '#b8329e']] : [TANK_FLOW_COLORS[1]]}
+        />
+      }
       title={pumps ? 'From the heat pumps to the tanks' : 'From the tanks to the rooms'}
       processId={process.id}
       onClose={onClose}
@@ -221,19 +240,6 @@ export const FlowPopup = ({ flow, process, m, onClose }) => {
           <KeyValue value={line ? fmt(line.warmC - line.coldC) : null} unit="K" />
         </Stat>
       </div>
-      <SeriesChart
-        absolute={[key('tanksInKw'), key('tanksOutKw')]}
-        keys={
-          pumps ? [[key('tanksInKw'), key('electricKw')]] : [key('tanksOutKw'), key('outdoorC')]
-        }
-        labels={
-          pumps
-            ? [`${what} to the tanks and the heating's electricity, kW`]
-            : [`${what} to the rooms, kW`, 'Outdoor, °C']
-        }
-        legends={pumps ? [[`${what.toLowerCase()} to the tanks`, 'electricity']] : []}
-        colors={pumps ? [[TANK_FLOW_COLORS[0], '#b8329e']] : [TANK_FLOW_COLORS[1]]}
-      />
     </UnitPopup>
   )
 }

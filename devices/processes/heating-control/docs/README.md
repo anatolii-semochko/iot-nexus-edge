@@ -143,12 +143,24 @@ temperatures. `HeatingRoom` - the Dashboard component
 `heatingControl.room` (`params.nodeId` - the room's fan coil): its valve,
 temperature, humidity, setpoint + / -, working / idle and what it gives now,
 the room's heat meter today (`consumers[].todayKwh`), the mode and the
-Energy Ledger's signal. `HeatingAvatar` - the card picture (the mockup
-fix-heating-avatar-1.png, 2026-10-29): a heat pump (its power and the mode,
-the COP only when there is one), a tank in the icons' middle with an arrow
-on each side - in (left) and out (right), only while flowing, yellow heat /
-blue cold - its in / out kW on the left and % over kWh on the right, a fan
-coil (the power to the rooms).
+Energy Ledger's signal. `HeatingAvatar` - the card picture (the layout of 2026-10-29): a heat pump -
+the electricity and the COP (none - hidden; green / yellow / red by
+`copLevels` - `good` 3.5, `fair` 2.5, the engineer's settings), the heat
+(cold) and the loop's temperature (the warm line heating - yellow, the cold
+one cooling - blue); a tank in the icons' middle, an arrow on each side
+while the heat flows in / out, only its % inside - the stored %, the tanks'
+temperature, the kWh; a fan coil - the heat to the rooms and their average
+temperature (the COP's word as a unit - `.kv-unit`). `HeatingOverview`
+(every system together; the demo's card without its title): the outdoors in
+two floors (2026-10-30) - the weather over the electricity the heat pumps
+take (the grid's tower), small icons with the info on their right, each
+with its own flow to the heat pumps (the air's heat - yellow / blue, the
+electricity - magenta); the rooms' block - the compact fan coil
+(`FanCoilCompactIcon`, the mockup fancoil-2.png) as large to the eye as the
+heat pump and the tank; the heat pumps' block also their electricity (the
+heat = the air's + the electricity; its COP the heat's size, the word a
+unit). The unit and the flow popups' charts - right of the picture under the
+readings, as tall as the window lets them (core UnitPopup `charts`).
 
 ## Settings and notes (2026-10-25)
 

@@ -1,22 +1,6 @@
 import React, { useState } from 'react'
-import {
-  CButton,
-  CFormCheck,
-  CFormLabel,
-  CFormSwitch,
-  CFormInput,
-  CFormSelect,
-  CModal,
-  CModalBody,
-  CModalFooter,
-  CModalHeader,
-  CModalTitle,
-  CTable,
-  CTableBody,
-  CTableDataCell,
-  CTableRow,
-} from '@coreui/react'
-import { api, request } from 'src/api/client'
+import { CFormCheck, CModal, CModalBody, CModalHeader, CModalTitle } from '@coreui/react'
+import { api } from 'src/api/client'
 import { useCan } from 'src/access'
 import { useNow } from 'src/hooks/useNow'
 import KeyValue from 'src/components/KeyValue'
@@ -29,6 +13,7 @@ import {
   Flow,
   GenerationIcon,
   GridIcon,
+  PriceGauge,
   GEN_ICON_HEIGHT,
   PvIcon,
   SCENE_CSS,
@@ -40,6 +25,8 @@ import { currentHour, fmt, nextHours, useFieldData } from './useFieldData'
 import { useFlowLimits } from './useFlowLimits'
 import SeriesChart from 'src/components/charts/SeriesChart'
 import StatTile from 'src/components/StatTile'
+import LedgerBlock from './LedgerBlock'
+import { LEVEL_COLOR, priceHoursOf, priceLevel } from './priceLevels'
 
 // The Energy Field - the user's scene (Dashboard component, images/AQUARIUM
 // V17-V19.png and the reviewed mockup 2026-10-19): the sky and the wind,
@@ -56,7 +43,7 @@ import StatTile from 'src/components/StatTile'
 const FLOW_VALUE_REM = 2.4
 const FLOW_WORD_REM = 1.25
 
-// the middle row: the centre's least width (its four day figures side by side), the scene's
+// the middle row: the centre's least width (its five day figures side by side), the scene's
 // width under which the row stacks (the side blocks, the flows' figures and the centre no longer fit)
 const MID_MIN_PX = 440
 const MID_STACK_PX = 1080
@@ -67,7 +54,7 @@ const LAYOUT_CSS = `
 .ef-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px }
 /* the side blocks as wide as their content, the centre 42 % of the row - the flows share the rest
    equally, each midway between its blocks (the user, 2026-10-23); the centre its former share */
-/* the flows never narrower than their figures, the centre than its four day figures - else they
+/* the flows never narrower than their figures, the centre than its five day figures - else they
    overlap (images/bug-electricity-blocks.png); the row stacks before that (MID_STACK_PX) */
 .ef-mid { display: grid; grid-template-columns: max-content minmax(max-content, 1fr) minmax(${MID_MIN_PX}px, 42%) minmax(max-content, 1fr) max-content; gap: 6px; align-items: center }
 .ef-device { border: 0; background: transparent; color: inherit; padding: 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; border-radius: 8px }
@@ -79,10 +66,6 @@ const LAYOUT_CSS = `
 .ef-flow-value { font-size: ${FLOW_VALUE_REM / 1.2}rem; line-height: 1.1 }
 .ef-flow-value .kv-unit { color: inherit; font-style: normal }
 .ef-flow-word { font-size: ${FLOW_WORD_REM}rem }
-.ef-ops .form-check, .ef-ops label { margin-bottom: 0; display: flex; align-items: center; gap: 0.4rem; white-space: nowrap }
-.ef-ops .form-check { min-height: 0; padding-top: 0 }
-.ef-ops .form-check-input { margin-top: 0 }
-.ef-ops input[type=range] { margin: 0; vertical-align: middle }
 .ef-flow-btn { border: 0; background: transparent; padding: 0; line-height: 0; color: inherit; cursor: pointer; border-radius: 8px }
 .ef-flow-btn:hover, .ef-flow-btn:focus-visible { background: var(--cui-tertiary-bg) }
 .ef-flow-btn:disabled { cursor: default; background: transparent }
@@ -108,6 +91,8 @@ const LAYOUT_CSS = `
 const FLOW_SIZE = 84
 // the top / bottom flows' side slots - the big figures beside the chevrons
 const FLOW_SIDE = 200
+// the grid's two price gauges (buy, sell) under its title
+const GAUGE_PX = 64
 // a battery tile's chevrons (the user's mockup images/fix-accum-ui.png): larger - their strokes
 // 29 x 35 px - between the power and the battery; the charge's figures inside the battery,
 // nothing under it (the user, 2026-10-24)
@@ -150,147 +135,7 @@ const Popup = ({ title, subtitle, onClose, children }) => (
   </CModal>
 )
 
-const FOR_CHOICES = [
-  ['', 'Until changed'],
-  ['20', '20 minutes'],
-  ['60', '1 hour'],
-  ['240', '4 hours'],
-  ['eod', 'Until the end of the day'],
-  ['other', 'Other...'],
-]
-const durationText = (min) => (min < 60 ? `${Math.round(min)} min` : `${+(min / 60).toFixed(1)} h`)
-
-/**
- * An operating change asked about (the user, 2026-10-25): why (optional - the command log, a day note the
- * AI reads), for how long (the process puts the previous value back itself at the time), and whether to
- * adapt the batteries' plan now.
- */
-const ChangeModal = ({ label, canAdapt, onCancel, onConfirm }) => {
-  const [reason, setReason] = useState('')
-  const [choice, setChoice] = useState('')
-  const [amount, setAmount] = useState('30')
-  const [unit, setUnit] = useState('min')
-  const minutes = (() => {
-    if (choice === 'eod') {
-      const end = new Date()
-      end.setHours(24, 0, 0, 0)
-      return Math.max(1, Math.round((end.getTime() - Date.now()) / 60_000))
-    }
-    if (choice === 'other') {
-      const n = Number(amount)
-      return Number.isFinite(n) && n > 0 ? Math.round(unit === 'h' ? n * 60 : n) : null
-    }
-    return choice ? Number(choice) : null
-  })()
-  const extra = { reason: reason.trim(), forMinutes: minutes }
-  const invalid = choice === 'other' && !minutes
-  return (
-    <CModal visible alignment="center" onClose={onCancel}>
-      <CModalHeader>
-        <CModalTitle>{label}</CModalTitle>
-      </CModalHeader>
-      <CModalBody className="d-flex flex-column gap-3">
-        <div>
-          <CFormLabel className="small mb-1">Why (optional)</CFormLabel>
-          <CFormInput
-            value={reason}
-            maxLength={200}
-            placeholder="e.g. a storm coming, repairs on the inverter"
-            onChange={(e) => setReason(e.target.value)}
-          />
-        </div>
-        <div>
-          <CFormLabel className="small mb-1">For</CFormLabel>
-          <div className="d-flex gap-2 flex-wrap">
-            <CFormSelect
-              value={choice}
-              style={{ width: 'auto' }}
-              onChange={(e) => setChoice(e.target.value)}
-            >
-              {FOR_CHOICES.map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </CFormSelect>
-            {choice === 'other' && (
-              <>
-                <CFormInput
-                  type="number"
-                  min={1}
-                  value={amount}
-                  style={{ width: 90 }}
-                  aria-label="How long"
-                  onChange={(e) => setAmount(e.target.value)}
-                />
-                <CFormSelect
-                  value={unit}
-                  style={{ width: 'auto' }}
-                  aria-label="The unit"
-                  onChange={(e) => setUnit(e.target.value)}
-                >
-                  <option value="min">min</option>
-                  <option value="h">hours</option>
-                </CFormSelect>
-              </>
-            )}
-          </div>
-          {minutes && (
-            <div className="small text-body-secondary mt-1">
-              Put back by itself in {durationText(minutes)}.
-            </div>
-          )}
-        </div>
-        {canAdapt && (
-          <div className="small">
-            Adapt the batteries&apos; plan to the new value now? Otherwise the value is switched and
-            the plan follows it at its next update.
-          </div>
-        )}
-      </CModalBody>
-      <CModalFooter>
-        <CButton color="secondary" variant="ghost" onClick={onCancel}>
-          Cancel
-        </CButton>
-        <CButton
-          color={canAdapt ? 'secondary' : 'primary'}
-          variant={canAdapt ? 'outline' : undefined}
-          disabled={invalid}
-          onClick={() => onConfirm(false, extra)}
-        >
-          {canAdapt ? 'Only switch' : 'Switch'}
-        </CButton>
-        {canAdapt && (
-          <CButton color="primary" disabled={invalid} onClick={() => onConfirm(true, extra)}>
-            Adapt the plan
-          </CButton>
-        )}
-      </CModalFooter>
-    </CModal>
-  )
-}
-
 const Stat = StatTile
-
-/**
- * The tariff's gauge on the grid's icon: the purchase zones (the grid's config) ranked by price,
- * the zone now (its metrics) - null without zones or a zone now.
- */
-const tariffOf = (purchase, gm) => {
-  const zones = [...new Map((purchase?.zones ?? []).map((z) => [z.key, z])).values()].sort(
-    (a, b) => a.priceCtKwh - b.priceCtKwh,
-  )
-  const index = zones.findIndex((z) => z.key === gm?.tariffZone)
-  if (index < 0) return null
-  const name = (z) => z.label ?? z.key
-  const lines = [
-    `Tariff zone now: ${name(zones[index])} (${index + 1} of ${zones.length}, cheapest first)`,
-    ...zones.map((z) => `${name(z)}: ${z.from}-${z.to}, ${fmt(z.priceCtKwh, 1)} ct/kWh`),
-  ]
-  if (purchase?.mode === 'market' && gm?.buyCtKwh != null)
-    lines.push(`Buying at the market price now: ${fmt(gm.buyCtKwh, 1)} ct/kWh`)
-  return { index, count: zones.length, title: lines.join('\n') }
-}
 
 const EnergyFieldScene = ({ process }) => {
   const can = useCan()
@@ -303,52 +148,6 @@ const EnergyFieldScene = ({ process }) => {
   const send = (action, params) => {
     setError(null)
     api.sendProcessCommand(process.id, action, params).catch((err) => setError(err.message))
-  }
-  // the operating parameters belong to the Energy Ledger (its plan keeps them): a change asks whether
-  // to adapt the plan now (the user, 2026-10-25) - Adapt / Only switch / Cancel
-  const ledgerId = process.config?.ledgerProcessId ?? null
-  const sendLedger = (action, params) => {
-    if (!ledgerId) return
-    setError(null)
-    api.sendProcessCommand(ledgerId, action, params).catch((err) => setError(err.message))
-  }
-  const [pending, setPending] = useState(null)
-  // `apply(adapt, { reason, forMinutes })`; `noteOn` - the process whose day note tells why / for how long
-  const ask = (label, apply, noteOn) => setPending({ label, apply, noteOn })
-  const confirmChange = (adapt, { reason, forMinutes }) => {
-    pending.apply(adapt, { ...(reason ? { reason } : {}), ...(forMinutes ? { forMinutes } : {}) })
-    // the reason and the time - a day note of the process (the AI sees it), the window - the change's time
-    if ((reason || forMinutes) && pending.noteOn) {
-      const now = new Date()
-      const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-      request(`/processes/${pending.noteOn}/day-notes`, {
-        method: 'POST',
-        body: JSON.stringify({
-          day,
-          kind: 'other',
-          text: `${pending.label}${forMinutes ? ` for ${durationText(forMinutes)}` : ''}${reason ? ` - ${reason}` : ''}`,
-          startsAt: now.toISOString(),
-          endsAt: forMinutes ? new Date(now.getTime() + forMinutes * 60_000).toISOString() : null,
-        }),
-      }).catch((err) => setError(err.message))
-    }
-    setPending(null)
-  }
-  const [reserveDraft, setReserveDraft] = useState(null)
-  const reserveChosen = (pct) => {
-    if (pct === (m.strategy?.reservePct ?? 20)) return setReserveDraft(null)
-    if (!ledgerId) {
-      send('setReserve', { pct })
-      return setReserveDraft(null)
-    }
-    ask(
-      `Outage reserve ${pct} %`,
-      (adapt, extra) => {
-        sendLedger('setOperating', { reservePct: pct, replan: adapt, ...extra })
-        setReserveDraft(null)
-      },
-      ledgerId,
-    )
   }
   if (!m.totals)
     return (
@@ -390,7 +189,6 @@ const EnergyFieldScene = ({ process }) => {
   const nominalV = grid?.config?.quality?.nominalV ?? 230
   const tolV = (nominalV * (grid?.config?.quality?.voltageTolerancePct ?? 10)) / 100
   const phases = gridMetrics?.phasesV ?? []
-  const tariff = tariffOf(grid?.config?.purchase, gridMetrics)
   const voltage =
     gridMetrics?.outage || !phases.length
       ? 'none'
@@ -398,6 +196,17 @@ const EnergyFieldScene = ({ process }) => {
         ? 'bad'
         : 'ok'
   const gridFlow = t.gridKw > 0.05 ? 'import' : t.gridKw < -0.05 ? 'export' : 'none'
+  // the prices now among the next 24 hours' - the grid's gauges (the Ledger block's figures alike)
+  const hoursAhead = priceHoursOf(prices, now)
+  const buyLevel = priceLevel(
+    gridMetrics?.buyCtKwh,
+    hoursAhead.map((p) => p.buy),
+  )
+  const sellLevel = priceLevel(
+    gridMetrics?.sellCtKwh,
+    hoursAhead.map((p) => p.sell),
+    true,
+  )
   const scaleKw = Math.max(50, capacity.kWp * 0.8)
   const batteryKwh = (m.batteries ?? []).reduce(
     (a, b) =>
@@ -408,29 +217,6 @@ const EnergyFieldScene = ({ process }) => {
         : 0),
     0,
   )
-  const balance = (gridMetrics?.today?.revenueEur ?? 0) - (gridMetrics?.today?.costEur ?? 0)
-  // the next 24 h of prices, hour by hour (the mean of the hour's slots)
-  const priceHours = (() => {
-    const slots = (prices?.slots ?? []).filter(
-      (s) => s.t + s.minutes * 60_000 > now - 3_600_000 && s.buyCtKwh !== null,
-    )
-    const byHour = new Map()
-    for (const s of slots) {
-      const h = Math.floor(s.t / 3_600_000) * 3_600_000
-      if (!byHour.has(h)) byHour.set(h, [])
-      byHour.get(h).push(s.buyCtKwh)
-    }
-    return [...byHour.entries()].slice(0, 24).map(([h, v]) => ({
-      t: h,
-      ct: v.reduce((a, b) => a + b, 0) / v.length,
-      now: now >= h && now < h + 3_600_000,
-    }))
-  })()
-  const ranked = [...priceHours].sort((a, b) => a.ct - b.ct)
-  const cheapLimit = ranked[Math.floor(ranked.length * 0.25)]?.ct
-  const dearLimit = ranked[Math.floor(ranked.length * 0.75)]?.ct
-  const maxCt = Math.max(1, ...priceHours.map((p) => p.ct))
-
   const consumerState = t.shedKw > 0.05 ? 'bad' : t.loadKw > 0.05 ? 'on' : 'idle'
   // a device popup's big live picture - the scene's own drawing, larger
   const pictureOf = (p) => {
@@ -475,13 +261,7 @@ const EnergyFieldScene = ({ process }) => {
       )
     if (p.kind === 'grid')
       return (
-        <GridIcon
-          height={180}
-          flow={gridFlow}
-          voltage={voltage}
-          outage={gridMetrics?.outage}
-          tariff={tariff}
-        />
+        <GridIcon height={180} flow={gridFlow} voltage={voltage} outage={gridMetrics?.outage} />
       )
     return <ConsumerIcon height={180} state={consumerState} />
   }
@@ -555,7 +335,6 @@ const EnergyFieldScene = ({ process }) => {
       more,
   }
   const seriesKey = (k) => `process:${process.id}:field.${k}`
-  const reserveShown = reserveDraft ?? m.strategy?.reservePct ?? 20
 
   // a battery unit's tile: its power, the current's arrows, the battery with its charge
   const batteryTile = (b) => {
@@ -773,7 +552,17 @@ const EnergyFieldScene = ({ process }) => {
           title={flowTitles.generation}
           onClick={() => setPopup({ kind: 'generation' })}
         />
-        <span style={{ width: FLOW_SIDE }} />
+        <span
+          className="d-flex"
+          style={{
+            width: FLOW_SIDE,
+            color: generation > 0.05 ? 'var(--ef-gain)' : 'var(--ef-off)',
+          }}
+        >
+          <span className="ef-flow-word" title={flowTitles.generation}>
+            generation
+          </span>
+        </span>
       </div>
 
       <div className="ef-mid">
@@ -784,22 +573,32 @@ const EnergyFieldScene = ({ process }) => {
           title="Grid connection - details"
         >
           <span className="ef-side-icon">
-            <GridIcon
-              flow={gridFlow}
-              voltage={voltage}
-              outage={gridMetrics?.outage}
-              tariff={tariff}
-            />
+            <GridIcon flow={gridFlow} voltage={voltage} outage={gridMetrics?.outage} />
           </span>
           <span className="fw-semibold">Grid</span>
-          <span className="small ef-muted text-center" style={{ lineHeight: 1.45 }}>
-            {phases.length ? `${phases.map((v) => fmt(v, 0)).join(' / ')} V` : '-'} -{' '}
-            {fmt(gridMetrics?.frequencyHz, 2)} Hz
-            <br />
-            {/* the tariff zone - the icon's gauge shows it (the user, 2026-10-25: the lines as the consumer's) */}
-            buy <KeyValue value={fmt(gridMetrics?.buyCtKwh, 1)} color="var(--ef-grid)" /> - sell{' '}
-            <KeyValue value={fmt(gridMetrics?.sellCtKwh, 1)} color="var(--ef-grid)" />{' '}
-            <span className="kv-unit ms-0">ct/kWh</span>
+          {/* the prices now on their gauges (the user's mockup images/fix-icon-energy-tower-1.png): buy -
+              red to the right (dear), sell - red to the left (cheap); the phases and the frequency - the popup */}
+          <span className="d-flex gap-3 justify-content-center small ef-muted">
+            {[
+              ['buy', gridMetrics?.buyCtKwh, buyLevel, false],
+              ['sell', gridMetrics?.sellCtKwh, sellLevel, true],
+            ].map(([word, ct, level, higherIsBetter]) => (
+              <span key={word} className="d-flex flex-column align-items-center">
+                <PriceGauge
+                  share={level?.share}
+                  higherIsBetter={higherIsBetter}
+                  width={GAUGE_PX}
+                  title={`${word === 'buy' ? 'Buying' : 'Selling'} now at ${fmt(ct, 1)} ct/kWh - ${level ? `${{ good: 'good', fair: 'middle', bad: 'poor' }[level.level]} among the next 24 hours` : 'no prices ahead'}`}
+                />
+                <span className="text-nowrap">
+                  {word}{' '}
+                  <KeyValue
+                    value={fmt(ct, 1)}
+                    className={level ? `text-${LEVEL_COLOR[level.level]}` : undefined}
+                  />
+                </span>
+              </span>
+            ))}
           </span>
         </button>
         <div className="d-flex flex-column align-items-center gap-1">
@@ -830,187 +629,7 @@ const EnergyFieldScene = ({ process }) => {
           )}
         </div>
 
-        <section
-          className="ef-card"
-          style={{ borderWidth: 2, borderColor: 'var(--ef-panel-grid)' }}
-        >
-          <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
-            <div className="btn-group" role="group" aria-label="Mode">
-              {[
-                ['auto', 'Auto', 'The batteries follow the prices and the surplus by themselves'],
-                ['manual', 'Manual', 'The batteries at the power you set'],
-                [
-                  'island',
-                  'Island',
-                  'Off the grid - the site lives on its own generation and batteries',
-                ],
-              ].map(([key, label, hint]) => (
-                <CButton
-                  key={key}
-                  color="primary"
-                  variant={m.mode === key ? undefined : 'outline'}
-                  disabled={!control}
-                  title={control ? hint : `${hint} - you may only watch`}
-                  aria-pressed={m.mode === key}
-                  onClick={() => send('setMode', { mode: key })}
-                >
-                  {label}
-                </CButton>
-              ))}
-            </div>
-            <span className="small ef-muted">
-              Self-sufficiency today{' '}
-              <b style={{ color: 'var(--ef-ink)' }}>{fmt(today.selfSufficiencyPct, 0)} %</b>
-            </span>
-          </div>
-          <div className="fw-semibold mb-2">{m.decision}</div>
-          {priceHours.length > 0 && (
-            <div className="mb-2">
-              <div className="d-flex justify-content-between small ef-muted">
-                <span>Prices, the next 24 hours</span>
-                <span>ct/kWh</span>
-              </div>
-              <div
-                className="d-flex align-items-end"
-                style={{ gap: 2, height: 46 }}
-                role="img"
-                aria-label="Buy prices by hour"
-              >
-                {priceHours.map((p) => (
-                  <div
-                    key={p.t}
-                    title={`${new Date(p.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${fmt(p.ct, 1)} ct/kWh`}
-                    style={{
-                      flex: '1 1 0',
-                      height: `${Math.max(3, (p.ct / maxCt) * 44)}px`,
-                      background: p.now
-                        ? 'var(--ef-grid)'
-                        : p.ct <= cheapLimit
-                          ? 'var(--ef-batt)'
-                          : p.ct >= dearLimit
-                            ? 'var(--ef-cons)'
-                            : 'var(--ef-panel-grid)',
-                      outline: p.now ? '2px solid var(--ef-ink)' : undefined,
-                      borderRadius: '2px 2px 0 0',
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="d-flex gap-3 small ef-muted flex-wrap mt-1">
-                <span>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: 10,
-                      height: 6,
-                      background: 'var(--ef-batt)',
-                    }}
-                  />{' '}
-                  cheap - charge
-                </span>
-                <span>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: 10,
-                      height: 6,
-                      background: 'var(--ef-cons)',
-                    }}
-                  />{' '}
-                  dear - sell
-                </span>
-                <span>
-                  now {fmt(gridMetrics?.buyCtKwh, 1)} / {fmt(gridMetrics?.sellCtKwh, 1)}
-                </span>
-              </div>
-            </div>
-          )}
-          <div
-            className="d-grid mb-2"
-            style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}
-          >
-            <Stat label="Generated">
-              <KeyValue
-                value={fmt((today.pvKwh ?? 0) + (today.windKwh ?? 0), 0)}
-                unit="kWh"
-                color="var(--ef-gain)"
-              />
-            </Stat>
-            <Stat label="Bought">
-              <KeyValue value={fmt(today.importKwh, 0)} unit="kWh" color="var(--ef-cost)" />
-            </Stat>
-            <Stat label="Sold">
-              <KeyValue value={fmt(today.exportKwh, 0)} unit="kWh" color="var(--ef-gain)" />
-            </Stat>
-            <Stat label="Balance">
-              <KeyValue
-                value={`${balance >= 0 ? '+' : ''}${fmt(balance, 2)}`}
-                unit="EUR"
-                color={balance >= 0 ? 'var(--ef-gen)' : 'var(--ef-bad)'}
-              />
-            </Stat>
-          </div>
-          {/* one line, centred: the switches' own margin and the label's taken off (the user, 2026-10-25) */}
-          <div className="d-flex gap-2 align-items-center justify-content-between small ef-ops">
-            <CFormSwitch
-              id={`ef-grid-${process.id}`}
-              label="Grid connected"
-              title="Connected to the grid - off switches the site to island mode"
-              checked={m.mode !== 'island'}
-              disabled={!control}
-              onChange={(e) => {
-                const mode = e.target.checked ? 'auto' : 'island'
-                ask(
-                  mode === 'island' ? 'Island mode - off the grid' : 'Back on the grid',
-                  (adapt, extra) => {
-                    send('setMode', { mode, ...extra })
-                    if (adapt) sendLedger('replan', {})
-                  },
-                  process.id,
-                )
-              }}
-            />
-            <CFormSwitch
-              id={`ef-export-${process.id}`}
-              label="Selling allowed"
-              title="The surplus may go to the grid at the sale price; off - it is stored or held back"
-              checked={m.strategy?.exportAllowed ?? true}
-              disabled={!control}
-              onChange={(e) => {
-                const allowed = e.target.checked
-                if (!ledgerId) return send('setExport', { allowed })
-                ask(
-                  allowed ? 'Selling allowed' : 'Selling not allowed',
-                  (adapt, extra) =>
-                    sendLedger('setOperating', { exportAllowed: allowed, replan: adapt, ...extra }),
-                  ledgerId,
-                )
-              }}
-            />
-            <label
-              className="d-flex align-items-center gap-2 flex-grow-1 justify-content-end"
-              htmlFor={`ef-reserve-${process.id}`}
-              title="The outage reserve - the batteries' charge kept for an outage"
-            >
-              Reserve
-              <input
-                id={`ef-reserve-${process.id}`}
-                type="range"
-                min={0}
-                max={80}
-                step={5}
-                value={reserveShown}
-                disabled={!control}
-                onChange={(e) => setReserveDraft(Number(e.target.value))}
-                onMouseUp={(e) => reserveChosen(Number(e.target.value))}
-                onKeyUp={(e) => reserveChosen(Number(e.target.value))}
-                onTouchEnd={(e) => reserveChosen(Number(e.target.value))}
-                style={{ flex: '1 1 auto', minWidth: 24, maxWidth: 110, width: 0 }}
-              />
-              <b className="text-nowrap">{reserveShown} %</b>
-            </label>
-          </div>
-        </section>
+        <LedgerBlock process={process} data={{ m, gridMetrics, prices }} />
 
         <div className="d-flex flex-column align-items-center gap-1">
           <FlowFigure kw={t.loadKw} color={loadColor} />
@@ -1137,14 +756,6 @@ const EnergyFieldScene = ({ process }) => {
         })}
       </section>
 
-      {pending && (
-        <ChangeModal
-          label={pending.label}
-          canAdapt={!!ledgerId}
-          onCancel={() => (setPending(null), setReserveDraft(null))}
-          onConfirm={confirmChange}
-        />
-      )}
       {popup && (
         <DevicePopup
           popup={popup}
@@ -1228,6 +839,44 @@ const DevicePopup = ({
   )
   return (
     <UnitPopup
+      charts={
+        <SeriesChart
+          limits={{
+            [gridSeries ?? seriesKey('gridKw')]: kind === 'grid' ? flowLimits.grid : [],
+            [seriesKey('loadKw')]: kind === 'consumer' ? flowLimits.load : [],
+          }}
+          signed={[seriesKey('batteryKw'), seriesKey('gridKw'), gridSeries]}
+          keys={
+            kind === 'pv'
+              ? [seriesKey('pvKw')]
+              : kind === 'wind'
+                ? [seriesKey('windKw')]
+                : kind === 'generation'
+                  ? [seriesKey('pvKw'), seriesKey('windKw')]
+                  : kind === 'battery' || kind === 'batteries'
+                    ? [seriesKey('socPct'), seriesKey('batteryKw')]
+                    : kind === 'grid'
+                      ? [gridSeries ?? seriesKey('gridKw')]
+                      : [seriesKey('loadKw')]
+          }
+          labels={
+            kind === 'pv'
+              ? ["The field's PV today, kW (all blocks)"]
+              : kind === 'wind'
+                ? ["The field's wind today, kW (all turbines)"]
+                : kind === 'generation'
+                  ? ['PV today, kW', 'Wind today, kW']
+                  : kind === 'battery' || kind === 'batteries'
+                    ? [
+                        'The array - state of charge, %',
+                        'The array - power, kW (+ discharge / - charge)',
+                      ]
+                    : kind === 'grid'
+                      ? ['The grid today, kW (+ import / - export)']
+                      : ['Consumption today, kW']
+          }
+        />
+      }
       title={title}
       nodeId={nodeId}
       processId={process.id}
@@ -1357,42 +1006,6 @@ const DevicePopup = ({
             </>
           )}
         </div>
-        <SeriesChart
-          limits={{
-            [gridSeries ?? seriesKey('gridKw')]: kind === 'grid' ? flowLimits.grid : [],
-            [seriesKey('loadKw')]: kind === 'consumer' ? flowLimits.load : [],
-          }}
-          signed={[seriesKey('batteryKw'), seriesKey('gridKw'), gridSeries]}
-          keys={
-            kind === 'pv'
-              ? [seriesKey('pvKw')]
-              : kind === 'wind'
-                ? [seriesKey('windKw')]
-                : kind === 'generation'
-                  ? [seriesKey('pvKw'), seriesKey('windKw')]
-                  : kind === 'battery' || kind === 'batteries'
-                    ? [seriesKey('socPct'), seriesKey('batteryKw')]
-                    : kind === 'grid'
-                      ? [gridSeries ?? seriesKey('gridKw')]
-                      : [seriesKey('loadKw')]
-          }
-          labels={
-            kind === 'pv'
-              ? ["The field's PV today, kW (all blocks)"]
-              : kind === 'wind'
-                ? ["The field's wind today, kW (all turbines)"]
-                : kind === 'generation'
-                  ? ['PV today, kW', 'Wind today, kW']
-                  : kind === 'battery' || kind === 'batteries'
-                    ? [
-                        'The array - state of charge, %',
-                        'The array - power, kW (+ discharge / - charge)',
-                      ]
-                    : kind === 'grid'
-                      ? ['The grid today, kW (+ import / - export)']
-                      : ['Consumption today, kW']
-          }
-        />
       </div>
     </UnitPopup>
   )

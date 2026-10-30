@@ -4,13 +4,16 @@ import { FanCoilIcon, HeatPumpIcon, TankIcon } from './heatIcons'
 import { useHeatingData, fmt } from './useHeatingData'
 
 // The heating's Dashboard card picture (the user's mockups images/fix-heating-icon-component.png,
-// 2026-10-23, and fix-heating-avatar-1.png, 2026-10-29): the scene's own heat pump, tank and fan coil,
-// each standing for its whole block (the block's averages / sums), the figures on the right. The tank
-// in the middle of the icon column, an arrow on each side - the heat in (left, from the heat pumps)
-// and out (right, to the rooms), only while it flows: yellow - heat, blue - cold. The heat pumps -
-// their power and the mode (the COP only when there is one); the tanks - in / out (kW) on the left,
-// % over kWh on the right; the rooms - the power they get. Drawn at its natural size - an unframed
-// card scales it to the block's edges.
+// 2026-10-23, fix-heating-avatar-1.png and the layout of 2026-10-29): the scene's own heat pump, tank
+// and fan coil, each standing for its whole block (the block's averages / sums), two lines of figures
+// on the right:
+// - the heat pumps: the electricity they take and the COP (hidden when there is none; green / yellow /
+//   red by the config's `copLevels`), the heat (cold) they make and the loop's temperature (the warm
+//   line's while heating - yellow, the cold one's while cooling - blue);
+// - the tanks (in the icons' middle, an arrow on each side while the heat flows in / out): the stored
+//   %, the tanks' temperature, the stored kWh;
+// - the rooms: the heat (cold) they get, their average temperature.
+// Drawn at its natural size - an unframed card scales it to the block's edges.
 
 const avg = (xs) => (xs.length ? xs.reduce((a, v) => a + v, 0) / xs.length : null)
 const avgOf = (items, key) => avg(items.map((x) => x[key]).filter((v) => v != null))
@@ -22,13 +25,22 @@ const PUMP_HEIGHT = (ICON_COLUMN * 214) / 310 // HeatPumpIcon without gauges: 31
 const TANK_HEIGHT = 84
 const ARROW = { w: 30, h: 28 }
 const BIG = 31
-const SMALL = 23
 // the flows' colours - the heat's and the cold's (as the heating overview's)
 const FLOW = {
   heat: ['#ffd43b', '#f2b705', '#b8860b'],
   cold: ['#74c0fc', '#1c7ed6', '#1864ab'],
 }
 const FLOWING_KW = 0.05
+// the figures' colours: the heat (yellow, readable on a light card) and the cold
+const TONE = { heat: '#d49a00', cold: '#1c7ed6' }
+// the COP's levels - the config's `copLevels` over these
+const COP_LEVELS = { good: 3.5, fair: 2.5 }
+const copColor = (cop, levels) =>
+  cop >= levels.good
+    ? 'var(--cui-success)'
+    : cop >= levels.fair
+      ? 'var(--cui-warning)'
+      : 'var(--cui-danger)'
 
 /** An arrow pointing right (the heat's way through the tank); `cold` - blue, else yellow. */
 const Arrow = ({ cold, visible, title }) => {
@@ -79,12 +91,6 @@ const Row = ({ icon, children }) => (
   </div>
 )
 
-const Sub = ({ children }) => (
-  <span className="text-body-secondary" style={{ fontSize: SMALL }}>
-    {children}
-  </span>
-)
-
 const HeatingAvatar = ({ process }) => {
   const { m } = useHeatingData(process)
   if (!m.totals) return null
@@ -94,6 +100,7 @@ const HeatingAvatar = ({ process }) => {
   const cooling = m.mode === 'cooling'
   const running = pumps.filter((p) => p.running && p.on)
   const working = coils.filter((c) => c.on && c.working)
+  const levels = { ...COP_LEVELS, ...(process.config?.copLevels ?? {}) }
   // the blocks as one unit each - their averages
   const pump = {
     name: 'The heat pumps',
@@ -131,21 +138,33 @@ const HeatingAvatar = ({ process }) => {
   const inKw = Math.abs(t.heatKw ?? 0)
   const outKw = Math.abs(t.consumersKw ?? 0)
   const what = cooling ? 'Cold' : 'Heat'
-  const big = { fontSize: BIG }
-  const pair = { display: 'grid', gridTemplateColumns: 'auto auto', columnGap: 18, rowGap: 0 }
+  const tone = cooling ? TONE.cold : TONE.heat
+  // the loop's temperature: the warm line's while heating, the cold one's while cooling
+  const line = m.lines?.pumpsTanks
+  const loopC = line ? (cooling ? line.coldC : line.warmC) : null
+  const roomC = avgOf(coils, 'roomC')
+  const tankC = avgOf(m.tanks ?? [], 'avgC')
+  const grid = { display: 'grid', gridTemplateColumns: 'auto auto', columnGap: 18, fontSize: BIG }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 4 }}>
       <Row icon={<HeatPumpIcon pump={pump} mode={m.mode} height={PUMP_HEIGHT} gauges={false} />}>
-        <div style={big}>
-          <KeyValue value={fmt(Math.abs(t.heatKw), 1)} unit="kW" />
-          {t.cop != null && (
-            <span style={{ marginLeft: 18 }}>
-              <KeyValue value={fmt(t.cop, 1)} />
-              <span style={{ marginLeft: 6 }}>{cooling ? 'EER' : 'COP'}</span>
-            </span>
-          )}
+        <div style={grid}>
+          <KeyValue value={fmt(t.electricKw, 1)} unit="kW" />
+          <span>
+            {t.cop != null && (
+              <>
+                {/* the word as a unit (.kv-unit - the user, 2026-10-30) */}
+                <KeyValue
+                  value={fmt(t.cop, 1)}
+                  unit={cooling ? 'EER' : 'COP'}
+                  color={copColor(t.cop, levels)}
+                />
+              </>
+            )}
+          </span>
+          <KeyValue value={fmt(inKw, 1)} unit="kW" color={tone} />
+          <KeyValue value={fmt(loopC, 1)} unit="°C" color={tone} />
         </div>
-        <Sub>{m.control === 'off' ? 'Off' : cooling ? 'Cooling' : 'Heating'}</Sub>
       </Row>
       <Row
         icon={
@@ -155,29 +174,21 @@ const HeatingAvatar = ({ process }) => {
               visible={inKw > FLOWING_KW}
               title={`${what} in from the heat pumps`}
             />
-            <TankIcon tank={tank} height={TANK_HEIGHT} />
+            <TankIcon tank={tank} height={TANK_HEIGHT} labels="pct" />
             <Arrow cold={cooling} visible={outKw > FLOWING_KW} title={`${what} out to the rooms`} />
           </div>
         }
       >
-        <div style={{ ...big, ...pair }}>
-          <span title={`${what} in from the heat pumps`}>
-            <KeyValue value={fmt(inKw, 1)} unit="kW" />
-          </span>
-          <span title="The tanks' charge">
-            <KeyValue value={fmt(t.tankPct, 0)} unit="%" />
-          </span>
-          <span title={`${what} out to the rooms`}>
-            <KeyValue value={fmt(outKw, 1)} unit="kW" />
-          </span>
-          <span title="The heat stored in the tanks">
-            <KeyValue value={fmt(t.storedKwh, 0)} unit="kWh" />
-          </span>
+        <div style={grid}>
+          <KeyValue value={fmt(t.tankPct, 0)} unit="%" />
+          <KeyValue value={fmt(tankC, 1)} unit="°C" />
+          <KeyValue value={fmt(t.storedKwh, 0)} unit="kWh" />
         </div>
       </Row>
       <Row icon={<FanCoilIcon coil={coil} mode={m.mode} width={ICON_COLUMN} />}>
-        <div style={big} title={`${what} to the rooms now`}>
-          <KeyValue value={fmt(outKw, 1)} unit="kW" />
+        <div style={grid}>
+          <KeyValue value={fmt(outKw, 1)} unit="kW" color={tone} />
+          <KeyValue value={fmt(roomC, 1)} unit="°C" />
         </div>
       </Row>
     </div>
