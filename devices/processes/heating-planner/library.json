@@ -1,0 +1,26 @@
+{
+  "id": "process-heating-planner",
+  "name": "Heating Planner",
+  "description": "Plans the heating systems' heat pumps ahead, all of them together: for every 15-minute slot of the Energy Ledger's plan, the heat, the units and the rooms' offset - the least money from the rooms' need (the weather, the rooms' loss and gains), the store (the tanks and the rooms' comfort margin), the Ledger's prices, the sun's surplus and its signal; fewer units at a comfortable modulation, few starts. Each heating-control executes its slot (its own band control without a plan); the Ledger takes the heating's planned electricity into its plan. Four strategies compared (least cost, gentle, comfort, the sun); the AI's Heating Plan - today's strategy checked against the day's notes, the forecast and the prices, explained in words.",
+  "ai": {
+    "workTypes": [
+      "help",
+      "status-analysis",
+      "wem-analysis",
+      "config",
+      "analysis-proposals",
+      "other",
+      {
+        "key": "heating-plan",
+        "title": "Heating Plan",
+        "description": "Today's heating strategy: the day's notes, the forecast, the prices and the sun - check the planner's plan, choose the strategy and the comfort margin, say in words what the heat pumps do today",
+        "icon": "cilSun",
+        "start": "Plan today's heating for {name}: the day's notes, the forecast, the prices - which strategy and comfort margin, and why."
+      }
+    ],
+    "scheduledTypes": [
+      "status-analysis",
+      "heating-plan"
+    ]
+  }
+}

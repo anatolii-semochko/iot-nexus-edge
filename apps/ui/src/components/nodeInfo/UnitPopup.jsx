@@ -13,6 +13,7 @@ import { api } from 'src/api/client'
 import NodeModel from './NodeModel'
 import TileMap from './TileMap'
 import AiButton from '../ai/AiButton'
+import { ChartSize } from '../charts/SeriesChart'
 
 // A unit's popup (AGENTS_TO_DO.md 2026-10-22, C - images/device-popup.png):
 // tabs "Status" (the scene's live picture on the left - as tall as the
@@ -23,10 +24,13 @@ import AiButton from '../ai/AiButton'
 // `children` - the node's information only (Model first). One tab - no
 // switcher. `picture` - a root <svg> (its viewBox keeps the proportions).
 // `processId` - the process the unit is shown in (the AI button's subject). `className` - on the modal: a scene's class whose colour variables its
-// picture uses (the modal renders outside the scene).
+// picture uses (the modal renders outside the scene). Big - for the charts (the user, 2026-10-29): the
+// dialog nearly the window's width, its charts taller (ChartSize).
 
 const STACK_BELOW_PX = 700 // narrower - the picture above the readings
 const STACKED_PICTURE_PX = 220
+// the charts' height inside (viewBox units at 680 wide); the dialog's width - `.chart-popup` (style.scss)
+const CHART_H = 220
 const PICTURE_CSS = `
 .unit-picture { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .unit-picture > svg { height: 100%; width: auto; max-width: 100%; }
@@ -90,7 +94,13 @@ const UnitPopup = ({
     : { height: rightPx ?? STACKED_PICTURE_PX, maxWidth: '40%' }
 
   return (
-    <CModal visible onClose={onClose} size="xl" alignment="center" className={className}>
+    <CModal
+      visible
+      onClose={onClose}
+      size="xl"
+      alignment="center"
+      className={['chart-popup', className].filter(Boolean).join(' ')}
+    >
       <style>{PICTURE_CSS}</style>
       <CModalHeader>
         <CModalTitle className="d-flex align-items-center gap-2">
@@ -138,7 +148,7 @@ const UnitPopup = ({
                 </div>
               )}
               <div ref={setRight} style={{ flex: '1 1 420px', minWidth: 0 }}>
-                {children}
+                <ChartSize.Provider value={CHART_H}>{children}</ChartSize.Provider>
               </div>
             </div>
             {footer}

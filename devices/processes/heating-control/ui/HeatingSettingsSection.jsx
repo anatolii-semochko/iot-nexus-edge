@@ -17,7 +17,8 @@ import {
 // The heating's engineer settings (Processes -> its Settings; processes.config - iot AGENTS_TO_DO.md
 // 2026-10-25, S2): the plant, not the operation - the groups of each block (heat pumps, tanks, fan
 // coils; one level) and which unit is in which, the auto mode's outdoor thresholds, the tanks' bands
-// (start / stop, heating and cooling) and their room's temperature. The operation (the mode, the room
+// (start / stop, heating and cooling) and their room's temperature, the heat pumps' start order
+// (the run hours or the user's priority) and the pause between their starts. The operation (the mode, the room
 // setpoints, a unit on / off) stays on the scene. Staged; the modal's Save sends the changed sections
 // (registered with '*').
 
@@ -30,6 +31,7 @@ const DEFAULTS = {
   heatBelowC: 15,
   coolAboveC: 24,
   tankRoomC: 15,
+  pumpStaggerS: 2,
   tank: { heating: { startC: 42, stopC: 50 }, cooling: { startC: 14, stopC: 9 } },
 }
 const numberOr = (text) => (text.trim() === '' ? undefined : Number(text))
@@ -231,6 +233,76 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
           />
         </CCol>
       </CRow>
+
+      <h6>The heat pumps</h6>
+      <p className="small text-body-secondary mb-2">
+        As few units run as the tanks need, and a running one keeps running. The next to start: the
+        least run one (the wear spread evenly) or by your priority. They start and stop one by one -
+        the inrush currents never all at once.
+      </p>
+      <CRow className="g-3 mb-3">
+        <CCol sm={6}>
+          <CFormLabel>The start order</CFormLabel>
+          <CFormSelect
+            value={control.pumpOrder ?? 'auto'}
+            onChange={(e) =>
+              editControl('pumpOrder', e.target.value === 'auto' ? undefined : e.target.value)
+            }
+          >
+            <option value="auto">Automatic - the least run hours first</option>
+            <option value="priority">Explicit - by each unit&apos;s priority</option>
+          </CFormSelect>
+        </CCol>
+        <CCol sm={6}>
+          <CFormLabel title="Between two heat pumps' starts (and stops)">
+            Pause between the starts, s
+          </CFormLabel>
+          <CFormInput
+            type="number"
+            min={0}
+            max={600}
+            value={control.pumpStaggerS ?? ''}
+            placeholder={String(DEFAULTS.pumpStaggerS)}
+            onChange={(e) => editControl('pumpStaggerS', numberOr(e.target.value))}
+          />
+        </CCol>
+      </CRow>
+      {control.pumpOrder === 'priority' && (
+        <CTable small responsive className="mb-4">
+          <CTableHead>
+            <CTableRow>
+              <CTableHeaderCell>Heat pump</CTableHeaderCell>
+              <CTableHeaderCell style={{ width: '30%' }}>Priority (1 - first)</CTableHeaderCell>
+            </CTableRow>
+          </CTableHead>
+          <CTableBody>
+            {units.heatPumps.map((x, i) => (
+              <CTableRow key={x.nodeId}>
+                <CTableDataCell>{x.name}</CTableDataCell>
+                <CTableDataCell>
+                  <CFormInput
+                    size="sm"
+                    type="number"
+                    min={1}
+                    aria-label={`${x.name} - priority`}
+                    value={x.priority ?? ''}
+                    placeholder="last"
+                    onChange={(e) =>
+                      saveUnits(
+                        'heatPumps',
+                        units.heatPumps.map((y, j) =>
+                          j === i ? { ...y, priority: numberOr(e.target.value) } : y,
+                        ),
+                      )
+                    }
+                  />
+                </CTableDataCell>
+              </CTableRow>
+            ))}
+          </CTableBody>
+        </CTable>
+      )}
+      {control.pumpOrder !== 'priority' && <div className="mb-4" />}
 
       <h6>The tanks</h6>
       <p className="small text-body-secondary mb-2">

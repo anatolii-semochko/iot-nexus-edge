@@ -13,6 +13,8 @@ import { fmt } from './useHeatingData'
 // on / off, a room's setpoint - the process's commands.
 
 const Stat = StatTile
+// a tank's two curves (both ways the same in heating and cooling): in - amber, out - teal
+export const TANK_FLOW_COLORS = ['#f08c00', '#0ca678']
 
 const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
   const { kind, nodeId } = popup
@@ -21,7 +23,7 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
   const [setpoint, setSetpoint] = useState(x?.setpointC != null ? String(x.setpointC) : '')
   if (!x) return null
   const cooling = m.mode === 'cooling'
-  const key = (k) => `process:${process.id}:heat.${k}`
+  const unitKey = (k) => `process:${process.id}:heat.${kind}.${nodeId}.${k}`
   const picture =
     kind === 'pump' ? (
       <HeatPumpIcon pump={x} mode={m.mode} height={200} />
@@ -122,6 +124,12 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
               {fmt(x.storedKwh)} of {fmt(x.fullKwh)} kWh
             </Stat>
             <Stat label="Charge">{fmt(x.pct, 0)} %</Stat>
+            <Stat label="In" hint="From the heat pumps now">
+              <KeyValue value={fmt(x.inKw)} unit="kW" color={TANK_FLOW_COLORS[0]} />
+            </Stat>
+            <Stat label="Out" hint="To the fan coils now">
+              <KeyValue value={fmt(x.outKw)} unit="kW" color={TANK_FLOW_COLORS[1]} />
+            </Stat>
             <Stat label="Average" hint="The middle sensor">
               <KeyValue value={fmt(x.avgC)} unit="°C" />
             </Stat>
@@ -150,24 +158,81 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
           </>
         )}
       </div>
+      {/* the unit's own today (2026-10-29 - not all of the block's) */}
       <SeriesChart
-        signed={[key('tanksKw')]}
-        // the heat pumps' and the rooms' power one way - the heat or the cold, up from zero; the tanks' both
-        absolute={[key('heatKw'), key('consumersKw')]}
+        absolute={[unitKey('kw'), unitKey('inKw'), unitKey('outKw')]}
         keys={
           kind === 'pump'
-            ? [key('heatKw'), key('cop')]
+            ? [unitKey('kw'), unitKey('cop')]
             : kind === 'tank'
-              ? [key('tankPct'), key('tanksKw')]
-              : [key('consumersKw'), key('outdoorC')]
+              ? [[unitKey('inKw'), unitKey('outKw')], unitKey('pct')]
+              : [unitKey('kw'), unitKey('roomC')]
         }
         labels={
           kind === 'pump'
-            ? ['All heat pumps - heat, kW (+ heat / - cold)', cooling ? 'EER' : 'COP']
+            ? [`${cooling ? 'Cold' : 'Heat'}, kW`, cooling ? 'EER' : 'COP']
             : kind === 'tank'
-              ? ['The tanks - stored heat, %', 'The tanks - kW (+ storing / - giving back)']
-              : ['All consumers - heat, kW (+ heat / - cold)', 'Outdoor, °C']
+              ? [`${cooling ? 'Cold' : 'Heat'} in and out, kW`, 'Stored heat, %']
+              : [`${cooling ? 'Cold' : 'Heat'} to the room, kW`, 'The room, °C']
         }
+        legends={kind === 'tank' ? [['in - from the heat pumps', 'out - to the fan coils']] : []}
+        colors={kind === 'tank' ? [TANK_FLOW_COLORS] : []}
+        limits={
+          kind === 'coil' && x.setpointC != null
+            ? { [unitKey('roomC')]: [{ value: x.setpointC, level: 'warning', label: 'setpoint' }] }
+            : {}
+        }
+      />
+    </UnitPopup>
+  )
+}
+
+/**
+ * A water line's popup (the user, 2026-10-29): the power it carries between two blocks - the heat
+ * pumps to the tanks (with their electricity), the tanks to the rooms (with the outdoor temperature) -
+ * today, big; its temperatures now.
+ */
+export const FlowPopup = ({ flow, process, m, onClose }) => {
+  const cooling = m.mode === 'cooling'
+  const what = cooling ? 'Cold' : 'Heat'
+  const key = (k) => `process:${process.id}:heat.${k}`
+  const pumps = flow === 'pumpsTanks'
+  const line = m.lines?.[flow]
+  return (
+    <UnitPopup
+      title={pumps ? 'From the heat pumps to the tanks' : 'From the tanks to the rooms'}
+      processId={process.id}
+      onClose={onClose}
+    >
+      <div
+        className="d-grid mb-3"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}
+      >
+        <Stat label={what} hint="The power the water carries now">
+          <KeyValue value={fmt(Math.abs(line?.kw ?? 0))} unit="kW" />
+        </Stat>
+        <Stat label="Warm" hint="The warm pipe's water">
+          <KeyValue value={fmt(line?.warmC)} unit="°C" />
+        </Stat>
+        <Stat label="Cold" hint="The cold pipe's water">
+          <KeyValue value={fmt(line?.coldC)} unit="°C" />
+        </Stat>
+        <Stat label="Difference" hint="Warm less cold - the more, the more heat per litre">
+          <KeyValue value={line ? fmt(line.warmC - line.coldC) : null} unit="K" />
+        </Stat>
+      </div>
+      <SeriesChart
+        absolute={[key('tanksInKw'), key('tanksOutKw')]}
+        keys={
+          pumps ? [[key('tanksInKw'), key('electricKw')]] : [key('tanksOutKw'), key('outdoorC')]
+        }
+        labels={
+          pumps
+            ? [`${what} to the tanks and the heating's electricity, kW`]
+            : [`${what} to the rooms, kW`, 'Outdoor, °C']
+        }
+        legends={pumps ? [[`${what.toLowerCase()} to the tanks`, 'electricity']] : []}
+        colors={pumps ? [[TANK_FLOW_COLORS[0], '#b8329e']] : [TANK_FLOW_COLORS[1]]}
       />
     </UnitPopup>
   )

@@ -19,8 +19,8 @@ export const waterLimits = (mode, supply = false) => {
   const key = mode === 'cooling' ? 'cooling' : 'heating'
   return supply ? { ...WATER_RANGE[key], ...SUPPLY_LIMITS[key] } : WATER_RANGE[key]
 }
-// a frozen tank - the process's error under this
-const TANK_FROST_C = 5
+// a unit switched off - dimmed a little (the user, 2026-10-29), still readable
+export const OFF_STYLE = { opacity: 0.55, filter: 'saturate(0.5)' }
 const FAN_SLOWDOWN = 4 // a 650 rpm fan would only blur - one turn per 4 real turns
 const fanPeriod = (rpm) => (rpm > 0 ? Math.max(0.25, (60 / rpm) * FAN_SLOWDOWN) : null)
 
@@ -121,6 +121,7 @@ export const HeatPumpIcon = ({ pump, mode, height = 120, gauges = true }) => {
       viewBox={`0 0 ${viewW} 214`}
       role="img"
       aria-label={`${pump.name} - heat pump`}
+      style={pump.on === false ? OFF_STYLE : undefined}
     >
       <title>
         {`${pump.name}${pump.model ? ` (${pump.model})` : ''}: ${!pump.on ? 'switched off' : running ? `running at ${Math.round(pump.modulation * 100)} %` : 'standby'}`}
@@ -282,7 +283,11 @@ const ICE = '#123f8f'
 // spaced, the lowest one's bottom level with the indicator's bottom edge (y 284)
 const PORTS_Y = [232, 248, 264, 280]
 
-/** A buffer tank: even light, the central graduated column - hot water on top, cold below; % and kWh. */
+/**
+ * A buffer tank: even light, the central graduated column - hot water on top, cold below; the
+ * indicator symmetric about the column's middle (the user, 2026-10-29): the average temperature
+ * (small) over the % (big) over the stored kWh (small).
+ */
 export const TankIcon = ({ tank, height = 200 }) => {
   const id = svgId(useId())
   const pct = Math.max(0, Math.min(100, tank.pct ?? 0))
@@ -369,9 +374,33 @@ export const TankIcon = ({ tank, height = 200 }) => {
       <rect x={x - 4} y={y - 4} width={w + 8} height={h + 8} rx="9" fill="#2a2e33" />
       <rect x={x} y={y} width={w} height={h} rx="5" fill={`url(#${id}col)`} />
       {ticks}
+      {[
+        [
+          y + h / 2 - 26,
+          13,
+          600,
+          tank.avgC == null ? '- °C' : `${Number(tank.avgC).toFixed(1)} °C`,
+        ],
+        [y + h / 2 + 34, 13, 600, `${Number(tank.storedKwh ?? 0).toFixed(1)} kWh`],
+      ].map(([ty, size, weight, text]) => (
+        <text
+          key={ty}
+          x="80"
+          y={ty}
+          textAnchor="middle"
+          fontWeight={weight}
+          fontSize={size}
+          fill="#fff"
+          stroke="#00000055"
+          strokeWidth="2.5"
+          style={{ paintOrder: 'stroke' }}
+        >
+          {text}
+        </text>
+      ))}
       <text
         x="80"
-        y={y + h / 2 + 4}
+        y={y + h / 2 + 9}
         textAnchor="middle"
         fontWeight="700"
         fontSize="26"
@@ -385,89 +414,49 @@ export const TankIcon = ({ tank, height = 200 }) => {
           %
         </tspan>
       </text>
-      <text
-        x="80"
-        y={y + h / 2 + 24}
-        textAnchor="middle"
-        fontWeight="600"
-        fontSize="12"
-        fill="#fff"
-        stroke="#00000055"
-        strokeWidth="2.5"
-        style={{ paintOrder: 'stroke' }}
-      >
-        {`${Number(tank.storedKwh ?? 0).toFixed(1)} kWh`}
-      </text>
     </svg>
   )
 }
 
 /**
- * A buffer tank's two gauges (the user's mockup fix-water-cylinder-scales.png), as big as a heat
- * pump's at `pumpHeight`: the temperatures (dual - the top's warm water big, the bottom's cold small,
- * while water flows through; both at the tank's average when it doesn't), the power in / out of it (zero in
- * the middle: + charged, - drawn; `maxKw` - the scale's end).
+ * A buffer tank's two gauges, as big as a heat pump's at `pumpHeight` (the user, 2026-10-29 - its two
+ * heat exchangers work at once): on top the heat in (from the heat pumps), below the heat out (to the
+ * fan coils), each one way from zero to `maxKw`; the temperatures - in the tank's indicator.
  */
 export const TankGauges = ({ tank, mode, maxKw, pumpHeight = 120 }) => {
   const cooling = mode === 'cooling'
-  // the frost (an error) and over the tank's own top temperature (a warning) - the process's
-  // messages; the heating scale long enough to show the latter
-  const base = waterLimits(mode)
-  const range = {
-    ...base,
-    max: cooling ? base.max : Math.max(base.max, Math.ceil((tank.tMaxC ?? 0) / 5) * 5 + 5),
-    errLow: TANK_FROST_C,
-    ...(tank.tMaxC != null && { warnHigh: tank.tMaxC }),
-  }
+  const what = cooling ? 'Cold' : 'Heat'
   const R = 45 // the pump's gauge radius in its viewBox (214 high)
   const W = 2 * R + 8
   const H = 196 // the pump's two gauges: 96 apart
   const scale = pumpHeight / 214
   const end = Math.max(1, Math.ceil(maxKw))
-  const kw = tank.chargeKw ?? 0
-  const active = tank.avgC != null ? 'active' : 'absent'
+  const gauges = [
+    [R + 4, tank.inKw ?? 0, `${what} in from the heat pumps`],
+    [R + 4 + 96, tank.outKw ?? 0, `${what} out to the fan coils`],
+  ]
   return (
     <svg
       width={W * scale}
       height={H * scale}
       viewBox={`0 0 ${W} ${H}`}
       role="img"
-      aria-label={`${tank.name} - its temperatures and power`}
+      aria-label={`${tank.name} - the heat in and out`}
     >
-      <g>
-        <title>
-          {tank.flowing
-            ? `Water flows through: top ${tank.topC} C (big) / bottom ${tank.bottomC} C (small, blue)`
-            : `No flow now - the tank's average ${tank.avgC} C`}
-        </title>
-        <RoundGauge
-          x={W / 2}
-          y={R + 4}
-          r={R}
-          value={tank.flowing ? tank.topC : tank.avgC}
-          limits={range}
-          unit="°C"
-          inner={{
-            value: tank.flowing ? tank.bottomC : tank.avgC,
-            limits: range,
-            unit: '°C',
-            color: '#1d6fd8',
-          }}
-          state={active}
-        />
-      </g>
-      <g>
-        <title>{`${kw >= 0 ? `Charged with ${cooling ? 'cold' : 'heat'}` : `${cooling ? 'Cold' : 'Heat'} drawn`} ${Math.abs(kw).toFixed(1)} kW (+ in / - out)`}</title>
-        <RoundGauge
-          x={W / 2}
-          y={R + 4 + 96}
-          r={R}
-          value={kw}
-          limits={{ min: -end, max: end }}
-          unit="kW"
-          state={tank.flowing ? 'active' : 'inactive'}
-        />
-      </g>
+      {gauges.map(([cy, kw, text]) => (
+        <g key={cy}>
+          <title>{`${text}: ${Number(kw).toFixed(1)} kW`}</title>
+          <RoundGauge
+            x={W / 2}
+            y={cy}
+            r={R}
+            value={kw}
+            limits={{ min: 0, max: end, warnHigh: end * 0.9 }}
+            unit="kW"
+            state={tank.avgC == null ? 'absent' : kw > 0.05 ? 'active' : 'inactive'}
+          />
+        </g>
+      ))}
     </svg>
   )
 }
@@ -567,7 +556,9 @@ export const FanCoilIcon = ({ coil, mode, width = 330 }) => {
     [127, 2.4],
     [135, 1.8],
   ]
-  const fanMax = coil.fanRatedW ?? 45
+  // the gauge - the heat it gives the room (the user, 2026-10-29; the fan's watts - in the popup)
+  const ratedKw = coil.ratedKw ?? 5
+  const heat = Math.abs(coil.heatKw ?? 0)
   return (
     <svg
       width={width}
@@ -575,6 +566,7 @@ export const FanCoilIcon = ({ coil, mode, width = 330 }) => {
       viewBox="0 0 440 168"
       role="img"
       aria-label={`${coil.name} - fan coil`}
+      style={coil.on ? undefined : OFF_STYLE}
     >
       <title>
         {`${coil.name}: room ${coil.roomC ?? '-'} C, humidity ${coil.humidityPct ?? '-'} %, setpoint ${coil.setpointC ?? '-'} C; ${!coil.on ? 'valve closed' : running ? `${mode === 'cooling' ? 'cooling' : 'heating'} ${Math.abs(coil.heatKw).toFixed(1)} kW, fan ${Math.round(coil.fan * 100)} %` : 'idle - the room is at its setpoint'}`}
@@ -639,16 +631,16 @@ export const FanCoilIcon = ({ coil, mode, width = 330 }) => {
         <Grille cx={306} cy={52} r={COIL_GRILLE_R} {...COIL_GRILLE} />
       </g>
       <g>
-        <title>{`Fan power ${coil.fanW} W of ${fanMax} W`}</title>
+        <title>{`${mode === 'cooling' ? 'Cold' : 'Heat'} to the room ${heat.toFixed(1)} kW (rated ${ratedKw} kW)`}</title>
         <RoundGauge
           x={384}
           y={52}
           r={34}
-          value={coil.fanW}
-          limits={{ min: 0, max: Math.ceil(fanMax * 1.2), warnHigh: fanMax, errHigh: fanMax * 1.1 }}
-          unit="W"
-          decimals={0}
-          state={coil.on ? 'active' : 'inactive'}
+          value={heat}
+          limits={{ min: 0, max: Math.ceil(ratedKw) }}
+          unit="kW"
+          decimals={1}
+          state={coil.on ? (heat > 0.05 ? 'active' : 'inactive') : 'inactive'}
         />
       </g>
     </svg>

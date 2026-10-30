@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 import { CSpinner } from '@coreui/react'
 import { request } from 'src/api/client'
 
@@ -15,8 +15,15 @@ import { request } from 'src/api/client'
 // [{ value | points: [{ t, v }], level: 'warning' (yellow) | 'critical' (red), label }] - dashed, light;
 // one far above the day's values is named at the chart's edge instead of flattening the curve.
 // `absolute` - the keys drawn by their size (a power one way, its sign only the direction).
+// A `keys` entry may be an array - its series on one chart, one axis (2026-10-29: a tank's heat in and
+// out); its label - a string (the chart's) and the legend from `legends[i]`. `colors[i]` - the entry's
+// colour (an array for an array entry). The height - `height`, else the context's (a popup's charts are
+// taller - ChartSize below), else 130.
 const W = 680
-const H = 130
+const DEFAULT_H = 130
+
+/** The charts' height (viewBox units at 680 wide) for the charts inside - UnitPopup sets a taller one. */
+export const ChartSize = createContext(null)
 const PAD = { left: 40, right: 8, top: 10, bottom: 22 }
 const COLORS = ['var(--cui-success)', 'var(--cui-info)', 'var(--cui-warning)', 'var(--cui-primary)']
 const HEADROOM = 1.05 // the curve's peak stays below the upper limit line
@@ -35,12 +42,27 @@ const niceLimit = (v) => {
 const LIMIT_COLORS = { warning: 'var(--cui-warning)', critical: 'var(--cui-danger)' }
 const LIMIT_REACH = 2 // a limit within this many times the day's reach widens the axis to show it
 
-const SeriesChart = ({ keys, labels = [], signed = [], limits = {}, absolute = [] }) => {
+const SeriesChart = ({
+  keys,
+  labels = [],
+  legends = [],
+  colors = [],
+  signed = [],
+  limits = {},
+  absolute = [],
+  height,
+}) => {
+  const contextH = useContext(ChartSize)
+  const H = height ?? contextH ?? DEFAULT_H
   const [series, setSeries] = useState(null)
   const [error, setError] = useState(null)
   // "now" - when the data was read (a render stays pure)
   const [readAt, setReadAt] = useState(null)
-  const joined = keys.filter(Boolean).join(',')
+  const entries = keys
+    .map((k) => (Array.isArray(k) ? k.filter(Boolean) : k ? [k] : []))
+    .map((ks, i) => ({ ks, i }))
+    .filter((e) => e.ks.length)
+  const joined = entries.flatMap((e) => e.ks).join(',')
   useEffect(() => {
     let cancelled = false
     const start = new Date()
@@ -68,14 +90,22 @@ const SeriesChart = ({ keys, labels = [], signed = [], limits = {}, absolute = [
   const x = (t) => PAD.left + ((t - t0) / (t1 - t0)) * (W - PAD.left - PAD.right)
   // a gap in the history (the site was off) stays a gap
   const gapMs = ((t1 - t0) / POINTS) * GAP_STEPS
-  const lines = joined.split(',').map((key, i) => {
+  // each curve's default colour - in turn over all the charts
+  const firstColor = entries.map((e, n) => entries.slice(0, n).reduce((a, x) => a + x.ks.length, 0))
+  const lines = entries.map(({ ks, i }, e) => {
+    const key = ks.join('+')
     // `absolute` - a power counted one way (a heat pump's heat or cold): its size, up from zero
-    const pts = absolute.includes(key)
-      ? (series[key] ?? []).map((p) => ({ ...p, v: Math.abs(p.v) }))
-      : (series[key] ?? [])
-    const data = pts.map((p) => p.v)
-    const both = signed.includes(key)
-    const own = limits[key] ?? []
+    const curves = ks.map((k, n) => {
+      const pts = absolute.includes(k)
+        ? (series[k] ?? []).map((p) => ({ ...p, v: Math.abs(p.v) }))
+        : (series[k] ?? [])
+      const own = Array.isArray(colors[i]) ? colors[i][n] : n === 0 ? colors[i] : undefined
+      const color = own ?? COLORS[(firstColor[e] + n) % COLORS.length]
+      return { k, pts, color, legend: legends[i]?.[n] }
+    })
+    const data = curves.flatMap((c) => c.pts.map((p) => p.v))
+    const both = ks.some((k) => signed.includes(k))
+    const own = ks.flatMap((k) => limits[k] ?? [])
     const dataReach = Math.max(1e-9, ...data.map((v) => Math.abs(v)))
     // the limits near the day's values widen the axis; the far ones are only named
     const near = (v) => Math.abs(v) <= dataReach * LIMIT_REACH
@@ -89,7 +119,7 @@ const SeriesChart = ({ keys, labels = [], signed = [], limits = {}, absolute = [
     const y = (v) => PAD.top + ((max - v) / (max - min)) * (H - PAD.top - PAD.bottom)
     return {
       key,
-      color: COLORS[i % COLORS.length],
+      color: curves[0].color,
       label: labels[i],
       min,
       max,
@@ -120,23 +150,38 @@ const SeriesChart = ({ keys, labels = [], signed = [], limits = {}, absolute = [
               .join(' ')
           : null,
       })),
-      path: pts
-        .map(
-          (p, j) =>
-            `${j && p.t - pts[j - 1].t <= gapMs ? 'L' : 'M'}${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`,
-        )
-        .join(' '),
+      curves: curves.map((c) => ({
+        ...c,
+        path: c.pts
+          .map(
+            (p, j) =>
+              `${j && p.t - c.pts[j - 1].t <= gapMs ? 'L' : 'M'}${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`,
+          )
+          .join(' '),
+      })),
     }
   })
-  if (lines.every((l) => !l.path))
+  if (lines.every((l) => l.curves.every((c) => !c.path)))
     return <div className="small text-body-secondary">No points yet today.</div>
   return (
     <div className="d-grid gap-2">
       {lines.map((l) => (
         <div key={l.key}>
-          {l.label && (
-            <div className="small" style={{ color: l.color }}>
-              {l.label}
+          {(l.label || l.curves.some((c) => c.legend)) && (
+            <div className="small d-flex flex-wrap gap-3 align-items-baseline">
+              {l.label && (
+                <span style={{ color: l.curves.length > 1 ? undefined : l.color }}>{l.label}</span>
+              )}
+              {l.curves
+                .filter((c) => c.legend)
+                .map((c) => (
+                  <span key={c.k} style={{ color: c.color }}>
+                    <svg width="18" height="6" aria-hidden="true" className="me-1">
+                      <line x1="0" x2="18" y1="3" y2="3" stroke={c.color} strokeWidth="2.5" />
+                    </svg>
+                    {c.legend}
+                  </span>
+                ))}
             </div>
           )}
           <svg
@@ -231,7 +276,9 @@ const SeriesChart = ({ keys, labels = [], signed = [], limits = {}, absolute = [
                 </g>
               ),
             )}
-            <path d={l.path} fill="none" stroke={l.color} strokeWidth="2" />
+            {l.curves.map((c) => (
+              <path key={c.k} d={c.path} fill="none" stroke={c.color} strokeWidth="2" />
+            ))}
             <text x={4} y={PAD.top + 4} fontSize="10" fill={l.color}>
               {+l.max.toFixed(1)}
             </text>

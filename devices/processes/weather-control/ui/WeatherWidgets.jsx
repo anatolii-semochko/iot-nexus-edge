@@ -247,7 +247,7 @@ const RANGES = [
 ]
 const FORECAST_AHEAD_MS = DAY_MS
 
-const CHART_H = 150
+const CHART_H = 220 // a chart popup - big (2026-10-29)
 // the forecast's word only where its band has room for it
 const FORECAST_LABEL_PX = 60
 const PAD = { left: 44, right: 10, top: 10, bottom: 24 }
@@ -519,7 +519,13 @@ const WeatherPopup = ({ kind, weatherId, onClose }) => {
   const t1 = now === null ? 0 : now + FORECAST_AHEAD_MS
   const rows = (data?.hourly ?? []).filter((r) => r.t >= t0 && r.t <= t1)
   return (
-    <CModal visible onClose={onClose} size="xl" alignment="center" className="wx-widget">
+    <CModal
+      visible
+      onClose={onClose}
+      size="xl"
+      alignment="center"
+      className="wx-widget chart-popup"
+    >
       <CModalHeader>
         <CModalTitle className="d-flex align-items-center gap-2">
           <AiButton subject={{ type: 'process', id: weatherId }} label="the weather" size={24} />
