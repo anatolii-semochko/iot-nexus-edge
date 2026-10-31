@@ -40,6 +40,21 @@ const PREVIEW_HEIGHT_REM = 10.8
 // the picture block's height - a framed card's padding (p-2) and divider taken by an unframed one's picture,
 // so every card's title sits at one height (the user, 2026-10-25)
 const PREVIEW_H = `var(--dc-preview-h, ${PREVIEW_HEIGHT_REM}rem)`
+// the blocks' grid: a card at least this wide, the columns filling the page, this gap between them
+const CARD_MIN_REM = 16
+const CARD_GAP_REM = 1
+
+/**
+ * A block card's width on the Dashboard at a page content's width (px) - the grid's own rule (auto-fill,
+ * minmax(CARD_MIN_REM, 1fr)), so the card form's preview is as wide as the card (the user, 2026-10-31: a
+ * picture over 100 % cropped differently).
+ */
+export const dashboardCardWidth = (contentPx, remPx) => {
+  const min = CARD_MIN_REM * remPx
+  const gap = CARD_GAP_REM * remPx
+  const n = Math.max(1, Math.floor((contentPx + gap) / (min + gap)))
+  return Math.max(min, (contentPx - (n - 1) * gap) / n)
+}
 
 const childrenOf = (cards, parentId) =>
   cards
@@ -376,7 +391,7 @@ export const BlockCard = ({ card, processes, linked = true }) => {
         style={captionStyle}
       >
         <CIcon icon={cardIcon(card)} className="text-body-secondary flex-shrink-0" />
-        <span className="fw-semibold text-truncate">{card.title}</span>
+        <span className="fw-semibold fst-italic text-truncate">{card.title}</span>
       </CCardBody>
     </CCard>
   )
@@ -395,7 +410,7 @@ export const BlockCard = ({ card, processes, linked = true }) => {
 const InlineComponents = ({ items, processes }) =>
   items.map((c) => (
     <section key={c.id} className="mt-4" aria-label={c.title}>
-      {c.frame?.title !== false && <div className="fw-semibold mb-2">{c.title}</div>}
+      {c.frame?.title !== false && <div className="fw-semibold fst-italic mb-2">{c.title}</div>}
       <div style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
         <ComponentView card={c} processes={processes} />
       </div>
@@ -421,7 +436,7 @@ const Level = ({ cards, items, layout, processes }) => {
             className="list-group-item list-group-item-action d-flex align-items-center gap-2"
           >
             <CIcon icon={cardIcon(c)} className="text-body-secondary" />
-            <span className="fw-semibold me-auto">{c.title}</span>
+            <span className="fw-semibold fst-italic me-auto">{c.title}</span>
             {c.type === 'folder' && (
               <span className="small text-body-secondary">{childrenOf(cards, c.id).length}</span>
             )}
@@ -433,8 +448,8 @@ const Level = ({ cards, items, layout, processes }) => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(16rem, 1fr))',
-          gap: '1rem',
+          gridTemplateColumns: `repeat(auto-fill, minmax(${CARD_MIN_REM}rem, 1fr))`,
+          gap: `${CARD_GAP_REM}rem`,
         }}
       >
         {blocks.map((c) => (

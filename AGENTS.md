@@ -9343,10 +9343,18 @@ Energy Ledger's README has the details.
   only its middle seen; on an avatar - a factor on its fitted size); a background over the whole top block
   (`backgroundScalePct` 10..300 - 100 covers it, `backgroundOpacityPct`).
   The images in the database (`dashboard_card_images`, PNG / JPEG / WebP /
-  GIF up to `DASHBOARD_IMAGE_MAX_BYTES`), GET / POST / DELETE
+  GIF up to `DASHBOARD_IMAGE_MAX_BYTES`; an upload up to
+  `DASHBOARD_IMAGE_UPLOAD_MAX_BYTES` over it or over `DASHBOARD_IMAGE_MAX_SIDE`
+  is shrunk by the API - `images.ts` `fitImage`: WebP, alpha kept, the
+  `DASHBOARD_IMAGE_WEBP_QUALITIES` tried in turn; a GIF never), GET / POST / DELETE
   `/dashboard-cards/:id/images/:slot`; uploaded at once from the card's
-  form. Every frame's picture block equally
-  tall (the titles on one line); the pictures within the rounded corners.
+  form. The form's preview is as wide as the card on the Dashboard in this
+  window (`dashboardCardWidth` - the grid's rule, `CARD_MIN_REM` /
+  `CARD_GAP_REM`, from the page's `.page-content` width), so a picture over
+  100 % is cropped the same. Every frame's picture block equally
+  tall (the titles on one line, slanted - `fst-italic`, as `.kv-unit`; the
+  list's rows and the components' section titles alike); the pictures
+  within the rounded corners.
 - **Card pictures with figures**: the ledger's (saved today, paid, the
   efficiency, the strategy, the self-sufficiency, what the plan saves), the
   weather's "summary" (its default - temperature and in 3 h, wind, sun and
