@@ -167,6 +167,11 @@ export const config = {
     avatarMaxSizeBytes: Number(process.env.AVATAR_MAX_SIZE_BYTES ?? 2 * 1024 * 1024),
     // a Dashboard card's own picture / background (dashboard_card_images - in the database)
     dashboardImageMaxBytes: Number(process.env.DASHBOARD_IMAGE_MAX_BYTES ?? 1024 * 1024),
+    // a larger upload (up to this) is shrunk to fit the store: its longest side to ..._MAX_SIDE, WebP
+    // at the qualities tried in turn (images.ts fitImage)
+    dashboardImageUploadMaxBytes: Number(process.env.DASHBOARD_IMAGE_UPLOAD_MAX_BYTES ?? 8 * 1024 * 1024),
+    dashboardImageMaxSide: Number(process.env.DASHBOARD_IMAGE_MAX_SIDE ?? 1600),
+    dashboardImageWebpQualities: (process.env.DASHBOARD_IMAGE_WEBP_QUALITIES ?? "86,76,64,50").split(",").map(Number),
   },
   // Change notifications (entityChanges.ts): the wait before the LISTEN
   // connection to Postgres is opened again after it dropped.

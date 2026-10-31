@@ -5,6 +5,7 @@ import { scopeFilter } from "../access/scope.js";
 import { requireAdmin, requireAuth } from "../auth.js";
 import { pool } from "../db.js";
 import { config } from "../config.js";
+import { fitImage } from "../images.js";
 import type { MultipartFile } from "@fastify/multipart";
 
 // Dashboard cards (migrations/1690000000058) - the Dashboard page's tree:
@@ -329,15 +330,30 @@ export async function dashboardCardRoutes(app: FastifyInstance): Promise<void> {
     if (!SLOTS.includes(slot)) return reply.code(404).send({ error: "no such picture" });
     const current = (await pool.query<CardRow>("SELECT * FROM dashboard_cards WHERE id = $1", [id])).rows[0];
     if (!current) return reply.code(404).send({ error: "card not found" });
-    const file: MultipartFile | undefined = await request.file({ limits: { fileSize: config.uploads.dashboardImageMaxBytes } });
+    const up = config.uploads;
+    const kb = (bytes: number) => `${Math.round(bytes / 1024)} KB`;
+    const file: MultipartFile | undefined = await request.file({ limits: { fileSize: up.dashboardImageUploadMaxBytes } });
     if (!file) return reply.code(400).send({ error: "the image file is required" });
     if (!IMAGE_TYPES.has(file.mimetype)) return reply.code(400).send({ error: "the image must be PNG, JPEG, WebP or GIF" });
-    const data = await file.toBuffer();
-    if (file.file.truncated) return reply.code(413).send({ error: `the image is over ${Math.round(config.uploads.dashboardImageMaxBytes / 1024)} KB` });
+    let raw: Buffer;
+    try {
+      raw = await file.toBuffer();
+    } catch (err) {
+      if ((err as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") return reply.code(413).send({ error: `the image is over ${kb(up.dashboardImageUploadMaxBytes)}` });
+      throw err;
+    }
+    let fitted: { data: Buffer; mime: string };
+    try {
+      fitted = await fitImage(raw, file.mimetype, { maxBytes: up.dashboardImageMaxBytes, maxSide: up.dashboardImageMaxSide, qualities: up.dashboardImageWebpQualities });
+    } catch {
+      return reply.code(400).send({ error: "the file is not a readable image" });
+    }
+    const { data, mime } = fitted;
+    if (data.length > up.dashboardImageMaxBytes) return reply.code(413).send({ error: `the image is over ${kb(up.dashboardImageMaxBytes)} even shrunk (a GIF is never shrunk)` });
     await pool.query(
       `INSERT INTO dashboard_card_images (card_id, slot, mime, data) VALUES ($1, $2, $3, $4)
        ON CONFLICT (card_id, slot) DO UPDATE SET mime = $3, data = $4, updated_at = now()`,
-      [id, slot, file.mimetype, data],
+      [id, slot, mime, data],
     );
     const picture: Picture = { ...(current.picture ?? {}), [slot]: { at: Date.now() }, ...(slot === "icon" ? { source: "file" } : {}) };
     const row = (await pool.query<CardRow>("UPDATE dashboard_cards SET picture = $2, updated_at = now() WHERE id = $1 RETURNING *", [id, JSON.stringify(picture)])).rows[0];

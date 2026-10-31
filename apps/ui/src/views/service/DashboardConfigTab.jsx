@@ -25,7 +25,7 @@ import { useConfirmModal } from '../../hooks/useConfirmModal'
 import IconButton from '../../components/IconButton'
 import UpBreadcrumb from '../../components/UpBreadcrumb'
 import Switch from '../../components/Switch'
-import { BlockCard, cardFrame, pictureSource } from '../dashboard/Dashboard'
+import { BlockCard, cardFrame, dashboardCardWidth, pictureSource } from '../dashboard/Dashboard'
 
 /**
  * Service -> Config -> Dashboard (Dashboard cards, 2026-10-16): the
@@ -215,6 +215,28 @@ const FRAME_ROWS = [
 ]
 
 /**
+ * The width a block card has on the Dashboard in this window: the page's content width (the Dashboard sits
+ * in the same page container) through the Dashboard grid's rule; null outside a page. Follows resizes.
+ */
+const useDashboardCardWidth = () => {
+  const measure = () => {
+    const page = document.querySelector('.page-content')
+    if (!page) return null
+    const cs = getComputedStyle(page)
+    const content = page.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize)
+    return Math.floor(dashboardCardWidth(content, rem))
+  }
+  const [width, setWidth] = useState(measure)
+  useEffect(() => {
+    const update = () => setWidth(measure())
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  return width
+}
+
+/**
  * The card's pictures (migrations 091, 100; the user 2026-10-25, 2026-10-29): the picture's source -
  * none, the component's avatar (an avatar card), an icon from the set, an uploaded file - with its size;
  * a background under it with its size and opacity. The files are uploaded at once (the card must exist -
@@ -369,6 +391,8 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
   const [form, setForm] = useState(draft)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  // the preview as wide as the card on the Dashboard
+  const cardWidth = useDashboardCardWidth()
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setForm(draft), [draft])
   if (!form) return null
@@ -409,7 +433,7 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
           <div className="dc-preview" aria-label="Preview">
             <div className="small text-body-secondary mb-2">On the Dashboard</div>
             {block ? (
-              <div style={{ width: '100%', maxWidth: 360 }}>
+              <div style={{ width: cardWidth ?? '100%', maxWidth: cardWidth ? '100%' : 360 }}>
                 <BlockCard
                   card={{ ...form, title: form.title || 'Untitled' }}
                   processes={processes}
