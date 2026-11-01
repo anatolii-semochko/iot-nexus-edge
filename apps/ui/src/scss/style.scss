@@ -332,3 +332,116 @@ body {
   // as wide as the window lets it - the aquarium's history popup's width (the user, 2026-10-30)
   max-width: calc(100vw - 2 * var(--cui-modal-margin));
 }
+
+// The header's dropdowns (the language, the theme, the user) - their toggles centred in the header's
+// height like the other items (the user, 2026-10-31: they sat above the middle)
+.header-nav > .dropdown {
+  display: flex;
+  align-items: center;
+
+  > .nav-link,
+  > .dropdown-toggle {
+    display: flex;
+    align-items: center;
+  }
+}
+
+// The user guide's pages (views/docs/Docs.jsx) - headings sized for a card, tables spaced
+.ne-docs {
+  h2 {
+    font-size: 1.35rem;
+    margin-top: 1.5rem;
+  }
+  h3 {
+    font-size: 1.1rem;
+    margin-top: 1.2rem;
+  }
+  pre {
+    padding: 0.6rem 0.8rem;
+    background: var(--cui-tertiary-bg);
+    border-radius: var(--cui-border-radius);
+  }
+}
+
+// The guide's layout (views/docs/Docs.jsx): no frames - the list and the text, a light line between
+.ne-docs-nav {
+  min-width: 220px;
+  padding-inline-end: 1rem;
+  border-inline-end: var(--cui-border-width) var(--cui-border-style) var(--cui-border-color);
+
+  .nav-link {
+    padding: 0.35rem 0.75rem;
+    border-radius: var(--cui-border-radius);
+  }
+
+  .nav-link.active {
+    color: var(--cui-primary);
+    background: var(--cui-tertiary-bg);
+  }
+}
+
+.ne-docs-text {
+  padding-inline-start: 1.5rem;
+}
+
+// a phone: the list over the text, the line under it
+@media (max-width: 991.98px) {
+  .ne-docs-nav {
+    padding-inline-end: 0;
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
+    border-inline-end: 0;
+    border-bottom: var(--cui-border-width) var(--cui-border-style) var(--cui-border-color);
+  }
+
+  .ne-docs-text {
+    padding-inline-start: 0;
+  }
+}
+
+// a section's pages under its title (views/docs/Docs.jsx): the title as a link, the description under it
+.ne-docs-sub {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 0.75rem 1.5rem;
+  margin: 0.5rem 0 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: var(--cui-border-width) var(--cui-border-style) var(--cui-border-color);
+}
+
+// the guide's screenshots (views/docs/Docs.jsx): the light or the dark one - by the interface's theme
+.ne-shot {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0 1.25rem;
+  border: var(--cui-border-width) var(--cui-border-style) var(--cui-border-color);
+  border-radius: var(--cui-border-radius);
+}
+
+.ne-shot-dark {
+  display: none;
+}
+
+[data-coreui-theme='dark'] {
+  .ne-shot-light {
+    display: none;
+  }
+
+  .ne-shot-dark {
+    display: block;
+  }
+}
+
+// the brand mark's two tones (components/BrandMark.jsx) - the one for the current theme's ground
+.brand-mark-on-dark {
+  display: none;
+}
+[data-coreui-theme='dark'] {
+  .brand-mark-on-light {
+    display: none;
+  }
+  .brand-mark-on-dark {
+    display: inline;
+  }
+}

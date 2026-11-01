@@ -10,12 +10,14 @@ import {
   CDropdownMenu,
   CDropdownToggle,
 } from '@coreui/react'
-import { cilAccountLogout, cilCheckAlt, cilLockLocked, cilUser } from '@coreui/icons'
+import { cilAccountLogout, cilCheckAlt, cilGlobeAlt, cilLockLocked, cilUser } from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
 import { userInitials, userTitle } from '../../utils/format'
 import { api } from '../../api/client'
 import { markRoleSwitch } from '../../roleSwitch'
+import { HOME_HOST, homeUrl } from '../../homeSite'
 import ProfileForm from './ProfileForm'
+import { useTranslation } from 'react-i18next'
 
 /**
  * The logged-in-user menu (AGENTS.md section 13). Replaces the CoreUI demo
@@ -32,6 +34,9 @@ const AppHeaderDropdown = () => {
   // for the next sign-in
   const contexts = useSelector((state) => state.accessContexts) ?? []
   const context = useSelector((state) => state.accessContext)
+  // the role acted in now - shown beside the avatar (the user, 2026-10-31: seen without opening the menu)
+  const contextName = useSelector((state) => state.accessContextName)
+  const { t, i18n } = useTranslation()
   const dispatch = useDispatch()
   const navigate = useNavigate()
   // the person's own profile (2026-10-28) - not the guest's
@@ -61,6 +66,7 @@ const AppHeaderDropdown = () => {
         user: null,
         access: null,
         accessContexts: [],
+        accessContextName: null,
         accessContext: null,
         guest: false,
       })
@@ -71,7 +77,20 @@ const AppHeaderDropdown = () => {
   return (
     <>
       <CDropdown variant="nav-item">
-        <CDropdownToggle placement="bottom-end" className="py-0 pe-0" caret={false}>
+        <CDropdownToggle
+          placement="bottom-end"
+          className="py-0 pe-0 d-flex align-items-center"
+          caret={false}
+        >
+          {contextName && (
+            <span
+              className="d-none d-md-inline small text-body-secondary me-2 text-truncate"
+              style={{ maxWidth: '12rem' }}
+              title={t('Your role now')}
+            >
+              {contextName}
+            </span>
+          )}
           {/* the toggle doesn't pass a title on - the avatar's own wrapper does */}
           <span title={userTitle(user)}>
             {user.avatar_path ? (
@@ -89,7 +108,7 @@ const AppHeaderDropdown = () => {
           </CDropdownHeader>
           {contexts.length > 1 && (
             <>
-              <div className="px-3 pb-1 small text-body-secondary">Act as</div>
+              <div className="px-3 pb-1 small text-body-secondary">{t('Act as')}</div>
               {contexts.map((c) => (
                 <CDropdownItem
                   key={c.key}
@@ -112,14 +131,24 @@ const AppHeaderDropdown = () => {
             <>
               <CDropdownItem onClick={() => setProfileOpen(true)} style={{ cursor: 'pointer' }}>
                 <CIcon icon={cilUser} className="me-2" />
-                Profile
+                {t('Profile')}
+              </CDropdownItem>
+              <CDropdownDivider />
+            </>
+          )}
+          {HOME_HOST && (
+            <>
+              {/* the project's website (homeSite.js) - the way back from the demo on a phone too */}
+              <CDropdownItem href={homeUrl(i18n.resolvedLanguage)}>
+                <CIcon icon={cilGlobeAlt} className="me-2" />
+                {HOME_HOST}
               </CDropdownItem>
               <CDropdownDivider />
             </>
           )}
           <CDropdownItem onClick={handleLogout} style={{ cursor: 'pointer' }}>
             <CIcon icon={guest ? cilAccountLogout : cilLockLocked} className="me-2" />
-            {guest ? 'Sign in' : 'Logout'}
+            {guest ? t('Sign in') : t('Logout')}
           </CDropdownItem>
         </CDropdownMenu>
       </CDropdown>

@@ -159,6 +159,8 @@ services:
       args:
         VITE_PROJECT_NAME: ${PROJECT_NAME}
         VITE_NODE_ENV: ${NODE_ENV:-production}
+        VITE_HOME_URL: ${HOME_URL:-}
+        VITE_HOME_LANGS: ${HOME_LANGS:-}
     container_name: __SLUG__-ui
     restart: unless-stopped
     env_file: .env

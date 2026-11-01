@@ -33,8 +33,10 @@ import {
 
 import { AppSidebarNav } from './AppSidebarNav'
 
-import chipLogo from '../assets/brand/chip-logo.svg'
+import { useTranslation } from 'react-i18next'
+import BrandMark from './BrandMark'
 import { PROJECT_NAME } from '../projectName'
+import { HOME_HOST, homeUrl } from '../homeSite'
 
 // sidebar nav config
 import { useMenu } from './useMenu'
@@ -57,6 +59,7 @@ const AppSidebar = () => {
   const sidebarShow = useSelector((state) => state.sidebarShow)
   // the pages the role shows and its rights open (useMenu); only the Dashboard - no menu at all
   const { items, hidden } = useMenu()
+  const { i18n } = useTranslation()
   if (hidden) return null
 
   return (
@@ -71,8 +74,13 @@ const AppSidebar = () => {
       }}
     >
       <CSidebarHeader className="border-bottom">
-        <CSidebarBrand to="/" className="text-decoration-none d-flex align-items-center">
-          <img src={chipLogo} alt="" height={32} className="me-2" />
+        {/* the brand - the project's website when it has one (homeSite.js), in the interface's language */}
+        <CSidebarBrand
+          href={HOME_HOST ? homeUrl(i18n.resolvedLanguage) : '/'}
+          title={HOME_HOST || undefined}
+          className="text-decoration-none d-flex align-items-center"
+        >
+          <BrandMark size={32} ground="dark" className="me-2" />
           <span className="sidebar-brand-full fw-semibold fs-5 lh-1">{PROJECT_NAME}</span>
         </CSidebarBrand>
         <CCloseButton
