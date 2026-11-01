@@ -20,7 +20,11 @@ Rolle ihr Objekt sieht; ein Ordner - nur, wenn etwas darin ist.
 
 ## Die Karten anordnen
 
-Service -> Konfiguration -> Dashboard (für alle, die es konfigurieren dürfen).
+Service -> Konfiguration -> Dashboard (für alle, die es konfigurieren dürfen)
+zeigt eine Ebene wie das Dashboard: die Karten (Ordner und Avatare - mit Bild
+und Hintergrund), darunter die Komponenten - jede Liste mit eigener
+Reihenfolge. **Konfiguration** - die Einstellungen des Dashboards: die
+Kartengröße der obersten Ebene.
 Fügen Sie einen Ordner, einen Avatar oder eine Komponente hinzu; verschieben
 Sie sie nach oben und unten; bearbeiten Sie eine Karte:
 
@@ -29,6 +33,8 @@ Sie sie nach oben und unten; bearbeiten Sie eine Karte:
   verkleinert), mit seiner Größe;
 - ein **Hintergrund** mit Größe und Deckkraft;
 - der **Rahmen** - oben, die Mittellinie, unten, die Füllung;
+- für einen Ordner - die **Kartengröße** der Karten darin (0.50 - 2.00; 1.00 -
+  wie üblich, 1.50 - anderthalbmal so groß: weniger, größere Karten pro Reihe);
 - für einen Avatar - welcher Avatar und ob der Betrachter zwischen Breite und
   Höhe umschalten darf.
 

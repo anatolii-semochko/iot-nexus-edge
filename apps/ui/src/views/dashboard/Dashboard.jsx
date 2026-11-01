@@ -40,18 +40,19 @@ const PREVIEW_WIDTH = 1400
 const PREVIEW_HEIGHT_REM = 10.8
 // the picture block's height - a framed card's padding (p-2) and divider taken by an unframed one's picture,
 // so every card's title sits at one height (the user, 2026-10-25)
-const PREVIEW_H = `var(--dc-preview-h, ${PREVIEW_HEIGHT_REM}rem)`
+// the folder's cards' scale (its `cardsScale`, migration 103) - the grid sets --dc-scale
+const PREVIEW_H = `var(--dc-preview-h, calc(${PREVIEW_HEIGHT_REM}rem * var(--dc-scale, 1)))`
 // the blocks' grid: a card at least this wide, the columns filling the page, this gap between them
 const CARD_MIN_REM = 16
 const CARD_GAP_REM = 1
 
 /**
  * A block card's width on the Dashboard at a page content's width (px) - the grid's own rule (auto-fill,
- * minmax(CARD_MIN_REM, 1fr)), so the card form's preview is as wide as the card (the user, 2026-10-31: a
- * picture over 100 % cropped differently).
+ * minmax(CARD_MIN_REM x the folder's cards' scale, 1fr)), so the card form's preview is as wide as the
+ * card (the user, 2026-10-31: a picture over 100 % cropped differently).
  */
-export const dashboardCardWidth = (contentPx, remPx) => {
-  const min = CARD_MIN_REM * remPx
+export const dashboardCardWidth = (contentPx, remPx, scale = 1) => {
+  const min = CARD_MIN_REM * scale * remPx
   const gap = CARD_GAP_REM * remPx
   const n = Math.max(1, Math.floor((contentPx + gap) / (min + gap)))
   return Math.max(min, (contentPx - (n - 1) * gap) / n)
@@ -91,7 +92,7 @@ const ComponentView = ({ card, processes, scale }) => {
       </CAlert>
     )
   const Component = def.Component
-  return (
+  const view = (
     <Suspense fallback={<CSpinner size="sm" />}>
       <Component
         process={process}
@@ -100,6 +101,8 @@ const ComponentView = ({ card, processes, scale }) => {
       />
     </Suspense>
   )
+  // in full size it looks as on its own page: its top card without a frame (style.scss `dc-page`)
+  return scale ? view : <div className="dc-page">{view}</div>
 }
 
 // Draws `children` at PREVIEW_WIDTH and scales it to fit the box whole -
@@ -259,7 +262,7 @@ export const pictureSource = (card) =>
 // block, only its middle seen); the component's avatar - one made for the block (StretchBox: unpadded -
 // scaled to the block's edges, padded - as it is, shrunk only when larger), or a `fit` one / a copy of the
 // component scaled into the block (FitBox), its size slider a factor on that.
-const CardPreview = ({ card, processes, padded }) => {
+export const CardPreview = ({ card, processes, padded }) => {
   const source = pictureSource(card)
   const sizePct = card.picture?.imageScalePct
   if (source === 'none') return <div style={{ height: PREVIEW_H }} />
@@ -365,7 +368,11 @@ export const BlockCard = ({ card, processes, linked = true }) => {
           ...pictureStyle,
           // the picture's block as tall in every frame - the titles on one line (the padding and the
           // border it lacks given to the picture)
-          ...(top ? {} : { '--dc-preview-h': `calc(${PREVIEW_HEIGHT_REM}rem + 1rem + 1px)` }),
+          ...(top
+            ? {}
+            : {
+                '--dc-preview-h': `calc(${PREVIEW_HEIGHT_REM}rem * var(--dc-scale, 1) + 1rem + 1px)`,
+              }),
         }}
       >
         {/* its own background (migration 091) - the whole top block, under the picture */}
@@ -420,7 +427,7 @@ const InlineComponents = ({ items, processes }) =>
     </section>
   ))
 
-const Level = ({ cards, items, layout, processes }) => {
+const Level = ({ cards, items, layout, scale = 1, processes }) => {
   const blocks = items.filter((c) => c.type !== 'component')
   const inline = items.filter((c) => c.type === 'component')
   if (items.length === 0)
@@ -451,8 +458,10 @@ const Level = ({ cards, items, layout, processes }) => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: `repeat(auto-fill, minmax(${CARD_MIN_REM}rem, 1fr))`,
+          gridTemplateColumns: `repeat(auto-fill, minmax(${CARD_MIN_REM * scale}rem, 1fr))`,
           gap: `${CARD_GAP_REM}rem`,
+          // the folder's cards larger or smaller - their width and their picture's block
+          '--dc-scale': scale,
         }}
       >
         {blocks.map((c) => (
@@ -523,7 +532,13 @@ const Dashboard = () => {
   const [cards, setCards] = useState(null)
   const [processes, setProcesses] = useState([])
   const [error, setError] = useState(null)
+  const [settings, setSettings] = useState({ cardsScale: 1 })
   useEffect(() => {
+    // the Dashboard's settings (the top level's cards' scale) - their defaults when unreadable
+    api
+      .getDashboardSettings()
+      .then(setSettings)
+      .catch(() => {})
     Promise.all([api.listDashboardCards(), api.listProcesses()])
       .then(([c, p]) => {
         setCards(c)
@@ -643,6 +658,7 @@ const Dashboard = () => {
         cards={cards}
         items={childrenOf(cards, card ? card.id : null)}
         layout={card ? card.layout : 'blocks'}
+        scale={card ? (card.cardsScale ?? 1) : settings.cardsScale}
         processes={processes}
       />
     </div>

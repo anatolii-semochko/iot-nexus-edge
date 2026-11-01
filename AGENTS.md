@@ -8783,8 +8783,17 @@ package documents itself in its `docs/README.md`; here - what exists:
   (`HeatingScene` - the weather widget, the blocks, the warm / cold lines
   with their gauges) as the process row's panel and the Dashboard
   component `heatingControl.scene`.
-- The sky picture `SkyIcon` lives in `weather-control/ui/SkyIcon.jsx`
-  (colours `--wx-*`); energy-field re-exports it.
+- The sky picture `SkyIcon` lives in `weather-control/ui/SkyIcon.jsx`;
+  energy-field re-exports it. Since 2026-11-01 the weather's pictures are
+  one 3D set (`weather-control/ui/icons/`: sun, dusk, partly, cloud, night,
+  drop, rain, rain-dry, thermometer - WebP with alpha, `icons.js` their
+  files and proportions; made by iot `images/weather-icons/`
+  `make_weather_icons.py` (Blender, Cycles - the clouds of the Weather
+  card's 3D background) and `build_icons.sh` (trim, WebP, icons.js));
+  `WxIcon` (SkyIcon.jsx) shows one by its height / width or fitted into a
+  square (`box`); `weatherIcons.jsx` (drop, rain, thermometer) and
+  `WeatherAvatar` use them. The same on both themes - the old `--wx-sun` /
+  `--wx-cloud` / `--wx-moon` no longer colour anything.
 - **`energy-ledger`** (`devices/processes/energy-ledger/`, 2026-10-20 -
   L1): the site's energy and money journal - one record a day
   (`ledger_days`, migration 081) from the field's, the grid's and the
@@ -8958,12 +8967,34 @@ lint` runs both. The rules: the React hooks' (purity - "now" by
   left (on top when narrow), the form in rows (one column of titles, one of
   fields), in groups apart: the title, "In" (the folders as a cascade - each
   select the folders inside the one above it, "- here -" stops there), what
-  it shows (a folder's layout; the component and its parameters); the
+  it shows (a folder's layout and, for blocks, its "Cards scale" - see
+  below; the component and its parameters); the
   frame's four switches; the pictures (the source - No / Avatar (an
   avatar's) / Icon / File, its size; the background, its size and opacity -
   the sliders in one column); how an avatar opens. A component card - the
   first group only. Who sees a card - the role's Dashboard tab (the hint
   under the form).
+- **A folder's cards' scale** (`cards_scale`, migration 103, 2026-11-01;
+  API `cardsScale`, 0.5 - 2, default 1): the cards inside the folder drawn
+  that many times larger - the grid's minimum width (`CARD_MIN_REM` x it)
+  and the picture's block (`--dc-scale` on the grid, `PREVIEW_H` x it), so
+  avatars stretched to the block grow too; `dashboardCardWidth(content,
+  rem, scale)` - the card form's preview uses the scale of the card's
+  folder. The top level - the Dashboard's settings (`system_settings`
+  'dashboard' `{cardsScale}`, `GET / PATCH /dashboard-settings` -
+  dashboard.view / dashboard.manage), set by **Config** beside the adds in
+  Service -> Config -> Dashboard.
+- **The config list** (2026-11-01): a level as the Dashboard shows it - the
+  cards (folders, avatars: the type's icon, the card's icon, the title -
+  a folder's opens it, the picture's thumbnail - `CardPreview` at 48 px,
+  the background's, the info, the actions), under them the components; the
+  two ordered apart - `POST /dashboard-cards/:id/move` swaps a card with the
+  nearest one of its own group (the positions stay one sequence).
+- **A page's component on the Dashboard** (2026-11-01): `ComponentView` in
+  full size wraps it in `dc-page` - its top card loses the frame as on its
+  own page (`style.scss`: `.page-content, .dc-page > .card` - no border, no
+  header band, no side padding; the header reads as the title). The scaled
+  copies in the cards' pictures keep the card.
 - **The viewer's fit**: an avatar's `view` (fit-height / fit-width) is the
   default; with `user_fit` ("Viewer can switch the fit", migration 100) the
   opened avatar's page shows two buttons right of the breadcrumb (the width
@@ -9023,7 +9054,7 @@ field, `TemperatureWidget` (outside, in 3 h) on top of the heating scene.
   `NARROW_PX` 440), on its right one line (a `SummaryLine`, nothing wraps -
   cut) and the curve in the rest.
 - The pictures cropped to their drawing: `SkyIcon` (sun, partly, cloud,
-  dusk, night - `skyAspect`), `AnemometerIcon` - the strip
+  dusk, night - the 3D set, `skyAspect` from `icons.js`), `AnemometerIcon` - the strip
   `anemometer-sprite.webp` (README there), turning by the wind.
 - The curve (`HourCurve`): the last day and the next (`dayAround` - the
   forecast keeps a past day, one hourly point past each edge -

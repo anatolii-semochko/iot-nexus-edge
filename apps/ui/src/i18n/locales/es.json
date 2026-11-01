@@ -791,7 +791,6 @@
   "buzzer": "zumbador",
   "characters)": "caracteres)",
   "closed - needs {{join}}": "cerrado: necesita {{join}}",
-  "component, full width": "componente, ancho completo",
   "ct": "ct",
   "default / answer": "predeterminado / respuesta",
   "details": "detalles",
@@ -804,7 +803,6 @@
   "empty - all of them": "vacío: todos",
   "error": "error",
   "every": "cada",
-  "folder, {{length}} inside, {{v1}}": "carpeta, {{length}} dentro, {{v1}}",
   "generation": "generación",
   "guest": "invitado",
   "hours": "horas",
@@ -895,5 +893,16 @@
   "{{numberSkippedTicks}} ticks → level {{level}}": "{{numberSkippedTicks}} tics → nivel {{level}}",
   "{{n}} cards": "{{n}} tarjetas",
   "{{title}} - add, change": "{{title}} - añadir, cambiar",
-  "{{v0}} at {{coords}}": "{{v0}} en {{coords}}"
+  "{{v0}} at {{coords}}": "{{v0}} en {{coords}}",
+  "Cards scale": "Escala de las tarjetas",
+  "The cards inside this folder: 1.00 - as usual, 1.50 - half as large again": "Las tarjetas de esta carpeta: 1.00 - como siempre, 1.50 - una vez y media más grandes",
+  "Scale": "Escala",
+  "Dashboard settings": "Ajustes del Panel",
+  "The cards on the top level: 1.00 - as usual, 1.50 - half as large again": "Las tarjetas del nivel superior: 1.00 - como siempre, 1.50 - una vez y media más grandes",
+  "A folder's cards have their own scale - in the folder's form.": "Las tarjetas de una carpeta tienen su propia escala, en el formulario de la carpeta.",
+  "The Dashboard's own settings - the top level's cards' scale": "Los ajustes propios del Panel: la escala de las tarjetas del nivel superior",
+  "Cards": "Tarjetas",
+  "Components - at the full width under the cards": "Componentes: a todo el ancho bajo las tarjetas",
+  "{{length}} inside, {{v1}}": "{{length}} dentro, {{v1}}",
+  "full width": "todo el ancho"
 }

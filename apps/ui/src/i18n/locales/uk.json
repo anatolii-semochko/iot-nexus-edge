@@ -791,7 +791,6 @@
   "buzzer": "зумер",
   "characters)": "символів)",
   "closed - needs {{join}}": "закрито - потрібно {{join}}",
-  "component, full width": "компонент, на всю ширину",
   "ct": "ct",
   "default / answer": "типово / відповідь",
   "details": "деталі",
@@ -804,7 +803,6 @@
   "empty - all of them": "порожньо - усі",
   "error": "помилка",
   "every": "кожні",
-  "folder, {{length}} inside, {{v1}}": "тека, всередині {{length}}, {{v1}}",
   "generation": "генерація",
   "guest": "гість",
   "hours": "годин",
@@ -895,5 +893,16 @@
   "{{numberSkippedTicks}} ticks → level {{level}}": "{{numberSkippedTicks}} тіків → рівень {{level}}",
   "{{n}} cards": "Карток: {{n}}",
   "{{title}} - add, change": "{{title}} - додати, змінити",
-  "{{v0}} at {{coords}}": "{{v0}} у {{coords}}"
+  "{{v0}} at {{coords}}": "{{v0}} у {{coords}}",
+  "Cards scale": "Масштаб карток",
+  "The cards inside this folder: 1.00 - as usual, 1.50 - half as large again": "Картки всередині цієї теки: 1.00 - як зазвичай, 1.50 - у півтора раза більші",
+  "Scale": "Масштаб",
+  "Dashboard settings": "Налаштування Панелі",
+  "The cards on the top level: 1.00 - as usual, 1.50 - half as large again": "Картки на верхньому рівні: 1.00 - як зазвичай, 1.50 - у півтора раза більші",
+  "A folder's cards have their own scale - in the folder's form.": "Картки теки мають власний масштаб - у формі теки.",
+  "The Dashboard's own settings - the top level's cards' scale": "Власні налаштування Панелі - масштаб карток верхнього рівня",
+  "Cards": "Картки",
+  "Components - at the full width under the cards": "Компоненти - на всю ширину під картками",
+  "{{length}} inside, {{v1}}": "всередині {{length}}, {{v1}}",
+  "full width": "на всю ширину"
 }
