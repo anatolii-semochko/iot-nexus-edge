@@ -1,5 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { t } from 'src/i18n'
 
 /**
  * A WEM message's link (log_messages.link, migration 072) - the in-app
@@ -19,7 +20,7 @@ const MessageLink = ({ link, onClick }) =>
         }}
         className="small"
       >
-        Open
+        {t('Open')}
       </Link>
     </>
   ) : null

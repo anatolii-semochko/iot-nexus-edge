@@ -33,6 +33,7 @@ import { processPanels } from '../../processTypeRegistry'
 import ProcessSettingsModal from './ProcessSettingsModal'
 import WemRow from './WemRow'
 import AiButton from '../../components/ai/AiButton'
+import { t } from 'src/i18n'
 
 const statusColor = (status) => (status === 'on' ? 'success' : 'secondary')
 
@@ -178,9 +179,11 @@ const ProcessRow = ({
             <CBadge
               color="warning"
               className="ms-1 mb-1"
-              title="This kind isn't loaded in the running orchestrator yet - restart it to activate."
+              title={t(
+                "This kind isn't loaded in the running orchestrator yet - restart it to activate.",
+              )}
             >
-              Pending restart
+              {t('Pending restart')}
             </CBadge>
           )}
         </CTableDataCell>
@@ -192,7 +195,7 @@ const ProcessRow = ({
               </CBadge>
             ) : (
               <CBadge color="info" className="mb-1">
-                Running
+                {t('Running')}
               </CBadge>
             )}
           </CTableDataCell>
@@ -242,7 +245,7 @@ const ProcessRow = ({
                 size="sm"
                 center
                 onClick={() => setSettingsVisible(true)}
-                ariaLabel="Process settings"
+                ariaLabel={t('Process settings')}
               />
             )}
             {canManage && (
@@ -252,7 +255,7 @@ const ProcessRow = ({
                 center
                 disabled={deleteBusy}
                 onClick={handleDelete}
-                ariaLabel={`Delete ${process.name}`}
+                ariaLabel={t('Delete {{name}}', { name: process.name })}
               />
             )}
             {extraAction?.(process)}
@@ -369,7 +372,7 @@ const ProcessesTable = ({
   onGroupsChange,
   onResetFilters,
   renderExtraRowAction,
-  emptyMessage = 'No processes match this filter.',
+  emptyMessage = t('No processes match this filter.'),
   registeredKinds = null,
   statusLabel,
   showPower = true,
@@ -424,7 +427,7 @@ const ProcessesTable = ({
               value={groupFilter}
               onChange={(e) => onGroupFilterChange(e.target.value)}
             >
-              <option value="">All groups</option>
+              <option value="">{t('All groups')}</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.name}>
                   {g.name}
@@ -440,9 +443,9 @@ const ProcessesTable = ({
               value={typeFilter}
               onChange={(e) => onTypeFilterChange(e.target.value)}
             >
-              <option value="">All types</option>
-              <option value="controllable">Controllable</option>
-              <option value="permanent">Permanent</option>
+              <option value="">{t('All types')}</option>
+              <option value="controllable">{t('Controllable')}</option>
+              <option value="permanent">{t('Permanent')}</option>
             </CFormSelect>
           </CCol>
         )}
@@ -453,9 +456,9 @@ const ProcessesTable = ({
               value={statusFilter}
               onChange={(e) => onStatusFilterChange(e.target.value)}
             >
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="">{t('All statuses')}</option>
+              <option value="active">{t('Active')}</option>
+              <option value="inactive">{t('Inactive')}</option>
             </CFormSelect>
           </CCol>
         )}
@@ -465,7 +468,7 @@ const ProcessesTable = ({
               key={searchResetToken}
               value={search}
               onSearch={onSearchChange}
-              placeholder="Search by name..."
+              placeholder={t('Search by name...')}
             />
           </CCol>
         )}
@@ -492,14 +495,14 @@ const ProcessesTable = ({
                     own Status column already folds the switch's raw on/off
                     into Off/Sleep/Active/Error, making the separate ON/OFF
                     badge redundant there. */}
-                <CTableHeaderCell scope="col">Status</CTableHeaderCell>
-                {showPower && <CTableHeaderCell scope="col">Power</CTableHeaderCell>}
-                <CTableHeaderCell scope="col">Name</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Group</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Type</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Status')}</CTableHeaderCell>
+                {showPower && <CTableHeaderCell scope="col">{t('Power')}</CTableHeaderCell>}
+                <CTableHeaderCell scope="col">{t('Name')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Group')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Type')}</CTableHeaderCell>
                 <CTableHeaderCell scope="col" className="text-end">
                   <div className="d-flex justify-content-end align-items-center gap-2">
-                    <span>Actions</span>
+                    <span>{t('Actions')}</span>
                     <ExpandAllToggleButton
                       ids={expandableIds}
                       expandedIds={expandedIds}

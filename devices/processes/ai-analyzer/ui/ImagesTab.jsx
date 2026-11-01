@@ -11,6 +11,9 @@ import { useServerPaginatedList } from 'src/hooks/useServerPaginatedList'
 import BoxOverlay from './BoxOverlay'
 import { formatFound } from './foundGroups'
 import ResultDetails from './ResultDetails'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('ai-analyzer')
 
 // Images (AGENTS.md section 82): stored images with their results on the
 // generic FileTable - search (result text, found object names), date range,
@@ -51,9 +54,9 @@ const ImagesTab = ({ process, metrics, targets }) => {
 
   const handleDelete = async (entry) => {
     const ok = await confirm({
-      title: 'Delete image',
-      body: 'Delete this image with its analysis result?',
-      confirmLabel: 'Delete',
+      title: tr('Delete image'),
+      body: tr('Delete this image with its analysis result?'),
+      confirmLabel: tr('Delete'),
       confirmColor: 'danger',
     })
     if (!ok) return
@@ -67,7 +70,7 @@ const ImagesTab = ({ process, metrics, targets }) => {
         <TableSearchInput
           value={filters.search}
           onSearch={(search) => set({ search })}
-          placeholder="Search text/objects..."
+          placeholder={tr('Search text/objects...')}
         />
       </CCol>
       <DateRangeFilter
@@ -81,11 +84,11 @@ const ImagesTab = ({ process, metrics, targets }) => {
           size="sm"
           value={filters.found}
           onChange={(e) => set({ found: e.target.value })}
-          aria-label="Found"
+          aria-label={tr('Found')}
         >
-          <option value="">Any result</option>
-          <option value="yes">Targets found</option>
-          <option value="no">No targets</option>
+          <option value="">{tr('Any result')}</option>
+          <option value="yes">{tr('Targets found')}</option>
+          <option value="no">{tr('No targets')}</option>
         </CFormSelect>
       </CCol>
       <CCol xs="auto">
@@ -93,11 +96,11 @@ const ImagesTab = ({ process, metrics, targets }) => {
           size="sm"
           value={filters.status}
           onChange={(e) => set({ status: e.target.value })}
-          aria-label="Status"
+          aria-label={tr('Status')}
         >
-          <option value="">Any status</option>
-          <option value="ok">Analysed</option>
-          <option value="error">Failed</option>
+          <option value="">{tr('Any status')}</option>
+          <option value="ok">{tr('Analysed')}</option>
+          <option value="error">{tr('Failed')}</option>
         </CFormSelect>
       </CCol>
       <CCol xs="auto">
@@ -105,9 +108,9 @@ const ImagesTab = ({ process, metrics, targets }) => {
           size="sm"
           value={filters.targetId}
           onChange={(e) => set({ targetId: e.target.value })}
-          aria-label="Target object"
+          aria-label={tr('Target object')}
         >
-          <option value="">Any object</option>
+          <option value="">{tr('Any object')}</option>
           {targets.map((t) => (
             <option key={t.id} value={t.id}>
               {t.text}
@@ -140,28 +143,28 @@ const ImagesTab = ({ process, metrics, targets }) => {
         columns={[
           {
             key: 'text',
-            label: 'Result',
+            label: tr('Result'),
             render: (entry) =>
               entry.json?.status === 'error' ? (
-                <span className="text-danger">Failed</span>
+                <span className="text-danger">{tr('Failed')}</span>
               ) : (
                 (entry.json?.text ?? <span className="text-body-secondary">-</span>)
               ),
           },
           {
             key: 'found',
-            label: 'Found',
+            label: tr('Found'),
             render: (entry) => formatFound(entry.json?.found),
           },
           {
             key: 'tokens',
-            label: 'Tokens',
+            label: tr('Tokens'),
             render: (entry) => entry.json?.usage?.totalTokens ?? '',
           },
         ]}
         onOpen={setPreviewEntry}
         onDelete={handleDelete}
-        emptyText="No images match"
+        emptyText={tr('No images match')}
       />
       <FilePreviewModal
         entry={previewEntry}

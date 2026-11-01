@@ -5,6 +5,7 @@ import TablePagination from '../../components/table/TablePagination'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
 import { formatSmartDateTime } from '../../utils/format'
 import ProposalCard from '../ai/ProposalCard'
+import { t } from 'src/i18n'
 
 /**
  * Logs -> AI Proposals (Nexus Edge AI Assistant, stage 6 - api
@@ -38,9 +39,9 @@ const AiProposalsTab = () => {
             setStatus(e.target.value)
             setPage(1)
           }}
-          aria-label="Status"
+          aria-label={t('Status')}
         >
-          <option value="">All statuses</option>
+          <option value="">{t('All statuses')}</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
               {s}
@@ -52,15 +53,20 @@ const AiProposalsTab = () => {
         <CSpinner size="sm" />
       ) : items.length === 0 ? (
         <CAlert color="info">
-          No proposal{status ? ` ${status}` : ''} - an agent proposes changes when its Config /
-          Control / Install access isn&apos;t Off (Service -&gt; Config -&gt; AI).
+          {t('No proposal')}
+          {status ? ` ${status}` : ''} - an agent proposes changes when its Config / Control /
+          Install access isn&apos;t Off (Service -&gt; Config -&gt; AI).
         </CAlert>
       ) : (
         items.map((p) => (
           <div key={p.id}>
             <div className="small text-body-secondary">
               {formatSmartDateTime(p.createdAt)} - {p.instanceKey}
-              {p.viaMcp ? ' - MCP' : p.conversationId ? ` - conversation ${p.conversationId}` : ''}
+              {p.viaMcp
+                ? t('- MCP')
+                : p.conversationId
+                  ? t(' - conversation {{conversationId}}', { conversationId: p.conversationId })
+                  : ''}
             </div>
             <ProposalCard proposal={p} onDecided={reload} />
           </div>

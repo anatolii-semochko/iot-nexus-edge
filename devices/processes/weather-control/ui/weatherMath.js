@@ -1,21 +1,23 @@
+// the words are English here (a pure module - also the tests'); marked as keys, translated where shown
+const tKey = (text) => text
 // The weather scene's figures (2026-10-30) - pure, the meteorology's standard formulas and scales.
 
 /** WMO weather interpretation codes (Open-Meteo's `weather_code`) -> words. */
 const WMO = [
-  [[0], 'Clear sky'],
-  [[1], 'Mainly clear'],
-  [[2], 'Partly cloudy'],
-  [[3], 'Overcast'],
-  [[45, 48], 'Fog'],
-  [[51, 53, 55], 'Drizzle'],
-  [[56, 57], 'Freezing drizzle'],
-  [[61, 63, 65], 'Rain'],
-  [[66, 67], 'Freezing rain'],
-  [[71, 73, 75, 77], 'Snow'],
-  [[80, 81, 82], 'Rain showers'],
-  [[85, 86], 'Snow showers'],
-  [[95], 'Thunderstorm'],
-  [[96, 99], 'Thunderstorm with hail'],
+  [[0], tKey('Clear sky')],
+  [[1], tKey('Mainly clear')],
+  [[2], tKey('Partly cloudy')],
+  [[3], tKey('Overcast')],
+  [[45, 48], tKey('Fog')],
+  [[51, 53, 55], tKey('Drizzle')],
+  [[56, 57], tKey('Freezing drizzle')],
+  [[61, 63, 65], tKey('Rain')],
+  [[66, 67], tKey('Freezing rain')],
+  [[71, 73, 75, 77], tKey('Snow')],
+  [[80, 81, 82], tKey('Rain showers')],
+  [[85, 86], tKey('Snow showers')],
+  [[95], tKey('Thunderstorm')],
+  [[96, 99], tKey('Thunderstorm with hail')],
 ]
 export const weatherText = (code) =>
   code == null ? null : (WMO.find(([codes]) => codes.includes(code))?.[1] ?? null)
@@ -43,19 +45,19 @@ export const dewPointC = (tC, rhPct) => {
 
 /** The Beaufort scale - the upper limit of each force, m/s (10 m above the ground). */
 const BEAUFORT = [
-  [0.5, 'Calm'],
-  [1.6, 'Light air'],
-  [3.4, 'Light breeze'],
-  [5.5, 'Gentle breeze'],
-  [8.0, 'Moderate breeze'],
-  [10.8, 'Fresh breeze'],
-  [13.9, 'Strong breeze'],
-  [17.2, 'Near gale'],
-  [20.8, 'Gale'],
-  [24.5, 'Strong gale'],
-  [28.5, 'Storm'],
-  [32.7, 'Violent storm'],
-  [Infinity, 'Hurricane force'],
+  [0.5, tKey('Calm')],
+  [1.6, tKey('Light air')],
+  [3.4, tKey('Light breeze')],
+  [5.5, tKey('Gentle breeze')],
+  [8.0, tKey('Moderate breeze')],
+  [10.8, tKey('Fresh breeze')],
+  [13.9, tKey('Strong breeze')],
+  [17.2, tKey('Near gale')],
+  [20.8, tKey('Gale')],
+  [24.5, tKey('Strong gale')],
+  [28.5, tKey('Storm')],
+  [32.7, tKey('Violent storm')],
+  [Infinity, tKey('Hurricane force')],
 ]
 export const beaufortOf = (ms) => {
   if (ms == null) return null
@@ -102,6 +104,9 @@ export const pressureTrend = (hourly, now) => {
     word: Math.abs(deltaHpa) < STEADY_HPA_3H ? 'steady' : deltaHpa > 0 ? 'rising' : 'falling',
   }
 }
+
+// the trend's words as shown (translated where shown)
+export const TREND_WORDS = [tKey('rising'), tKey('falling'), tKey('steady')]
 
 /** A day's radiation, MJ/m2 -> kWh/m2 (the PV's yardstick). */
 export const kwhM2 = (mj) => (mj == null ? null : mj / 3.6)

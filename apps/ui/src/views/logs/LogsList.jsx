@@ -9,16 +9,17 @@ import CommandLogsTab from './CommandLogsTab'
 import DeviceLogsTab from './DeviceLogsTab'
 import ProcessMessageLogsTab from './ProcessMessageLogsTab'
 import PageTitle from '../../components/PageTitle'
+import { t as tr } from 'src/i18n'
 
 const TAB_DEFS = [
-  { key: 'commands', label: 'Commands' },
-  { key: 'devices', label: 'Devices' },
-  { key: 'processes', label: 'Messages' },
+  { key: 'commands', label: tr('Commands') },
+  { key: 'devices', label: tr('Devices') },
+  { key: 'processes', label: tr('Messages') },
   // the AI Assistant's conversations and its reports to the developers (2026-10-17)
   { key: 'ai', label: 'AI' },
-  { key: 'aiReports', label: 'AI Reports' },
+  { key: 'aiReports', label: tr('AI Reports') },
   // what the agents proposed to change, Accept / Reject (stage 6)
-  { key: 'aiProposals', label: 'AI Proposals' },
+  { key: 'aiProposals', label: tr('AI Proposals') },
 ]
 
 // Registration for usePersistedState (AGENTS_TO_DO.md, 2026-08-01) -
@@ -125,7 +126,7 @@ const LogsList = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <PageTitle title="Logs" />
+        <PageTitle title={tr('Logs')} />
       </CCardHeader>
       <CCardBody>
         <CTabs activeItemKey={activeTab} onChange={setActiveTab}>

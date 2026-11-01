@@ -17,6 +17,7 @@ import { usePersistedState } from '../../hooks/usePersistedState'
 import { api } from '../../api/client'
 import { dashboardComponents, dashboardContent } from '../../dashboardRegistry'
 import { cardIcon } from '../../dashboardIcons'
+import { t } from 'src/i18n'
 
 /**
  * The Dashboard (Dashboard cards, 2026-10-16): the card tree built in
@@ -72,9 +73,11 @@ const resolve = (card, processes) => {
   const def = dashboardComponents[card.componentKey]
   const process = def?.processKind ? (processes.find((p) => p.id === card.processId) ?? null) : null
   const problem = !def
-    ? `The component "${card.componentKey}" is not available (its module is not installed)`
+    ? t('The component "{{componentKey}}" is not available (its module is not installed)', {
+        componentKey: card.componentKey,
+      })
     : def.processKind && !process
-      ? 'Its process has been removed'
+      ? t('Its process has been removed')
       : null
   return { def, process, problem }
 }
@@ -423,7 +426,7 @@ const Level = ({ cards, items, layout, processes }) => {
   if (items.length === 0)
     return (
       <CAlert color="info">
-        Nothing here yet - add cards in Service {'->'} Config {'->'} Dashboard.
+        {t('Nothing here yet - add cards in Service')} {'->'} {t('Config')} {'->'} {t('Dashboard.')}
       </CAlert>
     )
   const top =
@@ -538,10 +541,11 @@ const Dashboard = () => {
     return (
       <CCard className="mb-4">
         <CCardHeader>
-          <strong>Dashboard</strong>
+          <strong>{t('Dashboard')}</strong>
         </CCardHeader>
         <CCardBody>
-          Nothing here yet - add cards in Service {'->'} Config {'->'} Dashboard.
+          {t('Nothing here yet - add cards in Service')} {'->'} {t('Config')} {'->'}{' '}
+          {t('Dashboard.')}
         </CCardBody>
       </CCard>
     )
@@ -553,7 +557,9 @@ const Dashboard = () => {
     return isSwitchLanding(pathname) ? (
       <Navigate to="/dashboard" replace />
     ) : (
-      <CAlert color="warning">This card is not there (removed, or not visible to you).</CAlert>
+      <CAlert color="warning">
+        {t('This card is not there (removed, or not visible to you).')}
+      </CAlert>
     )
   const path = card ? pathTo(cards, card) : []
 
@@ -579,10 +585,10 @@ const Dashboard = () => {
   // the card's `view` - the default; with "Viewer can switch the fit" - the viewer's own choice, kept
   const view = (opened && card.userFit && viewed.fit?.[card.id]) || card?.view
   const fitSwitch = opened && card.userFit && (
-    <div className="btn-group" role="group" aria-label="Fit">
+    <div className="btn-group" role="group" aria-label={t('Fit')}>
       {[
-        ['fit-width', cilResizeWidth, 'Fit the width - laid out in it'],
-        ['fit-height', cilResizeHeight, 'Fit the height - scaled to fit, no scrolling'],
+        ['fit-width', cilResizeWidth, t('Fit the width - laid out in it')],
+        ['fit-height', cilResizeHeight, t('Fit the height - scaled to fit, no scrolling')],
       ].map(([key, icon, hint]) => (
         <CButton
           key={key}
@@ -602,7 +608,7 @@ const Dashboard = () => {
   const breadcrumb = (
     <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
       <CBreadcrumb className="mb-0 fw-semibold">
-        {crumb('root', '/dashboard', 'Dashboard', !card)}
+        {crumb('root', '/dashboard', t('Dashboard'), !card)}
         {path.map((c, i) => crumb(c.id, `/dashboard/${c.id}`, c.title, i === path.length - 1))}
       </CBreadcrumb>
       {fitSwitch}

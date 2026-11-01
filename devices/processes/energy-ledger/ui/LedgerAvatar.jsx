@@ -7,6 +7,9 @@ import {
   PvIcon,
   SCENE_CSS,
 } from '../../energy-field/ui/fieldIcons'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('energy-ledger')
 
 // The Energy Ledger's Dashboard card picture (the user, 2026-10-25 - in the energy and heating
 // avatars' style): what the system saved today and what was paid in total today, the efficiency (the
@@ -14,11 +17,11 @@ import {
 // energy field's colours.
 
 const STRATEGY_NAMES = {
-  cost: 'Least cost',
-  selfSufficiency: 'Self-sufficiency',
-  reserve: 'Reserve',
-  peakShaving: 'Peak shaving',
-  sales: 'Sales',
+  cost: t('Least cost'),
+  selfSufficiency: t('Self-sufficiency'),
+  reserve: t('Reserve'),
+  peakShaving: t('Peak shaving'),
+  sales: t('Sales'),
 }
 const money = (v) =>
   `${v >= 0 ? '+' : '−'}${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
@@ -69,7 +72,14 @@ const StrategyIcon = ({ size = 34 }) => (
 
 const Row = ({ icon, value, sub }) => (
   <div className="d-flex align-items-center" style={{ gap: 6 }}>
-    <div style={{ width: 36, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+    <div
+      style={{
+        width: 36,
+        display: 'flex',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
       {icon}
     </div>
     <div style={{ lineHeight: 1.2, whiteSpace: 'nowrap' }}>
@@ -113,30 +123,30 @@ const LedgerAvatar = ({ process }) => {
             {money(saved)}
           </span>
         }
-        sub="Saved today"
+        sub={t('Saved today')}
       />
       <Row
         icon={<GridIcon height={34} flow={paid > 0 ? 'import' : 'none'} voltage="ok" />}
         value={`${Math.abs(paid).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`}
-        sub={paid >= 0 ? 'Paid total' : 'Earned total'}
+        sub={paid >= 0 ? t('Paid total') : t('Earned total')}
       />
-      <Row icon={<RingIcon value={k.savedPct} />} value={pct(k.savedPct)} sub="Efficiency" />
+      <Row icon={<RingIcon value={k.savedPct} />} value={pct(k.savedPct)} sub={t('Efficiency')} />
       <Row
         icon={<StrategyIcon />}
         value={
           <span style={{ fontSize: '0.9rem' }}>{STRATEGY_NAMES[m.plan?.strategy] ?? '-'}</span>
         }
-        sub="Strategy"
+        sub={t('Strategy')}
       />
       <Row
         icon={<PvIcon height={34} on />}
         value={pct(k.selfSufficiencyPct)}
-        sub="Self-sufficient"
+        sub={t('Self-sufficient')}
       />
       <Row
         icon={<BatteryIcon width={36} level={m.planNow?.socPct ?? null} />}
         value={planSaves === null ? '-' : money(planSaves)}
-        sub="Plan saves"
+        sub={t('Plan saves')}
       />
     </div>
   )

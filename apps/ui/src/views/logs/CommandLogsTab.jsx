@@ -28,6 +28,7 @@ import {
   userTitle,
 } from '../../utils/format'
 import AiButton from '../../components/ai/AiButton'
+import { t } from 'src/i18n'
 
 const ACTIONS = [
   'write',
@@ -61,7 +62,7 @@ const formatValue = (value) => {
 const ActorCell = ({ actorUser }) => {
   if (!actorUser) {
     return (
-      <span title="Unknown user">
+      <span title={t('Unknown user')}>
         <CAvatar color="secondary" textColor="white" size="sm">
           ?
         </CAvatar>
@@ -100,10 +101,12 @@ const ActorCell = ({ actorUser }) => {
  */
 // the record the AI is asked about (its subject's `view`, up to 300 characters)
 const recordView = (item) =>
-  `the command log record: ${new Date(item.created_at).toISOString()}, ${item.actor_user?.username ?? 'orchestrator'}, ${item.action} ${String(formatValue(item.value) ?? '')}`.slice(
-    0,
-    300,
-  )
+  t('the command log record: {{toISOString}}, {{v1}}, {{action}} {{String}}', {
+    toISOString: new Date(item.created_at).toISOString(),
+    v1: item.actor_user?.username ?? 'orchestrator',
+    action: item.action,
+    String: String(formatValue(item.value) ?? ''),
+  }).slice(0, 300)
 
 const CommandLogsTab = ({
   devices,
@@ -153,7 +156,7 @@ const CommandLogsTab = ({
             value={deviceId}
             onChange={(e) => onDeviceIdChange(e.target.value)}
           >
-            <option value="">All devices</option>
+            <option value="">{t('All devices')}</option>
             {devices.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -163,7 +166,7 @@ const CommandLogsTab = ({
         </CCol>
         <CCol xs="auto">
           <CFormSelect size="sm" value={action} onChange={(e) => onActionChange(e.target.value)}>
-            <option value="">All actions</option>
+            <option value="">{t('All actions')}</option>
             {ACTIONS.map((a) => (
               <option key={a} value={a}>
                 {a}
@@ -177,7 +180,7 @@ const CommandLogsTab = ({
             value={actorUserId}
             onChange={(e) => onActorUserIdChange(e.target.value)}
           >
-            <option value="">All users</option>
+            <option value="">{t('All users')}</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.display_name ?? u.username}
@@ -190,12 +193,12 @@ const CommandLogsTab = ({
             key={searchResetToken}
             value={search}
             onSearch={onSearchChange}
-            placeholder="Search by device or process..."
+            placeholder={t('Search by device or process...')}
           />
         </CCol>
         <DateRangeFilter from={from} to={to} onFromChange={onFromChange} onToChange={onToChange} />
         <CCol className="d-flex justify-content-end gap-2">
-          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel="Reload" />
+          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel={t('Reload')} />
           <ResetFiltersButton active={hasActiveFilters} onClick={onResetFilters} />
         </CCol>
       </CRow>
@@ -207,18 +210,18 @@ const CommandLogsTab = ({
           <CSpinner color="primary" />
         </div>
       ) : items.length === 0 ? (
-        <CAlert color="info">No command logs match this filter.</CAlert>
+        <CAlert color="info">{t('No command logs match this filter.')}</CAlert>
       ) : (
         <>
           <CTable responsive>
             <CTableHead>
               <CTableRow>
-                <CTableHeaderCell scope="col">Time</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Target</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Action</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Value</CTableHeaderCell>
-                <CTableHeaderCell scope="col" title="The role the person acted in">
-                  As
+                <CTableHeaderCell scope="col">{t('Time')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Target')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Action')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Value')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col" title={t('The role the person acted in')}>
+                  {t('As')}
                 </CTableHeaderCell>
                 <CTableHeaderCell scope="col" />
               </CTableRow>
@@ -240,7 +243,7 @@ const CommandLogsTab = ({
                       item.process_name ??
                       ((item.device_id ?? item.process_id)
                         ? `#${item.device_id ?? item.process_id}`
-                        : 'System')}
+                        : t('System'))}
                   </CTableDataCell>
                   <CTableDataCell>{item.action}</CTableDataCell>
                   <CTableDataCell>{formatValue(item.value)}</CTableDataCell>
@@ -262,7 +265,7 @@ const CommandLogsTab = ({
                             : { type: 'page', page: 'Logs' }),
                         view: recordView(item),
                       }}
-                      label="this command"
+                      label={t('this command')}
                     />
                   </CTableDataCell>
                 </CTableRow>

@@ -34,6 +34,7 @@ import navigation from '../../_nav'
 import SearchChecklist from '../../components/SearchChecklist'
 import { AiTokensInput, AiTokensMark, parseAiTokens } from './AiTokens'
 import { AvatarRow, RoleAvatar, RoleLevelBadge, UserAvatar } from './Avatars'
+import { t as tr } from 'src/i18n'
 
 /**
  * Users -> Roles (2026-10-27 - roles without groups; api routes/access.ts, access/rights.ts): a role is
@@ -50,32 +51,32 @@ import { AvatarRow, RoleAvatar, RoleLevelBadge, UserAvatar } from './Avatars'
  * the rest). Without users.manage - read only.
  */
 
-const LEVEL_LABELS = { view: 'View', control: 'Control', config: 'Configure' }
+const LEVEL_LABELS = { view: 'View', control: tr('Control'), config: tr('Configure') }
 const LEVEL_HINTS = {
   view: 'See it - its pages, values, state',
-  control: 'Operate it - ON / OFF, setpoints, commands, manual values',
-  config: "An engineer's - its settings, registry, simulation",
+  control: tr('Operate it - ON / OFF, setpoints, commands, manual values'),
+  config: tr("An engineer's - its settings, registry, simulation"),
 }
 // a row's quick choice (a level brings the lower ones)
 const TEMPLATES = [
-  ['', 'Nothing', []],
-  ['viewer', 'Viewer', ['view']],
-  ['operator', 'Operator', ['view', 'control']],
-  ['engineer', 'Engineer', ['view', 'control', 'config']],
+  ['', tr('Nothing'), []],
+  ['viewer', tr('Viewer'), ['view']],
+  ['operator', tr('Operator'), ['view', 'control']],
+  ['engineer', tr('Engineer'), ['view', 'control', 'config']],
 ]
 const ALL = '*'
 
 // the role form's tabs - one part each (2026-10-27: the form was too much at once)
 const FORM_TABS = [
-  ['general', 'General'],
-  ['sections', 'Sections'],
-  ['objects', 'Objects'],
-  ['dashboard', 'Dashboard'],
-  ['pages', 'Pages'],
+  ['general', tr('General')],
+  ['sections', tr('Sections')],
+  ['objects', tr('Objects')],
+  ['dashboard', tr('Dashboard')],
+  ['pages', tr('Pages')],
 ]
 
 // the header's messages (the notification centre) - a "page" of the role's own
-const MESSAGES = { to: '/messages', name: 'Messages in the header' }
+const MESSAGES = { to: '/messages', name: tr('Messages in the header') }
 
 /**
  * The role's pages (2026-10-27): each menu entry and the header's messages - on / off in the role; a page
@@ -112,7 +113,10 @@ const PagesTab = ({ rights, full, pages, onChange, disabled }) => {
     preview.global.includes('*') || preview.global.includes(a)
       ? 'everywhere'
       : preview.scoped[a]
-        ? `on ${preview.scoped[a]} object${preview.scoped[a] === 1 ? '' : 's'}`
+        ? tr('on {{a}} object{{v1}}', {
+            a: preview.scoped[a],
+            v1: preview.scoped[a] === 1 ? '' : 's',
+          })
         : null
   const entries = [...navigation.filter((item) => item.to), MESSAGES]
   const keys = entries.map((e) => pageKey(e.to))
@@ -129,16 +133,16 @@ const PagesTab = ({ rights, full, pages, onChange, disabled }) => {
   return (
     <>
       <div className="small text-body-secondary">
-        The pages the role shows. A page opens when it is on here and the rights (Sections, Objects)
-        let it. An owner, an operator, a visitor work on the Dashboard - their rights let it read
-        the devices, the pages need not show. Only the Dashboard - no menu at all.
+        {tr(
+          'The pages the role shows. A page opens when it is on here and the rights (Sections, Objects) let it. An owner, an operator, a visitor work on the Dashboard - their rights let it read the devices, the pages need not show. Only the Dashboard - no menu at all.',
+        )}
       </div>
       <CTable small className="align-middle mb-0">
         <CTableHead>
           <CTableRow>
-            <CTableHeaderCell>Page</CTableHeaderCell>
-            <CTableHeaderCell className="text-center">Shown</CTableHeaderCell>
-            <CTableHeaderCell>The rights</CTableHeaderCell>
+            <CTableHeaderCell>{tr('Page')}</CTableHeaderCell>
+            <CTableHeaderCell className="text-center">{tr('Shown')}</CTableHeaderCell>
+            <CTableHeaderCell>{tr('The rights')}</CTableHeaderCell>
           </CTableRow>
         </CTableHead>
         <CTableBody>
@@ -153,7 +157,7 @@ const PagesTab = ({ rights, full, pages, onChange, disabled }) => {
                 <CTableDataCell className="text-center">
                   <CFormCheck
                     id={`page-${key}`}
-                    aria-label={`${item.name} shown`}
+                    aria-label={tr('{{name}} shown', { name: item.name })}
                     checked={full || shown(key)}
                     disabled={disabled || full}
                     onChange={() => toggle(key)}
@@ -161,10 +165,18 @@ const PagesTab = ({ rights, full, pages, onChange, disabled }) => {
                 </CTableDataCell>
                 <CTableDataCell className={`small ${ok ? '' : 'text-body-tertiary'}`}>
                   {needs.length === 0
-                    ? 'no right needed'
+                    ? tr('no right needed')
                     : ok
-                      ? `opened by ${giving.map((a) => `${preview.sources[a] ?? a} (${where(a)})`).join('; ')}`
-                      : `closed - needs ${[...new Set(needs.map((a) => preview.sources[a] ?? a))].join(' or ')}`}
+                      ? tr('opened by {{join}}', {
+                          join: giving
+                            .map((a) => `${preview.sources[a] ?? a} (${where(a)})`)
+                            .join('; '),
+                        })
+                      : tr('closed - needs {{join}}', {
+                          join: [...new Set(needs.map((a) => preview.sources[a] ?? a))].join(
+                            ' or ',
+                          ),
+                        })}
                 </CTableDataCell>
               </CTableRow>
             )
@@ -172,8 +184,9 @@ const PagesTab = ({ rights, full, pages, onChange, disabled }) => {
         </CTableBody>
       </CTable>
       <div className="small">
-        The role gets: <strong>{opened.map((e) => e.name).join(', ') || 'nothing'}</strong>
-        {opened.filter((e) => e.to !== MESSAGES.to).length <= 1 && ' - no menu'}
+        {tr('The role gets:')}{' '}
+        <strong>{opened.map((e) => e.name).join(', ') || tr('nothing')}</strong>
+        {opened.filter((e) => e.to !== MESSAGES.to).length <= 1 && tr('- no menu')}
       </div>
     </>
   )
@@ -347,7 +360,8 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
 
   const save = async () => {
     const aiDailyTokens = parseAiTokens(aiTokens)
-    if (aiDailyTokens === undefined) return setError('AI tokens a day: empty, 0 or a whole number')
+    if (aiDailyTokens === undefined)
+      return setError(tr('AI tokens a day: empty, 0 or a whole number'))
     setBusy(true)
     setError(null)
     try {
@@ -383,7 +397,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
   const header = (
     <CTableHead>
       <CTableRow>
-        <CTableHeaderCell>Object</CTableHeaderCell>
+        <CTableHeaderCell>{tr('Object')}</CTableHeaderCell>
         {levels.map((l) => (
           <CTableHeaderCell key={l} className="text-center" title={LEVEL_HINTS[l]}>
             {LEVEL_LABELS[l]}
@@ -411,7 +425,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
         <div className="d-flex gap-1 align-items-center">
           <CFormSelect
             size="sm"
-            aria-label={`${label} - a quick choice`}
+            aria-label={tr('{{label}} - a quick choice', { label })}
             value={templateOf(rights[object] ?? [])}
             disabled={busy}
             onChange={(e) =>
@@ -424,7 +438,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
               </option>
             ))}
             <option value="own" disabled>
-              Own
+              {tr('Own')}
             </option>
           </CFormSelect>
           {removable && (
@@ -432,8 +446,8 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
               size="sm"
               color="danger"
               variant="ghost"
-              title="Remove the row - the object follows Every other object"
-              aria-label={`Remove ${label}`}
+              title={tr('Remove the row - the object follows Every other object')}
+              aria-label={tr('Remove {{label}}', { label })}
               disabled={busy}
               onClick={() => removeRow(object)}
             >
@@ -449,7 +463,11 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
     <CModal visible size="xl" onClose={onClose} backdrop="static">
       <CModalHeader>
         <CModalTitle>
-          {role ? `Role ${role.name}` : copyOf ? `A copy of ${copyOf.name}` : 'New role'}
+          {role
+            ? tr('Role {{name}}', { name: role.name })
+            : copyOf
+              ? tr('A copy of {{name}}', { name: copyOf.name })
+              : tr('New role')}
         </CModalTitle>
       </CModalHeader>
       <CModalBody className="d-flex flex-column gap-3">
@@ -474,7 +492,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
           <>
             <CRow className="g-3">
               <CCol md={4}>
-                <CFormLabel>Name</CFormLabel>
+                <CFormLabel>{tr('Name')}</CFormLabel>
                 <CFormInput
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -482,21 +500,23 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
                 />
               </CCol>
               <CCol md={3}>
-                <CFormLabel>Key</CFormLabel>
+                <CFormLabel>{tr('Key')}</CFormLabel>
                 <CFormInput
                   value={key}
                   onChange={(e) => setKey(e.target.value.toLowerCase())}
                   disabled={busy || Boolean(role)}
-                  placeholder="e.g. energy-operator"
+                  placeholder={tr('e.g. energy-operator')}
                 />
               </CCol>
               <CCol md={2}>
-                <CFormLabel title="A link with ?account=<it> opens the application in this role">
-                  Link name
+                <CFormLabel
+                  title={tr('A link with ?account=<it> opens the application in this role')}
+                >
+                  {tr('Link name')}
                 </CFormLabel>
                 <CFormInput
                   value={linkKey}
-                  placeholder="none"
+                  placeholder={tr('none')}
                   maxLength={40}
                   onChange={(e) => setLinkKey(e.target.value)}
                   disabled={busy}
@@ -514,7 +534,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
               )}
             </CRow>
             <div>
-              <h6>Members</h6>
+              <h6>{tr('Members')}</h6>
               {service ? (
                 <div className="small text-body-secondary">
                   The internal services&apos; accounts - fixed.
@@ -525,7 +545,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
                   items={people.map((u) => ({
                     key: u.id,
                     label: personName(u),
-                    detail: u.guest ? 'the guest' : u.username,
+                    detail: u.guest ? tr('the guest') : u.username,
                   }))}
                   selected={memberIds}
                   onToggle={(id) =>
@@ -541,7 +561,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
         )}
         {(tab === 'sections' || tab === 'objects') && full && (
           <CAlert color="info" className="mb-0">
-            This role always holds everything.
+            {tr('This role always holds everything.')}
           </CAlert>
         )}
         {tab === 'sections' && !full && (
@@ -581,14 +601,14 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
             </div>
             <div className="d-flex gap-2 align-items-center mb-1">
               <span className="small text-body-secondary">
-                The objects - every other one, and those with rights of their own (
+                {tr('The objects - every other one, and those with rights of their own (')}
                 {objectRows.length})
               </span>
               <CFormInput
                 size="sm"
                 type="search"
-                placeholder="Search"
-                aria-label="Search the objects' rows"
+                placeholder={tr('Search')}
+                aria-label={tr("Search the objects' rows")}
                 value={rowQuery}
                 onChange={(e) => setRowQuery(e.target.value)}
                 style={{ maxWidth: '14rem' }}
@@ -600,8 +620,8 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
               <CTableBody>
                 {objectRow(
                   ALL,
-                  'Every other object',
-                  'the objects with no row of their own',
+                  tr('Every other object'),
+                  tr('the objects with no row of their own'),
                   false,
                 )}
                 {objectRows
@@ -617,7 +637,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
               <>
                 <SearchChecklist
                   id="role-add-objects"
-                  label="Add objects with rights of their own"
+                  label={tr('Add objects with rights of their own')}
                   items={objectTree(objectsInfo.objects)
                     .filter((o) => !(o.key in rights))
                     .map((o) => ({ key: o.key, label: o.name, detail: o.detail, depth: o.depth }))}
@@ -627,7 +647,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
                   }
                   disabled={busy}
                   maxHeight="10rem"
-                  empty="Every object has a row."
+                  empty={tr('Every object has a row.')}
                 />
                 <CButton
                   size="sm"
@@ -644,7 +664,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
                   }}
                 >
                   <CIcon icon={cilPlus} className="me-1" />
-                  Add {adding.length || ''} as rows (starting as Every other object)
+                  {tr('Add')} {adding.length || ''} {tr('as rows (starting as Every other object)')}
                 </CButton>
               </>
             )}
@@ -654,11 +674,11 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
           <div>
             {!dashboardView ? (
               <div className="small text-body-secondary">
-                No Dashboard - its row above has no View.
+                {tr('No Dashboard - its row above has no View.')}
               </div>
             ) : dashboardArranges ? (
               <div className="small text-body-secondary">
-                Configure on the Dashboard - sees and arranges every card.
+                {tr('Configure on the Dashboard - sees and arranges every card.')}
               </div>
             ) : (
               <>
@@ -666,7 +686,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
                   <CFormCheck
                     type="radio"
                     id="role-dash-all"
-                    label="Every card of its objects"
+                    label={tr('Every card of its objects')}
                     checked={dashboard === null}
                     disabled={busy}
                     onChange={() => setDashboard(null)}
@@ -674,7 +694,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
                   <CFormCheck
                     type="radio"
                     id="role-dash-some"
-                    label="The cards chosen"
+                    label={tr('The cards chosen')}
                     checked={dashboard !== null}
                     disabled={busy}
                     onChange={() =>
@@ -686,7 +706,7 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
                   {dashboard !== null && (
                     <CFormSwitch
                       id="role-dash-every"
-                      label="Show the cards of other objects too"
+                      label={tr('Show the cards of other objects too')}
                       checked={allCards}
                       onChange={(e) => setAllCards(e.target.checked)}
                       className="ms-auto mb-0 small"
@@ -707,12 +727,13 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
                     selected={dashboard}
                     onToggle={toggleCard}
                     disabled={busy}
-                    empty="The role sees no object with cards."
+                    empty={tr('The role sees no object with cards.')}
                   />
                 )}
                 <div className="form-text">
-                  A card shows only where the role sees its object; a folder - with something
-                  inside.
+                  {tr(
+                    'A card shows only where the role sees its object; a folder - with something inside.',
+                  )}
                 </div>
               </>
             )}
@@ -726,13 +747,13 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
         <div>
           {role && !role.system && !readOnly && (
             <CButton color="danger" variant="outline" disabled={busy} onClick={remove}>
-              Delete
+              {tr('Delete')}
             </CButton>
           )}
         </div>
         <div className="d-flex gap-2">
           <CButton color="secondary" variant="outline" onClick={onClose} disabled={saving}>
-            {readOnly ? 'Close' : 'Cancel'}
+            {readOnly ? tr('Close') : tr('Cancel')}
           </CButton>
           {!readOnly && (
             <CButton
@@ -740,7 +761,8 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
               onClick={save}
               disabled={busy || !name.trim() || (!role && !key)}
             >
-              {saving && <CSpinner size="sm" className="me-1" />}Save
+              {saving && <CSpinner size="sm" className="me-1" />}
+              {tr('Save')}
             </CButton>
           )}
         </div>
@@ -754,9 +776,9 @@ const RoleForm = ({ role, copyOf, objectsInfo, users, cards, readOnly, onClose, 
  * objects' names in `title` (a role may name many objects).
  */
 const rightsSummary = (role, objectName) => {
-  if (role.full) return { text: 'Everything', title: '' }
+  if (role.full) return { text: tr('Everything'), title: '' }
   const rows = Object.entries(role.rights ?? {}).filter(([k]) => !k.startsWith('section:'))
-  const top = (v) => (v.length ? LEVEL_LABELS[v[v.length - 1]] : 'Nothing')
+  const top = (v) => (v.length ? LEVEL_LABELS[v[v.length - 1]] : tr('Nothing'))
   const all = rows.find(([k]) => k === ALL)
   const byLevel = new Map()
   for (const [k, v] of rows) {
@@ -765,13 +787,15 @@ const rightsSummary = (role, objectName) => {
     byLevel.set(l, [...(byLevel.get(l) ?? []), objectName.get(k)?.name ?? k])
   }
   const parts = [
-    ...(all ? [`Every other: ${top(all[1])}`] : []),
+    ...(all ? [tr('Every other: {{top}}', { top: top(all[1]) })] : []),
     ...[...byLevel].map(([l, names]) =>
-      names.length > 3 ? `${l} - ${names.length} objects` : `${l}: ${names.join(', ')}`,
+      names.length > 3
+        ? tr('{{l}} - {{length}} objects', { l, length: names.length })
+        : `${l}: ${names.join(', ')}`,
     ),
   ]
   return {
-    text: parts.join('; ') || 'No objects',
+    text: parts.join('; ') || tr('No objects'),
     title: [...byLevel].map(([l, names]) => `${l}: ${names.join(', ')}`).join('\n'),
   }
 }
@@ -812,25 +836,25 @@ const RolesTab = ({ roles, users, onChanged }) => {
         <CFormInput
           size="sm"
           type="search"
-          placeholder="Search roles"
-          aria-label="Search roles"
+          placeholder={tr('Search roles')}
+          aria-label={tr('Search roles')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{ maxWidth: '16rem' }}
         />
         {!readOnly && (
           <CButton size="sm" color="primary" className="ms-auto" onClick={() => setEditing({})}>
-            Add role
+            {tr('Add role')}
           </CButton>
         )}
       </div>
       <CTable small hover responsive className="align-middle">
         <CTableHead>
           <CTableRow>
-            <CTableHeaderCell>Role</CTableHeaderCell>
-            <CTableHeaderCell>Rights</CTableHeaderCell>
-            <CTableHeaderCell>Members</CTableHeaderCell>
-            <CTableHeaderCell title="The AI's tokens a day">AI</CTableHeaderCell>
+            <CTableHeaderCell>{tr('Role')}</CTableHeaderCell>
+            <CTableHeaderCell>{tr('Rights')}</CTableHeaderCell>
+            <CTableHeaderCell>{tr('Members')}</CTableHeaderCell>
+            <CTableHeaderCell title={tr("The AI's tokens a day")}>AI</CTableHeaderCell>
             <CTableHeaderCell />
           </CTableRow>
         </CTableHead>
@@ -844,7 +868,7 @@ const RolesTab = ({ roles, users, onChanged }) => {
                     <span className="fw-semibold">{r.name}</span>
                     {r.system && (
                       <CBadge color="light" textColor="dark" className="border ms-2">
-                        built-in
+                        {tr('built-in')}
                       </CBadge>
                     )}
                   </div>
@@ -872,10 +896,10 @@ const RolesTab = ({ roles, users, onChanged }) => {
                     color="secondary"
                     variant="ghost"
                     className="me-1"
-                    title="A new role from this one"
+                    title={tr('A new role from this one')}
                     onClick={() => setEditing({ copyOf: r })}
                   >
-                    Copy
+                    {tr('Copy')}
                   </CButton>
                 )}
                 <CButton
@@ -884,7 +908,7 @@ const RolesTab = ({ roles, users, onChanged }) => {
                   variant="outline"
                   onClick={() => setEditing({ role: r })}
                 >
-                  {readOnly ? 'View' : 'Edit'}
+                  {readOnly ? tr('View') : tr('Edit')}
                 </CButton>
               </CTableDataCell>
             </CTableRow>

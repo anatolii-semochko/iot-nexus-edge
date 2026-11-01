@@ -12,6 +12,9 @@ import { useCan } from 'src/access'
 import { useNow } from 'src/hooks/useNow'
 import { api, request } from 'src/api/client'
 import { useProcessLiveState } from 'src/api/useLiveProcess'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('energy-ledger')
 
 // The Energy Ledger's plan (L2; the reviewed mockup's "Plan"): what it
 // saves to the horizon's end against the same day without the batteries;
@@ -21,20 +24,36 @@ import { useProcessLiveState } from 'src/api/useLiveProcess'
 
 const RELOAD_MS = 5 * 60_000
 const W = 900
-const BANDS = { price: [8, 78], power: [96, 236], soc: [254, 314], heat: [322, 330] }
+const BANDS = {
+  price: [8, 78],
+  power: [96, 236],
+  soc: [254, 314],
+  heat: [322, 330],
+}
 const H = 352
 const LEFT = 44
 const RIGHT = 12
 
 const hhmm = (t) =>
-  new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  new Date(t).toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 const dayHhmm = (t) =>
-  new Date(t).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+  new Date(t).toLocaleString(undefined, {
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 const eur = (v) =>
   v === null || v === undefined
     ? '-'
     : `${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-const ACTIONS = { charge: 'Charge', discharge: 'Discharge', hold: 'Hold' }
+const ACTIONS = {
+  charge: tr('Charge'),
+  discharge: tr('Discharge'),
+  hold: tr('Hold'),
+}
 
 const PlanChart = ({ slots }) => {
   const now = useNow(60_000)
@@ -77,7 +96,7 @@ const PlanChart = ({ slots }) => {
       viewBox={`0 0 ${W} ${H}`}
       width="100%"
       role="img"
-      aria-label="The plan: prices, forecast, batteries, state of charge"
+      aria-label={tr('The plan: prices, forecast, batteries, state of charge')}
     >
       {hours
         .filter((t) => new Date(t).getHours() % 6 === 0)
@@ -93,7 +112,9 @@ const PlanChart = ({ slots }) => {
             />
             <text x={x(t) + 2} y={H - 8} fontSize="11" fill="var(--cui-secondary-color)">
               {new Date(t).getHours() === 0
-                ? new Date(t).toLocaleDateString(undefined, { weekday: 'short' })
+                ? new Date(t).toLocaleDateString(undefined, {
+                    weekday: 'short',
+                  })
                 : hhmm(t)}
             </text>
           </g>
@@ -109,7 +130,12 @@ const PlanChart = ({ slots }) => {
           stroke="rgba(217,59,59,0.5)"
           strokeDasharray="3 3"
         >
-          <title>{`Grid outage ${hhmm(r.t)}-${hhmm(r.end)} (a day note): no import, no export - the batteries charged ahead carry the site`}</title>
+          <title>
+            {tr(
+              'Grid outage {{hhmm}}-{{hhmm2}} (a day note): no import, no export - the batteries charged ahead carry the site',
+              { hhmm: hhmm(r.t), hhmm2: hhmm(r.end) },
+            )}
+          </title>
         </rect>
       ))}
       {reduced.map((r) => (
@@ -121,16 +147,25 @@ const PlanChart = ({ slots }) => {
           height={BANDS.power[1] - BANDS.power[0]}
           fill="rgba(242,183,5,0.14)"
         >
-          <title>{`Maintenance ${hhmm(r.t)}-${hhmm(r.end)} (a day note): the batteries' power at ${Math.round(r.v * 100)} %`}</title>
+          <title>
+            {tr(
+              "Maintenance {{hhmm}}-{{hhmm2}} (a day note): the batteries' power at {{round}} %",
+              {
+                hhmm: hhmm(r.t),
+                hhmm2: hhmm(r.end),
+                round: Math.round(r.v * 100),
+              },
+            )}
+          </title>
         </rect>
       ))}
       {outages.map((r) => (
         <text key={`ot${r.t}`} x={x(r.t) + 3} y={BANDS.price[0] + 22} fontSize="10" fill="#d93b3b">
-          outage
+          {tr('outage')}
         </text>
       ))}
       <text x="2" y={BANDS.price[0] + 10} fontSize="11" fill="var(--cui-secondary-color)">
-        ct
+        {tr('ct')}
       </text>
       <polyline
         points={step('buyCtKwh', BANDS.price, pLo, pHi)}
@@ -138,7 +173,7 @@ const PlanChart = ({ slots }) => {
         stroke="#d93b3b"
         strokeWidth="1.8"
       >
-        <title>The purchase price, ct/kWh</title>
+        <title>{tr('The purchase price, ct/kWh')}</title>
       </polyline>
       <polyline
         points={step('sellCtKwh', BANDS.price, pLo, pHi)}
@@ -147,7 +182,7 @@ const PlanChart = ({ slots }) => {
         strokeWidth="1.4"
         strokeDasharray="4 3"
       >
-        <title>The sale price, ct/kWh</title>
+        <title>{tr('The sale price, ct/kWh')}</title>
       </polyline>
       <text
         x={LEFT - 4}
@@ -169,7 +204,7 @@ const PlanChart = ({ slots }) => {
         stroke="#1f9d63"
         strokeWidth="1"
       >
-        <title>The forecast generation - PV and wind, kW</title>
+        <title>{tr('The forecast generation - PV and wind, kW')}</title>
       </polygon>
       <polyline
         points={step('loadKw', BANDS.power, kwLo, kwHi)}
@@ -177,7 +212,7 @@ const PlanChart = ({ slots }) => {
         stroke="#e8760a"
         strokeWidth="1.8"
       >
-        <title>The forecast consumption (the heating included), kW</title>
+        <title>{tr('The forecast consumption (the heating included), kW')}</title>
       </polyline>
       {slots.map((s) =>
         Math.abs(s.batteryKw) > 0.5 ? (
@@ -190,7 +225,14 @@ const PlanChart = ({ slots }) => {
             fill={s.batteryKw < 0 ? '#0f9a96' : '#7a5af8'}
             opacity="0.75"
           >
-            <title>{`${hhmm(s.t)}: ${s.batteryKw < 0 ? 'charge' : 'discharge'} ${Math.abs(s.batteryKw).toFixed(1)} kW at ${s.buyCtKwh.toFixed(1)} ct/kWh`}</title>
+            <title>
+              {tr('{{hhmm}}: {{v1}} {{toFixed}} kW at {{toFixed2}} ct/kWh', {
+                hhmm: hhmm(s.t),
+                v1: s.batteryKw < 0 ? 'charge' : 'discharge',
+                toFixed: Math.abs(s.batteryKw).toFixed(1),
+                toFixed2: s.buyCtKwh.toFixed(1),
+              })}
+            </title>
           </rect>
         ) : null,
       )}
@@ -215,7 +257,7 @@ const PlanChart = ({ slots }) => {
         stroke="#0f9a96"
         strokeWidth="2"
       >
-        <title>The batteries' planned state of charge, %</title>
+        <title>{tr("The batteries' planned state of charge, %")}</title>
       </polyline>
       <text
         x={LEFT - 4}
@@ -236,7 +278,7 @@ const PlanChart = ({ slots }) => {
         0
       </text>
       <text x="2" y={BANDS.heat[1]} fontSize="10" fill="var(--cui-secondary-color)">
-        heat
+        {tr('heat')}
       </text>
       {slots.map((s) =>
         s.heatingSignal && s.heatingSignal !== 2 ? (
@@ -248,7 +290,15 @@ const PlanChart = ({ slots }) => {
             height={BANDS.heat[1] - BANDS.heat[0]}
             fill={s.heatingSignal === 3 ? '#e5534b' : '#8a96a8'}
           >
-            <title>{`${hhmm(s.t)}: heating - ${s.heatingSignal === 3 ? 'store heat now (cheap / sunny)' : 'hold off (dear - the tanks carry it)'}`}</title>
+            <title>
+              {tr('{{hhmm}}: heating - {{v1}}', {
+                hhmm: hhmm(s.t),
+                v1:
+                  s.heatingSignal === 3
+                    ? 'store heat now (cheap / sunny)'
+                    : 'hold off (dear - the tanks carry it)',
+              })}
+            </title>
           </rect>
         ) : null,
       )}
@@ -261,7 +311,7 @@ const PlanChart = ({ slots }) => {
           stroke="var(--cui-danger)"
           strokeWidth="1.5"
         >
-          <title>Now</title>
+          <title>{tr('Now')}</title>
         </line>
       )}
     </svg>
@@ -270,19 +320,22 @@ const PlanChart = ({ slots }) => {
 
 const STRATEGY_NAMES = {
   cost: [
-    'Least cost',
-    'The batteries charge when energy is cheap or free and give it back when it is dear',
+    tr('Least cost'),
+    tr('The batteries charge when energy is cheap or free and give it back when it is dear'),
   ],
   selfSufficiency: [
-    'Self-sufficiency',
-    'As little from the grid as possible - no charging from the grid',
+    tr('Self-sufficiency'),
+    tr('As little from the grid as possible - no charging from the grid'),
   ],
-  reserve: ['Reserve', 'The batteries kept high - ready for an outage (e.g. before a storm)'],
+  reserve: [
+    tr('Reserve'),
+    tr('The batteries kept high - ready for an outage (e.g. before a storm)'),
+  ],
   peakShaving: [
-    'Peak shaving',
-    "The import under the peak limit - a business's capacity charge (Leistungspreis)",
+    tr('Peak shaving'),
+    tr("The import under the peak limit - a business's capacity charge (Leistungspreis)"),
   ],
-  sales: ['Sales', 'The stored energy sold only above the price threshold'],
+  sales: [tr('Sales'), tr('The stored energy sold only above the price threshold')],
 }
 
 /** The strategies for the same hours: each one's forecast money and energy; the chosen one; the selection. */
@@ -299,31 +352,35 @@ const Strategies = ({ process, plan, live }) => {
   const best = Math.min(...results.map((r) => r.eur))
   const selection = live?.plan?.selection ?? 'fixed'
   const choices = [
-    ['fixed', 'Fixed', 'The plan keeps the chosen strategy'],
+    ['fixed', tr('Fixed'), tr('The plan keeps the chosen strategy')],
     [
       'propose',
-      'Proposed',
-      "On new day-ahead prices a cheaper strategy is proposed - applied at once or waiting for your Accept, by the ledger's AI permission (its Config level: Auto / Confirm / Off)",
+      tr('Proposed'),
+      tr(
+        "On new day-ahead prices a cheaper strategy is proposed - applied at once or waiting for your Accept, by the ledger's AI permission (its Config level: Auto / Confirm / Off)",
+      ),
     ],
     [
       'analog',
-      'Similar days',
-      "Each morning (and when the day's notes change) the ledger itself takes the strategy that was best on the most similar recorded days - the weather, the prices, the day's type, the season; no AI needed",
+      tr('Similar days'),
+      tr(
+        "Each morning (and when the day's notes change) the ledger itself takes the strategy that was best on the most similar recorded days - the weather, the prices, the day's type, the season; no AI needed",
+      ),
     ],
   ]
   return (
-    <section aria-label="Strategies">
+    <section aria-label={tr('Strategies')}>
       <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-        <b>Strategies - the same hours ahead</b>
+        <b>{tr('Strategies - the same hours ahead')}</b>
         <div className="d-flex align-items-center gap-2 small">
-          <span className="text-body-secondary">Choice:</span>
+          <span className="text-body-secondary">{tr('Choice:')}</span>
           {choices.map(([key, label, hint]) => (
             <button
               key={key}
               type="button"
               className={`btn btn-sm ${selection === key ? 'btn-secondary' : 'btn-outline-secondary'}`}
               disabled={!control}
-              title={control ? hint : `${hint} - you may only watch`}
+              title={control ? hint : tr('{{hint}} - you may only watch', { hint })}
               onClick={() => send('setSelection', { selection: key })}
             >
               {label}
@@ -333,7 +390,10 @@ const Strategies = ({ process, plan, live }) => {
       </div>
       <div
         className="d-grid"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10 }}
+        style={{
+          gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+          gap: 10,
+        }}
       >
         {results.map((r) => {
           const [name, text] = STRATEGY_NAMES[r.key] ?? [r.key, '']
@@ -344,7 +404,9 @@ const Strategies = ({ process, plan, live }) => {
               type="button"
               disabled={!control || on}
               aria-pressed={on}
-              title={control ? `${text}${on ? ' - the plan follows it' : ' - follow it'}` : text}
+              title={
+                control ? `${text}${on ? tr('- the plan follows it') : tr('- follow it')}` : text
+              }
               onClick={() => send('setStrategy', { key: r.key })}
               className="text-start border rounded p-2"
               style={{
@@ -357,15 +419,16 @@ const Strategies = ({ process, plan, live }) => {
             >
               <div className="d-flex justify-content-between align-items-center gap-1">
                 <b>{name}</b>
-                {r.eur === best && <span className="badge bg-success">best</span>}
+                {r.eur === best && <span className="badge bg-success">{tr('best')}</span>}
               </div>
               <div className="fs-5 fw-semibold">{eur(r.eur)}</div>
               <div className="small text-body-secondary">
-                import {Math.round(r.importKwh)} kWh · peak {Math.round(r.peakKw)} kW
+                {tr('import')} {Math.round(r.importKwh)} {tr('kWh · peak')} {Math.round(r.peakKw)}{' '}
+                kW
                 <br />
-                self-sufficiency{' '}
-                {r.selfSufficiencyPct === null ? '-' : Math.round(r.selfSufficiencyPct)} % · min{' '}
-                {r.minSocPct} %
+                {tr('self-sufficiency')}{' '}
+                {r.selfSufficiencyPct === null ? '-' : Math.round(r.selfSufficiencyPct)}{' '}
+                {tr('% · min')} {r.minSocPct} %
               </div>
             </button>
           )
@@ -392,35 +455,40 @@ const SimilarDays = ({ analogs, selection }) => {
   return (
     <div className="mt-3">
       <div className="small">
-        <b>Today by the similar days:</b>{' '}
+        <b>{tr('Today by the similar days:')}</b>{' '}
         {choice.strategy ? (
           choice.reason
         ) : (
-          <span className="text-body-secondary">{choice.reason} - the strategy is kept</span>
+          <span className="text-body-secondary">
+            {choice.reason} {tr('- the strategy is kept')}
+          </span>
         )}
       </div>
       <div className="small text-body-secondary">
         Today&apos;s forecast: sun {target.sunKwhM2 === null ? '-' : target.sunKwhM2.toFixed(1)}{' '}
-        kWh/m², wind {target.windAvgMs === null ? '-' : target.windAvgMs.toFixed(1)} m/s,{' '}
-        {target.tempMeanC === null ? '-' : Math.round(target.tempMeanC)} °C, prices{' '}
-        {target.priceAvgCt === null ? '-' : target.priceAvgCt.toFixed(1)} ct/kWh,{' '}
-        {target.working ? 'a working day' : 'a day off'}
+        {tr('kWh/m², wind')} {target.windAvgMs === null ? '-' : target.windAvgMs.toFixed(1)}{' '}
+        {tr('m/s,')} {target.tempMeanC === null ? '-' : Math.round(target.tempMeanC)}{' '}
+        {tr('°C, prices')} {target.priceAvgCt === null ? '-' : target.priceAvgCt.toFixed(1)}{' '}
+        {tr('ct/kWh,')} {target.working ? tr('a working day') : tr('a day off')}
       </div>
       {days.length > 0 && (
         <table className="table table-sm small mt-1 mb-0">
           <thead>
             <tr>
-              <th>Day</th>
-              <th className="text-end" title="How unlike today (0 - the same)">
-                Distance
+              <th>{tr('Day')}</th>
+              <th className="text-end" title={tr('How unlike today (0 - the same)')}>
+                {tr('Distance')}
               </th>
-              <th className="text-end" title="The saving against without the system">
-                Saved
+              <th className="text-end" title={tr('The saving against without the system')}>
+                {tr('Saved')}
               </th>
-              <th className="text-end" title="What the day could still have saved (its review)">
-                Left
+              <th
+                className="text-end"
+                title={tr('What the day could still have saved (its review)')}
+              >
+                {tr('Left')}
               </th>
-              <th>Best in hindsight</th>
+              <th>{tr('Best in hindsight')}</th>
             </tr>
           </thead>
           <tbody>
@@ -442,7 +510,7 @@ const SimilarDays = ({ analogs, selection }) => {
   )
 }
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const WEEKDAYS = [tr('Sun'), tr('Mon'), tr('Tue'), tr('Wed'), tr('Thu'), tr('Fri'), tr('Sat')]
 
 /** What the ledger learnt (L4): the forecast's accuracy today, the corrections the plan uses. */
 const Learnt = ({ learning }) => {
@@ -463,31 +531,46 @@ const Learnt = ({ learning }) => {
     .sort((x, y) => Math.abs(y.kw) - Math.abs(x.kw))
     .slice(0, 4)
   return (
-    <section className="border rounded p-3" aria-label="What the ledger learnt">
-      <b>What the ledger learnt</b>
+    <section className="border rounded p-3" aria-label={tr('What the ledger learnt')}>
+      <b>{tr('What the ledger learnt')}</b>
       <div
         className="d-grid mt-2"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}
+        style={{
+          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+          gap: 12,
+        }}
       >
-        <div title="How well today's forecast met what happened: generation / consumption (1 - the error over the actual energy)">
-          <div className="small text-body-secondary">Forecast accuracy today</div>
+        <div
+          title={tr(
+            "How well today's forecast met what happened: generation / consumption (1 - the error over the actual energy)",
+          )}
+        >
+          <div className="small text-body-secondary">{tr('Forecast accuracy today')}</div>
           <div className="fw-semibold">
             {pct(a.generationPct)} / {pct(a.consumptionPct)}
           </div>
           <div className="small text-body-secondary">
-            {learning.samplesToday} quarter-hours so far
+            {learning.samplesToday} {tr('quarter-hours so far')}
           </div>
         </div>
-        <div title="The PV forecast corrected by what the panels really gave this month (the shading, the soiling, the forecast's bias)">
-          <div className="small text-body-secondary">PV correction (this month)</div>
+        <div
+          title={tr(
+            "The PV forecast corrected by what the panels really gave this month (the shading, the soiling, the forecast's bias)",
+          )}
+        >
+          <div className="small text-body-secondary">{tr('PV correction (this month)')}</div>
           <div className="fw-semibold">{factor(c?.pvFactor)}</div>
         </div>
-        <div title="The wind forecast corrected by what the turbines really gave">
-          <div className="small text-body-secondary">Wind correction</div>
+        <div title={tr('The wind forecast corrected by what the turbines really gave')}>
+          <div className="small text-body-secondary">{tr('Wind correction')}</div>
           <div className="fw-semibold">{factor(c?.windFactor)}</div>
         </div>
-        <div title="The consumption forecast corrected by weekday and hour - the largest corrections">
-          <div className="small text-body-secondary">Consumption corrections</div>
+        <div
+          title={tr(
+            'The consumption forecast corrected by weekday and hour - the largest corrections',
+          )}
+        >
+          <div className="small text-body-secondary">{tr('Consumption corrections')}</div>
           <div className="small">
             {load.length
               ? load.map((x) => (
@@ -496,10 +579,10 @@ const Learnt = ({ learning }) => {
                     {Math.abs(x.kw).toFixed(1)} kW
                   </div>
                 ))
-              : 'none yet'}
+              : tr('none yet')}
           </div>
           <div className="small text-body-secondary">
-            from {c?.samples ?? 0} quarter-hours (4 weeks)
+            {tr('from')} {c?.samples ?? 0} {tr('quarter-hours (4 weeks)')}
           </div>
         </div>
       </div>
@@ -529,7 +612,7 @@ const PlanView = ({ process }) => {
   if (!plan?.slots?.length)
     return (
       <div className="text-body-secondary small">
-        No plan yet - it is made from the next run on.
+        {tr('No plan yet - it is made from the next run on.')}
       </div>
     )
   const sum = (k) => plan.slots.reduce((a, s) => a + (s[k] ?? 0), 0)
@@ -537,10 +620,10 @@ const PlanView = ({ process }) => {
   const end = plan.slots[plan.slots.length - 1].end
   return (
     <div className="d-flex flex-column gap-3">
-      <section className="border rounded p-3" aria-label="The plan">
+      <section className="border rounded p-3" aria-label={tr('The plan')}>
         <div className="d-flex align-items-end gap-4 flex-wrap mb-2">
-          <div title="The plan's money against the same hours without the batteries">
-            <div className="small text-body-secondary">The batteries' plan saves</div>
+          <div title={tr("The plan's money against the same hours without the batteries")}>
+            <div className="small text-body-secondary">{tr("The batteries' plan saves")}</div>
             <div
               className="text-success"
               style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}
@@ -549,16 +632,16 @@ const PlanView = ({ process }) => {
             </div>
           </div>
           <div className="small text-body-secondary">
-            until <b className="text-body">{dayHhmm(end)}</b>
+            {tr('until')} <b className="text-body">{dayHhmm(end)}</b>
             <br />
-            planned <b className="text-body">{eur(sum('costEur'))}</b> · without the batteries{' '}
-            <b className="text-body">{eur(sum('baselineEur'))}</b>
+            {tr('planned')} <b className="text-body">{eur(sum('costEur'))}</b>{' '}
+            {tr('· without the batteries')} <b className="text-body">{eur(sum('baselineEur'))}</b>
           </div>
           <div
             className="ms-auto small text-body-secondary text-end"
-            title="When and why the plan was made last"
+            title={tr('When and why the plan was made last')}
           >
-            made {dayHhmm(plan.madeAt)}
+            {tr('made')} {dayHhmm(plan.madeAt)}
             <br />
             {plan.reason}
           </div>
@@ -566,29 +649,29 @@ const PlanView = ({ process }) => {
         <PlanChart slots={plan.slots} />
         <div className="d-flex gap-3 flex-wrap small text-body-secondary">
           <span>
-            <span style={{ color: '#d93b3b' }}>━</span> buy
+            <span style={{ color: '#d93b3b' }}>━</span> {tr('buy')}
           </span>
           <span>
-            <span style={{ color: '#1d6fd8' }}>┅</span> sell
+            <span style={{ color: '#1d6fd8' }}>┅</span> {tr('sell')}
           </span>
           <span>
-            <span style={{ color: '#1f9d63' }}>■</span> generation
+            <span style={{ color: '#1f9d63' }}>■</span> {tr('generation')}
           </span>
           <span>
-            <span style={{ color: '#e8760a' }}>━</span> consumption
+            <span style={{ color: '#e8760a' }}>━</span> {tr('consumption')}
           </span>
           <span>
-            <span style={{ color: '#0f9a96' }}>■</span> charge
+            <span style={{ color: '#0f9a96' }}>■</span> {tr('charge')}
           </span>
           <span>
-            <span style={{ color: '#7a5af8' }}>■</span> discharge
+            <span style={{ color: '#7a5af8' }}>■</span> {tr('discharge')}
           </span>
           <span>
-            <span style={{ color: '#0f9a96' }}>━</span> state of charge
+            <span style={{ color: '#0f9a96' }}>━</span> {tr('state of charge')}
           </span>
-          <span title="The SG-Ready signal to the heat pumps">
-            <span style={{ color: '#e5534b' }}>■</span> heat: store /{' '}
-            <span style={{ color: '#8a96a8' }}>■</span> hold off
+          <span title={tr('The SG-Ready signal to the heat pumps')}>
+            <span style={{ color: '#e5534b' }}>■</span> {tr('heat: store /')}{' '}
+            <span style={{ color: '#8a96a8' }}>■</span> {tr('hold off')}
           </span>
         </div>
       </section>
@@ -598,19 +681,21 @@ const PlanView = ({ process }) => {
         <CTable small className="mb-0">
           <CTableHead>
             <CTableRow>
-              <CTableHeaderCell>When</CTableHeaderCell>
-              <CTableHeaderCell>Batteries</CTableHeaderCell>
+              <CTableHeaderCell>{tr('When')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Batteries')}</CTableHeaderCell>
               <CTableHeaderCell
                 className="text-end"
-                title="The average purchase price in those hours"
+                title={tr('The average purchase price in those hours')}
               >
-                Price
+                {tr('Price')}
               </CTableHeaderCell>
               <CTableHeaderCell
                 className="text-end"
-                title="What this step saves against no batteries (a charge costs now, its discharge saves later)"
+                title={tr(
+                  'What this step saves against no batteries (a charge costs now, its discharge saves later)',
+                )}
               >
-                Effect
+                {tr('Effect')}
               </CTableHeaderCell>
             </CTableRow>
           </CTableHead>
@@ -624,7 +709,9 @@ const PlanView = ({ process }) => {
                   {ACTIONS[s.action]}
                   {s.action !== 'hold' ? ` ${Math.abs(s.avgKw).toFixed(0)} kW` : ''}
                 </CTableDataCell>
-                <CTableDataCell className="text-end">{s.avgBuyCtKwh.toFixed(1)} ct</CTableDataCell>
+                <CTableDataCell className="text-end">
+                  {s.avgBuyCtKwh.toFixed(1)} {tr('ct')}
+                </CTableDataCell>
                 <CTableDataCell
                   className={`text-end ${s.savingEur >= 0 ? 'text-success' : 'text-body-secondary'}`}
                 >

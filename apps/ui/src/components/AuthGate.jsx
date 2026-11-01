@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { CSpinner } from '@coreui/react'
 import { api } from '../api/client'
 import { accountFromUrl, clearAccountFromUrl } from '../accountLink'
+import { setLanguage } from '../i18n'
 
 /**
  * Wraps the whole authenticated app shell (AGENTS.md section 13 and
@@ -35,19 +36,33 @@ const AuthGate = ({ children }) => {
     // the person and what they may do (access.js); `guest` - the guest's session (the menu offers signing in)
     api
       .getCurrentUser(account)
-      .then(({ user: currentUser, access: currentAccess, guest, contexts, context }) => {
-        if (account) clearAccountFromUrl()
-        setFailed(false)
-        dispatch({
-          type: 'set',
+      .then(
+        ({
           user: currentUser,
           access: currentAccess,
-          // the groups the person may act in and the one now (G1 - the header's menu)
-          accessContexts: contexts ?? [],
-          accessContext: context ?? null,
-          guest: Boolean(guest),
-        })
-      })
+          guest,
+          contexts,
+          context,
+          contextName,
+          languages,
+        }) => {
+          if (account) clearAccountFromUrl()
+          setFailed(false)
+          dispatch({
+            type: 'set',
+            user: currentUser,
+            access: currentAccess,
+            // the groups the person may act in and the one now (G1 - the header's menu)
+            accessContexts: contexts ?? [],
+            accessContext: context ?? null,
+            accessContextName: contextName ?? null,
+            uiLanguages: languages ?? null,
+            guest: Boolean(guest),
+          })
+          // a person's own language (their profile) - not the guest's (a shared account)
+          if (!guest && currentUser?.language) setLanguage(currentUser.language)
+        },
+      )
       .catch(() => {
         // No session (never logged in, expired, or logged out elsewhere) -
         // the redirect below handles it, nothing to surface as an error.

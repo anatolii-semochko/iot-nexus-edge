@@ -1,4 +1,5 @@
 import React from 'react'
+import { t } from 'src/i18n'
 
 // 1 sample/sec (ResourceMonitorPanel's own poll interval) * 60 = a rolling
 // 1-minute window, exactly what was asked for - not a fixed time axis, just
@@ -11,7 +12,7 @@ const STEP = 100 / (MAX_SAMPLES - 1)
 const SERIES = [
   { key: 'cpu', color: '#0d6efd', label: 'CPU' },
   { key: 'ram', color: '#6f42c1', label: 'RAM' },
-  { key: 'disk', color: '#20c997', label: 'Disk' },
+  { key: 'disk', color: '#20c997', label: t('Disk') },
   // Degrees Celsius sharing the same 0-100 y-axis as the three percentages
   // above - not strictly the same unit, but CPU/SoC temps stay well under
   // 100C in normal operation (this project's Raspberry Pi target throttles
@@ -19,7 +20,7 @@ const SERIES = [
   // second scale. A sample missing `temp` (host with no readable thermal
   // zone) just draws as 0 on this line, same as any other undefined key
   // below.
-  { key: 'temp', color: '#fd7e14', label: 'Temp' },
+  { key: 'temp', color: '#fd7e14', label: t('Temp') },
 ]
 
 const clamp = (n) => Math.min(100, Math.max(0, n))

@@ -1,4 +1,5 @@
 import React from 'react'
+import { t } from 'src/i18n'
 
 /**
  * Type-column deep link (AGENTS_TO_DO.md, 2026-08-30; label changed to
@@ -19,7 +20,7 @@ const LibraryTypeLink = ({ kind, typeName }) => {
       title={typeName}
       className="link-primary text-decoration-none"
     >
-      source
+      {t('source')}
     </a>
   )
 }

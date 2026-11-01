@@ -1,6 +1,7 @@
 import React from 'react'
 import { CButton, CModal, CModalBody, CModalFooter, CModalHeader, CModalTitle } from '@coreui/react'
 import NamedListManager from './NamedListManager'
+import { t } from 'src/i18n'
 
 /**
  * Generic "Config" popup (AGENTS_TO_DO.md, 2026-08-01) - wraps
@@ -38,7 +39,7 @@ const GroupsConfigModal = ({
     </CModalBody>
     <CModalFooter>
       <CButton color="secondary" variant="outline" onClick={onClose}>
-        Close
+        {t('Close')}
       </CButton>
     </CModalFooter>
   </CModal>

@@ -3,6 +3,7 @@ import { CAvatar } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
 import { cilCheck, cilX } from '@coreui/icons'
 import { userInitials, userTitle } from '../../utils/format'
+import { t } from 'src/i18n'
 
 // The users' and roles' circles (2026-10-28 - the tables' Roles / Members columns grew too wide with
 // many of them): a person - the avatar with its active flag; a role - its initials in its level's colour.
@@ -58,29 +59,39 @@ export const roleLevel = (role) => {
 // a level's look - "hotter" for more; the colours read in both themes (Everything - the text's colour)
 const LEVEL_LOOKS = {
   full: {
-    label: 'Full',
-    hint: 'Everything',
+    label: t('Full'),
+    hint: t('Everything'),
     bg: 'var(--cui-emphasis-color)',
     fg: 'var(--cui-body-bg)',
   },
   service: {
-    label: 'Service',
-    hint: "Everything - the system's own account",
+    label: t('Service'),
+    hint: t("Everything - the system's own account"),
     bg: 'var(--cui-secondary)',
     fg: '#fff',
   },
   admin: {
-    label: 'Administer',
-    hint: 'Manages the users and the access',
+    label: t('Administer'),
+    hint: t('Manages the users and the access'),
     bg: 'var(--cui-primary)',
     fg: '#fff',
   },
-  config: { label: 'Configure', hint: 'Up to Configure', bg: 'var(--cui-danger)', fg: '#fff' },
-  control: { label: 'Control', hint: 'Up to Control', bg: 'var(--cui-warning)', fg: '#212631' },
-  view: { label: 'View', hint: 'View only', bg: 'var(--cui-info)', fg: '#fff' },
+  config: {
+    label: t('Configure'),
+    hint: t('Up to Configure'),
+    bg: 'var(--cui-danger)',
+    fg: '#fff',
+  },
+  control: {
+    label: t('Control'),
+    hint: t('Up to Control'),
+    bg: 'var(--cui-warning)',
+    fg: '#212631',
+  },
+  view: { label: t('View'), hint: t('View only'), bg: 'var(--cui-info)', fg: '#fff' },
   none: {
-    label: 'None',
-    hint: 'No rights',
+    label: t('None'),
+    hint: t('No rights'),
     bg: 'var(--cui-secondary-bg)',
     fg: 'var(--cui-body-color)',
   },
@@ -133,7 +144,7 @@ export const RoleAvatar = ({ role }) => {
   return (
     <CAvatar
       size="md"
-      title={`${role.name} - ${look.hint}${guest ? ' (a guest role)' : ''}`}
+      title={`${role.name} - ${look.hint}${guest ? t('(a guest role)') : ''}`}
       style={{
         fontSize: '0.75rem',
         fontWeight: 600,

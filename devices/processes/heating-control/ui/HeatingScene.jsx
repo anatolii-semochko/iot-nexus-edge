@@ -20,6 +20,9 @@ import {
 import HeatingPopup, { FlowPopup } from './HeatingPopup'
 import HeatTrend from './HeatTrend'
 import { fmt, useHeatingData } from './useHeatingData'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('heating-control')
 
 // Heating / cooling - the user's scene (Dashboard component; the user's
 // mockup images/heating-condition-control-panel.png, the reviewed icons
@@ -88,10 +91,10 @@ const COIL_WIDTH = 300
 const COIL_SCALE = COIL_WIDTH / FAN_COIL_VIEW.w
 
 const MODES = [
-  ['auto', 'Auto', 'Heating or cooling by the outdoor temperature'],
-  ['heating', 'Heating', 'Heat all the time, whatever the weather'],
-  ['cooling', 'Cooling', 'Cool all the time, whatever the weather'],
-  ['off', 'Off', 'Switch the heat pumps and the fan coils off'],
+  ['auto', tr('Auto'), tr('Heating or cooling by the outdoor temperature')],
+  ['heating', tr('Heating'), tr('Heat all the time, whatever the weather')],
+  ['cooling', tr('Cooling'), tr('Cool all the time, whatever the weather')],
+  ['off', tr('Off'), tr('Switch the heat pumps and the fan coils off')],
 ]
 
 /**
@@ -128,7 +131,7 @@ const Lines = ({ line, mode, maxKw, title }) => {
         height={H}
         viewBox={`0 0 ${W} ${H}`}
         role="img"
-        aria-label="The water lines between the blocks"
+        aria-label={tr('The water lines between the blocks')}
       >
         <line
           x1={left.cx + R - 1}
@@ -179,7 +182,12 @@ const Lines = ({ line, mode, maxKw, title }) => {
           </>
         )}
         <g>
-          <title>{`Warm ${fmt(line?.warmC)} °C (big) / cold ${fmt(line?.coldC)} °C (small, blue) - the difference ${fmt(dT)} K`}</title>
+          <title>
+            {tr(
+              'Warm {{fmt}} °C (big) / cold {{fmt2}} °C (small, blue) - the difference {{fmt22}} K',
+              { fmt: fmt(line?.warmC), fmt2: fmt(line?.coldC), fmt22: fmt(dT) },
+            )}
+          </title>
           <RoundGauge
             x={left.cx}
             y={left.cy}
@@ -187,19 +195,33 @@ const Lines = ({ line, mode, maxKw, title }) => {
             value={line?.warmC}
             limits={warmRange}
             unit="°C"
-            inner={{ value: line?.coldC, limits: coldRange, unit: '°C', color: '#1d6fd8' }}
+            inner={{
+              value: line?.coldC,
+              limits: coldRange,
+              unit: '°C',
+              color: '#1d6fd8',
+            }}
             state={line ? 'active' : 'absent'}
           />
         </g>
         <g>
           {/* one way - the heat or the cold carried, counted up from zero (the user, 2026-10-25) */}
-          <title>{`${cooling ? 'Cold' : 'Heat'} carried now: ${fmt(Math.abs(kw))} kW`}</title>
+          <title>
+            {tr('{{v0}} carried now: {{fmt}} kW', {
+              v0: cooling ? 'Cold' : 'Heat',
+              fmt: fmt(Math.abs(kw)),
+            })}
+          </title>
           <RoundGauge
             x={right.cx}
             y={right.cy}
             r={R}
             value={Math.abs(kw)}
-            limits={{ min: 0, max: Math.max(1, Math.ceil(maxKw)), warnHigh: maxKw * 0.9 }}
+            limits={{
+              min: 0,
+              max: Math.max(1, Math.ceil(maxKw)),
+              warnHigh: maxKw * 0.9,
+            }}
             unit="kW"
             state={flowing ? 'active' : 'inactive'}
           />
@@ -217,7 +239,12 @@ const byGroups = (groups, block, items) => {
     items: items.filter((x) => x.group === g.key),
   }))
   const rest = items.filter((x) => !own.some((g) => g.key === x.group))
-  if (rest.length) rows.push({ key: null, name: own.length ? 'Other' : null, items: rest })
+  if (rest.length)
+    rows.push({
+      key: null,
+      name: own.length ? tr('Other') : null,
+      items: rest,
+    })
   return rows.filter((r) => r.items.length)
 }
 
@@ -242,7 +269,9 @@ const HeatingScene = ({ process, params }) => {
   }
   if (!m.totals)
     return (
-      <div className="text-body-secondary small p-3">No state yet - the process hasn't run.</div>
+      <div className="text-body-secondary small p-3">
+        {tr("No state yet - the process hasn't run.")}
+      </div>
     )
 
   const t = m.totals
@@ -259,8 +288,8 @@ const HeatingScene = ({ process, params }) => {
   const tone = cooling ? 'var(--ht-cold)' : 'var(--ht-warm)'
   const modeText =
     m.control === 'off'
-      ? 'Off'
-      : `${cooling ? 'Cooling' : 'Heating'} · ${m.control === 'auto' ? 'auto' : 'set by hand'}`
+      ? tr('Off')
+      : `${cooling ? tr('Cooling') : tr('Heating')} · ${m.control === 'auto' ? 'auto' : tr('set by hand')}`
   const saving =
     today.directEur != null && today.costEur != null ? today.directEur - today.costEur : null
 
@@ -284,7 +313,7 @@ const HeatingScene = ({ process, params }) => {
         <DayNotes
           processId={process.id}
           kinds={['maintenance', 'room-closed', 'other']}
-          title="The heating today"
+          title={tr('The heating today')}
           cardClass="ht-block"
           units={[
             ...(process.config?.heatPumps ?? []),
@@ -301,29 +330,32 @@ const HeatingScene = ({ process, params }) => {
           weatherId={process.config?.weatherProcessId ?? null}
         />
       </div>
-      <section className="ht-block" aria-label="The heat pumps">
+      <section className="ht-block" aria-label={tr('The heat pumps')}>
         <div className="ht-head mb-3">
           <div>
             <SummaryLine
-              title="Heat pumps"
+              title={tr('Heat pumps')}
               color={tone}
-              hint={`The heat pumps now: the ${cooling ? 'cold' : 'heat'}, the heating's electricity (the heat pumps and the fan coils' fans), the ${cooling ? 'EER' : 'COP'}`}
+              hint={tr(
+                "The heat pumps now: the {{v0}}, the heating's electricity (the heat pumps and the fan coils' fans), the {{v1}}",
+                { v0: cooling ? 'cold' : 'heat', v1: cooling ? 'EER' : 'COP' },
+              )}
               items={[
                 { v: fmt(Math.abs(t.heatKw)) },
-                `kW ${cooling ? 'cold' : 'heat'} -`,
+                tr('kW {{v0}} -', { v0: cooling ? 'cold' : 'heat' }),
                 { v: fmt((t.electricKw ?? 0) + (t.fansKw ?? 0)) },
-                `kW electricity - ${cooling ? 'EER' : 'COP'}`,
+                tr('kW electricity - {{v0}}', { v0: cooling ? 'EER' : 'COP' }),
                 { v: t.cop == null ? null : fmt(t.cop) },
               ]}
             />
-            <CButtonGroup size="sm" role="group" aria-label="The mode">
+            <CButtonGroup size="sm" role="group" aria-label={tr('The mode')}>
               {MODES.map(([key, label, hint]) => (
                 <CButton
                   key={key}
                   color="primary"
                   variant={m.control === key ? undefined : 'outline'}
                   disabled={!control}
-                  title={control ? hint : `${hint} - you may only watch`}
+                  title={control ? hint : tr('{{hint}} - you may only watch', { hint })}
                   onClick={() => send('setMode', { mode: key })}
                 >
                   {label}
@@ -335,29 +367,38 @@ const HeatingScene = ({ process, params }) => {
             <div className="small">
               <span
                 className="fw-semibold"
-                title="The mode now - by the outdoor temperature (auto) or set by hand"
+                title={tr('The mode now - by the outdoor temperature (auto) or set by hand')}
               >
                 {modeText}
               </span>
               {m.plan && m.plan.source === 'planner' && (
                 <span
                   className="ms-2 badge bg-info"
-                  title={`The heating planner's plan: ${m.plan.units} unit(s), ${m.plan.heatKw} kW${m.plan.roomOffsetK ? `, the rooms ${m.plan.roomOffsetK} K off their setpoint` : ''}`}
+                  title={tr("The heating planner's plan: {{units}} unit(s), {{heatKw}} kW{{v2}}", {
+                    units: m.plan.units,
+                    heatKw: m.plan.heatKw,
+                    v2: m.plan.roomOffsetK
+                      ? `, the rooms ${m.plan.roomOffsetK} K off their setpoint`
+                      : '',
+                  })}
                 >
-                  by the plan
+                  {tr('by the plan')}
                 </span>
               )}
               {m.plan && m.plan.source === 'band' && m.plan.why && m.plan.why !== 'no planner' && (
-                <span className="ms-2 text-body-secondary" title={`Not by the plan: ${m.plan.why}`}>
-                  by the band
+                <span
+                  className="ms-2 text-body-secondary"
+                  title={tr('Not by the plan: {{why}}', { why: m.plan.why })}
+                >
+                  {tr('by the band')}
                 </span>
               )}
               {m.charging && (
                 <span
                   className="ms-2 text-body-secondary"
-                  title="The heat pumps are charging the tanks to their stop temperature"
+                  title={tr('The heat pumps are charging the tanks to their stop temperature')}
                 >
-                  charging the tanks
+                  {tr('charging the tanks')}
                 </span>
               )}
               {m.signal && m.signal !== 2 && (
@@ -365,27 +406,37 @@ const HeatingScene = ({ process, params }) => {
                   className={`ms-2 badge ${m.signal === 3 ? 'bg-danger' : 'bg-secondary'}`}
                   title={
                     m.signal === 3
-                      ? "The Energy Ledger's signal (SG-Ready 3): energy is cheap or the sun gives more than the site takes - the tanks store more heat now"
-                      : "The Energy Ledger's signal (SG-Ready 1): energy is dear - the heat pumps hold off, the tanks carry the rooms"
+                      ? tr(
+                          "The Energy Ledger's signal (SG-Ready 3): energy is cheap or the sun gives more than the site takes - the tanks store more heat now",
+                        )
+                      : tr(
+                          "The Energy Ledger's signal (SG-Ready 1): energy is dear - the heat pumps hold off, the tanks carry the rooms",
+                        )
                   }
                 >
-                  {m.signal === 3 ? 'storing heat - cheap energy' : 'holding off - dear energy'}
+                  {m.signal === 3
+                    ? tr('storing heat - cheap energy')
+                    : tr('holding off - dear energy')}
                 </span>
               )}
             </div>
             <div className="d-flex gap-3 small text-body-secondary flex-wrap">
-              <span title="Today: the heat (or cold) the rooms got">
-                today <KeyValue value={fmt(today.deliveredKwh, 0)} unit="kWh" color={tone} /> to the
-                rooms
+              <span title={tr('Today: the heat (or cold) the rooms got')}>
+                {tr('today')}{' '}
+                <KeyValue value={fmt(today.deliveredKwh, 0)} unit="kWh" color={tone} />{' '}
+                {tr('to the rooms')}
               </span>
-              <span title="Today: the heating's electricity at the slots' prices">
-                cost <KeyValue value={fmt(today.costEur, 2)} unit="€" />
+              <span title={tr("Today: the heating's electricity at the slots' prices")}>
+                {tr('cost')} <KeyValue value={fmt(today.costEur, 2)} unit="€" />
               </span>
               {saving !== null && (
                 <span
-                  title={`Direct electric heating would have cost ${fmt(today.directEur, 2)} € today`}
+                  title={tr('Direct electric heating would have cost {{fmt}} € today', {
+                    fmt: fmt(today.directEur, 2),
+                  })}
                 >
-                  saved <KeyValue value={fmt(saving, 2)} unit="€" className="text-success" />
+                  {tr('saved')}{' '}
+                  <KeyValue value={fmt(saving, 2)} unit="€" className="text-success" />
                 </span>
               )}
             </div>
@@ -398,7 +449,9 @@ const HeatingScene = ({ process, params }) => {
               <button
                 type="button"
                 className="ht-open"
-                title={`${p.name} - the details, today's chart, the model`}
+                title={tr("{{name}} - the details, today's chart, the model", {
+                  name: p.name,
+                })}
                 onClick={() => setPopup({ kind: 'pump', nodeId: p.nodeId })}
               >
                 <HeatPumpIcon pump={p} mode={m.mode} height={PUMP_HEIGHT} />
@@ -413,34 +466,34 @@ const HeatingScene = ({ process, params }) => {
         <button
           type="button"
           className="ht-lines-open"
-          aria-label="The power to the tanks today - the details"
+          aria-label={tr('The power to the tanks today - the details')}
           onClick={() => setPopup({ kind: 'flow', flow: 'pumpsTanks' })}
         >
           <Lines
             line={m.lines?.pumpsTanks}
             mode={m.mode}
             maxKw={ratedKw * 1.2}
-            title="The heat pumps' water to and from the tanks"
+            title={tr("The heat pumps' water to and from the tanks")}
           />
         </button>
         <HeatTrend
           seriesKey={`process:${process.id}:heat.heatKw`}
-          label={cooling ? 'Cold produced' : 'Heat produced'}
+          label={cooling ? tr('Cold produced') : tr('Heat produced')}
           color="var(--ht-warm)"
         />
       </div>
 
-      <section className="ht-block" aria-label="The heat storage">
+      <section className="ht-block" aria-label={tr('The heat storage')}>
         <SummaryLine
           className="mb-2"
-          title="Heat storage"
+          title={tr('Heat storage')}
           color={tone}
-          hint="The heat stored in all the tanks above their lowest useful temperature"
+          hint={tr('The heat stored in all the tanks above their lowest useful temperature')}
           items={[
             { v: fmt(t.tankPct, 0) },
             '% -',
             { v: fmt(t.storedKwh, 1) },
-            `of ${fmt(t.fullKwh, 0)} kWh`,
+            tr('of {{fmt}} kWh', { fmt: fmt(t.fullKwh, 0) }),
           ]}
         />
         <Groups
@@ -451,7 +504,7 @@ const HeatingScene = ({ process, params }) => {
                 <button
                   type="button"
                   className="ht-open"
-                  title={`${x.name} - the details, today's chart, the model`}
+                  title={tr("{{name}} - the details, today's chart, the model", { name: x.name })}
                   onClick={() => setPopup({ kind: 'tank', nodeId: x.nodeId })}
                 >
                   <TankIcon tank={x} height={170} />
@@ -468,34 +521,37 @@ const HeatingScene = ({ process, params }) => {
         <button
           type="button"
           className="ht-lines-open"
-          aria-label="The power to the rooms today - the details"
+          aria-label={tr('The power to the rooms today - the details')}
           onClick={() => setPopup({ kind: 'flow', flow: 'tanksConsumers' })}
         >
           <Lines
             line={m.lines?.tanksConsumers}
             mode={m.mode}
             maxKw={coils.length * 6}
-            title="The tanks' water to and from the consumers"
+            title={tr("The tanks' water to and from the consumers")}
           />
         </button>
         <HeatTrend
           seriesKey={`process:${process.id}:heat.consumersKw`}
-          label={cooling ? 'Cold used' : 'Heat used'}
+          label={cooling ? tr('Cold used') : tr('Heat used')}
           color="var(--ht-warm)"
         />
       </div>
 
-      <section className="ht-block" aria-label="The consumers">
+      <section className="ht-block" aria-label={tr('The consumers')}>
         <SummaryLine
           className="mb-2"
-          title="Consumers"
+          title={tr('Consumers')}
           color={tone}
-          hint={`The fan coils now: the ${cooling ? 'cold' : 'heat'} they give the rooms, how many have their valve open`}
+          hint={tr(
+            'The fan coils now: the {{v0}} they give the rooms, how many have their valve open',
+            { v0: cooling ? 'cold' : 'heat' },
+          )}
           items={[
             { v: fmt(Math.abs(t.consumersKw ?? 0)) },
-            `kW ${cooling ? 'cold' : 'heat'} to the rooms -`,
+            tr('kW {{v0}} to the rooms -', { v0: cooling ? 'cold' : 'heat' }),
             { v: String(coils.filter((c) => c.on).length) },
-            `of ${coils.length} on`,
+            tr('of {{length}} on', { length: coils.length }),
           ]}
         />
         <Groups
@@ -509,7 +565,9 @@ const HeatingScene = ({ process, params }) => {
               <button
                 type="button"
                 className="ht-open"
-                title={`${c.name} - the details, the setpoint, today's chart, the model`}
+                title={tr("{{name}} - the details, the setpoint, today's chart, the model", {
+                  name: c.name,
+                })}
                 onClick={() => setPopup({ kind: 'coil', nodeId: c.nodeId })}
               >
                 <FanCoilIcon coil={c} mode={m.mode} width={COIL_WIDTH} />
@@ -519,15 +577,20 @@ const HeatingScene = ({ process, params }) => {
                 className="ht-switch"
                 disabled={!control || m.control === 'off'}
                 aria-pressed={c.on}
-                aria-label={`${c.name}: the valve ${c.on ? 'open - close it' : 'closed - open it'}`}
+                aria-label={tr('{{name}}: the valve {{v1}}', {
+                  name: c.name,
+                  v1: c.on ? 'open - close it' : 'closed - open it',
+                })}
                 title={
                   !control
-                    ? `The valve is ${c.on ? 'open' : 'closed'} - you may only watch`
+                    ? tr('The valve is {{v0}} - you may only watch', {
+                        v0: c.on ? 'open' : 'closed',
+                      })
                     : m.control === 'off'
-                      ? 'The heating is off - switch it on with the mode first'
+                      ? tr('The heating is off - switch it on with the mode first')
                       : c.on
-                        ? 'Close the valve - switch this fan coil off remotely'
-                        : 'Open the valve - switch this fan coil on'
+                        ? tr('Close the valve - switch this fan coil off remotely')
+                        : tr('Open the valve - switch this fan coil on')
                 }
                 style={{
                   left: FAN_COIL_SWITCH.x * COIL_SCALE,

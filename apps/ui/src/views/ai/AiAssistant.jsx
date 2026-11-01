@@ -9,6 +9,7 @@ import { useCan } from '../../access'
 import AiConversation from '../../components/ai/AiConversation'
 import { useAiEntities } from '../../components/ai/useAiEntities'
 import { formatSmartDateTime } from '../../utils/format'
+import { t } from 'src/i18n'
 
 /**
  * AI Assistant - the messenger (Nexus Edge AI Assistant, stage 5; nexus-edge-aquarium
@@ -81,12 +82,12 @@ const AiAssistant = () => {
       <div className={`ai-list d-flex flex-column border-end${listOpen ? '' : ' closed'}`}>
         <div className="p-2 border-bottom">
           <CButton color="primary" className="w-100" onClick={startNew}>
-            <CIcon icon={cilPlus} className="me-1" /> New conversation
+            <CIcon icon={cilPlus} className="me-1" /> {t('New conversation')}
           </CButton>
         </div>
         <div className="flex-grow-1 overflow-auto">
           {conversations.length === 0 && (
-            <div className="small text-body-secondary p-3">No conversation yet.</div>
+            <div className="small text-body-secondary p-3">{t('No conversation yet.')}</div>
           )}
           {conversations.map((c) => (
             <div
@@ -104,22 +105,30 @@ const AiAssistant = () => {
               <div className="flex-grow-1" style={{ minWidth: 0 }}>
                 <div className="fw-semibold small text-truncate">
                   {c.scheduled && (
-                    <CBadge color="info" className="me-1" title="A scheduled run (the calendar)">
-                      scheduled
+                    <CBadge
+                      color="info"
+                      className="me-1"
+                      title={t('A scheduled run (the calendar)')}
+                    >
+                      {t('scheduled')}
                     </CBadge>
                   )}
                   {c.shared && (
                     <CBadge
                       color="success"
                       className="me-1"
-                      title="Shared - read only for all who may talk to its assistant"
+                      title={t('Shared - read only for all who may talk to its assistant')}
                     >
-                      shared
+                      {t('shared')}
                     </CBadge>
                   )}
                   {!c.mine && !c.scheduled && !c.shared && c.guest && (
-                    <CBadge color="secondary" className="me-1" title="Another guest's - read only">
-                      guest
+                    <CBadge
+                      color="secondary"
+                      className="me-1"
+                      title={t("Another guest's - read only")}
+                    >
+                      {t('guest')}
                     </CBadge>
                   )}
                   {c.title}
@@ -132,8 +141,8 @@ const AiAssistant = () => {
                 <button
                   type="button"
                   className={`btn btn-link btn-sm p-0 ${c.shared ? 'text-success' : 'text-body-tertiary'}`}
-                  title={c.shared ? 'Shared - stop sharing' : 'Share (read only for others)'}
-                  aria-label={`${c.shared ? 'Stop sharing' : 'Share'}: ${c.title}`}
+                  title={c.shared ? t('Shared - stop sharing') : t('Share (read only for others)')}
+                  aria-label={`${c.shared ? t('Stop sharing') : t('Share')}: ${c.title}`}
                   onClick={(e) => {
                     e.stopPropagation()
                     api
@@ -149,8 +158,8 @@ const AiAssistant = () => {
                 <button
                   type="button"
                   className="btn btn-link btn-sm p-0 text-body-tertiary"
-                  title="Delete"
-                  aria-label={`Delete ${c.title}`}
+                  title={t('Delete')}
+                  aria-label={t('Delete {{title}}', { title: c.title })}
                   onClick={(e) => {
                     e.stopPropagation()
                     remove(c.id)
@@ -179,7 +188,7 @@ const AiAssistant = () => {
               onClick={() => setListOpen((o) => !o)}
               aria-expanded={listOpen}
             >
-              <CIcon icon={cilList} className="me-1" /> Conversations
+              <CIcon icon={cilList} className="me-1" /> {t('Conversations')}
             </CButton>
             {error && <span className="small text-danger">{error}</span>}
           </div>

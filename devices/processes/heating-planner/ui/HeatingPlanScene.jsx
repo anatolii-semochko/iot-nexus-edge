@@ -19,6 +19,9 @@ import PlanChart, { LEGEND } from './PlanChart'
 import PlanSummary from './PlanSummary'
 import Strategies from './Strategies'
 import { fmt, hhmm, stepsOf, sumSystems, usePlan } from './usePlan'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('heating-planner')
 
 // The heating plan's page (P2 - iot AGENTS_TO_DO.md 2026-10-29): the process row's panel and the
 // Dashboard component `heatingPlanner.plan`. On top - what the plan costs to the horizon's end against
@@ -28,7 +31,11 @@ import { fmt, hhmm, stepsOf, sumSystems, usePlan } from './usePlan'
 
 const STEPS_SHOWN = 12
 const day = (t) =>
-  new Date(t).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+  new Date(t).toLocaleString(undefined, {
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 const eur = (v) => (v == null ? '-' : Number(v).toFixed(2))
 
 const HeatingPlanScene = ({ process, params }) => {
@@ -37,7 +44,12 @@ const HeatingPlanScene = ({ process, params }) => {
   const [pick, setPick] = usePersistedState(`nexusedge.heatingPlan.${process.id}`, {
     system: 'all',
   })
-  if (error) return <div className="small text-danger">The plan: {error}</div>
+  if (error)
+    return (
+      <div className="small text-danger">
+        {tr('The plan:')} {error}
+      </div>
+    )
   if (!plan)
     return m.madeAt ? (
       <CSpinner size="sm" />
@@ -77,26 +89,31 @@ const HeatingPlanScene = ({ process, params }) => {
       <PlanSummary processId={process.id} madeAt={plan.madeAt} />
       <div
         className="d-grid"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}
+        style={{
+          gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+          gap: 12,
+        }}
       >
-        <StatTile label="The plan" hint="When it was made and how far ahead it reaches">
+        <StatTile label={tr('The plan')} hint={tr('When it was made and how far ahead it reaches')}>
           {hhmm(plan.madeAt)} · <KeyValue value={fmt(horizonH, 0)} unit="h" />
         </StatTile>
         <StatTile
-          label="Its electricity"
-          hint="What the plan's heat pumps' electricity costs to the horizon's end"
+          label={tr('Its electricity')}
+          hint={tr("What the plan's heat pumps' electricity costs to the horizon's end")}
         >
           <KeyValue value={eur(energy)} unit="€" />
         </StatTile>
         <StatTile
-          label="By the band"
-          hint="The same need made when it is needed (the tanks' band control) - its electricity"
+          label={tr('By the band')}
+          hint={tr(
+            "The same need made when it is needed (the tanks' band control) - its electricity",
+          )}
         >
           <KeyValue value={eur(base)} unit="€" />
         </StatTile>
         <StatTile
-          label="Saving"
-          hint="The band's electricity less the plan's, to the horizon's end"
+          label={tr('Saving')}
+          hint={tr("The band's electricity less the plan's, to the horizon's end")}
         >
           <KeyValue value={eur(saving)} unit="€" className="text-success" />
           {share != null && (
@@ -104,22 +121,26 @@ const HeatingPlanScene = ({ process, params }) => {
           )}
         </StatTile>
         <StatTile
-          label="Now"
-          hint={`The heat pumps' ${cooling ? 'cold' : 'heat'} and units in the slot now`}
+          label={tr('Now')}
+          hint={tr("The heat pumps' {{v0}} and units in the slot now", {
+            v0: cooling ? 'cold' : 'heat',
+          })}
         >
           <KeyValue value={fmt(slotNow?.heatKw)} unit="kW" /> ·{' '}
           <KeyValue value={slotNow?.units ?? '-'} unit="units" />
         </StatTile>
         <StatTile
-          label="The rooms"
-          hint={`The rooms off their setpoint now (${cooling ? 'above' : 'below'} it) - the comfort margin in use`}
+          label={tr('The rooms')}
+          hint={tr('The rooms off their setpoint now ({{v0}} it) - the comfort margin in use', {
+            v0: cooling ? 'above' : 'below',
+          })}
         >
           {slotNow?.roomOffsetK > 0.05 ? (
             <>
-              <KeyValue value={fmt(slotNow.roomOffsetK, 1)} unit="K" /> off
+              <KeyValue value={fmt(slotNow.roomOffsetK, 1)} unit="K" /> {tr('off')}
             </>
           ) : (
-            'at setpoint'
+            tr('at setpoint')
           )}
         </StatTile>
       </div>
@@ -127,10 +148,10 @@ const HeatingPlanScene = ({ process, params }) => {
       <CButtonGroup
         size="sm"
         role="group"
-        aria-label="The system"
+        aria-label={tr('The system')}
         className="align-self-start flex-wrap"
       >
-        {[{ processId: 'all', name: 'All systems' }, ...planned].map((x) => (
+        {[{ processId: 'all', name: tr('All systems') }, ...planned].map((x) => (
           <CButton
             key={x.processId}
             color="primary"
@@ -169,21 +190,21 @@ const HeatingPlanScene = ({ process, params }) => {
       </div>
 
       <div>
-        <h6 className="mb-2">The plan in words</h6>
+        <h6 className="mb-2">{tr('The plan in words')}</h6>
         <CTable small responsive className="mb-0">
           <CTableHead>
             <CTableRow>
-              <CTableHeaderCell>From</CTableHeaderCell>
-              <CTableHeaderCell>To</CTableHeaderCell>
-              <CTableHeaderCell>Heat pumps</CTableHeaderCell>
-              <CTableHeaderCell title="The mean heat over the run">
-                {cooling ? 'Cold' : 'Heat'}
+              <CTableHeaderCell>{tr('From')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('To')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Heat pumps')}</CTableHeaderCell>
+              <CTableHeaderCell title={tr('The mean heat over the run')}>
+                {cooling ? tr('Cold') : tr('Heat')}
               </CTableHeaderCell>
-              <CTableHeaderCell title="The mean purchase price over the run">
-                Price
+              <CTableHeaderCell title={tr('The mean purchase price over the run')}>
+                {tr('Price')}
               </CTableHeaderCell>
-              <CTableHeaderCell title="The rooms off their setpoint at most over the run">
-                Rooms
+              <CTableHeaderCell title={tr('The rooms off their setpoint at most over the run')}>
+                {tr('Rooms')}
               </CTableHeaderCell>
             </CTableRow>
           </CTableHead>
@@ -194,9 +215,9 @@ const HeatingPlanScene = ({ process, params }) => {
                 <CTableDataCell>{hhmm(s.end)}</CTableDataCell>
                 <CTableDataCell>
                   {s.units ? (
-                    `${s.units} running`
+                    tr('{{units}} running', { units: s.units })
                   ) : (
-                    <span className="text-body-secondary">hold</span>
+                    <span className="text-body-secondary">{tr('hold')}</span>
                   )}
                 </CTableDataCell>
                 <CTableDataCell>
@@ -206,7 +227,9 @@ const HeatingPlanScene = ({ process, params }) => {
                   <KeyValue value={fmt(s.ct / s.n)} unit="ct/kWh" />
                 </CTableDataCell>
                 <CTableDataCell>
-                  {s.offset > 0.05 ? `${fmt(s.offset, 1)} K off` : 'at setpoint'}
+                  {s.offset > 0.05
+                    ? tr('{{fmt}} K off', { fmt: fmt(s.offset, 1) })
+                    : tr('at setpoint')}
                 </CTableDataCell>
               </CTableRow>
             ))}
@@ -216,20 +239,26 @@ const HeatingPlanScene = ({ process, params }) => {
 
       {!chosen && (
         <div>
-          <h6 className="mb-2">The systems</h6>
+          <h6 className="mb-2">{tr('The systems')}</h6>
           <CTable small responsive className="mb-0">
             <CTableHead>
               <CTableRow>
-                <CTableHeaderCell>System</CTableHeaderCell>
-                <CTableHeaderCell>Mode</CTableHeaderCell>
-                <CTableHeaderCell title="Its available heat pumps">Units</CTableHeaderCell>
-                <CTableHeaderCell title="The tanks' band and the rooms' comfort margin together">
-                  Store
+                <CTableHeaderCell>{tr('System')}</CTableHeaderCell>
+                <CTableHeaderCell>{tr('Mode')}</CTableHeaderCell>
+                <CTableHeaderCell title={tr('Its available heat pumps')}>
+                  {tr('Units')}
                 </CTableHeaderCell>
-                <CTableHeaderCell title="The plan's electricity / the band's, to the horizon's end">
-                  Plan / band
+                <CTableHeaderCell
+                  title={tr("The tanks' band and the rooms' comfort margin together")}
+                >
+                  {tr('Store')}
                 </CTableHeaderCell>
-                <CTableHeaderCell>Saving</CTableHeaderCell>
+                <CTableHeaderCell
+                  title={tr("The plan's electricity / the band's, to the horizon's end")}
+                >
+                  {tr('Plan / band')}
+                </CTableHeaderCell>
+                <CTableHeaderCell>{tr('Saving')}</CTableHeaderCell>
               </CTableRow>
             </CTableHead>
             <CTableBody>
@@ -238,7 +267,7 @@ const HeatingPlanScene = ({ process, params }) => {
                   key={x.processId}
                   role={x.slots?.length ? 'button' : undefined}
                   onClick={x.slots?.length ? () => setPick({ system: x.processId }) : undefined}
-                  title={x.slots?.length ? 'Show this system' : undefined}
+                  title={x.slots?.length ? tr('Show this system') : undefined}
                 >
                   <CTableDataCell>{x.name}</CTableDataCell>
                   <CTableDataCell>{x.mode ?? x.note ?? '-'}</CTableDataCell>
@@ -247,7 +276,7 @@ const HeatingPlanScene = ({ process, params }) => {
                     <KeyValue value={fmt(x.storeKwh, 0)} unit="kWh" />
                     <span className="small text-body-secondary">
                       {' '}
-                      ({fmt(x.marginKwh, 0)} the rooms)
+                      ({fmt(x.marginKwh, 0)} {tr('the rooms)')}
                     </span>
                   </CTableDataCell>
                   <CTableDataCell>

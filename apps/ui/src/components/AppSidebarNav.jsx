@@ -6,8 +6,11 @@ import SimpleBar from 'simplebar-react'
 import 'simplebar-react/dist/simplebar.min.css'
 
 import { CBadge, CNavLink, CSidebarNav } from '@coreui/react'
+import { useTranslation } from 'react-i18next'
 
 export const AppSidebarNav = ({ items }) => {
+  // the menu's words in the interface's language (_nav.jsx keeps the English)
+  const { t } = useTranslation()
   const navLink = (name, icon, badge, indent = false) => {
     return (
       <>
@@ -18,7 +21,7 @@ export const AppSidebarNav = ({ items }) => {
                 <span className="nav-icon-bullet"></span>
               </span>
             )}
-        {name && name}
+        {name && t(name)}
         {badge && (
           <CBadge color={badge.color} className="ms-auto" size="sm">
             {badge.text}

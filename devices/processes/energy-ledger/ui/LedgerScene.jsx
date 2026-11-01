@@ -20,6 +20,9 @@ import TenantsView from './TenantsView'
 import DayReview from './DayReview'
 import PlanView from './PlanView'
 import SavingsBridge from './SavingsBridge'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('energy-ledger')
 
 // The Energy Ledger - the user's view (Dashboard component and the process
 // row's panel; the reviewed mockup 2026-10-20 + the user's wish "see the
@@ -31,16 +34,16 @@ import SavingsBridge from './SavingsBridge'
 
 const RELOAD_MS = 60_000
 const STRATEGY_LABELS = {
-  cost: 'Least cost',
-  selfSufficiency: 'Self-sufficiency',
-  reserve: 'Reserve',
-  peakShaving: 'Peak shaving',
-  sales: 'Sales',
+  cost: tr('Least cost'),
+  selfSufficiency: tr('Self-sufficiency'),
+  reserve: tr('Reserve'),
+  peakShaving: tr('Peak shaving'),
+  sales: tr('Sales'),
 }
 const PERIODS = [
-  ['day', 'Day', 'One day'],
-  ['month', 'Month', 'The month - its days in a calendar'],
-  ['year', 'Year', 'The year - its months'],
+  ['day', tr('Day'), tr('One day')],
+  ['month', tr('Month'), tr('The month - its days in a calendar')],
+  ['year', tr('Year'), tr('The year - its months')],
 ]
 
 const pad = (n) => String(n).padStart(2, '0')
@@ -98,8 +101,13 @@ const MonthCalendar = ({ monthIso, days, onPick }) => {
         onClick={() => onPick(iso)}
         title={
           d
-            ? `${iso}: saved ${eur(saved)}, paid ${eur(-d.kpis.netEur)}${d.partial ? ' (recorded from the ledger start)' : ''}`
-            : `${iso}: not recorded`
+            ? tr('{{iso}}: saved {{eur}}, paid {{eur2}}{{v3}}', {
+                iso,
+                eur: eur(saved),
+                eur2: eur(-d.kpis.netEur),
+                v3: d.partial ? ' (recorded from the ledger start)' : '',
+              })
+            : tr('{{iso}}: not recorded', { iso })
         }
         className="border rounded text-start p-1"
         style={{
@@ -120,7 +128,7 @@ const MonthCalendar = ({ monthIso, days, onPick }) => {
         className="d-grid small text-body-secondary mb-1"
         style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}
       >
-        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((w) => (
+        {[tr('Mon'), tr('Tue'), tr('Wed'), tr('Thu'), tr('Fri'), tr('Sat'), tr('Sun')].map((w) => (
           <div key={w} className="text-center">
             {w}
           </div>
@@ -184,7 +192,7 @@ const JournalView = ({ process }) => {
     <div className="d-flex flex-column gap-3">
       <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
         <div className="d-flex align-items-center gap-2 flex-wrap">
-          <CButtonGroup size="sm" role="group" aria-label="The period">
+          <CButtonGroup size="sm" role="group" aria-label={tr('The period')}>
             {PERIODS.map(([key, label, hint]) => (
               <CButton
                 key={key}
@@ -197,12 +205,12 @@ const JournalView = ({ process }) => {
               </CButton>
             ))}
           </CButtonGroup>
-          <CButtonGroup size="sm" role="group" aria-label="Browse">
+          <CButtonGroup size="sm" role="group" aria-label={tr('Browse')}>
             <CButton
               color="secondary"
               variant="outline"
-              title={`The previous ${period}`}
-              aria-label={`The previous ${period}`}
+              title={tr('The previous {{period}}', { period })}
+              aria-label={tr('The previous {{period}}', { period })}
               onClick={() => shown && setDay(shift(shown, period, -1))}
             >
               ‹
@@ -211,16 +219,16 @@ const JournalView = ({ process }) => {
               color="secondary"
               variant="outline"
               disabled={isToday}
-              title="Back to today"
+              title={tr('Back to today')}
               onClick={() => setDay(null)}
             >
-              Today
+              {tr('Today')}
             </CButton>
             <CButton
               color="secondary"
               variant="outline"
-              title={`The next ${period}`}
-              aria-label={`The next ${period}`}
+              title={tr('The next {{period}}', { period })}
+              aria-label={tr('The next {{period}}', { period })}
               onClick={() => shown && setDay(shift(shown, period, 1))}
             >
               ›
@@ -228,11 +236,11 @@ const JournalView = ({ process }) => {
           </CButtonGroup>
           <span className="fw-semibold">{shown ? titleOf(period, shown) : ''}</span>
         </div>
-        <CButtonGroup size="sm" role="group" aria-label="Money or energy">
+        <CButtonGroup size="sm" role="group" aria-label={tr('Money or energy')}>
           <CButton
             color="secondary"
             variant={unit === 'eur' ? undefined : 'outline'}
-            title="The bridge in euros"
+            title={tr('The bridge in euros')}
             onClick={() => setUnit('eur')}
           >
             EUR
@@ -240,7 +248,7 @@ const JournalView = ({ process }) => {
           <CButton
             color="secondary"
             variant={unit === 'kwh' ? undefined : 'outline'}
-            title="The bridge in kilowatt-hours"
+            title={tr('The bridge in kilowatt-hours')}
             onClick={() => setUnit('kwh')}
           >
             kWh
@@ -252,16 +260,20 @@ const JournalView = ({ process }) => {
       {!data && !error && <CSpinner size="sm" />}
       {data && data.days.length === 0 && (
         <div className="text-body-secondary small">
-          Nothing recorded in this {period} - the ledger records from its start on.
+          {tr('Nothing recorded in this')} {period} {tr('- the ledger records from its start on.')}
         </div>
       )}
 
       {data && data.days.length > 0 && (
         <>
-          <section className="border rounded p-3" aria-label="The savings">
+          <section className="border rounded p-3" aria-label={tr('The savings')}>
             <div className="d-flex align-items-end gap-4 flex-wrap mb-2">
-              <div title="What the system saved: without it you would have paid the first bar, you paid the last">
-                <div className="small text-body-secondary">Saved</div>
+              <div
+                title={tr(
+                  'What the system saved: without it you would have paid the first bar, you paid the last',
+                )}
+              >
+                <div className="small text-body-secondary">{tr('Saved')}</div>
                 <div
                   className="text-success"
                   style={{ fontSize: '2.4rem', fontWeight: 700, lineHeight: 1 }}
@@ -270,83 +282,109 @@ const JournalView = ({ process }) => {
                 </div>
               </div>
               {k.savedPct != null && (
-                <div className="fs-5" title="The saving's share of the cost without the system">
+                <div
+                  className="fs-5"
+                  title={tr("The saving's share of the cost without the system")}
+                >
                   <b>{num(k.savedPct, 0)} %</b>{' '}
-                  <span className="text-body-secondary">less than without the system</span>
+                  <span className="text-body-secondary">{tr('less than without the system')}</span>
                 </div>
               )}
               <div className="ms-auto text-end small text-body-secondary">
-                without the system <b className="text-body">{eur(total.bridge[0].eur)}</b>
+                {tr('without the system')} <b className="text-body">{eur(total.bridge[0].eur)}</b>
                 <br />
-                paid <b className="text-body">{eur(total.bridge[5].eur)}</b>
+                {tr('paid')} <b className="text-body">{eur(total.bridge[5].eur)}</b>
               </div>
             </div>
             <SavingsBridge steps={total.bridge} unit={unit} />
             {k.consistent === false && (
               <div className="small text-danger" role="alert">
-                The figures of this {period} don't add up - more came from the grid than the site
-                used and stored. A recording fault; the saving shown is not reliable.
+                {tr('The figures of this')} {period}{' '}
+                {tr(
+                  "don't add up - more came from the grid than the site used and stored. A recording fault; the saving shown is not reliable.",
+                )}
               </div>
             )}
             {data.partial && (
               <div className="small text-body-secondary">
-                Part of this {period} was recorded only from the ledger's start - the figures cover
-                the recorded time.
+                {tr('Part of this')} {period}{' '}
+                {tr(
+                  "was recorded only from the ledger's start - the figures cover the recorded time.",
+                )}
               </div>
             )}
           </section>
 
           <section
             className="d-grid"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}
-            aria-label="Key figures"
+            style={{
+              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+              gap: 12,
+            }}
+            aria-label={tr('Key figures')}
           >
             <Kpi
-              label="Self-sufficiency"
-              hint="The share of the consumption not taken from the grid"
+              label={tr('Self-sufficiency')}
+              hint={tr('The share of the consumption not taken from the grid')}
             >
               <KeyValue value={num(k.selfSufficiencyPct, 0)} unit="%" />
             </Kpi>
             <Kpi
-              label="Own use of generation"
-              hint="The share of the PV and wind used on site (not sold, not held back)"
+              label={tr('Own use of generation')}
+              hint={tr('The share of the PV and wind used on site (not sold, not held back)')}
             >
               <KeyValue value={num(k.ownUsePct, 0)} unit="%" />
             </Kpi>
-            <Kpi label="Consumption" hint="The site's whole consumption, the heating included">
+            <Kpi
+              label={tr('Consumption')}
+              hint={tr("The site's whole consumption, the heating included")}
+            >
               <KeyValue value={num(rec.loadKwh)} unit="kWh" />
             </Kpi>
-            <Kpi label="PV + wind" hint="The field's generation">
+            <Kpi label={tr('PV + wind')} hint={tr("The field's generation")}>
               <KeyValue value={num(rec.pvKwh + rec.windKwh)} unit="kWh" />
             </Kpi>
-            <Kpi label="Import / export" hint="From the grid / to the grid">
+            <Kpi label={tr('Import / export')} hint={tr('From the grid / to the grid')}>
               <KeyValue value={num(rec.importKwh)} /> /{' '}
               <KeyValue value={num(rec.exportKwh)} unit="kWh" />
             </Kpi>
-            <Kpi label="Average purchase" hint="What a kWh from the grid cost on average">
+            <Kpi
+              label={tr('Average purchase')}
+              hint={tr('What a kWh from the grid cost on average')}
+            >
               <KeyValue value={num(k.avgBuyCtKwh, 1)} unit="ct/kWh" />
             </Kpi>
             <Kpi
-              label="Peak import"
-              hint="The highest power taken from the grid - it sets a business's capacity charge"
+              label={tr('Peak import')}
+              hint={tr(
+                "The highest power taken from the grid - it sets a business's capacity charge",
+              )}
             >
               <KeyValue value={num(rec.peakImportKw, 0)} unit="kW" />
             </Kpi>
-            <Kpi label="Battery cycles" hint="The batteries' discharge over their capacity">
+            <Kpi
+              label={tr('Battery cycles')}
+              hint={tr("The batteries' discharge over their capacity")}
+            >
               <KeyValue value={num(k.batteryCycles, 2)} />
             </Kpi>
-            <Kpi label="Rooms' heat" hint="The heat (or cold) the rooms got">
+            <Kpi label={tr("Rooms' heat")} hint={tr('The heat (or cold) the rooms got')}>
               <KeyValue value={num(rec.deliveredHeatKwh)} unit="kWh" />
             </Kpi>
-            <Kpi label="Sun / wind" hint="The solar energy per m² and the average / highest wind">
+            <Kpi
+              label={tr('Sun / wind')}
+              hint={tr('The solar energy per m² and the average / highest wind')}
+            >
               <KeyValue value={num(rec.sunKwhM2, 1)} unit="kWh/m²" /> ·{' '}
               <KeyValue value={num(rec.windAvgMs, 1)} /> /{' '}
               <KeyValue value={num(rec.windMaxMs, 1)} unit="m/s" />
             </Kpi>
             {period === 'day' && data.days[0]?.accuracy && (
               <Kpi
-                label="Forecast accuracy"
-                hint="How well the plan's forecast met the day: generation / consumption (1 - the error over the actual energy)"
+                label={tr('Forecast accuracy')}
+                hint={tr(
+                  "How well the plan's forecast met the day: generation / consumption (1 - the error over the actual energy)",
+                )}
               >
                 {num(data.days[0].accuracy.generationPct, 0)} /{' '}
                 <KeyValue value={num(data.days[0].accuracy.consumptionPct, 0)} unit="%" />
@@ -354,13 +392,15 @@ const JournalView = ({ process }) => {
             )}
             {period === 'day' && data.days[0]?.strategy && (
               <Kpi
-                label="Strategy"
-                hint="The strategy the plan ran; in hindsight - the one that would have done best on the day as it was"
+                label={tr('Strategy')}
+                hint={tr(
+                  'The strategy the plan ran; in hindsight - the one that would have done best on the day as it was',
+                )}
               >
                 {STRATEGY_LABELS[data.days[0].strategy] ?? data.days[0].strategy}
                 {data.days[0].hindsight && (
                   <div className="small fw-normal text-body-secondary">
-                    best in hindsight:{' '}
+                    {tr('best in hindsight:')}{' '}
                     {STRATEGY_LABELS[data.days[0].hindsight.best] ?? data.days[0].hindsight.best}
                   </div>
                 )}
@@ -373,7 +413,7 @@ const JournalView = ({ process }) => {
           <AccountsView accounts={data.accounts} />
 
           {period === 'month' && (
-            <section aria-label="The month's days">
+            <section aria-label={tr("The month's days")}>
               <MonthCalendar
                 monthIso={shown}
                 days={data.days}
@@ -390,22 +430,34 @@ const JournalView = ({ process }) => {
               <CTable small hover className="mb-0">
                 <CTableHead>
                   <CTableRow>
-                    <CTableHeaderCell>{period === 'year' ? 'Month' : 'Day'}</CTableHeaderCell>
-                    <CTableHeaderCell className="text-end" title="The site's consumption">
-                      Consumption
+                    <CTableHeaderCell>
+                      {period === 'year' ? tr('Month') : tr('Day')}
                     </CTableHeaderCell>
-                    <CTableHeaderCell className="text-end" title="PV + wind">
-                      Generation
+                    <CTableHeaderCell className="text-end" title={tr("The site's consumption")}>
+                      {tr('Consumption')}
                     </CTableHeaderCell>
-                    <CTableHeaderCell className="text-end" title="The grid bill less the sales">
-                      Paid
+                    <CTableHeaderCell className="text-end" title={tr('PV + wind')}>
+                      {tr('Generation')}
                     </CTableHeaderCell>
-                    <CTableHeaderCell className="text-end" title="Without the system less paid">
-                      Saved
+                    <CTableHeaderCell
+                      className="text-end"
+                      title={tr('The grid bill less the sales')}
+                    >
+                      {tr('Paid')}
+                    </CTableHeaderCell>
+                    <CTableHeaderCell
+                      className="text-end"
+                      title={tr('Without the system less paid')}
+                    >
+                      {tr('Saved')}
                     </CTableHeaderCell>
                     {period === 'month' && (
-                      <CTableHeaderCell title="The strategy the plan ran / the best one in hindsight, and the forecast's accuracy (generation / consumption)">
-                        Strategy · accuracy
+                      <CTableHeaderCell
+                        title={tr(
+                          "The strategy the plan ran / the best one in hindsight, and the forecast's accuracy (generation / consumption)",
+                        )}
+                      >
+                        {tr('Strategy · accuracy')}
                       </CTableHeaderCell>
                     )}
                   </CTableRow>
@@ -416,7 +468,7 @@ const JournalView = ({ process }) => {
                         <CTableRow
                           key={d.day}
                           style={{ cursor: 'pointer' }}
-                          title="Open the day"
+                          title={tr('Open the day')}
                           onClick={() => {
                             setPeriod('day')
                             setDay(d.day)
@@ -453,7 +505,7 @@ const JournalView = ({ process }) => {
                         <CTableRow
                           key={m.month}
                           style={{ cursor: 'pointer' }}
-                          title="Open the month"
+                          title={tr('Open the month')}
                           onClick={() => {
                             setPeriod('month')
                             setDay(`${m.month}-01`)
@@ -479,9 +531,9 @@ const JournalView = ({ process }) => {
 }
 
 const VIEWS = [
-  ['plan', 'Plan', "The batteries' plan for the hours ahead"],
-  ['journal', 'Journal', 'What was spent and saved - a day, a month, a year'],
-  ['tenants', 'Tenants', 'The let units - what each consumed and is to pay'],
+  ['plan', tr('Plan'), tr("The batteries' plan for the hours ahead")],
+  ['journal', tr('Journal'), tr('What was spent and saved - a day, a month, a year')],
+  ['tenants', tr('Tenants'), tr('The let units - what each consumed and is to pay')],
 ]
 
 const LedgerScene = ({ process, params }) => {
@@ -516,14 +568,14 @@ const LedgerScene = ({ process, params }) => {
       <DayNotes
         processId={process.id}
         kinds={['holiday', 'day-off', 'workday', 'other']}
-        title="Today's operation"
+        title={tr("Today's operation")}
         dayType
         summary={summary}
       />
       <CButtonGroup
         size="sm"
         role="group"
-        aria-label="The ledger's view"
+        aria-label={tr("The ledger's view")}
         className="align-self-start"
       >
         {VIEWS.map(([key, label, hint]) => (

@@ -24,6 +24,9 @@ import {
   wetCode,
 } from './weatherMath'
 import { SunWidget, TemperatureWidget, WindWidget, currentHour, fmt } from './WeatherWidgets'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('weather-control')
 
 // The weather's scene - the user's Dashboard component `weatherControl.panel` (2026-10-30; the process
 // row keeps the engineer's panel): the station's readings and the forecast at a glance, for a site that
@@ -101,12 +104,15 @@ const hhmm = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute
 const hourOnly = (t) => new Date(t).toLocaleTimeString([], { hour: 'numeric' })
 const dayName = (t, now) =>
   dayOf(t) === dayOf(now)
-    ? 'Today'
+    ? tr('Today')
     : dayOf(t) === dayOf(now + 86_400_000)
-      ? 'Tomorrow'
+      ? tr('Tomorrow')
       : new Date(t).toLocaleDateString([], { weekday: 'long' })
 const duration = (ms) =>
-  `${Math.floor(ms / 3_600_000)} h ${Math.round((ms % 3_600_000) / 60_000)} min`
+  tr('{{floor}} h {{round}} min', {
+    floor: Math.floor(ms / 3_600_000),
+    round: Math.round((ms % 3_600_000) / 60_000),
+  })
 
 /** The stored forecast, re-read; `refresh()` - fetch now (processes.control). */
 const useForecast = (processId) => {
@@ -130,7 +136,9 @@ const useForecast = (processId) => {
   }, [load])
   const refresh = () => {
     setBusy(true)
-    request(`/weather-control/${processId}/forecast/refresh`, { method: 'POST' })
+    request(`/weather-control/${processId}/forecast/refresh`, {
+      method: 'POST',
+    })
       .then((f) => {
         setForecast(f)
         setError(null)
@@ -166,7 +174,7 @@ const WindArrow = ({ deg, size = 16, color = 'currentColor' }) =>
 
 /** The compass: N / E / S / W and the wind's arrow on it. */
 const Compass = ({ deg, size = 64 }) => (
-  <svg width={size} height={size} viewBox="0 0 64 64" role="img" aria-label="Wind direction">
+  <svg width={size} height={size} viewBox="0 0 64 64" role="img" aria-label={tr('Wind direction')}>
     <circle cx="32" cy="32" r="29" fill="var(--ws-tint)" stroke="var(--ws-line)" />
     {[
       ['N', 32, 12],
@@ -205,7 +213,7 @@ const SunArc = ({ sunrise, sunset, now, width = ARC_W }) => {
       height={ARC_PX}
       viewBox={`0 0 ${width} ${h}`}
       role="img"
-      aria-label="The sun's day"
+      aria-label={tr("The sun's day")}
     >
       <line x1="4" x2={width - 4} y1={h - 6} y2={h - 6} stroke="var(--ws-line)" />
       <polyline points={arc.join(' ')} fill="none" stroke="var(--ws-line)" strokeDasharray="4 4" />
@@ -251,7 +259,11 @@ const WeatherScene = ({ process, params }) => {
   const scene = { ...SCENE_DEFAULTS, ...(c.scene ?? {}) }
 
   if (error && !forecast)
-    return <div className="small text-body-secondary p-2">The forecast: {error}</div>
+    return (
+      <div className="small text-body-secondary p-2">
+        {tr('The forecast:')} {error}
+      </div>
+    )
   if (!forecast) return <CSpinner size="sm" />
 
   const hourly = forecast.hourly ?? []
@@ -302,25 +314,36 @@ const WeatherScene = ({ process, params }) => {
       lo24 <= scene.frostC && {
         key: 'frost',
         color: 'info',
-        text: `Frost from ${hhmm(firstAt((h) => h.temperatureC <= scene.frostC))}, down to ${fmt(lo24, 1)} °C`,
+        text: tr('Frost from {{hhmm}}, down to {{fmt}} °C', {
+          hhmm: hhmm(firstAt((h) => h.temperatureC <= scene.frostC)),
+          fmt: fmt(lo24, 1),
+        }),
       },
     gust &&
       gust.windGustsMs >= scene.stormGustMs && {
         key: 'storm',
         color: 'danger',
-        text: `Storm gusts up to ${fmt(gust.windGustsMs, 0)} m/s at ${hhmm(gust.t)} - the turbines may stop`,
+        text: tr('Storm gusts up to {{fmt}} m/s at {{hhmm}} - the turbines may stop', {
+          fmt: fmt(gust.windGustsMs, 0),
+          hhmm: hhmm(gust.t),
+        }),
       },
     wettest &&
       wettest.precipitationMm >= scene.heavyRainMmH && {
         key: 'rain',
         color: 'primary',
-        text: `Heavy rain, ${fmt(wettest.precipitationMm, 1)} mm/h at ${hhmm(wettest.t)}`,
+        text: tr('Heavy rain, {{fmt}} mm/h at {{hhmm}}', {
+          fmt: fmt(wettest.precipitationMm, 1),
+          hhmm: hhmm(wettest.t),
+        }),
       },
     hi24 != null &&
       hi24 >= scene.heatC && {
         key: 'heat',
         color: 'warning',
-        text: `Heat up to ${fmt(hi24, 0)} °C - the cooling's day`,
+        text: tr("Heat up to {{fmt}} °C - the cooling's day", {
+          fmt: fmt(hi24, 0),
+        }),
       },
   ].filter(Boolean)
 
@@ -349,7 +372,11 @@ const WeatherScene = ({ process, params }) => {
   const rangeLo = lows.length ? Math.floor(Math.min(...lows)) : 0
   const rangeHi = highs.length ? Math.ceil(Math.max(...highs)) : 1
   const pos = (v) => ((v - rangeLo) / (rangeHi - rangeLo || 1)) * 100
-  const SUN_CLASS = { good: 'text-success', fair: 'text-warning', poor: 'text-body-secondary' }
+  const SUN_CLASS = {
+    good: 'text-success',
+    fair: 'text-warning',
+    poor: 'text-body-secondary',
+  }
 
   return (
     <div className="ws">
@@ -369,15 +396,21 @@ const WeatherScene = ({ process, params }) => {
           )}
           <span className="ws-muted">
             {forecast.location?.place ?? ''}
-            {forecast.fetchedAt ? ` · the forecast of ${hhmm(forecast.fetchedAt)}` : ''}
+            {forecast.fetchedAt
+              ? tr(' · the forecast of {{hhmm}}', {
+                  hhmm: hhmm(forecast.fetchedAt),
+                })
+              : ''}
           </span>
           {forecast.error && (
-            <span className="small text-warning">the last fetch failed: {forecast.error}</span>
+            <span className="small text-warning">
+              {tr('the last fetch failed:')} {forecast.error}
+            </span>
           )}
         </div>
         {can('processes.control', { process: process.id }) && (
           <CButton size="sm" color="secondary" variant="outline" disabled={busy} onClick={refresh}>
-            {busy ? <CSpinner size="sm" /> : 'Refresh'}
+            {busy ? <CSpinner size="sm" /> : tr('Refresh')}
           </CButton>
         )}
       </div>
@@ -405,21 +438,23 @@ const WeatherScene = ({ process, params }) => {
               value={fmt(tC, 1)}
               unit="°C"
               className="ws-temp"
-              title="The station's temperature now"
+              title={tr("The station's temperature now")}
             />
-            <div className="fs-5 fw-semibold mt-1">{weatherText(hourNow?.weatherCode) ?? '-'}</div>
+            <div className="fs-5 fw-semibold mt-1">
+              {hourNow?.weatherCode != null ? tr(weatherText(hourNow.weatherCode) ?? '-') : '-'}
+            </div>
             <div className="ws-muted">
-              Feels like <KeyValue value={fmt(feels, 0)} unit="°C" />
+              {tr('Feels like')} <KeyValue value={fmt(feels, 0)} unit="°C" />
               {today && (
                 <>
                   {' '}
-                  · low{' '}
+                  {tr('· low')}{' '}
                   <KeyValue
                     value={fmt(today.temperatureMinC, 0)}
                     unit="°C"
                     color="var(--ws-cold)"
                   />{' '}
-                  · high{' '}
+                  {tr('· high')}{' '}
                   <KeyValue
                     value={fmt(today.temperatureMaxC, 0)}
                     unit="°C"
@@ -432,25 +467,29 @@ const WeatherScene = ({ process, params }) => {
         </section>
         <section className="ws-card">
           <div className="d-flex justify-content-between ws-muted small">
-            <span>Sunrise {today?.sunrise ? hhmm(today.sunrise) : '-'}</span>
-            <span>Sunset {today?.sunset ? hhmm(today.sunset) : '-'}</span>
+            <span>
+              {tr('Sunrise')} {today?.sunrise ? hhmm(today.sunrise) : '-'}
+            </span>
+            <span>
+              {tr('Sunset')} {today?.sunset ? hhmm(today.sunset) : '-'}
+            </span>
           </div>
           <SunArc sunrise={today?.sunrise} sunset={today?.sunset} now={now} />
           <div className="d-flex justify-content-between gap-2 flex-wrap">
-            <span title="From the sunrise to the sunset">
-              <span className="ws-muted">Daylight </span>
+            <span title={tr('From the sunrise to the sunset')}>
+              <span className="ws-muted">{tr('Daylight')} </span>
               {today?.sunrise && today?.sunset ? duration(today.sunset - today.sunrise) : '-'}
             </span>
-            <span title="The day's sun on a square metre - what the PV can make of">
-              <span className="ws-muted">Sun today </span>
+            <span title={tr("The day's sun on a square metre - what the PV can make of")}>
+              <span className="ws-muted">{tr('Sun today')} </span>
               <KeyValue
                 value={fmt(kwhM2(today?.radiationMjM2), 1)}
                 unit="kWh/m²"
                 color="var(--ws-sun)"
               />
             </span>
-            <span title="The sun's radiation now">
-              <span className="ws-muted">Now </span>
+            <span title={tr("The sun's radiation now")}>
+              <span className="ws-muted">{tr('Now')} </span>
               <KeyValue value={fmt(hourNow?.radiationWm2, 0)} unit="W/m²" />
             </span>
           </div>
@@ -460,18 +499,25 @@ const WeatherScene = ({ process, params }) => {
       <div className="ws-tiles">
         <Tile
           icon={<AnemometerIcon windMs={windMs ?? 0} size={22} />}
-          title="Wind"
-          hint="The station's wind, the forecast's gusts and direction (where it blows from)"
+          title={tr('Wind')}
+          hint={tr("The station's wind, the forecast's gusts and direction (where it blows from)")}
         >
           <div className="d-flex align-items-center justify-content-between gap-2">
             <div>
               <KeyValue value={fmt(windMs, 1)} unit="m/s" className="ws-main" />
               <div className="ws-muted small">
-                {bft ? `${bft.force} Bft - ${bft.name}` : '-'}
+                {bft
+                  ? tr('{{force}} Bft - {{name}}', {
+                      force: bft.force,
+                      name: tr(bft.name),
+                    })
+                  : '-'}
                 <br />
-                gusts <KeyValue value={fmt(hourNow?.windGustsMs, 1)} unit="m/s" />
+                {tr('gusts')} <KeyValue value={fmt(hourNow?.windGustsMs, 1)} unit="m/s" />
                 {hourNow?.windDirectionDeg != null &&
-                  ` · from ${compassOf(hourNow.windDirectionDeg)}`}
+                  tr(' · from {{compassOf}}', {
+                    compassOf: compassOf(hourNow.windDirectionDeg),
+                  })}
               </div>
             </div>
             <Compass deg={hourNow?.windDirectionDeg} />
@@ -479,58 +525,69 @@ const WeatherScene = ({ process, params }) => {
         </Tile>
         <Tile
           icon={<DropIcon size={22} />}
-          title="Humidity"
-          hint="The station's relative humidity; the dew point - where the air's water condenses"
+          title={tr('Humidity')}
+          hint={tr(
+            "The station's relative humidity; the dew point - where the air's water condenses",
+          )}
         >
           <KeyValue value={fmt(rh, 0)} unit="%" className="ws-main" />
           <div className="ws-muted small">
-            Dew point <KeyValue value={fmt(dew, 1)} unit="°C" />
+            {tr('Dew point')} <KeyValue value={fmt(dew, 1)} unit="°C" />
           </div>
           <div className="ws-range" aria-hidden="true">
             <span
-              style={{ left: 0, width: `${Math.min(100, rh ?? 0)}%`, background: 'var(--ws-rain)' }}
+              style={{
+                left: 0,
+                width: `${Math.min(100, rh ?? 0)}%`,
+                background: 'var(--ws-rain)',
+              }}
             />
           </div>
         </Tile>
         <Tile
           icon={<ThermoIcon size={22} />}
-          title="Pressure"
-          hint="The station's air pressure; its tendency - the forecast's last 3 hours"
+          title={tr('Pressure')}
+          hint={tr("The station's air pressure; its tendency - the forecast's last 3 hours")}
         >
           <KeyValue value={fmt(hpa, 0)} unit="hPa" className="ws-main" />
           <div className="ws-muted small">
             {trend
-              ? `${trend.word === 'rising' ? '↑' : trend.word === 'falling' ? '↓' : '→'} ${trend.word}, ${trend.deltaHpa >= 0 ? '+' : ''}${fmt(trend.deltaHpa, 1)} hPa in 3 h`
+              ? tr('{{v0}} {{word}}, {{v2}}{{fmt}} hPa in 3 h', {
+                  v0: trend.word === 'rising' ? '↑' : trend.word === 'falling' ? '↓' : '→',
+                  word: tr(trend.word),
+                  v2: trend.deltaHpa >= 0 ? '+' : '',
+                  fmt: fmt(trend.deltaHpa, 1),
+                })
               : '-'}
           </div>
           <div className="ws-muted small">
             {trend?.word === 'falling'
-              ? 'Weather may turn worse'
+              ? tr('Weather may turn worse')
               : trend?.word === 'rising'
-                ? 'Weather settling'
-                : 'Weather stable'}
+                ? tr('Weather settling')
+                : tr('Weather stable')}
           </div>
         </Tile>
         <Tile
           icon={<RainIcon size={22} wet={(num(station.wetnessPct) ?? 0) > 0} />}
-          title="Rain"
-          hint="The station's wetness; the forecast's rain"
+          title={tr('Rain')}
+          hint={tr("The station's wetness; the forecast's rain")}
         >
-          <KeyValue value={fmt(rain6h, 1)} unit="mm in 6 h" className="ws-main" />
+          <KeyValue value={fmt(rain6h, 1)} unit={tr('mm in 6 h')} className="ws-main" />
           <div className="ws-muted small">
             {rainNext
               ? rainNext.t <= now
-                ? 'Raining now'
-                : `Rain from ${hhmm(rainNext.t)}`
-              : `Dry the next ${HOURS_AHEAD} h`}
+                ? tr('Raining now')
+                : tr('Rain from {{hhmm}}', { hhmm: hhmm(rainNext.t) })
+              : tr('Dry the next {{HOURS_AHEAD}} h', { HOURS_AHEAD })}
             <br />
-            wetness <KeyValue value={fmt(num(station.wetnessPct), 0)} unit="%" />
+            {tr('wetness')} <KeyValue value={fmt(num(station.wetnessPct), 0)} unit="%" />
           </div>
         </Tile>
         <Tile
           icon={<SkyIcon radiation={200} cloudPct={60} isDay height={18} />}
-          title="Clouds"
-          hint="The forecast's cloud cover now"
+          title={tr('Clouds')}
+          hint={tr("The forecast's cloud cover now")}
         >
           <KeyValue value={fmt(hourNow?.cloudCoverPct, 0)} unit="%" className="ws-main" />
           <div className="ws-range" aria-hidden="true">
@@ -545,14 +602,14 @@ const WeatherScene = ({ process, params }) => {
         </Tile>
         <Tile
           icon={level ? <CIcon icon={level.icon} style={{ color: level.defaultColor }} /> : null}
-          title="Light"
-          hint="The station's light sensor - its level by the configured zones"
+          title={tr('Light')}
+          hint={tr("The station's light sensor - its level by the configured zones")}
         >
           <div className="fs-4 fw-bold" style={{ lineHeight: 1.2 }}>
             {level?.label ?? '-'}
           </div>
           <div className="ws-muted small">
-            sun <KeyValue value={fmt(hourNow?.radiationWm2, 0)} unit="W/m²" />
+            {tr('sun')} <KeyValue value={fmt(hourNow?.radiationWm2, 0)} unit="W/m²" />
           </div>
         </Tile>
       </div>
@@ -579,7 +636,9 @@ const WeatherScene = ({ process, params }) => {
       </div>
 
       <section className="ws-card">
-        <div className="fw-semibold mb-2">The next {HOURS_AHEAD} hours</div>
+        <div className="fw-semibold mb-2">
+          {tr('The next')} {HOURS_AHEAD} {tr('hours')}
+        </div>
         <div className="ws-hours" role="list">
           {next24.map((h) => {
             const isNow = h.t <= now && now < h.t + 3_600_000
@@ -589,9 +648,21 @@ const WeatherScene = ({ process, params }) => {
                 key={h.t}
                 role="listitem"
                 className={`ws-hour${isNow ? ' ws-nowcol' : ''}`}
-                title={`${hhmm(h.t)} - ${weatherText(h.weatherCode) ?? ''}, ${fmt(h.temperatureC, 1)} °C, clouds ${fmt(h.cloudCoverPct, 0)} %, sun ${fmt(h.radiationWm2, 0)} W/m², rain ${fmt(mm, 1)} mm, wind ${fmt(h.windSpeedMs, 1)} (${fmt(h.windGustsMs, 1)}) m/s`}
+                title={tr(
+                  '{{hhmm}} - {{v1}}, {{fmt}} °C, clouds {{fmt2}} %, sun {{fmt22}} W/m², rain {{fmt222}} mm, wind {{fmt2222}} ({{fmt22222}}) m/s',
+                  {
+                    hhmm: hhmm(h.t),
+                    v1: tr(weatherText(h.weatherCode) ?? ''),
+                    fmt: fmt(h.temperatureC, 1),
+                    fmt2: fmt(h.cloudCoverPct, 0),
+                    fmt22: fmt(h.radiationWm2, 0),
+                    fmt222: fmt(mm, 1),
+                    fmt2222: fmt(h.windSpeedMs, 1),
+                    fmt22222: fmt(h.windGustsMs, 1),
+                  },
+                )}
               >
-                <span className="small ws-muted">{isNow ? 'Now' : hourOnly(h.t)}</span>
+                <span className="small ws-muted">{isNow ? tr('Now') : hourOnly(h.t)}</span>
                 <span style={{ height: 30, display: 'flex', alignItems: 'center' }}>
                   <HourSky h={h} height={26} />
                 </span>
@@ -608,7 +679,9 @@ const WeatherScene = ({ process, params }) => {
                 </span>
                 <span
                   className="small"
-                  style={{ color: mm >= RAIN_MIN_MM ? 'var(--ws-rain)' : 'var(--ws-muted)' }}
+                  style={{
+                    color: mm >= RAIN_MIN_MM ? 'var(--ws-rain)' : 'var(--ws-muted)',
+                  }}
                 >
                   {mm >= RAIN_MIN_MM ? fmt(mm, 1) : '-'}
                 </span>
@@ -620,11 +693,13 @@ const WeatherScene = ({ process, params }) => {
             )
           })}
         </div>
-        <div className="small ws-muted mt-1">°C · rain, mm · wind, m/s and where it blows</div>
+        <div className="small ws-muted mt-1">
+          {tr('°C · rain, mm · wind, m/s and where it blows')}
+        </div>
       </section>
 
       <section className="ws-card">
-        <div className="fw-semibold mb-2">The days</div>
+        <div className="fw-semibold mb-2">{tr('The days')}</div>
         <div className="ws-days">
           {days.map((d) => (
             <React.Fragment key={d.t}>
@@ -632,7 +707,7 @@ const WeatherScene = ({ process, params }) => {
               <span>{d.noon ? <HourSky h={{ ...d.noon, isDay: 1 }} height={26} /> : null}</span>
               <span
                 className="d-flex align-items-center gap-2"
-                title="The day's low and high on the days' common range"
+                title={tr("The day's low and high on the days' common range")}
               >
                 <KeyValue value={fmt(d.temperatureMinC, 0)} unit="°" color="var(--ws-cold)" />
                 <span className="ws-range flex-grow-1">
@@ -646,29 +721,38 @@ const WeatherScene = ({ process, params }) => {
                 <KeyValue value={fmt(d.temperatureMaxC, 0)} unit="°" color="var(--ws-warm)" />
               </span>
               <span
-                title="The day's rain"
+                title={tr("The day's rain")}
                 style={{
                   color: (d.precipitationMm ?? 0) >= RAIN_MIN_MM ? 'var(--ws-rain)' : undefined,
                 }}
               >
                 <KeyValue value={fmt(d.precipitationMm, 1)} unit="mm" />
               </span>
-              <span className="ws-wide" title="The day's strongest wind">
+              <span className="ws-wide" title={tr("The day's strongest wind")}>
                 <KeyValue value={fmt(d.windSpeedMaxMs, 0)} unit="m/s" />
               </span>
               <span
                 className="ws-wide"
-                title={`The day's sun - the PV's: good from ${scene.sunGoodKwhM2}, fair from ${scene.sunFairKwhM2} kWh/m²`}
+                title={tr(
+                  "The day's sun - the PV's: good from {{sunGoodKwhM2}}, fair from {{sunFairKwhM2}} kWh/m²",
+                  {
+                    sunGoodKwhM2: scene.sunGoodKwhM2,
+                    sunFairKwhM2: scene.sunFairKwhM2,
+                  },
+                )}
               >
                 <KeyValue value={fmt(d.sun, 1)} unit="kWh/m²" className={SUN_CLASS[d.sunLevel]} />{' '}
                 <span className="small ws-muted">{d.sunLevel ?? ''}</span>
               </span>
               <span
                 className="ws-wide"
-                title={`The heating's degree-days - the mean shortfall under ${scene.heatingBaseC} °C: the more, the more heat the buildings need`}
+                title={tr(
+                  "The heating's degree-days - the mean shortfall under {{heatingBaseC}} °C: the more, the more heat the buildings need",
+                  { heatingBaseC: scene.heatingBaseC },
+                )}
               >
                 <KeyValue value={fmt(d.hdd, 1)} unit="K·d" />{' '}
-                <span className="small ws-muted">heating</span>
+                <span className="small ws-muted">{tr('heating')}</span>
               </span>
             </React.Fragment>
           ))}

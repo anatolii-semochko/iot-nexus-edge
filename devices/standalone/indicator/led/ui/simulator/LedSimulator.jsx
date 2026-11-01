@@ -1,4 +1,5 @@
 import React from 'react'
+import { t } from 'src/i18n'
 
 /**
  * Clickable variant of `../control/LedControl.jsx` for the Dev Simulator
@@ -29,7 +30,7 @@ const LedSimulator = ({ value, color = DEFAULT_COLOR, onChange }) => {
         cursor: 'pointer',
       }}
       aria-pressed={active}
-      aria-label="Toggle LED"
+      aria-label={t('Toggle LED')}
     />
   )
 }

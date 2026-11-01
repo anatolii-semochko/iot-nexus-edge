@@ -13,6 +13,9 @@ import {
   CTableHeaderCell,
   CTableRow,
 } from '@coreui/react'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('heating-control')
 
 // The heating's engineer settings (Processes -> its Settings; processes.config - iot AGENTS_TO_DO.md
 // 2026-10-25, S2): the plant, not the operation - the groups of each block (heat pumps, tanks, fan
@@ -23,16 +26,19 @@ import {
 // (registered with '*').
 
 const BLOCKS = [
-  ['pumps', 'Heat pumps', 'heatPumps'],
-  ['tanks', 'Tanks', 'tanks'],
-  ['consumers', 'Fan coils', 'consumers'],
+  ['pumps', t('Heat pumps'), 'heatPumps'],
+  ['tanks', t('Tanks'), 'tanks'],
+  ['consumers', t('Fan coils'), 'consumers'],
 ]
 const DEFAULTS = {
   heatBelowC: 15,
   coolAboveC: 24,
   tankRoomC: 15,
   pumpStaggerS: 2,
-  tank: { heating: { startC: 42, stopC: 50 }, cooling: { startC: 14, stopC: 9 } },
+  tank: {
+    heating: { startC: 42, stopC: 50 },
+    cooling: { startC: 14, stopC: 9 },
+  },
 }
 const numberOr = (text) => (text.trim() === '' ? undefined : Number(text))
 const keyOf = (name, taken) => {
@@ -64,7 +70,10 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
     stage('copLevels', next)
   }
   const stage = (section, value) => {
-    extraConfigRef.current = { ...(extraConfigRef.current ?? {}), [section]: value }
+    extraConfigRef.current = {
+      ...(extraConfigRef.current ?? {}),
+      [section]: value,
+    }
   }
   const saveGroups = (next) => {
     setGroups(next)
@@ -97,13 +106,16 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
     if (value === undefined) return
     saveControl({
       ...control,
-      tank: { ...(control.tank ?? {}), [mode]: { ...band(mode), [key]: value } },
+      tank: {
+        ...(control.tank ?? {}),
+        [mode]: { ...band(mode), [key]: value },
+      },
     })
   }
 
   return (
     <>
-      <h6>Groups</h6>
+      <h6>{t('Groups')}</h6>
       <p className="small text-body-secondary mb-2">
         One level, each in one block. The scene shows each block by its groups; the ungrouped units
         - in &quot;Other&quot; (no groups at all - all together).
@@ -112,7 +124,7 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
         <div key={g.key} className="d-flex gap-2 mb-2 align-items-center">
           <CFormInput
             size="sm"
-            aria-label="Group name"
+            aria-label={t('Group name')}
             value={g.name}
             maxLength={60}
             onChange={(e) =>
@@ -126,10 +138,10 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
             size="sm"
             color="danger"
             variant="outline"
-            title="Remove this group - its units stay, ungrouped"
+            title={t('Remove this group - its units stay, ungrouped')}
             onClick={() => removeGroup(g)}
           >
-            Delete
+            {t('Delete')}
           </CButton>
         </div>
       ))}
@@ -148,22 +160,24 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
                     `${block} group`,
                     groups.map((g) => g.key),
                   ),
-                  name: `New group - ${label.toLowerCase()}`,
+                  name: t('New group - {{toLowerCase}}', {
+                    toLowerCase: label.toLowerCase(),
+                  }),
                   block,
                 },
               ])
             }
           >
-            Add a group of {label.toLowerCase()}
+            {t('Add a group of')} {label.toLowerCase()}
           </CButton>
         ))}
       </div>
       <CTable small responsive className="mb-4">
         <CTableHead>
           <CTableRow>
-            <CTableHeaderCell>Unit</CTableHeaderCell>
-            <CTableHeaderCell>Block</CTableHeaderCell>
-            <CTableHeaderCell style={{ width: '40%' }}>Group</CTableHeaderCell>
+            <CTableHeaderCell>{t('Unit')}</CTableHeaderCell>
+            <CTableHeaderCell>{t('Block')}</CTableHeaderCell>
+            <CTableHeaderCell style={{ width: '40%' }}>{t('Group')}</CTableHeaderCell>
           </CTableRow>
         </CTableHead>
         <CTableBody>
@@ -175,7 +189,7 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
                 <CTableDataCell>
                   <CFormSelect
                     size="sm"
-                    aria-label={`${x.name} - group`}
+                    aria-label={t('{{name}} - group', { name: x.name })}
                     value={x.group ?? ''}
                     onChange={(e) =>
                       saveUnits(
@@ -186,7 +200,7 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
                       )
                     }
                   >
-                    <option value="">No group (Other)</option>
+                    <option value="">{t('No group (Other)')}</option>
                     {groups
                       .filter((g) => g.block === block)
                       .map((g) => (
@@ -202,14 +216,15 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
         </CTableBody>
       </CTable>
 
-      <h6>The auto mode</h6>
+      <h6>{t('The auto mode')}</h6>
       <p className="small text-body-secondary mb-2">
-        Heating below the first outdoor temperature, cooling above the second; between them it keeps
-        what it was doing.
+        {t(
+          'Heating below the first outdoor temperature, cooling above the second; between them it keeps what it was doing.',
+        )}
       </p>
       <CRow className="g-3 mb-4">
         <CCol sm={4}>
-          <CFormLabel>Heat below, °C</CFormLabel>
+          <CFormLabel>{t('Heat below, °C')}</CFormLabel>
           <CFormInput
             type="number"
             value={control.heatBelowC ?? ''}
@@ -218,7 +233,7 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
           />
         </CCol>
         <CCol sm={4}>
-          <CFormLabel>Cool above, °C</CFormLabel>
+          <CFormLabel>{t('Cool above, °C')}</CFormLabel>
           <CFormInput
             type="number"
             value={control.coolAboveC ?? ''}
@@ -227,8 +242,12 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
           />
         </CCol>
         <CCol sm={4}>
-          <CFormLabel title="A room closed by a day note: its setpoint lower (heating) / higher (cooling) by this much">
-            Closed room set back, K
+          <CFormLabel
+            title={t(
+              'A room closed by a day note: its setpoint lower (heating) / higher (cooling) by this much',
+            )}
+          >
+            {t('Closed room set back, K')}
           </CFormLabel>
           <CFormInput
             type="number"
@@ -241,28 +260,28 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
         </CCol>
       </CRow>
 
-      <h6>The heat pumps</h6>
+      <h6>{t('The heat pumps')}</h6>
       <p className="small text-body-secondary mb-2">
-        As few units run as the tanks need, and a running one keeps running. The next to start: the
-        least run one (the wear spread evenly) or by your priority. They start and stop one by one -
-        the inrush currents never all at once.
+        {t(
+          'As few units run as the tanks need, and a running one keeps running. The next to start: the least run one (the wear spread evenly) or by your priority. They start and stop one by one - the inrush currents never all at once.',
+        )}
       </p>
       <CRow className="g-3 mb-3">
         <CCol sm={6}>
-          <CFormLabel>The start order</CFormLabel>
+          <CFormLabel>{t('The start order')}</CFormLabel>
           <CFormSelect
             value={control.pumpOrder ?? 'auto'}
             onChange={(e) =>
               editControl('pumpOrder', e.target.value === 'auto' ? undefined : e.target.value)
             }
           >
-            <option value="auto">Automatic - the least run hours first</option>
+            <option value="auto">{t('Automatic - the least run hours first')}</option>
             <option value="priority">Explicit - by each unit&apos;s priority</option>
           </CFormSelect>
         </CCol>
         <CCol sm={6}>
-          <CFormLabel title="Between two heat pumps' starts (and stops)">
-            Pause between the starts, s
+          <CFormLabel title={t("Between two heat pumps' starts (and stops)")}>
+            {t('Pause between the starts, s')}
           </CFormLabel>
           <CFormInput
             type="number"
@@ -278,8 +297,10 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
         <CTable small responsive className="mb-4">
           <CTableHead>
             <CTableRow>
-              <CTableHeaderCell>Heat pump</CTableHeaderCell>
-              <CTableHeaderCell style={{ width: '30%' }}>Priority (1 - first)</CTableHeaderCell>
+              <CTableHeaderCell>{t('Heat pump')}</CTableHeaderCell>
+              <CTableHeaderCell style={{ width: '30%' }}>
+                {t('Priority (1 - first)')}
+              </CTableHeaderCell>
             </CTableRow>
           </CTableHead>
           <CTableBody>
@@ -291,9 +312,9 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
                     size="sm"
                     type="number"
                     min={1}
-                    aria-label={`${x.name} - priority`}
+                    aria-label={t('{{name}} - priority', { name: x.name })}
                     value={x.priority ?? ''}
-                    placeholder="last"
+                    placeholder={t('last')}
                     onChange={(e) =>
                       saveUnits(
                         'heatPumps',
@@ -311,14 +332,14 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
       )}
       {control.pumpOrder !== 'priority' && <div className="mb-4" />}
 
-      <h6>The COP on the card</h6>
+      <h6>{t('The COP on the card')}</h6>
       <p className="small text-body-secondary mb-2">
         The Dashboard card&apos;s COP (EER when cooling) coloured: from the first - green, from the
         second - yellow, under it - red.
       </p>
       <CRow className="g-3 mb-4">
         <CCol sm={4}>
-          <CFormLabel>Good from</CFormLabel>
+          <CFormLabel>{t('Good from')}</CFormLabel>
           <CFormInput
             type="number"
             step="0.1"
@@ -328,7 +349,7 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
           />
         </CCol>
         <CCol sm={4}>
-          <CFormLabel>Fair from</CFormLabel>
+          <CFormLabel>{t('Fair from')}</CFormLabel>
           <CFormInput
             type="number"
             step="0.1"
@@ -339,7 +360,7 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
         </CCol>
       </CRow>
 
-      <h6>The tanks</h6>
+      <h6>{t('The tanks')}</h6>
       <p className="small text-body-secondary mb-2">
         The tanks&apos; average temperature: charging starts at the first and stops at the second
         (heating - start below, stop above; cooling - start above, stop below). The Energy
@@ -347,12 +368,14 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
       </p>
       <CRow className="g-3">
         {[
-          ['heating', 'Heating'],
-          ['cooling', 'Cooling'],
+          ['heating', t('Heating')],
+          ['cooling', t('Cooling')],
         ].map(([mode, label]) => (
           <React.Fragment key={mode}>
             <CCol sm={3}>
-              <CFormLabel>{label} - start, °C</CFormLabel>
+              <CFormLabel>
+                {label} {t('- start, °C')}
+              </CFormLabel>
               <CFormInput
                 type="number"
                 value={band(mode).startC}
@@ -360,7 +383,9 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
               />
             </CCol>
             <CCol sm={3}>
-              <CFormLabel>{label} - stop, °C</CFormLabel>
+              <CFormLabel>
+                {label} {t('- stop, °C')}
+              </CFormLabel>
               <CFormInput
                 type="number"
                 value={band(mode).stopC}
@@ -370,7 +395,7 @@ const HeatingSettingsSection = ({ process, extraConfigRef }) => {
           </React.Fragment>
         ))}
         <CCol sm={4}>
-          <CFormLabel title="The tanks' standing loss goes to it">
+          <CFormLabel title={t("The tanks' standing loss goes to it")}>
             The tanks&apos; room, °C
           </CFormLabel>
           <CFormInput

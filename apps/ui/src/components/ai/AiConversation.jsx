@@ -9,6 +9,7 @@ import { api, streamAiMessage } from '../../api/client'
 import ProposalCard from '../../views/ai/ProposalCard'
 import AiBrainIcon from '../AiBrainIcon'
 import { workTypeIcon } from './workTypeIcons'
+import { t as tr } from 'src/i18n'
 
 /**
  * One AI Assistant conversation (moved out of the messenger page 2026-10-24 - the page and the side
@@ -41,7 +42,7 @@ const Avatar = () => (
 // a work type's start phrase about something - "{name}" becomes its name: the thing the AI button
 // was on (its label), a DNP instance (its name), the whole system
 const startOf = (workType, about) => {
-  const name = about?.label ?? (about?.processId === null ? 'the whole system' : about?.name)
+  const name = about?.label ?? (about?.processId === null ? tr('the whole system') : about?.name)
   return (workType?.start ?? '').replaceAll('{name}', name ?? 'it')
 }
 
@@ -155,7 +156,7 @@ const ToolSteps = ({ steps }) => {
         className="btn btn-link btn-sm p-0 text-body-secondary text-decoration-none"
         onClick={() => setOpen((o) => !o)}
       >
-        {open ? '▾' : '▸'} Used tools: {names.join(', ')} ({calls.length})
+        {open ? '▾' : '▸'} {tr('Used tools:')} {names.join(', ')} ({calls.length})
       </button>
       {open && (
         <div className="mt-1 d-flex flex-column gap-1">
@@ -170,7 +171,7 @@ const ToolSteps = ({ steps }) => {
                   {s.call.name}({argsOf(s.call.input)}){' '}
                   {s.result?.isError && (
                     <CBadge color="danger" className="ms-1">
-                      error
+                      {tr('error')}
                     </CBadge>
                   )}
                 </div>
@@ -395,16 +396,16 @@ const AiConversation = ({
           <div className="mx-auto py-3" style={{ maxWidth: '52rem' }}>
             <div className="text-center mb-3">
               <AiBrainIcon size={56} />
-              <div className="fs-5 mt-1">Nexus Edge AI Assistant</div>
+              <div className="fs-5 mt-1">{tr('Nexus Edge AI Assistant')}</div>
               <div className="small text-body-secondary">
                 {step === 'entity'
-                  ? 'What shall we talk about?'
-                  : `${draftEntity?.name} - what shall we do?`}
+                  ? tr('What shall we talk about?')
+                  : tr('{{name}} - what shall we do?', { name: draftEntity?.name })}
               </div>
             </div>
             {step === 'entity' && quickTiles.length > 0 && (
               <>
-                <div className="ai-group">Quick start</div>
+                <div className="ai-group">{tr('Quick start')}</div>
                 <div className="ai-tiles ai-quick">
                   {quickTiles.map((w) => (
                     <Tile
@@ -430,9 +431,11 @@ const AiConversation = ({
                   <Tile
                     key={e.key}
                     icon={<EntityIcon entity={e} />}
-                    label={e.processId === null ? 'Nexus Edge' : e.name}
+                    label={e.processId === null ? tr('Nexus Edge') : e.name}
                     hint={
-                      e.processId === null ? 'The whole system' : `${e.name} - ${kindName(e.kind)}`
+                      e.processId === null
+                        ? tr('The whole system')
+                        : `${e.name} - ${kindName(e.kind)}`
                     }
                     active={draft.entityKey === e.key}
                     onClick={() => {
@@ -447,8 +450,8 @@ const AiConversation = ({
               <div className="ai-tiles">
                 <Tile
                   icon={<CIcon icon={cilArrowLeft} width={26} height={26} />}
-                  label="Back"
-                  hint="Choose another object"
+                  label={tr('Back')}
+                  hint={tr('Choose another object')}
                   onClick={() => setStep('entity')}
                 />
                 {draftEntity.workTypes.map((w) => (
@@ -468,7 +471,7 @@ const AiConversation = ({
         {turns.map((t, i) =>
           t.topic ? (
             <div key={i} className="ai-topic">
-              Topic: {t.topic.content}
+              {tr('Topic:')} {t.topic.content}
             </div>
           ) : (
             <div key={i} className="mb-3">
@@ -517,7 +520,7 @@ const AiConversation = ({
           className="px-2 pt-2 small text-body-secondary text-truncate"
           title={subjectShown.label}
         >
-          About: <span className="text-body fw-semibold">{subjectShown.label}</span>
+          {tr('About:')} <span className="text-body fw-semibold">{subjectShown.label}</span>
         </div>
       )}
       {/* the composer: the topic's icon, the object and the work type, the message, Send */}
@@ -546,8 +549,8 @@ const AiConversation = ({
               if (!active) setStep('work')
               pickTopic(e.target.value, entity?.workTypes[0]?.key ?? '')
             }}
-            aria-label="What to talk about"
-            title="What to talk about - may change on the way"
+            aria-label={tr('What to talk about')}
+            title={tr('What to talk about - may change on the way')}
           >
             {entities.map((e) => (
               <option key={e.key} value={e.key}>
@@ -560,10 +563,10 @@ const AiConversation = ({
             value={topic.workType}
             disabled={locked || entities.length === 0}
             onChange={(e) => pickTopic(topic.entityKey, e.target.value)}
-            aria-label="Work type"
-            title="The work type - may change on the way"
+            aria-label={tr('Work type')}
+            title={tr('The work type - may change on the way')}
           >
-            {!topic.workType && <option value="">Choose the work...</option>}
+            {!topic.workType && <option value="">{tr('Choose the work...')}</option>}
             {(shownEntity?.workTypes ?? []).map((w) => (
               <option key={w.key} value={w.key}>
                 {w.title}
@@ -578,10 +581,10 @@ const AiConversation = ({
           placeholder={
             readOnly
               ? active?.scheduled
-                ? 'A scheduled run - read only'
-                : "Someone else's conversation - read only; start your own"
+                ? tr('A scheduled run - read only')
+                : tr("Someone else's conversation - read only; start your own")
               : entities.length
-                ? 'Ask the assistant... (Enter - send, Shift+Enter - a new line)'
+                ? tr('Ask the assistant... (Enter - send, Shift+Enter - a new line)')
                 : ''
           }
           disabled={entities.length === 0 || readOnly}
@@ -592,7 +595,7 @@ const AiConversation = ({
               send()
             }
           }}
-          aria-label="Message"
+          aria-label={tr('Message')}
         />
         <CButton
           color="primary"
@@ -605,8 +608,8 @@ const AiConversation = ({
             readOnly ||
             (!active && !draft.workType)
           }
-          title="Send"
-          aria-label="Send"
+          title={tr('Send')}
+          aria-label={tr('Send')}
         >
           {running ? <CSpinner size="sm" /> : <CIcon icon={cilSend} />}
         </CButton>

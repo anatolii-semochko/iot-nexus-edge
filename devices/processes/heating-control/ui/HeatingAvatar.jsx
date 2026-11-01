@@ -2,6 +2,9 @@ import React, { useId } from 'react'
 import KeyValue from 'src/components/KeyValue'
 import { FanCoilIcon, HeatPumpIcon, TankIcon } from './heatIcons'
 import { useHeatingData, fmt } from './useHeatingData'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('heating-control')
 
 // The heating's Dashboard card picture (the user's mockups images/fix-heating-icon-component.png,
 // 2026-10-23, fix-heating-avatar-1.png and the layout of 2026-10-29): the scene's own heat pump, tank
@@ -103,7 +106,7 @@ const HeatingAvatar = ({ process }) => {
   const levels = { ...COP_LEVELS, ...(process.config?.copLevels ?? {}) }
   // the blocks as one unit each - their averages
   const pump = {
-    name: 'The heat pumps',
+    name: tr('The heat pumps'),
     on: pumps.some((p) => p.on),
     running: running.length > 0,
     modulation: avgOf(running, 'modulation') ?? 0,
@@ -115,14 +118,14 @@ const HeatingAvatar = ({ process }) => {
     electricKw: t.electricKw,
   }
   const tank = {
-    name: 'The tanks',
+    name: tr('The tanks'),
     pct: t.tankPct,
     storedKwh: t.storedKwh,
     fullKwh: t.fullKwh,
     ...Object.fromEntries(['topC', 'avgC', 'bottomC'].map((k) => [k, avgOf(m.tanks ?? [], k)])),
   }
   const coil = {
-    name: 'The rooms',
+    name: tr('The rooms'),
     on: coils.some((c) => c.on),
     fan: avgOf(working, 'fan') ?? 0,
     heatKw: t.consumersKw,
@@ -137,14 +140,19 @@ const HeatingAvatar = ({ process }) => {
   // the tanks' two heat exchangers - in from the heat pumps, out to the rooms (each by its size)
   const inKw = Math.abs(t.heatKw ?? 0)
   const outKw = Math.abs(t.consumersKw ?? 0)
-  const what = cooling ? 'Cold' : 'Heat'
+  const what = cooling ? tr('Cold') : tr('Heat')
   const tone = cooling ? TONE.cold : TONE.heat
   // the loop's temperature: the warm line's while heating, the cold one's while cooling
   const line = m.lines?.pumpsTanks
   const loopC = line ? (cooling ? line.coldC : line.warmC) : null
   const roomC = avgOf(coils, 'roomC')
   const tankC = avgOf(m.tanks ?? [], 'avgC')
-  const grid = { display: 'grid', gridTemplateColumns: 'auto auto', columnGap: 18, fontSize: BIG }
+  const grid = {
+    display: 'grid',
+    gridTemplateColumns: 'auto auto',
+    columnGap: 18,
+    fontSize: BIG,
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 4 }}>
       <Row icon={<HeatPumpIcon pump={pump} mode={m.mode} height={PUMP_HEIGHT} gauges={false} />}>
@@ -172,10 +180,14 @@ const HeatingAvatar = ({ process }) => {
             <Arrow
               cold={cooling}
               visible={inKw > FLOWING_KW}
-              title={`${what} in from the heat pumps`}
+              title={tr('{{what}} in from the heat pumps', { what })}
             />
             <TankIcon tank={tank} height={TANK_HEIGHT} labels="pct" />
-            <Arrow cold={cooling} visible={outKw > FLOWING_KW} title={`${what} out to the rooms`} />
+            <Arrow
+              cold={cooling}
+              visible={outKw > FLOWING_KW}
+              title={tr('{{what}} out to the rooms', { what })}
+            />
           </div>
         }
       >

@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { useDeviceLiveState } from '../../api/useLiveDevice'
 import StatusIndicator from '../../components/indicators/StatusIndicator'
 import NumericStepper from '../devices/NumericStepper'
+import { t } from 'src/i18n'
 
 // Label wrapper stays local - StatusIndicator itself is the elementary
 // visual primitive (just the light), not aware of what it's labeling.
@@ -79,7 +80,7 @@ const TemperatureProcessPanel = ({ process, onConfigChange }) => {
     <div className="pt-0 pb-3 px-2">
       <CRow className="align-items-center g-4">
         <CCol xs="auto">
-          <div className="text-body-secondary small">Min</div>
+          <div className="text-body-secondary small">{t('Min')}</div>
           <NumericStepper
             value={process.config.min ?? 0}
             step={0.5}
@@ -87,7 +88,7 @@ const TemperatureProcessPanel = ({ process, onConfigChange }) => {
           />
         </CCol>
         <CCol xs="auto">
-          <div className="text-body-secondary small">Max</div>
+          <div className="text-body-secondary small">{t('Max')}</div>
           <NumericStepper
             value={process.config.max ?? 0}
             step={0.5}
@@ -95,16 +96,16 @@ const TemperatureProcessPanel = ({ process, onConfigChange }) => {
           />
         </CCol>
         <CCol xs="auto" className="text-center">
-          <div className="text-body-secondary small">Temperature</div>
+          <div className="text-body-secondary small">{t('Temperature')}</div>
           <div style={{ fontSize: '2.5rem', fontWeight: 600, lineHeight: 1 }}>
             {temperature !== undefined ? Number(temperature).toFixed(1) : '-'}
           </div>
         </CCol>
         <CCol xs="auto">
-          <LabeledIndicator active={coolerActive} color="#3b82f6" label="Cooler" />
+          <LabeledIndicator active={coolerActive} color="#3b82f6" label={t('Cooler')} />
         </CCol>
         <CCol xs="auto">
-          <LabeledIndicator active={heaterActive} color="#dc3545" label="Heater" />
+          <LabeledIndicator active={heaterActive} color="#dc3545" label={t('Heater')} />
         </CCol>
       </CRow>
     </div>

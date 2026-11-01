@@ -22,6 +22,7 @@ import ProcessesTable from './ProcessesTable'
 import SettingsTab from './SettingsTab'
 import PageTitle from '../../components/PageTitle'
 import { canEverywhere } from '../../access'
+import { t as tr } from 'src/i18n'
 
 // Registration for usePersistedState (AGENTS.md section 22) - a separate,
 // independent registration from the older 'nexusedge.processes' key
@@ -185,13 +186,13 @@ const ProcessesList = () => {
   }
 
   const tabDefs = [
-    { key: 'dashboard', label: 'Dashboard' },
-    { key: 'all', label: 'All' },
+    { key: 'dashboard', label: tr('Dashboard') },
+    { key: 'all', label: tr('All') },
     ...tabGroups.map((group) => ({ key: `tg:${group.id}`, label: group.name })),
-    { key: 'controllable', label: 'Controllable' },
-    { key: 'permanent', label: 'Permanent' },
+    { key: 'controllable', label: tr('Controllable') },
+    { key: 'permanent', label: tr('Permanent') },
     // the system's process / tab / message groups and levels - Configure everywhere (2026-10-28), else hidden
-    ...(systemSettings ? [{ key: 'settings', label: 'Settings' }] : []),
+    ...(systemSettings ? [{ key: 'settings', label: tr('Settings') }] : []),
   ]
 
   const commonTableProps = (tabKey) => ({
@@ -252,7 +253,7 @@ const ProcessesList = () => {
       )
     }
     const emptyMessage = activeTab.startsWith('tg:')
-      ? 'No processes are in this tab group yet.'
+      ? tr('No processes are in this tab group yet.')
       : undefined
     return (
       <ProcessesTable
@@ -285,7 +286,7 @@ const ProcessesList = () => {
         {/* Flex, not just LiveBadge's own align-middle (AGENTS_TO_DO.md,
             2026-08-30) - see Simulator.jsx's own identical comment. */}
         <div className="d-flex align-items-center gap-2">
-          <PageTitle title="Processes" />
+          <PageTitle title={tr('Processes')} />
           <LiveBadge />
         </div>
       </CCardHeader>

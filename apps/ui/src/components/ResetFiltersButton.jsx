@@ -2,6 +2,7 @@ import React from 'react'
 import { CButton } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
 import { cilFilterX } from '@coreui/icons'
+import { t } from 'src/i18n'
 
 // Same footprint as IconButton.jsx's own icon buttons, deliberately not
 // built on top of IconButton itself - IconButton's `variant` prop defaults
@@ -33,7 +34,7 @@ const ResetFiltersButton = ({ active, onClick }) => {
       color="warning"
       style={BUTTON_STYLE}
       onClick={onClick}
-      aria-label="Reset filters"
+      aria-label={t('Reset filters')}
     >
       <CIcon icon={cilFilterX} className="align-middle" />
     </CButton>

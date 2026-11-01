@@ -34,19 +34,20 @@ import TablePagination from '../table/TablePagination'
 import TableSearchInput from '../table/TableSearchInput'
 import { WEM_TYPE_META } from './wemTypeMeta'
 import AiButton from '../ai/AiButton'
+import { t as tr } from 'src/i18n'
 
 // The modal's own type selector, not the header icons' (NotificationCenter.
 // jsx) - "All" only makes sense as something to *view*, it has no unread
 // count or blink state of its own, so it stays out of WEM_TYPE_META.
 const TYPE_OPTIONS = [
-  { key: 'all', icon: cilBell, color: 'secondary', label: 'All' },
+  { key: 'all', icon: cilBell, color: 'secondary', label: tr('All') },
   ...Object.entries(WEM_TYPE_META).map(([key, meta]) => ({ key, ...meta })),
 ]
 
 const TABS = [
-  { key: 'active', label: 'Active' },
-  { key: 'new', label: 'New' },
-  { key: 'all', label: 'All' },
+  { key: 'active', label: tr('Active') },
+  { key: 'new', label: tr('New') },
+  { key: 'all', label: tr('All') },
 ]
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
@@ -304,7 +305,7 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
   return (
     <CModal visible={Boolean(type)} onClose={onClose} size="xl" alignment="center">
       <CModalHeader>
-        <CModalTitle>Notifications</CModalTitle>
+        <CModalTitle>{tr('Notifications')}</CModalTitle>
       </CModalHeader>
       <CModalBody className="d-flex flex-column" style={{ height: '88vh' }}>
         {type && (
@@ -328,7 +329,8 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                 {selectedIds.size > 0 && (
                   <CButton size="sm" color="success" onClick={handleMarkSelectedRead}>
                     <CIcon icon={cilCheckCircle} className="me-1 align-middle" />
-                    Mark as read ({selectedIds.size})
+                    {tr('Mark as read (')}
+                    {selectedIds.size})
                   </CButton>
                 )}
                 <IconButton
@@ -336,7 +338,7 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                   size="sm"
                   center
                   onClick={() => setReloadToken((t) => t + 1)}
-                  ariaLabel="Reload"
+                  ariaLabel={tr('Reload')}
                 />
               </div>
             </div>
@@ -362,7 +364,7 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                   value={processFilter}
                   onChange={(e) => changeProcessFilter(e.target.value)}
                 >
-                  <option value="">All processes</option>
+                  <option value="">{tr('All processes')}</option>
                   {processes.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -375,7 +377,7 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                   key={searchResetToken}
                   value={search}
                   onSearch={changeSearch}
-                  placeholder="Search by text..."
+                  placeholder={tr('Search by text...')}
                 />
               </CCol>
               <CCol className="d-flex justify-content-end">
@@ -394,7 +396,7 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                   <CSpinner color="primary" />
                 </div>
               ) : rows.length === 0 ? (
-                <CAlert color="info">Nothing here.</CAlert>
+                <CAlert color="info">{tr('Nothing here.')}</CAlert>
               ) : (
                 <CTable responsive hover>
                   <CTableHead>
@@ -404,10 +406,10 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                           <CFormCheck checked={allUnreadSelected} onChange={toggleSelectAll} />
                         )}
                       </CTableHeaderCell>
-                      <CTableHeaderCell>Time</CTableHeaderCell>
-                      <CTableHeaderCell>Process</CTableHeaderCell>
-                      <CTableHeaderCell>Message</CTableHeaderCell>
-                      <CTableHeaderCell className="text-end">Status</CTableHeaderCell>
+                      <CTableHeaderCell>{tr('Time')}</CTableHeaderCell>
+                      <CTableHeaderCell>{tr('Process')}</CTableHeaderCell>
+                      <CTableHeaderCell>{tr('Message')}</CTableHeaderCell>
+                      <CTableHeaderCell className="text-end">{tr('Status')}</CTableHeaderCell>
                     </CTableRow>
                   </CTableHead>
                   <CTableBody>
@@ -435,7 +437,7 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                             action
                             className="me-1 align-middle"
                             subject={{ type: 'message', id: item.id, processId: item.process_id }}
-                            label="this message"
+                            label={tr('this message')}
                           />
                           {item.hidden ? (
                             item.hidden_by_user && (
@@ -447,7 +449,7 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                               size="sm"
                               center
                               onClick={() => handleDismiss(item.id)}
-                              ariaLabel="Dismiss"
+                              ariaLabel={tr('Dismiss')}
                             />
                           )}
                         </CTableDataCell>

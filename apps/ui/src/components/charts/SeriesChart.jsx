@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useLayoutEffect, useState } from 'react'
 import { CSpinner } from '@coreui/react'
 import { request } from 'src/api/client'
+import { t as tr } from 'src/i18n'
 
 // Today's lines of the given time series (GET /series/data) - one chart per
 // key, one under another, each on its own Y axis (AGENTS_TO_DO.md
@@ -130,7 +131,12 @@ const SeriesChart = ({
       cancelled = true
     }
   }, [joined])
-  if (error) return <div className="small text-body-secondary">No history: {error}</div>
+  if (error)
+    return (
+      <div className="small text-body-secondary">
+        {tr('No history:')} {error}
+      </div>
+    )
   if (!series) return <CSpinner size="sm" />
   const start = new Date()
   start.setHours(0, 0, 0, 0)
@@ -211,7 +217,7 @@ const SeriesChart = ({
     }
   })
   if (lines.every((l) => l.curves.every((c) => !c.path)))
-    return <div className="small text-body-secondary">No points yet today.</div>
+    return <div className="small text-body-secondary">{tr('No points yet today.')}</div>
   // a popup's chart - drawn once its width is known
   if (fluid && !boxPx) return <div ref={setBox} style={{ height: lines.length * (H + LABEL_H) }} />
   return (
@@ -239,7 +245,7 @@ const SeriesChart = ({
             viewBox={`0 0 ${W} ${H}`}
             style={{ width: '100%', height: 'auto', display: 'block' }}
             role="img"
-            aria-label={`Today's history${l.label ? ` - ${l.label}` : ''}`}
+            aria-label={tr("Today's history{{v0}}", { v0: l.label ? ` - ${l.label}` : '' })}
           >
             {[PAD.top, H - PAD.bottom].map((ly) => (
               <line

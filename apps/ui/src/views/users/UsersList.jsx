@@ -24,6 +24,7 @@ import { AiTokensMark } from './AiTokens'
 import { AvatarRow, byStrength, RoleAvatar, UserAvatar } from './Avatars'
 import PageTitle from '../../components/PageTitle'
 import { useCan } from '../../access'
+import { t } from 'src/i18n'
 
 // Registration for usePersistedState (AGENTS_TO_DO.md, 2026-08-01) - flat
 // variant, same shape as NodesList.jsx/DevicesList.jsx.
@@ -52,7 +53,7 @@ const DeleteButton = ({ user, onDeleted, onError }) => {
   if (!user.deletable) {
     return (
       <CButton size="sm" color="secondary" variant="outline" disabled>
-        Delete
+        {t('Delete')}
       </CButton>
     )
   }
@@ -83,7 +84,7 @@ const DeleteButton = ({ user, onDeleted, onError }) => {
       disabled={busy}
       onClick={handleClick}
     >
-      {busy ? <CSpinner size="sm" /> : armed ? 'Confirm delete?' : 'Delete'}
+      {busy ? <CSpinner size="sm" /> : armed ? t('Confirm delete?') : t('Delete')}
     </CButton>
   )
 }
@@ -137,10 +138,10 @@ const UsersList = ({ roles, onChanged }) => {
   return (
     <CCard className="mb-4">
       <CCardHeader className="d-flex justify-content-between align-items-center">
-        <PageTitle title="Users" />
+        <PageTitle title={t('Users')} />
         {manage && (
           <CButton size="sm" color="primary" onClick={() => setCreating(true)}>
-            Add user
+            {t('Add user')}
           </CButton>
         )}
       </CCardHeader>
@@ -153,12 +154,12 @@ const UsersList = ({ roles, onChanged }) => {
               <TableSearchInput
                 value={search}
                 onSearch={setSearch}
-                placeholder="Search by username, name, role..."
+                placeholder={t('Search by username, name, role...')}
               />
             </div>
             {filtered.length === 0 ? (
               <CAlert color="info">
-                {users.length === 0 ? 'No users yet.' : 'No users match this search.'}
+                {users.length === 0 ? t('No users yet.') : t('No users match this search.')}
               </CAlert>
             ) : (
               <>
@@ -166,15 +167,15 @@ const UsersList = ({ roles, onChanged }) => {
                   <CTableHead>
                     <CTableRow>
                       <CTableHeaderCell scope="col" />
-                      <CTableHeaderCell scope="col">Username</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Display name</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Roles</CTableHeaderCell>
-                      <CTableHeaderCell scope="col" title="The AI's tokens a day">
+                      <CTableHeaderCell scope="col">{t('Username')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Display name')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Roles')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col" title={t("The AI's tokens a day")}>
                         AI
                       </CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Status</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Status')}</CTableHeaderCell>
                       <CTableHeaderCell scope="col" className="text-end">
-                        Actions
+                        {t('Actions')}
                       </CTableHeaderCell>
                     </CTableRow>
                   </CTableHead>
@@ -203,7 +204,7 @@ const UsersList = ({ roles, onChanged }) => {
                         </CTableDataCell>
                         <CTableDataCell>
                           <CBadge color={user.active ? 'success' : 'secondary'} className="mb-1">
-                            {user.active ? 'Active' : 'Inactive'}
+                            {user.active ? t('Active') : t('Inactive')}
                           </CBadge>
                         </CTableDataCell>
                         <CTableDataCell className="text-end">
@@ -216,7 +217,7 @@ const UsersList = ({ roles, onChanged }) => {
                                 className="me-1"
                                 onClick={() => setEditingUser(user)}
                               >
-                                Edit
+                                {t('Edit')}
                               </CButton>
                               <CButton
                                 size="sm"
@@ -226,7 +227,7 @@ const UsersList = ({ roles, onChanged }) => {
                                 disabled={user.active && !user.deactivatable}
                                 onClick={() => handleToggleActive(user)}
                               >
-                                {user.active ? 'Deactivate' : 'Activate'}
+                                {user.active ? t('Deactivate') : t('Activate')}
                               </CButton>
                               <DeleteButton user={user} onDeleted={reload} onError={setError} />
                             </>

@@ -1,20 +1,21 @@
 import React, { useEffect, useState } from 'react'
 import { CAlert, CCol, CFormInput, CRow, CSpinner } from '@coreui/react'
 import { api } from '../../api/client'
+import { t } from 'src/i18n'
 
 // { local state key (snake_case, matches GET), PATCH body key (camelCase), label }
 const FIELDS = [
-  { key: 'short_beep_seconds', patchKey: 'shortBeepSeconds', label: 'Short beep length' },
+  { key: 'short_beep_seconds', patchKey: 'shortBeepSeconds', label: t('Short beep length') },
   {
     key: 'short_beep_pause_seconds',
     patchKey: 'shortBeepPauseSeconds',
-    label: 'Pause between short beeps',
+    label: t('Pause between short beeps'),
   },
-  { key: 'long_beep_seconds', patchKey: 'longBeepSeconds', label: 'Long beep length' },
+  { key: 'long_beep_seconds', patchKey: 'longBeepSeconds', label: t('Long beep length') },
   {
     key: 'long_beep_pause_seconds',
     patchKey: 'longBeepPauseSeconds',
-    label: 'Pause between long beeps',
+    label: t('Pause between long beeps'),
   },
 ]
 
@@ -75,7 +76,7 @@ const MessageSignalTimingForm = () => {
             />
           </CCol>
           <CCol xs="auto" className="text-body-secondary small" style={{ width: '4rem' }}>
-            seconds
+            {t('seconds')}
           </CCol>
         </CRow>
       ))}

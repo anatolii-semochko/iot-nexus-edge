@@ -2,6 +2,9 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { CButton, CButtonGroup } from '@coreui/react'
 import { request } from 'src/api/client'
 import { useNow } from 'src/hooks/useNow'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('heating-control')
 
 // A heat flow over time beside its water lines (the user's mockup images/fix-heat-streams.png,
 // 2026-10-24): the heat pumps' heat into the tanks, the consumers' heat out of them - the last
@@ -10,8 +13,20 @@ import { useNow } from 'src/hooks/useNow'
 
 // the scales: how far back, the points asked for, the labels
 const SPANS = [
-  { key: 'day', label: 'Day', hint: 'The last 24 hours', ms: 86_400_000, points: 288 },
-  { key: 'week', label: 'Week', hint: 'The last 7 days', ms: 7 * 86_400_000, points: 336 },
+  {
+    key: 'day',
+    label: tr('Day'),
+    hint: tr('The last 24 hours'),
+    ms: 86_400_000,
+    points: 288,
+  },
+  {
+    key: 'week',
+    label: tr('Week'),
+    hint: tr('The last 7 days'),
+    ms: 7 * 86_400_000,
+    points: 336,
+  },
 ]
 // re-read this often (the series are written every 5 minutes)
 const RELOAD_MS = 5 * 60_000
@@ -51,7 +66,10 @@ const timesOf = (t0, t1, span) => {
   c.setHours(12, 0, 0, 0)
   if (c.getTime() < t0) c.setDate(c.getDate() + 1)
   for (; c.getTime() <= t1; c.setDate(c.getDate() + 1))
-    out.push({ t: c.getTime(), text: c.toLocaleDateString([], { weekday: 'short' }) })
+    out.push({
+      t: c.getTime(),
+      text: c.toLocaleDateString([], { weekday: 'short' }),
+    })
   return out
 }
 
@@ -109,9 +127,11 @@ const HeatTrend = ({ seriesKey, label, color }) => {
       <style>{TREND_CSS}</style>
       <div className="ht-trend-head">
         <span>
-          {label}, kW{peak > 0 && ` - peak ${peak.toFixed(1)}`}
+          {label}
+          {tr(', kW')}
+          {peak > 0 && tr(' - peak {{toFixed}}', { toFixed: peak.toFixed(1) })}
         </span>
-        <CButtonGroup size="sm" role="group" aria-label={`${label} - the scale`}>
+        <CButtonGroup size="sm" role="group" aria-label={tr('{{label}} - the scale', { label })}>
           {SPANS.map((s) => (
             <CButton
               key={s.key}
@@ -147,7 +167,7 @@ const HeatTrend = ({ seriesKey, label, color }) => {
         </svg>
         {points && points.length === 0 && (
           <span className="position-absolute top-50 start-50 translate-middle small text-body-secondary">
-            No history yet
+            {tr('No history yet')}
           </span>
         )}
       </div>

@@ -7,6 +7,7 @@ import {
   formatMessageLevel,
   SELECTOR_OPTIONS,
 } from '../../utils/messageLevel'
+import { t } from 'src/i18n'
 
 // Repeat only means anything for a repeating beep - a constant tone has no
 // "how often", and off has no sound at all.
@@ -110,7 +111,7 @@ const MessageLevelsForm = () => {
             />
           </CCol>
           <CCol xs="auto" className="text-body-secondary small" style={{ width: '5rem' }}>
-            seconds
+            {t('seconds')}
           </CCol>
           <CCol className="text-body-secondary small">
             {formatMessageLevel({

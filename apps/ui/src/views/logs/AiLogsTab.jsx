@@ -14,6 +14,7 @@ import { api } from '../../api/client'
 import TablePagination from '../../components/table/TablePagination'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
 import { formatSmartDateTime } from '../../utils/format'
+import { t } from 'src/i18n'
 
 /**
  * Logs -> AI (Nexus Edge AI Assistant, stage 4; api ai/agent.ts): every
@@ -61,7 +62,8 @@ const Conversation = ({ id }) => {
             className="btn btn-link btn-sm p-0"
             onClick={() => setShowSystem((s) => !s)}
           >
-            {showSystem ? 'Hide' : 'Show'} the system prompt ({data.systemPrompt.length} characters)
+            {showSystem ? t('Hide') : t('Show')} {t('the system prompt (')}
+            {data.systemPrompt.length} {t('characters)')}
           </button>
           {showSystem && <Pre>{data.systemPrompt}</Pre>}
         </div>
@@ -70,17 +72,17 @@ const Conversation = ({ id }) => {
         <div key={m.id}>
           <div className="small text-body-secondary">
             <strong className="text-body">
-              {m.role === 'tool' ? `tool ${m.toolName}` : m.role}
+              {m.role === 'tool' ? t('tool {{toolName}}', { toolName: m.toolName }) : m.role}
             </strong>
             {m.isError && (
               <CBadge color="danger" className="ms-2">
-                error
+                {t('error')}
               </CBadge>
             )}
             {m.model && <span className="ms-2">{m.model}</span>}
             {m.tokensIn != null && (
               <span className="ms-2">
-                {m.tokensIn} / {m.tokensOut} tokens
+                {m.tokensIn} / {m.tokensOut} {t('tokens')}
               </span>
             )}
             {m.latencyMs != null && <span className="ms-2">{m.latencyMs} ms</span>}
@@ -110,19 +112,19 @@ const AiLogsTab = () => {
       {loading && items.length === 0 ? (
         <CSpinner size="sm" />
       ) : items.length === 0 ? (
-        <CAlert color="info">No conversation yet.</CAlert>
+        <CAlert color="info">{t('No conversation yet.')}</CAlert>
       ) : (
         <CTable small hover responsive className="align-middle">
           <CTableHead>
             <CTableRow>
-              <CTableHeaderCell>Updated</CTableHeaderCell>
-              <CTableHeaderCell>Conversation</CTableHeaderCell>
-              <CTableHeaderCell>Instance</CTableHeaderCell>
-              <CTableHeaderCell>Who</CTableHeaderCell>
-              <CTableHeaderCell>Model</CTableHeaderCell>
-              <CTableHeaderCell className="text-end">Questions</CTableHeaderCell>
-              <CTableHeaderCell className="text-end">Tool calls</CTableHeaderCell>
-              <CTableHeaderCell className="text-end">Tokens in / out</CTableHeaderCell>
+              <CTableHeaderCell>{t('Updated')}</CTableHeaderCell>
+              <CTableHeaderCell>{t('Conversation')}</CTableHeaderCell>
+              <CTableHeaderCell>{t('Instance')}</CTableHeaderCell>
+              <CTableHeaderCell>{t('Who')}</CTableHeaderCell>
+              <CTableHeaderCell>{t('Model')}</CTableHeaderCell>
+              <CTableHeaderCell className="text-end">{t('Questions')}</CTableHeaderCell>
+              <CTableHeaderCell className="text-end">{t('Tool calls')}</CTableHeaderCell>
+              <CTableHeaderCell className="text-end">{t('Tokens in / out')}</CTableHeaderCell>
             </CTableRow>
           </CTableHead>
           <CTableBody>
@@ -139,14 +141,14 @@ const AiLogsTab = () => {
                     <div className="fw-semibold">
                       {r.scheduled && (
                         <CBadge color="info" className="me-1">
-                          scheduled
+                          {t('scheduled')}
                         </CBadge>
                       )}
                       {r.title}
                     </div>
                     <div className="small text-body-secondary">
                       {r.work_type}
-                      {!r.logged && ' - not logged'}
+                      {!r.logged && t('- not logged')}
                     </div>
                   </CTableDataCell>
                   <CTableDataCell className="small">{r.instance_key}</CTableDataCell>

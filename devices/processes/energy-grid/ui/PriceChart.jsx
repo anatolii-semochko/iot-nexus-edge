@@ -1,5 +1,8 @@
 import React from 'react'
 import { useNow } from 'src/hooks/useNow'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('energy-grid')
 
 // The slots' purchase (bars) and sale (line) prices, ct/kWh, over the
 // period given, with "now" marked; the tariff zones as a band under the
@@ -14,7 +17,7 @@ const PriceChart = ({ slots, now: nowGiven }) => {
   const clock = useNow(60_000)
   const now = nowGiven ?? clock
   if (!slots?.length)
-    return <div className="text-body-secondary small">No prices for this period.</div>
+    return <div className="text-body-secondary small">{tr('No prices for this period.')}</div>
   const t0 = slots[0].t
   const t1 = slots[slots.length - 1].t + slots[slots.length - 1].minutes * 60_000
   const values = slots.flatMap((s) => [s.buyCtKwh, s.sellCtKwh]).filter((v) => v !== null)
@@ -39,7 +42,7 @@ const PriceChart = ({ slots, now: nowGiven }) => {
       viewBox={`0 0 ${W} ${H}`}
       style={{ width: '100%', height: 'auto', display: 'block' }}
       role="img"
-      aria-label="Electricity prices"
+      aria-label={tr('Electricity prices')}
     >
       {ticks.map((v) => (
         <g key={v}>
@@ -75,7 +78,18 @@ const PriceChart = ({ slots, now: nowGiven }) => {
             }
             opacity={s.t + s.minutes * 60_000 <= now ? 1 : 0.55}
           >
-            <title>{`${new Date(s.t).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}: buy ${s.buyCtKwh} ct/kWh${s.sellCtKwh !== null ? `, sell ${s.sellCtKwh}` : ''}${s.zone ? ` (${s.zone})` : ''}`}</title>
+            <title>
+              {tr('{{toLocaleString}}: buy {{buyCtKwh}} ct/kWh{{v2}}{{v3}}', {
+                toLocaleString: new Date(s.t).toLocaleString([], {
+                  weekday: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+                buyCtKwh: s.buyCtKwh,
+                v2: s.sellCtKwh !== null ? `, sell ${s.sellCtKwh}` : '',
+                v3: s.zone ? ` (${s.zone})` : '',
+              })}
+            </title>
           </rect>
         ),
       )}
@@ -104,7 +118,10 @@ const PriceChart = ({ slots, now: nowGiven }) => {
             fill="var(--cui-secondary-color)"
           >
             {new Date(t).getHours() === 0
-              ? new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short' })
+              ? new Date(t).toLocaleDateString([], {
+                  day: 'numeric',
+                  month: 'short',
+                })
               : `${new Date(t).getHours()}:00`}
           </text>
         ))}
@@ -128,7 +145,7 @@ const PriceChart = ({ slots, now: nowGiven }) => {
           opacity={0.55}
         />
         <text x={PAD.left + 11} y={H - 3}>
-          buy, ct/kWh
+          {tr('buy, ct/kWh')}
         </text>
         <line
           x1={PAD.left + 80}
@@ -139,7 +156,7 @@ const PriceChart = ({ slots, now: nowGiven }) => {
           strokeWidth={1.5}
         />
         <text x={PAD.left + 93} y={H - 3}>
-          sell
+          {tr('sell')}
         </text>
         {zones.map((z, i) => (
           <g key={z}>

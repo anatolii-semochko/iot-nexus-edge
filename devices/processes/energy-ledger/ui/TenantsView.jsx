@@ -13,6 +13,9 @@ import {
 } from '@coreui/react'
 import { request } from 'src/api/client'
 import KeyValue from 'src/components/KeyValue'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('energy-ledger')
 
 // The let units (the ledger's tenant accounts - iot AGENTS_TO_DO.md 2026-10-25): what each premises
 // consumed - its meters' electricity and its fan coils' heat - and what it is to pay, over a day / a
@@ -20,14 +23,17 @@ import KeyValue from 'src/components/KeyValue'
 // - each month's sums too. No invoices made - the figures to re-bill.
 
 const PERIODS = [
-  ['day', 'Day'],
-  ['week', 'Week'],
-  ['month', 'Month'],
-  ['year', 'Year'],
-  ['all', 'All'],
+  ['day', t('Day')],
+  ['week', t('Week')],
+  ['month', t('Month')],
+  ['year', t('Year')],
+  ['all', t('All')],
 ]
 const money = (v) =>
-  Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  Number(v ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
 const kwh = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })
 const plusDays = (day, n) =>
   new Date(Date.parse(`${day}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
@@ -41,7 +47,7 @@ const shift = (period, day, dir) => {
 }
 const rangeText = (data) => {
   if (!data) return ''
-  if (data.period === 'all') return 'All recorded'
+  if (data.period === 'all') return t('All recorded')
   if (data.period === 'day')
     return new Date(`${data.from}T12:00:00Z`).toLocaleDateString(undefined, {
       dateStyle: 'medium',
@@ -83,9 +89,9 @@ const TenantsView = ({ process }) => {
     { elecKwh: 0, elecEur: 0, heatKwh: 0, heatEur: 0, totalEur: 0 },
   )
   return (
-    <section className="d-flex flex-column gap-3" aria-label="The let units">
+    <section className="d-flex flex-column gap-3" aria-label={t('The let units')}>
       <div className="d-flex align-items-center gap-2 flex-wrap">
-        <CButtonGroup size="sm" role="group" aria-label="The period">
+        <CButtonGroup size="sm" role="group" aria-label={t('The period')}>
           {PERIODS.map(([key, label]) => (
             <CButton
               key={key}
@@ -102,7 +108,7 @@ const TenantsView = ({ process }) => {
             <CButton
               size="sm"
               variant="ghost"
-              title="Before"
+              title={t('Before')}
               onClick={() => setDay(shift(period, data.day, -1))}
             >
               &lsaquo;
@@ -111,7 +117,7 @@ const TenantsView = ({ process }) => {
             <CButton
               size="sm"
               variant="ghost"
-              title="After"
+              title={t('After')}
               onClick={() => setDay(shift(period, data.day, 1))}
             >
               &rsaquo;
@@ -120,7 +126,9 @@ const TenantsView = ({ process }) => {
         )}
         {data?.through && (
           <span className="small text-body-secondary ms-auto">
-            {data.days} closed day{data.days === 1 ? '' : 's'}, through {data.through}
+            {data.days} {t('closed day')}
+            {data.days === 1 ? '' : 's'}
+            {t(', through')} {data.through}
           </span>
         )}
       </div>
@@ -136,16 +144,16 @@ const TenantsView = ({ process }) => {
         <CTable small responsive hover className="mb-0">
           <CTableHead>
             <CTableRow>
-              <CTableHeaderCell>Premises</CTableHeaderCell>
-              <CTableHeaderCell className="text-end" title="Its meters' electricity">
-                Electricity, kWh
+              <CTableHeaderCell>{t('Premises')}</CTableHeaderCell>
+              <CTableHeaderCell className="text-end" title={t("Its meters' electricity")}>
+                {t('Electricity, kWh')}
               </CTableHeaderCell>
               <CTableHeaderCell className="text-end">€</CTableHeaderCell>
-              <CTableHeaderCell className="text-end" title="Its fan coils' heat">
-                Heat, kWh
+              <CTableHeaderCell className="text-end" title={t("Its fan coils' heat")}>
+                {t('Heat, kWh')}
               </CTableHeaderCell>
               <CTableHeaderCell className="text-end">€</CTableHeaderCell>
-              <CTableHeaderCell className="text-end">To pay, €</CTableHeaderCell>
+              <CTableHeaderCell className="text-end">{t('To pay, €')}</CTableHeaderCell>
             </CTableRow>
           </CTableHead>
           <CTableBody>
@@ -164,7 +172,7 @@ const TenantsView = ({ process }) => {
           </CTableBody>
           <CTableFoot>
             <CTableRow className="fw-semibold">
-              <CTableDataCell>All let units</CTableDataCell>
+              <CTableDataCell>{t('All let units')}</CTableDataCell>
               <CTableDataCell className="text-end">{kwh(total.elecKwh)}</CTableDataCell>
               <CTableDataCell className="text-end">{money(total.elecEur)}</CTableDataCell>
               <CTableDataCell className="text-end">{kwh(total.heatKwh)}</CTableDataCell>
@@ -178,11 +186,11 @@ const TenantsView = ({ process }) => {
       )}
       {data?.months?.length > 1 && items.length > 0 && (
         <div>
-          <div className="fw-semibold mb-1">By month - to pay, €</div>
+          <div className="fw-semibold mb-1">{t('By month - to pay, €')}</div>
           <CTable small responsive hover className="mb-0">
             <CTableHead>
               <CTableRow>
-                <CTableHeaderCell>Month</CTableHeaderCell>
+                <CTableHeaderCell>{t('Month')}</CTableHeaderCell>
                 {items.map((x) => (
                   <CTableHeaderCell key={x.key} className="text-end text-nowrap">
                     {x.name}

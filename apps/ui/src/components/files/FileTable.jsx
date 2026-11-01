@@ -13,6 +13,7 @@ import { cilTrash } from '@coreui/icons'
 import IconButton from '../IconButton'
 import TablePagination from '../table/TablePagination'
 import { formatSmartDateTime } from '../../utils/format'
+import { t } from 'src/i18n'
 
 // Generic file-entry table (AGENTS.md section 81) - the UI half of the
 // generic file store (apps/api/src/fileStore.ts): one row per entry, newest
@@ -46,7 +47,7 @@ const FileTable = ({
   columns = [],
   onOpen,
   onDelete,
-  emptyText = 'No files yet',
+  emptyText = t('No files yet'),
   toolbar,
 }) => (
   <div>
@@ -56,7 +57,7 @@ const FileTable = ({
       <CTableHead>
         <CTableRow>
           {thumbnailUrl && <CTableHeaderCell style={{ width: '5rem' }} />}
-          <CTableHeaderCell>Date</CTableHeaderCell>
+          <CTableHeaderCell>{t('Date')}</CTableHeaderCell>
           {columns.map((col) => (
             <CTableHeaderCell key={col.key}>{col.label}</CTableHeaderCell>
           ))}
@@ -104,8 +105,8 @@ const FileTable = ({
                   icon={cilTrash}
                   size="sm"
                   color="danger"
-                  ariaLabel="Delete"
-                  title="Delete"
+                  ariaLabel={t('Delete')}
+                  title={t('Delete')}
                   onClick={() => onDelete(entry)}
                 />
               </CTableDataCell>

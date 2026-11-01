@@ -1,5 +1,6 @@
 import React from 'react'
 import AiButton from './ai/AiButton'
+import { t } from 'src/i18n'
 
 /**
  * A page's title with the AI's mark before it (the user, 2026-10-25: one markup on every page - the mark
@@ -9,7 +10,11 @@ import AiButton from './ai/AiButton'
  */
 const PageTitle = ({ title, children }) => (
   <div className="d-inline-flex align-items-center gap-2">
-    <AiButton subject={{ type: 'page', page: title }} label={`the ${title} page`} size={22} />
+    <AiButton
+      subject={{ type: 'page', page: title }}
+      label={t('the {{title}} page', { title })}
+      size={22}
+    />
     <strong>{title}</strong>
     {children}
   </div>

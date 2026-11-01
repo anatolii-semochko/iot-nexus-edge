@@ -31,9 +31,10 @@ import {
   userTitle,
 } from '../../utils/format'
 import AiButton from '../../components/ai/AiButton'
+import { t } from 'src/i18n'
 
 const TYPE_OPTIONS = [
-  { key: 'all', label: 'All types' },
+  { key: 'all', label: t('All types') },
   ...Object.entries(WEM_TYPE_META).map(([key, meta]) => ({ key, label: meta.label })),
 ]
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
@@ -104,7 +105,7 @@ const ProcessMessageLogsTab = ({
             value={processId}
             onChange={(e) => onProcessIdChange(e.target.value)}
           >
-            <option value="">All processes</option>
+            <option value="">{t('All processes')}</option>
             {processes.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -117,12 +118,12 @@ const ProcessMessageLogsTab = ({
             key={searchResetToken}
             value={search}
             onSearch={onSearchChange}
-            placeholder="Search by text..."
+            placeholder={t('Search by text...')}
           />
         </CCol>
         <DateRangeFilter from={from} to={to} onFromChange={onFromChange} onToChange={onToChange} />
         <CCol className="d-flex justify-content-end gap-2">
-          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel="Reload" />
+          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel={t('Reload')} />
           <ResetFiltersButton active={hasActiveFilters} onClick={onResetFilters} />
         </CCol>
       </CRow>
@@ -134,18 +135,18 @@ const ProcessMessageLogsTab = ({
           <CSpinner color="primary" />
         </div>
       ) : items.length === 0 ? (
-        <CAlert color="info">No process messages match this filter.</CAlert>
+        <CAlert color="info">{t('No process messages match this filter.')}</CAlert>
       ) : (
         <>
           <CTable responsive>
             <CTableHead>
               <CTableRow>
-                <CTableHeaderCell scope="col">Time</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Group</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Process</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Message</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Time')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Group')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Process')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Message')}</CTableHeaderCell>
                 <CTableHeaderCell scope="col" className="text-end">
-                  Status
+                  {t('Status')}
                 </CTableHeaderCell>
               </CTableRow>
             </CTableHead>
@@ -166,7 +167,7 @@ const ProcessMessageLogsTab = ({
                       action
                       className="me-2 align-middle"
                       subject={{ type: 'message', id: item.id, processId: item.process_id }}
-                      label="this message"
+                      label={t('this message')}
                     />
                     {item.hidden ? (
                       item.hidden_by_user ? (
@@ -189,12 +190,12 @@ const ProcessMessageLogsTab = ({
                         </span>
                       ) : (
                         <CBadge color="secondary" className="mb-1">
-                          Read
+                          {t('Read')}
                         </CBadge>
                       )
                     ) : (
                       <CBadge color="info" className="mb-1">
-                        Unread
+                        {t('Unread')}
                       </CBadge>
                     )}
                   </CTableDataCell>

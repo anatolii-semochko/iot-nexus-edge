@@ -2,6 +2,7 @@ import React from 'react'
 import { api } from '../../api/client'
 import { wemBadgeClass } from '../../utils/wem'
 import MessageLink from '../../components/MessageLink'
+import { t } from 'src/i18n'
 
 /**
  * WEM (Warnings/Errors/Messages) list (AGENTS.md section 22) - rendered as
@@ -45,7 +46,7 @@ const WemRow = ({ messages }) => {
             <button
               type="button"
               className="btn-close"
-              aria-label="Dismiss"
+              aria-label={t('Dismiss')}
               onClick={() => handleDismiss(message.id)}
             />
           )}

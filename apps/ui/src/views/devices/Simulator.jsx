@@ -15,6 +15,7 @@ import { usePersistedState } from '../../hooks/usePersistedState'
 import LiveBadge from './LiveBadge'
 import ProcessesTable from '../processes/ProcessesTable'
 import PageTitle from '../../components/PageTitle'
+import { t as tr } from 'src/i18n'
 
 // Registration for usePersistedState - separate key from
 // 'nexusedge.processesPage' (ProcessesList.jsx), own independent filter/
@@ -117,7 +118,7 @@ const Simulator = () => {
             box, so it still measured ~1.5px low against "Simulator".
             Flex align-items: center is pixel-exact. */}
         <div className="d-flex align-items-center gap-2">
-          <PageTitle title="Simulator" />
+          <PageTitle title={tr('Simulator')} />
           <LiveBadge />
         </div>
       </CCardHeader>
@@ -160,10 +161,10 @@ const Simulator = () => {
           // RowStatusBadge only falls back to this for the "nothing
           // wrong" case - but never over Off, see overrideRowColor below.
           statusLabel={(process, { status, simulationTargetSimulated }) => {
-            if (status !== 'on') return { text: 'Off', color: 'secondary' }
+            if (status !== 'on') return { text: tr('Off'), color: 'secondary' }
             return simulationTargetSimulated
-              ? { text: 'Active', color: 'success' }
-              : { text: 'Sleep', color: 'secondary' }
+              ? { text: tr('Active'), color: 'success' }
+              : { text: tr('Sleep'), color: 'secondary' }
           }}
           // "Off means fully inert" (AGENTS_TO_DO.md, 2026-08-29: "процес
           // і його статус не реагують на інші процеси і статуси ніяк") -
@@ -176,8 +177,8 @@ const Simulator = () => {
           }
           emptyMessage={
             processes.length === 0
-              ? 'No simulation processes registered yet.'
-              : 'No simulation processes match this filter.'
+              ? tr('No simulation processes registered yet.')
+              : tr('No simulation processes match this filter.')
           }
         />
       </CCardBody>

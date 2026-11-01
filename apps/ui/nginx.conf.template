@@ -78,10 +78,22 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
     }
 
+    # The build's hashed files (2026-10-31): a missing one is a 404, never
+    # index.html - a tab open across an update asked for an old chunk and
+    # got HTML ("Expected a JavaScript module ... MIME type text/html");
+    # the UI loads the page again on that (src/chunkReload.js). A hashed
+    # name never changes its content - cached for good.
+    location /assets/ {
+        try_files $uri =404;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
     # SPA client-side routing (HashRouter avoids needing this for in-app
     # navigation, but a direct hit on any non-root path should still serve
-    # index.html rather than 404).
+    # index.html rather than 404). index.html never cached - an update's
+    # new chunk names reach the browser at once.
     location / {
         try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache";
     }
 }

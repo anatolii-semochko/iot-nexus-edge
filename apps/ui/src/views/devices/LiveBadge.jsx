@@ -1,6 +1,7 @@
 import React from 'react'
 import { CBadge } from '@coreui/react'
 import { useLiveConnectionStatus } from '../../api/useLiveDevice'
+import { t } from 'src/i18n'
 
 /** Small indicator for the shared live WebSocket (apps/messaging-gateway, AGENTS.md section 9). */
 const LiveBadge = () => {
@@ -14,7 +15,7 @@ const LiveBadge = () => {
     // IconButton.jsx/ResetFiltersButton.jsx already use for their own
     // icons next to text.
     <CBadge color={connected ? 'success' : 'secondary'} className="align-middle">
-      {connected ? 'Live' : 'Live (reconnecting)'}
+      {connected ? t('Live') : t('Live (reconnecting)')}
     </CBadge>
   )
 }

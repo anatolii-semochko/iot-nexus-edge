@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { CFormCheck, CFormInput, CFormSwitch } from '@coreui/react'
+import { t } from 'src/i18n'
 
 /**
  * A long list of checkboxes (2026-10-27 - every long list in a form gets it): a search by a part of a
@@ -14,7 +15,7 @@ const SearchChecklist = ({
   disabled,
   label,
   maxHeight = '14rem',
-  empty = 'Nothing yet.',
+  empty = t('Nothing yet.'),
 }) => {
   const [query, setQuery] = useState('')
   const [selectedOnly, setSelectedOnly] = useState(false)
@@ -30,13 +31,13 @@ const SearchChecklist = ({
       <div className="d-flex gap-2 align-items-center mb-1 flex-wrap">
         {label && <span className="small fw-semibold">{label}</span>}
         <span className="small text-body-secondary">
-          {items.filter((x) => chosen.has(x.key)).length} of {items.length} selected
+          {items.filter((x) => chosen.has(x.key)).length} {t('of')} {items.length} {t('selected')}
         </span>
         <CFormInput
           size="sm"
           type="search"
-          placeholder="Search"
-          aria-label={`Search${label ? ` - ${label}` : ''}`}
+          placeholder={t('Search')}
+          aria-label={t('Search{{v0}}', { v0: label ? ` - ${label}` : '' })}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{ maxWidth: '14rem' }}
@@ -44,7 +45,7 @@ const SearchChecklist = ({
         />
         <CFormSwitch
           id={`${id}-selected`}
-          label="Selected only"
+          label={t('Selected only')}
           checked={selectedOnly}
           onChange={(e) => setSelectedOnly(e.target.checked)}
           className="mb-0 small"
@@ -73,8 +74,8 @@ const SearchChecklist = ({
             {items.length === 0
               ? empty
               : selectedOnly && !chosen.size
-                ? 'None selected yet.'
-                : 'Nothing matches.'}
+                ? t('None selected yet.')
+                : t('Nothing matches.')}
           </div>
         )}
       </div>

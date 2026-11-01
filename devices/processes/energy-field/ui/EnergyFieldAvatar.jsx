@@ -9,6 +9,9 @@ import {
   TurbineIcon,
 } from './fieldIcons'
 import { fmt, useFieldData } from './useFieldData'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('energy-field')
 
 // The Energy Field's Dashboard card picture (images/AQUARIUM V16.png, the
 // reviewed mockup): the grid, the batteries, the wind, the consumer, the
@@ -20,7 +23,14 @@ import { fmt, useFieldData } from './useFieldData'
 // generation's new icons, the labels in full words, the six rows centred in the block
 const Row = ({ icon, value, sub }) => (
   <div className="d-flex align-items-center" style={{ gap: 6 }}>
-    <div style={{ width: 36, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+    <div
+      style={{
+        width: 36,
+        display: 'flex',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
       {icon}
     </div>
     <div style={{ lineHeight: 1.2, whiteSpace: 'nowrap' }}>
@@ -69,7 +79,11 @@ const EnergyFieldAvatar = ({ process }) => {
         }
         value={gridMetrics?.outage ? 'outage' : kw(t.gridKw)}
         sub={
-          gridFlow === 'import' ? 'Import' : gridFlow === 'export' ? 'Export' : 'Import / Export'
+          gridFlow === 'import'
+            ? tr('Import')
+            : gridFlow === 'export'
+              ? tr('Export')
+              : tr('Import / Export')
         }
       />
       <Row
@@ -78,11 +92,11 @@ const EnergyFieldAvatar = ({ process }) => {
         sub={
           Math.abs(t.batteryKw) > 0.05 ? (
             <>
-              {t.batteryKw < 0 ? 'In' : 'Out'}{' '}
+              {t.batteryKw < 0 ? tr('In') : tr('Out')}{' '}
               <b className="text-body">{kw(t.batteryKw).replace(' kW', '')}</b> kW
             </>
           ) : (
-            'Idle'
+            tr('Idle')
           )
         }
       />
@@ -95,7 +109,7 @@ const EnergyFieldAvatar = ({ process }) => {
           />
         }
         value={kw(t.windKw)}
-        sub="Wind"
+        sub={tr('Wind')}
       />
       <Row
         icon={
@@ -105,9 +119,9 @@ const EnergyFieldAvatar = ({ process }) => {
           />
         }
         value={kw(t.loadKw)}
-        sub={t.shedKw > 0.05 ? `${kw(t.shedKw)} not covered` : 'Consumption'}
+        sub={t.shedKw > 0.05 ? tr('{{kw}} not covered', { kw: kw(t.shedKw) }) : tr('Consumption')}
       />
-      <Row icon={<PvIcon height={34} on={t.pvKw > 0.05} />} value={kw(t.pvKw)} sub="Solar" />
+      <Row icon={<PvIcon height={34} on={t.pvKw > 0.05} />} value={kw(t.pvKw)} sub={tr('Solar')} />
       <Row
         icon={<MoneyIcon height={30} positive={balance >= 0} />}
         value={
@@ -115,7 +129,7 @@ const EnergyFieldAvatar = ({ process }) => {
             style={{ color: balance >= 0 ? 'var(--ef-gen)' : 'var(--ef-bad)' }}
           >{`${balance >= 0 ? '+' : '−'}${fmt(Math.abs(balance), 2)} €`}</span>
         }
-        sub="Today"
+        sub={tr('Today')}
       />
     </div>
   )

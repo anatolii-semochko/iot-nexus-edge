@@ -6,6 +6,7 @@ import FileTable from '../../components/files/FileTable'
 import FileUploadButton from '../../components/files/FileUploadButton'
 import { useConfirmModal } from '../../hooks/useConfirmModal'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
+import { t } from 'src/i18n'
 
 // Media tab of a media device's expand row (AGENTS.md section 81): the
 // latest image (the device's own live value is its Media Store id), a file
@@ -33,9 +34,9 @@ const DeviceMediaTab = ({ device, value, effectivelySimulated }) => {
 
   const handleDelete = async (entry) => {
     const ok = await confirm({
-      title: 'Delete image',
-      body: 'Delete this image and everything stored with it?',
-      confirmLabel: 'Delete',
+      title: t('Delete image'),
+      body: t('Delete this image and everything stored with it?'),
+      confirmLabel: t('Delete'),
       confirmColor: 'danger',
     })
     if (!ok) return
@@ -51,7 +52,7 @@ const DeviceMediaTab = ({ device, value, effectivelySimulated }) => {
             className="text-body-secondary text-uppercase fw-semibold mb-1"
             style={{ fontSize: '0.6875rem', letterSpacing: '0.04em' }}
           >
-            Latest
+            {t('Latest')}
           </div>
           {latestId ? (
             <img
@@ -66,7 +67,7 @@ const DeviceMediaTab = ({ device, value, effectivelySimulated }) => {
               }
             />
           ) : (
-            <div className="text-body-secondary small">No image yet</div>
+            <div className="text-body-secondary small">{t('No image yet')}</div>
           )}
         </div>
         {effectivelySimulated && (
@@ -75,11 +76,11 @@ const DeviceMediaTab = ({ device, value, effectivelySimulated }) => {
               className="text-body-secondary text-uppercase fw-semibold mb-1"
               style={{ fontSize: '0.6875rem', letterSpacing: '0.04em' }}
             >
-              Simulate
+              {t('Simulate')}
             </div>
             <FileUploadButton
               accept={ACCEPT}
-              label="Upload image"
+              label={t('Upload image')}
               onFile={async (file) => {
                 await api.simulateDeviceMedia(device.id, file)
                 list.reload()
@@ -101,13 +102,13 @@ const DeviceMediaTab = ({ device, value, effectivelySimulated }) => {
         columns={[
           {
             key: 'id',
-            label: 'Media id',
+            label: t('Media id'),
             render: (entry) => <code className="small">{entry.id}</code>,
           },
         ]}
         onOpen={setPreviewEntry}
         onDelete={handleDelete}
-        emptyText="No images stored yet"
+        emptyText={t('No images stored yet')}
       />
       <FilePreviewModal
         entry={previewEntry}

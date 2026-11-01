@@ -27,6 +27,7 @@ import {
 } from '@coreui/icons'
 import { CNavItem, CNavTitle } from '@coreui/react'
 import AiBrainIcon from './components/AiBrainIcon'
+import { tKey } from './i18n'
 
 /**
  * Navigation menu structure array
@@ -41,72 +42,72 @@ import AiBrainIcon from './components/AiBrainIcon'
 const _nav = [
   {
     component: CNavItem,
-    name: 'Dashboard',
+    name: tKey('Dashboard'),
     to: '/dashboard',
     icon: <CIcon icon={cilSpeedometer} customClassName="nav-icon" />,
   },
   {
     component: CNavItem,
-    name: 'AI Assistant',
+    name: tKey('AI Assistant'),
     to: '/ai-assistant',
     // the AI's mark (components/AiBrainIcon.jsx) - still in the menu (it turns everywhere else)
     icon: <AiBrainIcon size={20} className="nav-icon" still />,
   },
   {
     component: CNavTitle,
-    name: 'Devices',
+    name: tKey('Devices'),
   },
   {
     component: CNavItem,
-    name: 'Nodes',
+    name: tKey('Nodes'),
     to: '/nodes',
     icon: <CIcon icon={cilSitemap} customClassName="nav-icon" />,
   },
   {
     component: CNavItem,
-    name: 'Devices',
+    name: tKey('Devices'),
     to: '/devices',
     icon: <CIcon icon={cilDevices} customClassName="nav-icon" />,
   },
   {
     component: CNavItem,
-    name: 'Simulator',
+    name: tKey('Simulator'),
     to: '/simulator',
     icon: <CIcon icon={cilBug} customClassName="nav-icon" />,
   },
   {
     component: CNavTitle,
-    name: 'Orchestration',
+    name: tKey('Orchestration'),
   },
   {
     component: CNavItem,
-    name: 'Processes',
+    name: tKey('Processes'),
     to: '/processes',
     icon: <CIcon icon={cilSettings} customClassName="nav-icon" />,
   },
   {
     component: CNavTitle,
-    name: 'Logs',
+    name: tKey('Logs'),
   },
   {
     component: CNavItem,
-    name: 'Live Events',
+    name: tKey('Live Events'),
     to: '/live-events',
     icon: <CIcon icon={cilBell} customClassName="nav-icon" />,
   },
   {
     component: CNavItem,
-    name: 'Logs',
+    name: tKey('Logs'),
     to: '/logs',
     icon: <CIcon icon={cilHistory} customClassName="nav-icon" />,
   },
   {
     component: CNavTitle,
-    name: 'Settings',
+    name: tKey('Settings'),
   },
   {
     component: CNavItem,
-    name: 'Service',
+    name: tKey('Service'),
     to: '/service',
     icon: <CIcon icon={cilCog} customClassName="nav-icon" />,
     // Filtered out for non-admins in AppSidebar.jsx (AGENTS.md section 13) -
@@ -116,7 +117,7 @@ const _nav = [
   },
   {
     component: CNavItem,
-    name: 'Users',
+    name: tKey('Users'),
     to: '/users',
     icon: <CIcon icon={cilPeople} customClassName="nav-icon" />,
     // Filtered out for non-admins in AppSidebar.jsx (AGENTS.md section 13) -
@@ -125,13 +126,13 @@ const _nav = [
   },
   {
     component: CNavItem,
-    name: 'Library',
+    name: tKey('Library'),
     to: '/library',
     icon: <CIcon icon={cilLibrary} customClassName="nav-icon" />,
   },
   {
     component: CNavItem,
-    name: 'Docs',
+    name: tKey('Docs'),
     to: '/docs',
     icon: <CIcon icon={cilDescription} customClassName="nav-icon" />,
   },

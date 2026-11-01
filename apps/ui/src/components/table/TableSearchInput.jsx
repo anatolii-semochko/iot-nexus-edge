@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { CFormInput } from '@coreui/react'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { t } from 'src/i18n'
 
 /**
  * Debounced text-search box for tables. Keeps the raw keystroke value in its
@@ -10,7 +11,12 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue'
  * (AGENTS.md section 12; sevenstime-backoffice reimplemented this inline in
  * every view instead of factoring it out).
  */
-const TableSearchInput = ({ value = '', onSearch, placeholder = 'Search...', delayMs = 300 }) => {
+const TableSearchInput = ({
+  value = '',
+  onSearch,
+  placeholder = t('Search...'),
+  delayMs = 300,
+}) => {
   const [text, setText] = useState(value)
   const debounced = useDebouncedValue(text, delayMs)
 

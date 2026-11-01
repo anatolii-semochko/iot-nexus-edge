@@ -1,3 +1,4 @@
+import { t } from 'src/i18n'
 /**
  * Devices API client.
  *
@@ -29,14 +30,21 @@ export async function request(path, options = {}) {
   })
   if (!res.ok) {
     const text = await res.text()
-    let message = `API ${options.method ?? 'GET'} ${path} failed: ${res.status} ${text}`
+    let message = t('API {{v0}} {{path}} failed: {{status}} {{text}}', {
+      v0: options.method ?? 'GET',
+      path,
+      status: res.status,
+      text,
+    })
     try {
       const body = JSON.parse(text)
       message = body.reason ?? body.error ?? message
       // access control (api access/guard.ts): a refusal said in plain words
-      if (res.status === 403 && body.guest) message = 'Sign in to change this.'
+      if (res.status === 403 && body.guest) message = t('Sign in to change this.')
       else if (res.status === 403 && body.permission)
-        message = `You don't have the permission for this (${body.permission}).`
+        message = t("You don't have the permission for this ({{permission}}).", {
+          permission: body.permission,
+        })
     } catch {
       // response wasn't JSON - keep the raw-text message above
     }
@@ -62,7 +70,7 @@ export async function streamAiMessage(conversationId, text, onEvent) {
     body: JSON.stringify({ text }),
   })
   if (!res.ok || !res.body) {
-    let message = `the assistant failed: ${res.status}`
+    let message = t('the assistant failed: {{status}}', { status: res.status })
     try {
       message = (await res.json()).error ?? message
     } catch {

@@ -10,6 +10,9 @@ import {
   defaultZones,
 } from './lightLevels'
 import { useDeviceValue } from 'src/views/processes/useDeviceValue'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('weather-control')
 
 const percent = (value) => ((value - RAW_LIGHT_MIN) / (RAW_LIGHT_MAX - RAW_LIGHT_MIN)) * 100
 
@@ -93,7 +96,8 @@ const WeatherZonesSection = ({ process, onChange }) => {
       ))}
 
       <div className="text-body-secondary small mt-3 mb-2">
-        Current raw light value: {rawLight !== undefined && rawLight !== null ? rawLight : '-'}
+        {t('Current raw light value:')}{' '}
+        {rawLight !== undefined && rawLight !== null ? rawLight : '-'}
         {currentZoneKey && ` (${LIGHT_LEVELS.find((l) => l.key === currentZoneKey)?.label})`}
       </div>
 
@@ -131,7 +135,7 @@ const WeatherZonesSection = ({ process, onChange }) => {
         })}
         {rawLight !== undefined && rawLight !== null && (
           <div
-            title={`Current: ${rawLight}`}
+            title={t('Current: {{rawLight}}', { rawLight })}
             style={{
               position: 'absolute',
               top: 0,
@@ -172,7 +176,7 @@ const WeatherZonesSection = ({ process, onChange }) => {
                 disabled={rawLight === undefined || rawLight === null}
                 onClick={() => acceptCurrentValue(index)}
               >
-                Accept current value
+                {t('Accept current value')}
               </CButton>
             </CCol>
           </CRow>

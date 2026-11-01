@@ -6,6 +6,9 @@ import StatTile from 'src/components/StatTile'
 import UnitPopup from 'src/components/nodeInfo/UnitPopup'
 import { FanCoilIcon, HeatPumpIcon, TankIcon } from './heatIcons'
 import { fmt } from './useHeatingData'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('heating-control')
 
 // A heating unit's popup (AGENTS_TO_DO.md 2026-10-20 X2, 2026-10-22 C): the
 // shared UnitPopup - Status (the big live picture, the readings, today's
@@ -36,16 +39,16 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
     <div className="d-flex justify-content-between align-items-center border-top pt-2 mt-2 flex-wrap gap-3">
       <CFormCheck
         id={`ht-on-${nodeId}`}
-        label={kind === 'coil' ? 'Valve open (the fan coil on)' : 'In operation'}
+        label={kind === 'coil' ? t('Valve open (the fan coil on)') : t('In operation')}
         checked={!!x.on}
         disabled={!control || m.control === 'off'}
-        title={!control ? 'You may only watch' : undefined}
+        title={!control ? t('You may only watch') : undefined}
         onChange={(e) => send('setEnabled', { nodeId, enabled: e.target.checked })}
       />
       {kind === 'coil' && m.mode && (
         <div className="d-flex align-items-center gap-2">
           <label htmlFor={`ht-sp-${nodeId}`} className="small text-body-secondary">
-            {`Setpoint (${m.mode})`}
+            {t('Setpoint ({{mode}})', { mode: m.mode })}
           </label>
           <CFormInput
             id={`ht-sp-${nodeId}`}
@@ -57,21 +60,23 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
             style={{ width: 90 }}
             value={setpoint}
             disabled={!control}
-            title="The room's own target temperature, °C (5-35)"
+            title={t("The room's own target temperature, °C (5-35)")}
             onChange={(e) => setSetpoint(e.target.value)}
           />
           <CButton
             size="sm"
             color="primary"
             disabled={!control || setpoint === '' || Number(setpoint) === x.setpointC}
-            title="Set this room's target temperature"
+            title={t("Set this room's target temperature")}
             onClick={() => send('setSetpoint', { mode: m.mode, c: Number(setpoint), nodeId })}
           >
-            Set
+            {t('Set')}
           </CButton>
         </div>
       )}
-      <span className="small text-body-secondary">Parameters - in the process's configuration</span>
+      <span className="small text-body-secondary">
+        {t("Parameters - in the process's configuration")}
+      </span>
     </div>
   )
   return (
@@ -89,12 +94,24 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
           }
           labels={
             kind === 'pump'
-              ? [`${cooling ? 'Cold' : 'Heat'}, kW`, cooling ? 'EER' : 'COP']
+              ? [t('{{v0}}, kW', { v0: cooling ? 'Cold' : 'Heat' }), cooling ? 'EER' : 'COP']
               : kind === 'tank'
-                ? [`${cooling ? 'Cold' : 'Heat'} in and out, kW`, 'Stored heat, %']
-                : [`${cooling ? 'Cold' : 'Heat'} to the room, kW`, 'The room, °C']
+                ? [
+                    t('{{v0}} in and out, kW', {
+                      v0: cooling ? 'Cold' : 'Heat',
+                    }),
+                    t('Stored heat, %'),
+                  ]
+                : [
+                    t('{{v0}} to the room, kW', {
+                      v0: cooling ? 'Cold' : 'Heat',
+                    }),
+                    t('The room, °C'),
+                  ]
           }
-          legends={kind === 'tank' ? [['in - from the heat pumps', 'out - to the fan coils']] : []}
+          legends={
+            kind === 'tank' ? [[t('in - from the heat pumps'), t('out - to the fan coils')]] : []
+          }
           colors={kind === 'tank' ? [TANK_FLOW_COLORS] : []}
           limits={
             kind === 'coil' && x.setpointC != null
@@ -114,74 +131,87 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
     >
       <div
         className="d-grid mb-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}
+        style={{
+          gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+          gap: 12,
+        }}
       >
         {kind === 'pump' && (
           <>
-            <Stat label="State" hint="Off - switched off; standby - the tanks need nothing now">
-              {!x.on ? 'off' : x.running ? `running ${fmt(x.modulation * 100, 0)} %` : 'standby'}
+            <Stat
+              label={t('State')}
+              hint={t('Off - switched off; standby - the tanks need nothing now')}
+            >
+              {!x.on
+                ? t('off')
+                : x.running
+                  ? t('running {{fmt}} %', { fmt: fmt(x.modulation * 100, 0) })
+                  : t('standby')}
             </Stat>
             <Stat
-              label={cooling ? 'Cold' : 'Heat'}
-              hint="The heat it gives (or the cold it makes) now"
+              label={cooling ? t('Cold') : t('Heat')}
+              hint={t('The heat it gives (or the cold it makes) now')}
             >
               <KeyValue value={fmt(Math.abs(x.heatKw))} unit="kW" />
             </Stat>
-            <Stat label="Electricity" hint="The electric power it takes now">
+            <Stat label={t('Electricity')} hint={t('The electric power it takes now')}>
               <KeyValue value={fmt(x.electricKw)} unit="kW" />
             </Stat>
-            <Stat label={cooling ? 'EER' : 'COP'} hint="The heat per unit of electricity">
+            <Stat label={cooling ? 'EER' : 'COP'} hint={t('The heat per unit of electricity')}>
               <KeyValue value={fmt(x.cop)} />
             </Stat>
-            <Stat label="Flow / return" hint="The water to the tanks / back from them">
+            <Stat label={t('Flow / return')} hint={t('The water to the tanks / back from them')}>
               {fmt(x.flowC)} / {fmt(x.returnC)} °C
             </Stat>
-            <Stat label="Water flow" hint="Through the heat pump">
+            <Stat label={t('Water flow')} hint={t('Through the heat pump')}>
               <KeyValue value={fmt(x.flowLpm)} unit="l/min" />
             </Stat>
-            <Stat label="Fan" hint="The outdoor fan's speed">
+            <Stat label={t('Fan')} hint={t("The outdoor fan's speed")}>
               <KeyValue value={fmt(x.fanRpm, 0)} unit="rpm" />
             </Stat>
-            <Stat label="Rated" hint="The heat output at A7/W35">
+            <Stat label={t('Rated')} hint={t('The heat output at A7/W35')}>
               <KeyValue value={fmt(x.ratedHeatKw, 0)} unit="kW" />
             </Stat>
           </>
         )}
         {kind === 'tank' && (
           <>
-            <Stat label="Stored" hint="The heat above the lowest useful temperature">
-              {fmt(x.storedKwh)} of {fmt(x.fullKwh)} kWh
+            <Stat label={t('Stored')} hint={t('The heat above the lowest useful temperature')}>
+              {fmt(x.storedKwh)} {t('of')} {fmt(x.fullKwh)} kWh
             </Stat>
-            <Stat label="Charge">{fmt(x.pct, 0)} %</Stat>
-            <Stat label="In" hint="From the heat pumps now">
+            <Stat label={t('Charge')}>{fmt(x.pct, 0)} %</Stat>
+            <Stat label={t('In')} hint={t('From the heat pumps now')}>
               <KeyValue value={fmt(x.inKw)} unit="kW" color={TANK_FLOW_COLORS[0]} />
             </Stat>
-            <Stat label="Out" hint="To the fan coils now">
+            <Stat label={t('Out')} hint={t('To the fan coils now')}>
               <KeyValue value={fmt(x.outKw)} unit="kW" color={TANK_FLOW_COLORS[1]} />
             </Stat>
-            <Stat label="Average" hint="The middle sensor">
+            <Stat label={t('Average')} hint={t('The middle sensor')}>
               <KeyValue value={fmt(x.avgC)} unit="°C" />
             </Stat>
-            <Stat label="Top / bottom" hint="The stratification - hot on top, cold below">
+            <Stat label={t('Top / bottom')} hint={t('The stratification - hot on top, cold below')}>
               {fmt(x.topC)} / {fmt(x.bottomC)} °C
             </Stat>
-            <Stat label="Volume">{x.volumeL} l</Stat>
-            <Stat label="Useful range" hint="0 % at the lower, 100 % at the upper">
+            <Stat label={t('Volume')}>{x.volumeL} l</Stat>
+            <Stat label={t('Useful range')} hint={t('0 % at the lower, 100 % at the upper')}>
               {x.tMinC}–{x.tMaxC} °C
             </Stat>
           </>
         )}
         {kind === 'coil' && (
           <>
-            <Stat label="Room">{fmt(x.roomC)} °C</Stat>
-            <Stat label="Humidity">{fmt(x.humidityPct, 0)} %</Stat>
-            <Stat label="Setpoint" hint="The room's target temperature in this mode">
+            <Stat label={t('Room')}>{fmt(x.roomC)} °C</Stat>
+            <Stat label={t('Humidity')}>{fmt(x.humidityPct, 0)} %</Stat>
+            <Stat label={t('Setpoint')} hint={t("The room's target temperature in this mode")}>
               <KeyValue value={fmt(x.setpointC)} unit="°C" />
             </Stat>
-            <Stat label={cooling ? 'Cold' : 'Heat'} hint="What the fan coil gives the room now">
+            <Stat
+              label={cooling ? t('Cold') : t('Heat')}
+              hint={t('What the fan coil gives the room now')}
+            >
               <KeyValue value={fmt(Math.abs(x.heatKw))} unit="kW" />
             </Stat>
-            <Stat label="Fan" hint="The fan's share and its electric power">
+            <Stat label={t('Fan')} hint={t("The fan's share and its electric power")}>
               {fmt(x.fan * 100, 0)} % · {fmt(x.fanW, 0)} W
             </Stat>
           </>
@@ -198,7 +228,7 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
  */
 export const FlowPopup = ({ flow, process, m, onClose }) => {
   const cooling = m.mode === 'cooling'
-  const what = cooling ? 'Cold' : 'Heat'
+  const what = cooling ? t('Cold') : t('Heat')
   const key = (k) => `process:${process.id}:heat.${k}`
   const pumps = flow === 'pumpsTanks'
   const line = m.lines?.[flow]
@@ -212,31 +242,52 @@ export const FlowPopup = ({ flow, process, m, onClose }) => {
           }
           labels={
             pumps
-              ? [`${what} to the tanks and the heating's electricity, kW`]
-              : [`${what} to the rooms, kW`, 'Outdoor, °C']
+              ? [
+                  t("{{what}} to the tanks and the heating's electricity, kW", {
+                    what,
+                  }),
+                ]
+              : [t('{{what}} to the rooms, kW', { what }), t('Outdoor, °C')]
           }
-          legends={pumps ? [[`${what.toLowerCase()} to the tanks`, 'electricity']] : []}
+          legends={
+            pumps
+              ? [
+                  [
+                    t('{{toLowerCase}} to the tanks', {
+                      toLowerCase: what.toLowerCase(),
+                    }),
+                    'electricity',
+                  ],
+                ]
+              : []
+          }
           colors={pumps ? [[TANK_FLOW_COLORS[0], '#b8329e']] : [TANK_FLOW_COLORS[1]]}
         />
       }
-      title={pumps ? 'From the heat pumps to the tanks' : 'From the tanks to the rooms'}
+      title={pumps ? t('From the heat pumps to the tanks') : t('From the tanks to the rooms')}
       processId={process.id}
       onClose={onClose}
     >
       <div
         className="d-grid mb-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}
+        style={{
+          gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+          gap: 12,
+        }}
       >
-        <Stat label={what} hint="The power the water carries now">
+        <Stat label={what} hint={t('The power the water carries now')}>
           <KeyValue value={fmt(Math.abs(line?.kw ?? 0))} unit="kW" />
         </Stat>
-        <Stat label="Warm" hint="The warm pipe's water">
+        <Stat label={t('Warm')} hint={t("The warm pipe's water")}>
           <KeyValue value={fmt(line?.warmC)} unit="°C" />
         </Stat>
-        <Stat label="Cold" hint="The cold pipe's water">
+        <Stat label={t('Cold')} hint={t("The cold pipe's water")}>
           <KeyValue value={fmt(line?.coldC)} unit="°C" />
         </Stat>
-        <Stat label="Difference" hint="Warm less cold - the more, the more heat per litre">
+        <Stat
+          label={t('Difference')}
+          hint={t('Warm less cold - the more, the more heat per litre')}
+        >
           <KeyValue value={line ? fmt(line.warmC - line.coldC) : null} unit="K" />
         </Stat>
       </div>

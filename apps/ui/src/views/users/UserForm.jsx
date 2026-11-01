@@ -21,6 +21,7 @@ import { cilCheck, cilX } from '@coreui/icons'
 import { api } from '../../api/client'
 import SearchChecklist from '../../components/SearchChecklist'
 import { AiTokensInput, parseAiTokens } from './AiTokens'
+import { t } from 'src/i18n'
 
 const AVATAR_SIZE = '4rem'
 
@@ -93,7 +94,8 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     const aiDailyTokens = parseAiTokens(aiTokens)
-    if (aiDailyTokens === undefined) return setError('AI tokens a day: empty, 0 or a whole number')
+    if (aiDailyTokens === undefined)
+      return setError(t('AI tokens a day: empty, 0 or a whole number'))
     setBusy(true)
     setError(null)
     try {
@@ -132,14 +134,16 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
   return (
     <CModal visible onClose={onClose}>
       <CModalHeader>
-        <CModalTitle>{isEdit ? `Edit ${user.username}` : 'Add user'}</CModalTitle>
+        <CModalTitle>
+          {isEdit ? t('Edit {{username}}', { username: user.username }) : t('Add user')}
+        </CModalTitle>
       </CModalHeader>
       <CForm onSubmit={handleSubmit}>
         <CModalBody>
           {error && <CAlert color="danger">{error}</CAlert>}
           <CRow className="mb-3">
             <CCol>
-              <CFormLabel>Username</CFormLabel>
+              <CFormLabel>{t('Username')}</CFormLabel>
               <CFormInput
                 value={username}
                 disabled={isEdit}
@@ -150,13 +154,13 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
           </CRow>
           <CRow className="mb-3">
             <CCol>
-              <CFormLabel>Display name</CFormLabel>
+              <CFormLabel>{t('Display name')}</CFormLabel>
               <CFormInput value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             </CCol>
           </CRow>
           <CRow className="mb-3">
             <CCol>
-              <CFormLabel>Email</CFormLabel>
+              <CFormLabel>{t('Email')}</CFormLabel>
               <CFormInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </CCol>
           </CRow>
@@ -164,7 +168,7 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
             <CRow className="mb-3">
               <CCol>
                 <CFormLabel>
-                  {isEdit ? 'New password (leave blank to keep current)' : 'Password'}
+                  {isEdit ? t('New password (leave blank to keep current)') : t('Password')}
                 </CFormLabel>
                 <CFormInput
                   type="password"
@@ -176,7 +180,7 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
             </CRow>
           )}
           <div className="mb-3">
-            <CFormLabel>Roles</CFormLabel>
+            <CFormLabel>{t('Roles')}</CFormLabel>
             {service ? (
               <div className="small text-body-secondary">
                 {roleKeys.map((k) => roles.find((r) => r.key === k)?.name ?? k).join(', ')} - an
@@ -197,7 +201,9 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
               />
             )}
             <div className="form-text">
-              Several - the person switches between them in the menu; none - signs in, sees nothing.
+              {t(
+                'Several - the person switches between them in the menu; none - signs in, sees nothing.',
+              )}
             </div>
           </div>
           <CRow className="mb-3">
@@ -213,19 +219,19 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
           <CRow className="mb-3">
             <CCol>
               <CFormCheck
-                label="Active"
+                label={t('Active')}
                 checked={active}
                 disabled={!canDeactivate}
                 onChange={(e) => setActive(e.target.checked)}
               />
               {!canDeactivate && (
-                <div className="form-text">This account can never be deactivated.</div>
+                <div className="form-text">{t('This account can never be deactivated.')}</div>
               )}
             </CCol>
           </CRow>
           <CRow className="mb-3">
             <CCol>
-              <CFormLabel>Avatar</CFormLabel>
+              <CFormLabel>{t('Avatar')}</CFormLabel>
               <div className="d-flex align-items-center gap-3">
                 <div
                   className="position-relative"
@@ -277,10 +283,10 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
                       className="mt-1 p-0"
                       onClick={handleRemoveAvatarLocal}
                     >
-                      Remove avatar
+                      {t('Remove avatar')}
                     </CButton>
                   )}
-                  <div className="form-text">Applied when you Save.</div>
+                  <div className="form-text">{t('Applied when you Save.')}</div>
                 </div>
               </div>
             </CCol>
@@ -288,10 +294,10 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
         </CModalBody>
         <CModalFooter>
           <CButton color="secondary" variant="outline" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </CButton>
           <CButton type="submit" color="primary" disabled={busy}>
-            {busy ? <CSpinner size="sm" /> : 'Save'}
+            {busy ? <CSpinner size="sm" /> : t('Save')}
           </CButton>
         </CModalFooter>
       </CForm>

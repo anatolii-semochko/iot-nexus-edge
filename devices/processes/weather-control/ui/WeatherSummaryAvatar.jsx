@@ -5,6 +5,9 @@ import AnemometerIcon from './anemometer/AnemometerIcon'
 import SkyIcon from './SkyIcon'
 import { currentHour, fmt } from './WeatherWidgets'
 import { DropIcon, RainIcon, ThermoIcon } from './weatherIcons'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('weather-control')
 
 // The Weather's Dashboard card picture with its figures (the user, 2026-10-25 - in the energy,
 // heating and ledger avatars' style): the sky and the temperature (the one in 3 hours under it), the
@@ -16,7 +19,14 @@ const ICON = 34
 
 const Row = ({ icon, value, sub }) => (
   <div className="d-flex align-items-center" style={{ gap: 6 }}>
-    <div style={{ width: 36, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+    <div
+      style={{
+        width: 36,
+        display: 'flex',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
       {icon}
     </div>
     <div style={{ lineHeight: 1.2, whiteSpace: 'nowrap' }}>
@@ -75,12 +85,12 @@ const WeatherSummaryAvatar = ({ process }) => {
       <Row
         icon={<SkyIcon {...sky} height={ICON * 0.85} />}
         value={`${fmt(h.temperatureC, 1)} °C`}
-        sub={in3h ? `${fmt(in3h.temperatureC, 1)} °C in 3 h` : 'Temperature'}
+        sub={in3h ? tr('{{fmt}} °C in 3 h', { fmt: fmt(in3h.temperatureC, 1) }) : tr('Temperature')}
       />
       <Row
         icon={<AnemometerIcon windMs={h.windSpeedMs ?? 0} size={ICON * 0.75} />}
         value={`${fmt(h.windSpeedMs, 1)} m/s`}
-        sub={`gusts ${fmt(h.windGustsMs, 1)} m/s`}
+        sub={tr('gusts {{fmt}} m/s', { fmt: fmt(h.windGustsMs, 1) })}
       />
       <Row
         icon={
@@ -92,16 +102,20 @@ const WeatherSummaryAvatar = ({ process }) => {
           />
         }
         value={`${fmt(h.radiationWm2, 0)} W/m²`}
-        sub={`clouds ${fmt(h.cloudCoverPct, 0)} %`}
+        sub={tr('clouds {{fmt}} %', { fmt: fmt(h.cloudCoverPct, 0) })}
       />
-      <Row icon={<DropIcon />} value={`${fmt(h.humidityPct, 0)} %`} sub="Humidity" />
-      <Row icon={<RainIcon wet={rain > 0} />} value={`${fmt(rain, 1)} mm`} sub="Rain, this hour" />
+      <Row icon={<DropIcon />} value={`${fmt(h.humidityPct, 0)} %`} sub={tr('Humidity')} />
+      <Row
+        icon={<RainIcon wet={rain > 0} />}
+        value={`${fmt(rain, 1)} mm`}
+        sub={tr('Rain, this hour')}
+      />
       <Row
         icon={<ThermoIcon />}
         value={
           temps.length ? `${fmt(Math.min(...temps), 0)} / ${fmt(Math.max(...temps), 0)} °C` : '-'
         }
-        sub="Today low / high"
+        sub={tr('Today low / high')}
       />
     </div>
   )

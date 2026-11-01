@@ -5,6 +5,7 @@ import { useProcessLiveState } from '../../api/useLiveProcess'
 import { wemBadgeClass } from '../../utils/wem'
 import NumericStepper from '../devices/NumericStepper'
 import ResourceLevelsChart, { MAX_SAMPLES, ResourceLevelsChartLegend } from './ResourceLevelsChart'
+import { t } from 'src/i18n'
 
 const METRIC_ROWS = [
   { key: 'cpu', warnKey: 'cpuWarnMax', maxKey: 'cpuMax', label: 'CPU', unit: '%', stepperMax: 100 },
@@ -13,7 +14,7 @@ const METRIC_ROWS = [
     key: 'disk',
     warnKey: 'diskWarnMax',
     maxKey: 'diskMax',
-    label: 'Disk',
+    label: t('Disk'),
     unit: '%',
     stepperMax: 100,
   },
@@ -25,7 +26,7 @@ const METRIC_ROWS = [
     key: 'temp',
     warnKey: 'tempWarnMax',
     maxKey: 'tempMax',
-    label: 'Temp',
+    label: t('Temp'),
     unit: '°C',
     stepperMax: 150,
   },
@@ -128,7 +129,10 @@ const ResourceMonitorPanel = ({ process, onConfigChange }) => {
                 </div>
               </CCol>
               <CCol xs="auto">
-                <div className="text-body-secondary small">Warning Max{unit}</div>
+                <div className="text-body-secondary small">
+                  {t('Warning Max')}
+                  {unit}
+                </div>
                 <NumericStepper
                   value={process.config[warnKey] ?? 0}
                   step={1}
@@ -138,7 +142,10 @@ const ResourceMonitorPanel = ({ process, onConfigChange }) => {
                 />
               </CCol>
               <CCol xs="auto">
-                <div className="text-body-secondary small">Error Max{unit}</div>
+                <div className="text-body-secondary small">
+                  {t('Error Max')}
+                  {unit}
+                </div>
                 <NumericStepper
                   value={process.config[maxKey] ?? 0}
                   step={1}
@@ -155,9 +162,11 @@ const ResourceMonitorPanel = ({ process, onConfigChange }) => {
           <CCol xs="auto">
             <div
               className="text-body-secondary small"
-              title="A raised warning / error holds until its metric falls this far below the threshold (% or °C) - a value hovering at a threshold doesn't raise a new message on every crossing"
+              title={t(
+                "A raised warning / error holds until its metric falls this far below the threshold (% or °C) - a value hovering at a threshold doesn't raise a new message on every crossing",
+              )}
             >
-              Hysteresis
+              {t('Hysteresis')}
             </div>
             <NumericStepper
               value={process.config.hysteresis ?? 0}
@@ -172,7 +181,7 @@ const ResourceMonitorPanel = ({ process, onConfigChange }) => {
               className="text-body-secondary small"
               title="...and holds this long after the metric fell below - a value swinging under load doesn't raise a new message on every swing"
             >
-              Hold, s
+              {t('Hold, s')}
             </div>
             <NumericStepper
               value={process.config.holdSeconds ?? 0}
