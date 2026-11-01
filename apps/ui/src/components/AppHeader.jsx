@@ -21,7 +21,8 @@ import React, { useEffect, useRef } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { useMenu } from './useMenu'
 import { Link } from 'react-router-dom'
-import chipLogo from '../assets/brand/chip-logo.svg'
+import BrandMark from './BrandMark'
+import { HOME_HOST, homeUrl } from '../homeSite'
 import { PROJECT_NAME } from '../projectName'
 import { MESSAGES_PAGE, pageShown } from '../access'
 import {
@@ -44,6 +45,8 @@ import { IS_PRODUCTION } from '../appEnv'
 import { AppHeaderDropdown } from './header/index'
 import NotificationCenter from './header/NotificationCenter'
 import SystemTickIndicator from './header/SystemTickIndicator'
+import LanguageSelector from './header/LanguageSelector'
+import { useTranslation } from 'react-i18next'
 
 /**
  * AppHeader functional component
@@ -59,6 +62,7 @@ import SystemTickIndicator from './header/SystemTickIndicator'
 const AppHeader = ({ bleed = false }) => {
   const headerRef = useRef()
   const { colorMode, setColorMode } = useColorModes('coreui-free-react-admin-template-theme')
+  const { t, i18n } = useTranslation()
 
   const dispatch = useDispatch()
   const sidebarShow = useSelector((state) => state.sidebarShow)
@@ -84,16 +88,27 @@ const AppHeader = ({ bleed = false }) => {
   return (
     <CHeader position="sticky" className={`${bleed ? '' : 'mb-4 '}p-0`} ref={headerRef}>
       <CContainer className="border-bottom px-3 px-md-4" fluid>
-        {noMenu && (
+        {noMenu &&
           // no menu - the brand (else in the sidebar)
-          <Link
-            to="/"
-            className="d-flex align-items-center text-decoration-none text-body fw-semibold"
-          >
-            <img src={chipLogo} alt="" height={28} className="me-2" />
-            {PROJECT_NAME}
-          </Link>
-        )}
+          // the project's website when it has one (homeSite.js), else the app's start
+          (HOME_HOST ? (
+            <a
+              href={homeUrl(i18n.resolvedLanguage)}
+              title={HOME_HOST}
+              className="d-flex align-items-center text-decoration-none text-body fw-semibold"
+            >
+              <BrandMark size={28} className="me-2" />
+              {PROJECT_NAME}
+            </a>
+          ) : (
+            <Link
+              to="/"
+              className="d-flex align-items-center text-decoration-none text-body fw-semibold"
+            >
+              <BrandMark size={28} className="me-2" />
+              {PROJECT_NAME}
+            </Link>
+          ))}
         {!noMenu && (
           <CHeaderToggler
             onClick={() => dispatch({ type: 'set', sidebarShow: !sidebarShow })}
@@ -114,11 +129,11 @@ const AppHeader = ({ bleed = false }) => {
                 color="primary"
                 className={`${IS_PRODUCTION ? 'wem-blink-ring ' : ''}rounded-pill px-2 px-sm-3 py-2 me-sm-2`}
                 role="status"
-                title="At least one node is in simulation mode"
+                title={t('At least one node is in simulation mode')}
               >
                 {/* a phone's header has no room for the word */}
-                <span className="d-none d-sm-inline">Simulation</span>
-                <span className="d-sm-none">Sim</span>
+                <span className="d-none d-sm-inline">{t('Simulation')}</span>
+                <span className="d-sm-none">{t('Sim')}</span>
               </CBadge>
             </li>
           )}
@@ -133,6 +148,7 @@ const AppHeader = ({ bleed = false }) => {
           <li className="nav-item py-1 d-none d-sm-block">
             <div className="vr h-100 mx-2 text-body text-opacity-75"></div>
           </li>
+          <LanguageSelector />
           <CDropdown variant="nav-item" placement="bottom-end">
             <CDropdownToggle caret={false}>
               {colorMode === 'dark' ? (
@@ -151,7 +167,7 @@ const AppHeader = ({ bleed = false }) => {
                 type="button"
                 onClick={() => setColorMode('light')}
               >
-                <CIcon className="me-2" icon={cilSun} size="lg" /> Light
+                <CIcon className="me-2" icon={cilSun} size="lg" /> {t('Light')}
               </CDropdownItem>
               <CDropdownItem
                 active={colorMode === 'dark'}
@@ -160,7 +176,7 @@ const AppHeader = ({ bleed = false }) => {
                 type="button"
                 onClick={() => setColorMode('dark')}
               >
-                <CIcon className="me-2" icon={cilMoon} size="lg" /> Dark
+                <CIcon className="me-2" icon={cilMoon} size="lg" /> {t('Dark')}
               </CDropdownItem>
               <CDropdownItem
                 active={colorMode === 'auto'}
@@ -169,7 +185,7 @@ const AppHeader = ({ bleed = false }) => {
                 type="button"
                 onClick={() => setColorMode('auto')}
               >
-                <CIcon className="me-2" icon={cilContrast} size="lg" /> Auto
+                <CIcon className="me-2" icon={cilContrast} size="lg" /> {t('Auto')}
               </CDropdownItem>
             </CDropdownMenu>
           </CDropdown>
