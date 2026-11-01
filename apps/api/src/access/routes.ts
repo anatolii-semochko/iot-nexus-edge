@@ -112,6 +112,7 @@ const EXACT: Record<string, RoutePermission> = {
 // [prefix, read key, write key] - the longest prefix wins
 const PREFIX: [string, RoutePermission, RoutePermission][] = [
   ["/dashboard-cards", "dashboard.view", "dashboard.manage"],
+  ["/dashboard-settings", "dashboard.view", "dashboard.manage"],
   ["/ai", "ai.configure", "ai.configure"],
   ["/nodes", "nodes.view", "nodes.manage"],
   ["/map", "authenticated", "service"],

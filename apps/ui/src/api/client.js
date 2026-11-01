@@ -404,6 +404,9 @@ export const api = {
   // each one a dynamic tab on the Processes page.
   // Dashboard cards (routes/dashboardCards.ts) - the Dashboard page's tree
   listDashboardCards: () => request('/dashboard-cards'),
+  getDashboardSettings: () => request('/dashboard-settings'),
+  updateDashboardSettings: (changes) =>
+    request('/dashboard-settings', { method: 'PATCH', body: JSON.stringify(changes) }),
   createDashboardCard: (card) =>
     request('/dashboard-cards', { method: 'POST', body: JSON.stringify(card) }),
   updateDashboardCard: (id, changes) =>

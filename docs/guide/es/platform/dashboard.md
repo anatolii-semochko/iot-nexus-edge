@@ -20,7 +20,10 @@ ve su objeto; una carpeta, solo si contiene algo.
 
 ## Ordenar las tarjetas
 
-Servicio -> Configuración -> Panel (para quien pueda configurarlo). Añada una
+Servicio -> Configuración -> Panel (para quien pueda configurarlo) muestra un
+nivel como el Panel: las tarjetas (carpetas y avatares, con su imagen y fondo)
+y, debajo, los componentes, cada lista con su propio orden. **Configuración**:
+los ajustes del Panel, la escala de las tarjetas del nivel superior. Añada una
 carpeta, un avatar o un componente; muévalos arriba y abajo; edite una
 tarjeta:
 
@@ -29,6 +32,8 @@ tarjeta:
   con su tamaño;
 - un **fondo** con tamaño y opacidad;
 - el **marco** - arriba, la línea central, abajo, el relleno;
+- para una carpeta: la **escala de las tarjetas** de dentro (0.50 - 2.00; 1.00 -
+  como siempre, 1.50 - una vez y media más grandes: menos tarjetas por fila);
 - para un avatar: qué avatar y si el espectador puede cambiar entre ajustar
   al ancho o al alto.
 

@@ -185,7 +185,13 @@ body {
   max-width: none;
   // the last block never sticks to the footer (the user, 2026-10-24)
   padding-bottom: 1.5rem;
+}
 
+// the page's top card - and a page's component on the Dashboard (an opened avatar, a level's component -
+// views/dashboard/Dashboard.jsx `dc-page`, the user 2026-11-01): the same sheet, the header as the
+// title, no side padding
+.page-content,
+.dc-page {
   > .card {
     --cui-card-spacer-x: 0;
     --cui-card-cap-padding-x: 0;

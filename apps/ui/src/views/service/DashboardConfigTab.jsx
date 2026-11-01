@@ -14,10 +14,21 @@ import {
   CTable,
   CTableBody,
   CTableDataCell,
+  CTableHead,
+  CTableHeaderCell,
   CTableRow,
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
-import { cilArrowBottom, cilArrowTop, cilPencil, cilPlus, cilTrash } from '@coreui/icons'
+import {
+  cilArrowBottom,
+  cilArrowTop,
+  cilFolder,
+  cilPencil,
+  cilPlus,
+  cilPuzzle,
+  cilSettings,
+  cilTrash,
+} from '@coreui/icons'
 import { api, request } from '../../api/client'
 import { availableComponents, dashboardComponents } from '../../dashboardRegistry'
 import { cardIcon, DASHBOARD_ICONS } from '../../dashboardIcons'
@@ -25,7 +36,14 @@ import { useConfirmModal } from '../../hooks/useConfirmModal'
 import IconButton from '../../components/IconButton'
 import UpBreadcrumb from '../../components/UpBreadcrumb'
 import Switch from '../../components/Switch'
-import { BlockCard, cardFrame, dashboardCardWidth, pictureSource } from '../dashboard/Dashboard'
+import {
+  BlockCard,
+  CardPreview,
+  cardFrame,
+  cardImageUrl,
+  dashboardCardWidth,
+  pictureSource,
+} from '../dashboard/Dashboard'
 import { t } from 'src/i18n'
 
 /**
@@ -130,7 +148,11 @@ const EMPTY = {
   frame: null,
   picture: {},
   userFit: false,
+  cardsScale: 1,
 }
+
+// a folder's cards' scale - the API's range (dashboardCards.ts CARDS_SCALE, migration 103)
+const CARDS_SCALE = { min: 0.5, max: 2, step: 0.05 }
 
 const NOUNS = { folder: 'folder', avatar: 'avatar', component: 'component' }
 
@@ -193,7 +215,7 @@ const Row = ({ label, hint, children }) => (
 )
 
 /** A slider's row in the sliders' grid - its name, the slider, the value (the columns aligned). */
-const Slider = ({ label, value, min, max, step = 5, hint, onChange }) => (
+const Slider = ({ label, value, min, max, step = 5, hint, onChange, format = (v) => `${v} %` }) => (
   <>
     <span className="small">{label}</span>
     <input
@@ -206,7 +228,7 @@ const Slider = ({ label, value, min, max, step = 5, hint, onChange }) => (
       aria-label={label}
       onChange={(e) => onChange(Number(e.target.value))}
     />
-    <span className="small text-end">{value} %</span>
+    <span className="small text-end">{format(value)}</span>
   </>
 )
 
@@ -225,21 +247,23 @@ const FRAME_ROWS = [
  * The width a block card has on the Dashboard in this window: the page's content width (the Dashboard sits
  * in the same page container) through the Dashboard grid's rule; null outside a page. Follows resizes.
  */
-const useDashboardCardWidth = () => {
+const useDashboardCardWidth = (scale = 1) => {
   const measure = () => {
     const page = document.querySelector('.page-content')
     if (!page) return null
     const cs = getComputedStyle(page)
     const content = page.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize)
-    return Math.floor(dashboardCardWidth(content, rem))
+    return Math.floor(dashboardCardWidth(content, rem, scale))
   }
   const [width, setWidth] = useState(measure)
   useEffect(() => {
     const update = () => setWidth(measure())
+    update()
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scale])
   return width
 }
 
@@ -398,12 +422,16 @@ const CardPictureRows = ({ form, set, def }) => {
 // The add / edit popup. `draft` - {type, parentId, ...fields, id?} or null (closed). The groups (the
 // user, 2026-10-29): where and what - the title, the folder, what it shows; the frame; the pictures;
 // how an avatar opens. A component (at the level's full width) - the first group only.
-const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) => {
+const CardModal = ({ draft, cards, options, processes = [], rootScale = 1, onClose, onSave }) => {
   const [form, setForm] = useState(draft)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
-  // the preview as wide as the card on the Dashboard
-  const cardWidth = useDashboardCardWidth()
+  // the preview as wide as the card on the Dashboard - in its folder, at that folder's cards' scale
+  const parentScale =
+    draft?.parentId == null
+      ? rootScale
+      : (cards.find((c) => c.id === draft.parentId)?.cardsScale ?? 1)
+  const cardWidth = useDashboardCardWidth(parentScale)
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setForm(draft), [draft])
   if (!form) return null
@@ -446,7 +474,13 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
           <div className="dc-preview" aria-label={t('Preview')}>
             <div className="small text-body-secondary mb-2">{t('On the Dashboard')}</div>
             {block ? (
-              <div style={{ width: cardWidth ?? '100%', maxWidth: cardWidth ? '100%' : 360 }}>
+              <div
+                style={{
+                  width: cardWidth ?? '100%',
+                  maxWidth: cardWidth ? '100%' : 360,
+                  '--dc-scale': parentScale,
+                }}
+              >
                 <BlockCard
                   card={{ ...form, title: form.title || t('Untitled') }}
                   processes={processes}
@@ -479,16 +513,38 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
               />
             </Row>
             {form.type === 'folder' ? (
-              <Row label={t('Shows')}>
-                <CFormSelect
-                  value={form.layout}
-                  onChange={(e) => set({ layout: e.target.value })}
-                  aria-label={t('Layout')}
-                >
-                  <option value="blocks">{t('Its cards as blocks')}</option>
-                  <option value="list">{t('Its cards as a list')}</option>
-                </CFormSelect>
-              </Row>
+              <>
+                <Row label={t('Shows')}>
+                  <CFormSelect
+                    value={form.layout}
+                    onChange={(e) => set({ layout: e.target.value })}
+                    aria-label={t('Layout')}
+                  >
+                    <option value="blocks">{t('Its cards as blocks')}</option>
+                    <option value="list">{t('Its cards as a list')}</option>
+                  </CFormSelect>
+                </Row>
+                {form.layout !== 'list' && (
+                  <Row
+                    label={t('Cards scale')}
+                    hint={t(
+                      'The cards inside this folder: 1.00 - as usual, 1.50 - half as large again',
+                    )}
+                  >
+                    <div className="dc-sliders">
+                      <Slider
+                        label={t('Scale')}
+                        value={form.cardsScale ?? 1}
+                        min={CARDS_SCALE.min}
+                        max={CARDS_SCALE.max}
+                        step={CARDS_SCALE.step}
+                        format={(v) => v.toFixed(2)}
+                        onChange={(v) => set({ cardsScale: v })}
+                      />
+                    </div>
+                  </Row>
+                )}
+              </>
             ) : (
               <>
                 <Row label={t('Shows')}>
@@ -617,18 +673,94 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
   )
 }
 
+// The Dashboard's own settings (the user, 2026-11-01 - "Config" by the adds): the top level's cards' scale
+// (a folder's - in its own form).
+const SettingsModal = ({ visible, settings, onClose, onSave }) => {
+  const [form, setForm] = useState(settings)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setForm(settings), [settings, visible])
+  if (!visible) return null
+  const save = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await onSave(form)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <CModal visible onClose={onClose} alignment="center">
+      <CModalHeader>
+        <CModalTitle>{t('Dashboard settings')}</CModalTitle>
+      </CModalHeader>
+      <CModalBody>
+        <style>{FORM_CSS}</style>
+        {error && <CAlert color="danger">{error}</CAlert>}
+        <div className="dc-form">
+          <Row
+            label={t('Cards scale')}
+            hint={t('The cards on the top level: 1.00 - as usual, 1.50 - half as large again')}
+          >
+            <div className="dc-sliders">
+              <Slider
+                label={t('Scale')}
+                value={form.cardsScale ?? 1}
+                min={CARDS_SCALE.min}
+                max={CARDS_SCALE.max}
+                step={CARDS_SCALE.step}
+                format={(v) => v.toFixed(2)}
+                onChange={(v) => setForm({ ...form, cardsScale: v })}
+              />
+            </div>
+          </Row>
+        </div>
+        <div className="form-text mt-2">
+          {t("A folder's cards have their own scale - in the folder's form.")}
+        </div>
+      </CModalBody>
+      <CModalFooter>
+        <CButton color="secondary" variant="outline" onClick={onClose}>
+          {t('Cancel')}
+        </CButton>
+        <CButton color="primary" disabled={busy} onClick={save}>
+          {t('Save')}
+        </CButton>
+      </CModalFooter>
+    </CModal>
+  )
+}
+
+// a card's thumbnails in the list - its picture as on the Dashboard, its background
+const THUMB = { w: 72, h: 48 }
+const Thumb = ({ children }) => (
+  <div
+    className="position-relative overflow-hidden rounded border"
+    style={{ width: THUMB.w, height: THUMB.h, pointerEvents: 'none' }}
+  >
+    {children}
+  </div>
+)
+
 const DashboardConfigTab = () => {
   const [cards, setCards] = useState(null)
   const [processes, setProcesses] = useState([])
   const [error, setError] = useState(null)
   const [folderId, setFolderId] = useState(null)
   const [draft, setDraft] = useState(null)
+  const [settings, setSettings] = useState({ cardsScale: 1 })
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const { confirm, modal } = useConfirmModal()
   const load = () =>
-    Promise.all([api.listDashboardCards(), api.listProcesses()])
-      .then(([c, p]) => {
+    Promise.all([api.listDashboardCards(), api.listProcesses(), api.getDashboardSettings()])
+      .then(([c, p, s]) => {
         setCards(c)
         setProcesses(p)
+        setSettings(s)
       })
       .catch((err) => setError(err.message))
   useEffect(() => {
@@ -656,7 +788,7 @@ const DashboardConfigTab = () => {
     const shown = { componentKey, processId, parentId, params: form.params ?? {} }
     const fields =
       type === 'folder'
-        ? { title, icon: form.icon, layout, parentId }
+        ? { title, icon: form.icon, layout, parentId, cardsScale: form.cardsScale ?? 1 }
         : type === 'avatar'
           ? { title, icon: form.icon, view, preview, userFit: !!form.userFit, ...shown }
           : { title, ...shown }
@@ -692,14 +824,75 @@ const DashboardConfigTab = () => {
     })
     if (ok) run(() => api.deleteDashboardCard(card.id))
   }
+  // the level as the Dashboard shows it: the cards (blocks), then the components - each ordered apart
+  const blocks = level.filter((c) => c.type !== 'component')
+  const components = level.filter((c) => c.type === 'component')
+  const titleOf = (card) =>
+    card.type === 'folder' ? (
+      <a
+        href="#"
+        className="link-primary fw-semibold text-decoration-none"
+        onClick={(e) => {
+          e.preventDefault()
+          setFolderId(card.id)
+        }}
+      >
+        {card.title}
+      </a>
+    ) : (
+      <span className="fw-semibold">{card.title}</span>
+    )
+  // the row's actions - the order (within its group), edit, delete
+  const actions = (card, i, count) => (
+    <span className="d-inline-flex gap-2">
+      {/* the order - up / down as one button group */}
+      <span className="btn-group" role="group" aria-label={t('Order')}>
+        <IconButton
+          icon={cilArrowTop}
+          size="sm"
+          center
+          disabled={i === 0}
+          ariaLabel={t('Up')}
+          title={t('Up')}
+          onClick={() => run(() => api.moveDashboardCard(card.id, 'up'))}
+        />
+        <IconButton
+          icon={cilArrowBottom}
+          size="sm"
+          center
+          disabled={i === count - 1}
+          ariaLabel={t('Down')}
+          title={t('Down')}
+          onClick={() => run(() => api.moveDashboardCard(card.id, 'down'))}
+        />
+      </span>
+      <IconButton
+        icon={cilPencil}
+        size="sm"
+        center
+        ariaLabel={t('Edit')}
+        title={t('Edit')}
+        onClick={() => setDraft({ ...EMPTY, ...card })}
+      />
+      <IconButton
+        icon={cilTrash}
+        size="sm"
+        color="danger"
+        center
+        ariaLabel={t('Delete')}
+        title={t('Delete')}
+        onClick={() => remove(card)}
+      />
+    </span>
+  )
   const what = (card) =>
     card.type === 'folder'
-      ? t('folder, {{length}} inside, {{v1}}', {
+      ? t('{{length}} inside, {{v1}}', {
           length: childrenOf(cards, card.id).length,
           v1: card.layout === 'list' ? 'a list' : 'blocks',
         })
       : [
-          card.type === 'avatar' ? 'avatar' : t('component, full width'),
+          card.type === 'avatar' ? null : t('full width'),
           dashboardComponents[card.componentKey]?.title ?? card.componentKey,
           processes.find((p) => p.id === card.processId)?.name,
         ]
@@ -714,8 +907,18 @@ const DashboardConfigTab = () => {
         cards={cards}
         options={options}
         processes={processes}
+        rootScale={settings.cardsScale}
         onClose={() => setDraft(null)}
         onSave={saveDraft}
+      />
+      <SettingsModal
+        visible={settingsOpen}
+        settings={settings}
+        onClose={() => setSettingsOpen(false)}
+        onSave={async (next) => {
+          setSettings(await api.updateDashboardSettings(next))
+          setSettingsOpen(false)
+        }}
       />
       {error && <CAlert color="danger">{error}</CAlert>}
       <div className="d-flex align-items-center gap-2 mb-2">
@@ -742,11 +945,21 @@ const DashboardConfigTab = () => {
               size="sm"
               color="primary"
               title={hint}
+              className="d-inline-flex align-items-center gap-1"
               onClick={() => setDraft({ ...EMPTY, type, parentId: folder?.id ?? null })}
             >
               <CIcon icon={cilPlus} /> {label}
             </CButton>
           ))}
+          <CButton
+            size="sm"
+            color="primary"
+            title={t("The Dashboard's own settings - the top level's cards' scale")}
+            className="d-inline-flex align-items-center gap-1"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <CIcon icon={cilSettings} /> {t('Config')}
+          </CButton>
         </div>
       </div>
       {level.length === 0 ? (
@@ -758,79 +971,113 @@ const DashboardConfigTab = () => {
               })}
         </CAlert>
       ) : (
-        // a table - the rows' lines, none under the last
-        <CTable align="middle" hover className="mb-0">
-          <CTableBody>
-            {level.map((card, i) => (
-              <CTableRow key={card.id}>
-                <CTableDataCell style={{ width: '2rem' }}>
-                  <CIcon icon={cardIcon(card)} className="text-body-secondary" />
-                </CTableDataCell>
-                <CTableDataCell>
-                  <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
-                    {card.type === 'folder' ? (
-                      <a
-                        href="#"
-                        className="link-primary fw-semibold text-truncate text-decoration-none"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          setFolderId(card.id)
-                        }}
-                      >
-                        {card.title}
-                      </a>
-                    ) : (
-                      <span className="fw-semibold text-truncate">{card.title}</span>
-                    )}
-                    <span className="small text-body-secondary text-truncate">{what(card)}</span>
-                  </div>
-                </CTableDataCell>
-                <CTableDataCell className="text-end text-nowrap" style={{ width: '1%' }}>
-                  <span className="d-inline-flex gap-2">
-                    {/* the order - up / down as one button group */}
-                    <span className="btn-group" role="group" aria-label={t('Order')}>
-                      <IconButton
-                        icon={cilArrowTop}
-                        size="sm"
-                        center
-                        disabled={i === 0}
-                        ariaLabel={t('Up')}
-                        title={t('Up')}
-                        onClick={() => run(() => api.moveDashboardCard(card.id, 'up'))}
+        <>
+          {blocks.length > 0 && (
+            // the cards (folders, avatars) - as the Dashboard's blocks
+            <CTable align="middle" hover className="mb-3">
+              <CTableHead>
+                <CTableRow>
+                  <CTableHeaderCell colSpan={3} className="small text-body-secondary fw-normal">
+                    {t('Cards')}
+                  </CTableHeaderCell>
+                  <CTableHeaderCell className="small text-body-secondary fw-normal">
+                    {t('Picture')}
+                  </CTableHeaderCell>
+                  <CTableHeaderCell className="small text-body-secondary fw-normal">
+                    {t('Background')}
+                  </CTableHeaderCell>
+                  <CTableHeaderCell className="small text-body-secondary fw-normal">
+                    {t('Info')}
+                  </CTableHeaderCell>
+                  <CTableHeaderCell />
+                </CTableRow>
+              </CTableHead>
+              <CTableBody>
+                {blocks.map((card, i) => (
+                  <CTableRow key={card.id}>
+                    <CTableDataCell style={{ width: '2rem' }}>
+                      <CIcon
+                        icon={card.type === 'folder' ? cilFolder : cilPuzzle}
+                        className="text-body-secondary"
+                        title={card.type === 'folder' ? t('Folder') : t('Avatar')}
                       />
-                      <IconButton
-                        icon={cilArrowBottom}
-                        size="sm"
-                        center
-                        disabled={i === level.length - 1}
-                        ariaLabel={t('Down')}
-                        title={t('Down')}
-                        onClick={() => run(() => api.moveDashboardCard(card.id, 'down'))}
+                    </CTableDataCell>
+                    <CTableDataCell style={{ width: '2rem' }}>
+                      <CIcon icon={cardIcon(card)} className="text-body-secondary" />
+                    </CTableDataCell>
+                    <CTableDataCell>{titleOf(card)}</CTableDataCell>
+                    <CTableDataCell style={{ width: THUMB.w + 16 }}>
+                      <Thumb>
+                        {/* the card's picture as on the Dashboard, its block the thumbnail's height */}
+                        <div style={{ '--dc-preview-h': `${THUMB.h}px` }}>
+                          <CardPreview card={card} processes={processes} padded={false} />
+                        </div>
+                      </Thumb>
+                    </CTableDataCell>
+                    <CTableDataCell style={{ width: THUMB.w + 16 }}>
+                      {cardImageUrl(card, 'background') ? (
+                        <Thumb>
+                          <img
+                            src={cardImageUrl(card, 'background')}
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        </Thumb>
+                      ) : (
+                        <span className="small text-body-secondary">-</span>
+                      )}
+                    </CTableDataCell>
+                    <CTableDataCell className="small text-body-secondary">
+                      {what(card)}
+                    </CTableDataCell>
+                    <CTableDataCell className="text-end text-nowrap" style={{ width: '1%' }}>
+                      {actions(card, i, blocks.length)}
+                    </CTableDataCell>
+                  </CTableRow>
+                ))}
+              </CTableBody>
+            </CTable>
+          )}
+          {components.length > 0 && (
+            // the components - at the level's full width under its cards, ordered apart
+            <CTable align="middle" hover className="mb-0">
+              <CTableHead>
+                <CTableRow>
+                  <CTableHeaderCell colSpan={3} className="small text-body-secondary fw-normal">
+                    {t('Components - at the full width under the cards')}
+                  </CTableHeaderCell>
+                  <CTableHeaderCell className="small text-body-secondary fw-normal">
+                    {t('Info')}
+                  </CTableHeaderCell>
+                  <CTableHeaderCell />
+                </CTableRow>
+              </CTableHead>
+              <CTableBody>
+                {components.map((card, i) => (
+                  <CTableRow key={card.id}>
+                    <CTableDataCell style={{ width: '2rem' }}>
+                      <CIcon
+                        icon={cilPuzzle}
+                        className="text-body-secondary"
+                        title={t('Component')}
                       />
-                    </span>
-                    <IconButton
-                      icon={cilPencil}
-                      size="sm"
-                      center
-                      ariaLabel={t('Edit')}
-                      title={t('Edit')}
-                      onClick={() => setDraft({ ...EMPTY, ...card })}
-                    />
-                    <IconButton
-                      icon={cilTrash}
-                      size="sm"
-                      color="danger"
-                      center
-                      ariaLabel={t('Delete')}
-                      title={t('Delete')}
-                      onClick={() => remove(card)}
-                    />
-                  </span>
-                </CTableDataCell>
-              </CTableRow>
-            ))}
-          </CTableBody>
-        </CTable>
+                    </CTableDataCell>
+                    <CTableDataCell style={{ width: '2rem' }}>
+                      <CIcon icon={cardIcon(card)} className="text-body-secondary" />
+                    </CTableDataCell>
+                    <CTableDataCell>{titleOf(card)}</CTableDataCell>
+                    <CTableDataCell className="small text-body-secondary">
+                      {what(card)}
+                    </CTableDataCell>
+                    <CTableDataCell className="text-end text-nowrap" style={{ width: '1%' }}>
+                      {actions(card, i, components.length)}
+                    </CTableDataCell>
+                  </CTableRow>
+                ))}
+              </CTableBody>
+            </CTable>
+          )}
+        </>
       )}
     </div>
   )

@@ -791,7 +791,6 @@
   "buzzer": "Summer",
   "characters)": "Zeichen)",
   "closed - needs {{join}}": "geschlossen - benötigt {{join}}",
-  "component, full width": "Komponente, volle Breite",
   "ct": "ct",
   "default / answer": "Standard / Antwort",
   "details": "Details",
@@ -804,7 +803,6 @@
   "empty - all of them": "leer - alle",
   "error": "Fehler",
   "every": "alle",
-  "folder, {{length}} inside, {{v1}}": "Ordner, {{length}} darin, {{v1}}",
   "generation": "Erzeugung",
   "guest": "Gast",
   "hours": "Stunden",
@@ -895,5 +893,16 @@
   "{{numberSkippedTicks}} ticks → level {{level}}": "{{numberSkippedTicks}} Ticks → Stufe {{level}}",
   "{{n}} cards": "{{n}} Karten",
   "{{title}} - add, change": "{{title}} - hinzufügen, ändern",
-  "{{v0}} at {{coords}}": "{{v0}} bei {{coords}}"
+  "{{v0}} at {{coords}}": "{{v0}} bei {{coords}}",
+  "Cards scale": "Kartengröße",
+  "The cards inside this folder: 1.00 - as usual, 1.50 - half as large again": "Die Karten in diesem Ordner: 1.00 - wie üblich, 1.50 - anderthalbmal so groß",
+  "Scale": "Maßstab",
+  "Dashboard settings": "Dashboard-Einstellungen",
+  "The cards on the top level: 1.00 - as usual, 1.50 - half as large again": "Die Karten auf der obersten Ebene: 1.00 - wie üblich, 1.50 - anderthalbmal so groß",
+  "A folder's cards have their own scale - in the folder's form.": "Die Karten eines Ordners haben ihre eigene Größe - im Formular des Ordners.",
+  "The Dashboard's own settings - the top level's cards' scale": "Die eigenen Einstellungen des Dashboards - die Kartengröße der obersten Ebene",
+  "Cards": "Karten",
+  "Components - at the full width under the cards": "Komponenten - in voller Breite unter den Karten",
+  "{{length}} inside, {{v1}}": "{{length}} darin, {{v1}}",
+  "full width": "volle Breite"
 }
