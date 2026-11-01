@@ -5,6 +5,7 @@ import { useDeviceLiveState } from '../../api/useLiveDevice'
 import BuzzerIndicator from '../../components/indicators/BuzzerIndicator'
 import { MINI_BORDER_WIDTH, MINI_INDICATOR_SIZE } from '../../components/indicators/constants'
 import StatusIndicator from '../../components/indicators/StatusIndicator'
+import { t } from 'src/i18n'
 
 const ERROR_COLOR = '#dc3545'
 const WARNING_COLOR = '#ffc107'
@@ -95,14 +96,14 @@ const AnnunciatorPanel = ({ process }) => {
         >
           {LEVEL_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.type === 'warning' ? 'Warning' : 'Error'} {option.level}
+              {option.type === 'warning' ? t('Warning') : t('Error')} {option.level}
             </option>
           ))}
         </CFormSelect>
-        <span className="text-body-secondary small">test level</span>
+        <span className="text-body-secondary small">{t('test level')}</span>
         <div className="ms-auto d-flex align-items-center gap-2">
           <BuzzerIndicator active={buzzer.value === true} size={MINI_INDICATOR_SIZE} />
-          <span className="text-body-secondary small">buzzer</span>
+          <span className="text-body-secondary small">{t('buzzer')}</span>
         </div>
       </div>
 
@@ -115,7 +116,7 @@ const AnnunciatorPanel = ({ process }) => {
             {slot.messageGroupId !== null ? (
               groupName(slot.messageGroupId)
             ) : (
-              <span className="text-body-secondary">Not bound</span>
+              <span className="text-body-secondary">{t('Not bound')}</span>
             )}
           </div>
           <SlotIndicators redDeviceId={slot.redDeviceId} yellowDeviceId={slot.yellowDeviceId} />
@@ -128,7 +129,7 @@ const AnnunciatorPanel = ({ process }) => {
             onMouseUp={stopTest}
             onMouseLeave={stopTest}
           >
-            Test
+            {t('Test')}
           </CButton>
         </div>
       ))}

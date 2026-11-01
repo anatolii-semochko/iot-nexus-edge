@@ -14,6 +14,7 @@ import { api } from '../../api/client'
 import AiBrainIcon from '../AiBrainIcon'
 import AiConversation from './AiConversation'
 import { useAiEntities } from './useAiEntities'
+import { t } from 'src/i18n'
 
 /**
  * The AI Assistant's side panel (2026-10-24): the AI button on a thing - a node, a device, a
@@ -36,7 +37,10 @@ const viewOnScreen = () => {
     .filter((x) => x.offsetParent !== null && !x.closest('.sidebar'))
     .map((x) => (x.getAttribute('title') || x.textContent || '').replace(/\s+/g, ' ').trim())
     .filter((x) => x && !seen.has(x) && seen.add(x))
-  return names.length ? `${modals.length ? 'a popup - ' : ''}the tab ${names.join(' > ')}` : null
+  return names.length
+    ? // for the AI - English, whatever the interface's language (a tagged template - i18n-wrap skips it)
+      String.raw`${modals.length ? 'a popup - ' : ''}the tab ${names.join(' > ')}`
+    : null
 }
 
 const AiPanelContext = createContext({ open: () => {}, setView: () => {} })
@@ -68,20 +72,20 @@ const Panel = ({ request, onClose }) => {
     navigate(conversationId ? `/ai-assistant/${conversationId}` : '/ai-assistant')
   }
   return (
-    <aside className="ai-panel" aria-label="AI Assistant">
+    <aside className="ai-panel" aria-label={t('AI Assistant')}>
       <style>{PANEL_CSS}</style>
       <div className="ai-panel-head">
         <AiBrainIcon size={28} />
         <div className="flex-grow-1" style={{ minWidth: 0 }}>
-          <div className="fw-semibold">AI Assistant</div>
+          <div className="fw-semibold">{t('AI Assistant')}</div>
           <div className="small text-body-secondary text-truncate">
             {resolved?.subject?.label ?? ' '}
           </div>
         </div>
         <CButton color="link" size="sm" className="text-nowrap" onClick={openPage}>
-          Open in AI Assistant
+          {t('Open in AI Assistant')}
         </CButton>
-        <CCloseButton onClick={onClose} aria-label="Close the AI Assistant" />
+        <CCloseButton onClick={onClose} aria-label={t('Close the AI Assistant')} />
       </div>
       {!resolved || (!data && !entitiesError) ? (
         <div className="p-3">

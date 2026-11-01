@@ -15,6 +15,7 @@ import {
 } from '@coreui/react'
 import { api } from '../../api/client'
 import AiCalendarModal from './AiCalendarModal'
+import { t } from 'src/i18n'
 
 /**
  * Service -> Config -> AI -> Instances (Nexus Edge AI Assistant, stage 2):
@@ -29,9 +30,9 @@ import AiCalendarModal from './AiCalendarModal'
  */
 
 const LEVELS = [
-  { value: 'off', label: 'Off' },
-  { value: 'confirm', label: 'Confirm' },
-  { value: 'auto', label: 'Auto' },
+  { value: 'off', label: t('Off') },
+  { value: 'confirm', label: t('Confirm') },
+  { value: 'auto', label: t('Auto') },
 ]
 
 const LevelSelect = ({ value, onChange, label, disabled }) => (
@@ -82,21 +83,23 @@ const AiInstances = ({ connections }) => {
       <CTable small hover responsive className="align-middle">
         <CTableHead>
           <CTableRow>
-            <CTableHeaderCell>Instance</CTableHeaderCell>
-            <CTableHeaderCell>Connection</CTableHeaderCell>
-            <CTableHeaderCell title="Read the system: states, logs, series, configs, documentation">
-              Read
+            <CTableHeaderCell>{t('Instance')}</CTableHeaderCell>
+            <CTableHeaderCell>{t('Connection')}</CTableHeaderCell>
+            <CTableHeaderCell
+              title={t('Read the system: states, logs, series, configs, documentation')}
+            >
+              {t('Read')}
             </CTableHeaderCell>
-            <CTableHeaderCell title="Change settings">Config</CTableHeaderCell>
-            <CTableHeaderCell title="Commands, manual values">Control</CTableHeaderCell>
-            <CTableHeaderCell title="DNPs, nodes, devices, migrations - the whole system only">
-              Install
+            <CTableHeaderCell title={t('Change settings')}>{t('Config')}</CTableHeaderCell>
+            <CTableHeaderCell title={t('Commands, manual values')}>{t('Control')}</CTableHeaderCell>
+            <CTableHeaderCell title={t('DNPs, nodes, devices, migrations - the whole system only')}>
+              {t('Install')}
             </CTableHeaderCell>
-            <CTableHeaderCell title="Reports / proposals to the developers">
-              Report
+            <CTableHeaderCell title={t('Reports / proposals to the developers')}>
+              {t('Report')}
             </CTableHeaderCell>
-            <CTableHeaderCell title="Log the conversations with their full payload">
-              Logs
+            <CTableHeaderCell title={t('Log the conversations with their full payload')}>
+              {t('Logs')}
             </CTableHeaderCell>
             <CTableHeaderCell />
           </CTableRow>
@@ -112,13 +115,13 @@ const AiInstances = ({ connections }) => {
                     {i.name}
                     {system && (
                       <CBadge color="primary" className="ms-2">
-                        Built in
+                        {t('Built in')}
                       </CBadge>
                     )}
                   </div>
                   <div className="small text-body-secondary">
                     {system
-                      ? 'The whole system'
+                      ? t('The whole system')
                       : i.plugin === i.kind
                         ? i.kind
                         : `${i.kind} (${i.plugin})`}
@@ -133,14 +136,14 @@ const AiInstances = ({ connections }) => {
                         connectionId: e.target.value === '' ? null : Number(e.target.value),
                       })
                     }
-                    aria-label={`${i.name} - connection`}
+                    aria-label={t('{{name}} - connection', { name: i.name })}
                     style={{ minWidth: '9rem' }}
                   >
-                    <option value="">- (off)</option>
+                    <option value="">{t('- (off)')}</option>
                     {connections.map((c) => (
                       <option key={c.id} value={c.id} disabled={!c.enabled}>
                         {c.name}
-                        {c.enabled ? '' : ' (disabled)'}
+                        {c.enabled ? '' : t('(disabled)')}
                       </option>
                     ))}
                   </CFormSelect>
@@ -149,21 +152,21 @@ const AiInstances = ({ connections }) => {
                   <CFormSwitch
                     checked={i.access.read}
                     onChange={(e) => setAccess(i, 'read', e.target.checked)}
-                    aria-label={`${i.name} - read`}
+                    aria-label={t('{{name}} - read', { name: i.name })}
                   />
                 </CTableDataCell>
                 <CTableDataCell>
                   <LevelSelect
                     value={i.access.config}
                     onChange={(v) => setAccess(i, 'config', v)}
-                    label={`${i.name} - config`}
+                    label={t('{{name}} - config', { name: i.name })}
                   />
                 </CTableDataCell>
                 <CTableDataCell>
                   <LevelSelect
                     value={i.access.control}
                     onChange={(v) => setAccess(i, 'control', v)}
-                    label={`${i.name} - control`}
+                    label={t('{{name}} - control', { name: i.name })}
                   />
                 </CTableDataCell>
                 <CTableDataCell>
@@ -171,7 +174,7 @@ const AiInstances = ({ connections }) => {
                     <LevelSelect
                       value={i.access.install}
                       onChange={(v) => setAccess(i, 'install', v)}
-                      label={`${i.name} - install`}
+                      label={t('{{name}} - install', { name: i.name })}
                     />
                   ) : (
                     <span className="small text-body-tertiary">-</span>
@@ -181,14 +184,14 @@ const AiInstances = ({ connections }) => {
                   <CFormSwitch
                     checked={i.access.report}
                     onChange={(e) => setAccess(i, 'report', e.target.checked)}
-                    aria-label={`${i.name} - report`}
+                    aria-label={t('{{name}} - report', { name: i.name })}
                   />
                 </CTableDataCell>
                 <CTableDataCell>
                   <CFormSwitch
                     checked={i.logs}
                     onChange={(e) => save(i, { logs: e.target.checked })}
-                    aria-label={`${i.name} - logs`}
+                    aria-label={t('{{name}} - logs', { name: i.name })}
                   />
                 </CTableDataCell>
                 <CTableDataCell className="text-end">
@@ -197,10 +200,10 @@ const AiInstances = ({ connections }) => {
                       size="sm"
                       color="secondary"
                       variant="outline"
-                      title="Scheduled runs"
+                      title={t('Scheduled runs')}
                       onClick={() => setCalendarOf(i)}
                     >
-                      Calendar
+                      {t('Calendar')}
                     </CButton>
                   )}
                 </CTableDataCell>

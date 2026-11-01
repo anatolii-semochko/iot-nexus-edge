@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import NamedListManager from '../../components/NamedListManager'
 import MessageLevelsForm from './MessageLevelsForm'
 import MessageSignalTimingForm from './MessageSignalTimingForm'
+import { t } from 'src/i18n'
 
 /**
  * Settings tab (AGENTS.md section 22) - four admin-config forms. Process
@@ -41,11 +42,11 @@ const SettingsTab = ({
       {/* The *technical* system a process belongs to (heating, lighting,
           security, aquarium...) - drives the Group column/filter. */}
       <CCard>
-        <CCardHeader>Process Groups</CCardHeader>
+        <CCardHeader>{t('Process Groups')}</CCardHeader>
         <CCardBody>
           <NamedListManager
-            addLabel="Add Group"
-            namePlaceholder="Group name"
+            addLabel={t('Add Group')}
+            namePlaceholder={t('Group name')}
             items={groups}
             onAdd={wrap(async (name) => {
               await api.createProcessGroup(name)
@@ -70,11 +71,11 @@ const SettingsTab = ({
           Groups (a workspace curation concern, not a routing one). No
           ordering - nothing here drives a tab. */}
       <CCard>
-        <CCardHeader>Message Groups</CCardHeader>
+        <CCardHeader>{t('Message Groups')}</CCardHeader>
         <CCardBody>
           <NamedListManager
-            addLabel="Add Group"
-            namePlaceholder="Message name"
+            addLabel={t('Add Group')}
+            namePlaceholder={t('Message name')}
             items={messageGroups}
             onAdd={wrap(async (name) => {
               await api.createMessageGroup(name)
@@ -96,11 +97,11 @@ const SettingsTab = ({
           personally want to watch, regardless of Process Group. Ordered:
           each one is also a dynamic page tab, in this order. */}
       <CCard>
-        <CCardHeader>Tabs</CCardHeader>
+        <CCardHeader>{t('Tabs')}</CCardHeader>
         <CCardBody>
           <NamedListManager
-            addLabel="Add Group"
-            namePlaceholder="Tab name"
+            addLabel={t('Add Group')}
+            namePlaceholder={t('Tab name')}
             items={tabGroups}
             orderable
             onAdd={wrap(async (name) => {
@@ -129,7 +130,7 @@ const SettingsTab = ({
       <CRow className="g-4">
         <CCol lg={7}>
           <CCard className="h-100">
-            <CCardHeader>Message Levels</CCardHeader>
+            <CCardHeader>{t('Message Levels')}</CCardHeader>
             <CCardBody>
               <MessageLevelsForm />
             </CCardBody>
@@ -137,7 +138,7 @@ const SettingsTab = ({
         </CCol>
         <CCol lg={5}>
           <CCard className="h-100">
-            <CCardHeader>Message Signal Timing</CCardHeader>
+            <CCardHeader>{t('Message Signal Timing')}</CCardHeader>
             <CCardBody>
               <MessageSignalTimingForm />
             </CCardBody>

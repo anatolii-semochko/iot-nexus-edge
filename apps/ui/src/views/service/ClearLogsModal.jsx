@@ -21,6 +21,7 @@ import {
 } from '@coreui/react'
 import { api } from '../../api/client'
 import { formatBytes } from '../../utils/format'
+import { t as tr } from 'src/i18n'
 
 /**
  * Service -> Database -> Clear Logs (nexus-edge-aquarium AGENTS_TO_DO.md
@@ -84,7 +85,7 @@ const ClearLogsModal = ({ onClose, onCleared }) => {
         units: [...chosen],
       })
       const total = Object.values(deleted).reduce((a, b) => a + b, 0)
-      onCleared(`Logs cleared: ${total} row(s).`)
+      onCleared(tr('Logs cleared: {{total}} row(s).', { total }))
       onClose()
     } catch (err) {
       setError(err.message)
@@ -96,17 +97,17 @@ const ClearLogsModal = ({ onClose, onCleared }) => {
   return (
     <CModal visible size="lg" onClose={onClose}>
       <CModalHeader>
-        <CModalTitle>Clear Logs</CModalTitle>
+        <CModalTitle>{tr('Clear Logs')}</CModalTitle>
       </CModalHeader>
       <CModalBody>
         {error && <CAlert color="danger">{error}</CAlert>}
         <div className="d-flex align-items-end gap-2 mb-3">
           <div>
-            <CFormLabel className="mb-1">Clear the logs before</CFormLabel>
+            <CFormLabel className="mb-1">{tr('Clear the logs before')}</CFormLabel>
             <CFormInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           <span className="small text-body-secondary pb-2">
-            {date ? 'the start of that day' : 'empty - all of them'}
+            {date ? tr('the start of that day') : tr('empty - all of them')}
           </span>
         </div>
         {!units ? (
@@ -123,12 +124,12 @@ const ClearLogsModal = ({ onClose, onCleared }) => {
                       onChange={() =>
                         setChosen(allChosen ? new Set() : new Set(withLogs.map((u) => u.key)))
                       }
-                      aria-label="All"
+                      aria-label={tr('All')}
                     />
                   </CTableHeaderCell>
-                  <CTableHeaderCell>Logs of</CTableHeaderCell>
-                  <CTableHeaderCell className="text-end">Rows</CTableHeaderCell>
-                  <CTableHeaderCell className="text-end">Volume</CTableHeaderCell>
+                  <CTableHeaderCell>{tr('Logs of')}</CTableHeaderCell>
+                  <CTableHeaderCell className="text-end">{tr('Rows')}</CTableHeaderCell>
+                  <CTableHeaderCell className="text-end">{tr('Volume')}</CTableHeaderCell>
                 </CTableRow>
               </CTableHead>
               <CTableBody>
@@ -152,7 +153,7 @@ const ClearLogsModal = ({ onClose, onCleared }) => {
                       <span className="fw-semibold">{u.name}</span>
                       {u.permanent && (
                         <CBadge color="light" textColor="dark" className="border ms-2">
-                          permanent
+                          {tr('permanent')}
                         </CBadge>
                       )}
                       {u.detail && (
@@ -177,21 +178,23 @@ const ClearLogsModal = ({ onClose, onCleared }) => {
           </div>
         )}
         <div className="small text-body-secondary mt-2">
-          Kept: active warnings / errors / messages and pending AI proposals (the current state);
-          time series are not logs. Configuration is not affected. This cannot be undone.
+          {tr(
+            'Kept: active warnings / errors / messages and pending AI proposals (the current state); time series are not logs. Configuration is not affected. This cannot be undone.',
+          )}
         </div>
       </CModalBody>
       <CModalFooter className="justify-content-between">
         <span className="small">
-          Selected: <strong>{selected.rows.toLocaleString()}</strong> row(s),{' '}
+          {tr('Selected:')} <strong>{selected.rows.toLocaleString()}</strong> {tr('row(s),')}{' '}
           <strong>{formatBytes(selected.bytes)}</strong>
         </span>
         <div className="d-flex gap-2">
           <CButton color="secondary" variant="outline" onClick={onClose} disabled={busy}>
-            Cancel
+            {tr('Cancel')}
           </CButton>
           <CButton color="danger" onClick={clear} disabled={busy || chosen.size === 0}>
-            {busy && <CSpinner size="sm" className="me-1" />}Clear Logs
+            {busy && <CSpinner size="sm" className="me-1" />}
+            {tr('Clear Logs')}
           </CButton>
         </div>
       </CModalFooter>

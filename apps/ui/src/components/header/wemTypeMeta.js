@@ -1,4 +1,5 @@
 import { cilEnvelopeLetter, cilWarning, cilXCircle } from '@coreui/icons'
+import { t } from 'src/i18n'
 
 // Shared by NotificationCenter.jsx (header icons) and NotificationCenterModal.
 // jsx (type selector, per-row message coloring) - its own module rather than
@@ -10,7 +11,7 @@ import { cilEnvelopeLetter, cilWarning, cilXCircle } from '@coreui/icons'
 // level, which starts throwing "Cannot convert undefined or null to
 // object" the moment either side evaluates before the other has finished).
 export const WEM_TYPE_META = {
-  message: { icon: cilEnvelopeLetter, color: 'success', label: 'Messages' },
-  warning: { icon: cilWarning, color: 'warning', label: 'Warnings' },
-  error: { icon: cilXCircle, color: 'danger', label: 'Errors' },
+  message: { icon: cilEnvelopeLetter, color: 'success', label: t('Messages') },
+  warning: { icon: cilWarning, color: 'warning', label: t('Warnings') },
+  error: { icon: cilXCircle, color: 'danger', label: t('Errors') },
 }

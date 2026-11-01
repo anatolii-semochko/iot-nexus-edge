@@ -1,4 +1,7 @@
 import { cilBrightness, cilCloud, cilCloudy, cilContrast, cilMoon, cilSun } from '@coreui/icons'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('weather-control')
 
 // The 6-level daylight classification `weather-control` derives from a raw
 // light reading (Node Weather Control.txt, AGENTS_TO_DO.md 2026-08-23) -
@@ -9,12 +12,32 @@ import { cilBrightness, cilCloud, cilCloudy, cilContrast, cilMoon, cilSun } from
 // (generic UI icons, not literally sun/dusk glyphs) stand in for
 // sunny/dusk.
 export const LIGHT_LEVELS = [
-  { key: 'dark', label: 'Dark', icon: cilMoon, defaultColor: '#212529' },
-  { key: 'dusk', label: 'Dusk', icon: cilContrast, defaultColor: '#495057' },
-  { key: 'overcast', label: 'Overcast', icon: cilCloud, defaultColor: '#868e96' },
-  { key: 'medium', label: 'Medium', icon: cilCloudy, defaultColor: '#adb5bd' },
-  { key: 'sunny', label: 'Sunny', icon: cilBrightness, defaultColor: '#ffca2c' },
-  { key: 'very-sunny', label: 'Very sunny', icon: cilSun, defaultColor: '#fd7e14' },
+  { key: 'dark', label: t('Dark'), icon: cilMoon, defaultColor: '#212529' },
+  { key: 'dusk', label: t('Dusk'), icon: cilContrast, defaultColor: '#495057' },
+  {
+    key: 'overcast',
+    label: t('Overcast'),
+    icon: cilCloud,
+    defaultColor: '#868e96',
+  },
+  {
+    key: 'medium',
+    label: t('Medium'),
+    icon: cilCloudy,
+    defaultColor: '#adb5bd',
+  },
+  {
+    key: 'sunny',
+    label: t('Sunny'),
+    icon: cilBrightness,
+    defaultColor: '#ffca2c',
+  },
+  {
+    key: 'very-sunny',
+    label: t('Very sunny'),
+    icon: cilSun,
+    defaultColor: '#fd7e14',
+  },
 ]
 
 // Raw light Device's declared range (weather-node/firmware/src/config.h's

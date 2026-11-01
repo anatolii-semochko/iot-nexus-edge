@@ -18,6 +18,7 @@ import {
 } from '@coreui/react'
 import { api } from '../../api/client'
 import { processSettingsSections, processSettingsConfigFields } from '../../processTypeRegistry'
+import { t } from 'src/i18n'
 
 // One checkbox section - fetches this process's current membership in
 // `items` (Tab Groups or Message Casting Groups, whichever `entity`
@@ -77,7 +78,7 @@ const GroupCheckboxSection = ({ title, items, fetchSelected, selectedIds, onChan
       {loading ? (
         <CSpinner size="sm" />
       ) : items.length === 0 ? (
-        <div className="text-body-secondary">Nothing here yet - add some in Settings.</div>
+        <div className="text-body-secondary">{t('Nothing here yet - add some in Settings.')}</div>
       ) : (
         items.map((item) => (
           <CFormCheck
@@ -200,7 +201,7 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
     <>
       {!isSimulation && (
         <GroupCheckboxSection
-          title="Tabs"
+          title={t('Tabs')}
           items={tabGroups}
           fetchSelected={() => api.getProcessTabGroups(process.id)}
           selectedIds={selectedTabGroupIds}
@@ -209,7 +210,7 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
         />
       )}
       <GroupCheckboxSection
-        title="Message Casting Groups"
+        title={t('Message Casting Groups')}
         items={messageGroups}
         fetchSelected={() => api.getProcessMessageGroups(process.id)}
         selectedIds={selectedMessageGroupIds}
@@ -222,7 +223,9 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
   return (
     <CModal visible={visible} onClose={handleClose} size="lg">
       <CModalHeader>
-        <CModalTitle>{process?.name} settings</CModalTitle>
+        <CModalTitle>
+          {process?.name} {t('settings')}
+        </CModalTitle>
       </CModalHeader>
       <CModalBody>
         {error && <CAlert color="danger">{error}</CAlert>}
@@ -236,7 +239,7 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
           <>
             <CTabs activeItemKey={activeSettingsTab} onChange={setActiveSettingsTab}>
               <CTabList variant="tabs" className="mb-3">
-                <CTab itemKey="system">System</CTab>
+                <CTab itemKey="system">{t('System')}</CTab>
                 {settingsTabs.map((label) => (
                   <CTab key={label} itemKey={label.toLowerCase()}>
                     {label}
@@ -295,10 +298,10 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
       </CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="outline" onClick={handleClose} disabled={busy}>
-          Cancel
+          {t('Cancel')}
         </CButton>
         <CButton color="success" onClick={handleSave} disabled={busy}>
-          {busy ? <CSpinner size="sm" /> : 'Save'}
+          {busy ? <CSpinner size="sm" /> : t('Save')}
         </CButton>
       </CModalFooter>
     </CModal>

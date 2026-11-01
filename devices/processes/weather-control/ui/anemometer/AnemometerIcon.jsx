@@ -1,5 +1,8 @@
 import React from 'react'
 import sprite from './anemometer-sprite.webp'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('weather-control')
 
 // A cup anemometer turning with the wind (the user's images/Anemometer_Animation_grey.gif -
 // README.md here): 24 frames of one third of a turn side by side in one strip, shown in turn
@@ -31,7 +34,7 @@ const AnemometerIcon = ({ windMs = 0, size = FRAME_H / 2, title }) => {
       <style>{KEYFRAMES}</style>
       <div
         role="img"
-        aria-label={title ?? `Anemometer - ${windMs.toFixed(1)} m/s`}
+        aria-label={title ?? t('Anemometer - {{toFixed}} m/s', { toFixed: windMs.toFixed(1) })}
         style={{
           '--ne-anem-strip': `${w * FRAMES}px`,
           width: w,

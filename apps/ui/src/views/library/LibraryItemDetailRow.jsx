@@ -5,12 +5,13 @@ import { cilLibrary } from '@coreui/icons'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../../api/client'
+import { t as tr } from 'src/i18n'
 
 const TABS = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'documentation', label: 'Documentation' },
-  { key: 'compatibility', label: 'Compatibility' },
-  { key: 'technical', label: 'Technical' },
+  { key: 'overview', label: tr('Overview') },
+  { key: 'documentation', label: tr('Documentation') },
+  { key: 'compatibility', label: tr('Compatibility') },
+  { key: 'technical', label: tr('Technical') },
 ]
 
 const Empty = ({ children }) => <div className="text-body-secondary small">{children}</div>
@@ -31,12 +32,12 @@ const OverviewTab = ({ row, detail }) => {
       </div>
       <div>
         <div className="fw-semibold mb-1">{row.name}</div>
-        <div>{row.description ?? <Empty>No description.</Empty>}</div>
+        <div>{row.description ?? <Empty>{tr('No description.')}</Empty>}</div>
         {detail.technical?.kind === 'node' && (
           <div className="text-body-secondary small mt-2">
             {detail.technical.hasFirmware
-              ? 'Firmware scaffold present.'
-              : 'No firmware scaffold yet.'}
+              ? tr('Firmware scaffold present.')
+              : tr('No firmware scaffold yet.')}
           </div>
         )}
       </div>
@@ -97,7 +98,7 @@ const markdownComponents = (onNavigateToItem) => ({
 // preformatted text couldn't express.
 const DocumentationTab = ({ detail, onNavigateToItem }) => {
   if (!detail.readme && !detail.changelog) {
-    return <Empty>No docs/README.md or CHANGELOG.md for this item yet.</Empty>
+    return <Empty>{tr('No docs/README.md or CHANGELOG.md for this item yet.')}</Empty>
   }
   const components = markdownComponents(onNavigateToItem)
   return (
@@ -132,8 +133,8 @@ const CompatibilityTab = ({ kind, detail }) => (
     {detail.compatibility.length === 0 ? (
       <Empty>
         {kind === 'node'
-          ? "No device types listed in this node's own node.yaml supports: list."
-          : 'No node type currently lists this device type in its own supports: list.'}
+          ? tr("No device types listed in this node's own node.yaml supports: list.")
+          : tr('No node type currently lists this device type in its own supports: list.')}
       </Empty>
     ) : (
       <div className="d-flex flex-wrap gap-2 mb-3">
@@ -155,7 +156,9 @@ const CompatibilityTab = ({ kind, detail }) => (
     )}
     {detail.forbidden && (
       <div>
-        <div className="text-body-secondary small mb-1">Forbidden-state rules (safety.yaml)</div>
+        <div className="text-body-secondary small mb-1">
+          {tr('Forbidden-state rules (safety.yaml)')}
+        </div>
         <pre className="small" style={{ whiteSpace: 'pre-wrap' }}>
           {JSON.stringify(detail.forbidden, null, 2)}
         </pre>
@@ -166,19 +169,20 @@ const CompatibilityTab = ({ kind, detail }) => (
 
 const TechnicalTab = ({ detail }) => {
   const t = detail.technical
-  if (!t) return <Empty>No technical specs on file for this item.</Empty>
+  if (!t) return <Empty>{tr('No technical specs on file for this item.')}</Empty>
   if (t.kind === 'device') {
     return (
       <>
         <div className="mb-2">
           {t.manufacturer && (
             <div>
-              <span className="text-body-secondary small">Manufacturer:</span> {t.manufacturer}
+              <span className="text-body-secondary small">{tr('Manufacturer:')}</span>{' '}
+              {t.manufacturer}
             </div>
           )}
           {t.model && (
             <div>
-              <span className="text-body-secondary small">Model:</span> {t.model}
+              <span className="text-body-secondary small">{tr('Model:')}</span> {t.model}
             </div>
           )}
           {t.labels && t.labels.length > 0 && (
@@ -195,8 +199,8 @@ const TechnicalTab = ({ detail }) => {
           <table className="table table-sm">
             <thead>
               <tr>
-                <th>Resource</th>
-                <th>Value type</th>
+                <th>{tr('Resource')}</th>
+                <th>{tr('Value type')}</th>
                 <th>R/W</th>
               </tr>
             </thead>
@@ -223,11 +227,12 @@ const TechnicalTab = ({ detail }) => {
   return (
     <div>
       <div>
-        <span className="text-body-secondary small">Bus:</span> {t.busType ?? 'unspecified'}
+        <span className="text-body-secondary small">{tr('Bus:')}</span>{' '}
+        {t.busType ?? tr('unspecified')}
       </div>
       <div>
-        <span className="text-body-secondary small">Firmware scaffold:</span>{' '}
-        {t.hasFirmware ? 'present' : 'none yet'}
+        <span className="text-body-secondary small">{tr('Firmware scaffold:')}</span>{' '}
+        {t.hasFirmware ? tr('present') : tr('none yet')}
       </div>
     </div>
   )

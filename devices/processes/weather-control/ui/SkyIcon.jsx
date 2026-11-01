@@ -1,4 +1,7 @@
 import React from 'react'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('weather-control')
 
 // The sky picture of the weather packages (moved from energy-field's icons,
 // 2026-10-20 - heating-control shows it too). Colours are CSS variables a
@@ -49,7 +52,7 @@ export const SkyIcon = ({ radiation = 0, cloudPct = 0, isDay = true, size = 96, 
       height={h}
       viewBox={box.join(' ')}
       role="img"
-      aria-label={`Sky: ${sky}`}
+      aria-label={t('Sky: {{sky}}', { sky })}
     >
       {sky === 'night' && (
         <path d="M40 14 a22 22 0 1 0 24 30 a18 18 0 0 1 -24 -30 Z" fill="var(--wx-moon, #8fb4e0)" />

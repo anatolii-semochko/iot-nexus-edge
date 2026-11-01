@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { request } from 'src/api/client'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('energy-field')
 
 // The lines the grid's and the consumption's charts draw (their popups - the user, 2026-10-25): where
 // the flows turn red or yellow on the scene (the process's alerts.ts) - red: the connection's import /
@@ -49,18 +52,42 @@ export const useFlowLimits = (process, grid, enabled) => {
   return {
     grid: [
       ...(limits.maxImportKw != null
-        ? [{ value: limits.maxImportKw, level: 'critical', label: 'connection limit' }]
+        ? [
+            {
+              value: limits.maxImportKw,
+              level: 'critical',
+              label: t('connection limit'),
+            },
+          ]
         : []),
       ...(limits.maxExportKw != null
-        ? [{ value: -limits.maxExportKw, level: 'critical', label: 'export limit' }]
+        ? [
+            {
+              value: -limits.maxExportKw,
+              level: 'critical',
+              label: t('export limit'),
+            },
+          ]
         : []),
-      ...(peak != null ? [{ value: peak, level: 'critical', label: 'peak limit' }] : []),
+      ...(peak != null ? [{ value: peak, level: 'critical', label: t('peak limit') }] : []),
       ...(expected.length
-        ? [{ points: line('grid'), level: 'warning', label: 'well over the plan' }]
+        ? [
+            {
+              points: line('grid'),
+              level: 'warning',
+              label: t('well over the plan'),
+            },
+          ]
         : []),
     ],
     load: expected.length
-      ? [{ points: line('load'), level: 'warning', label: 'well over the plan' }]
+      ? [
+          {
+            points: line('load'),
+            level: 'warning',
+            label: t('well over the plan'),
+          },
+        ]
       : [],
   }
 }

@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { useProcessLiveState } from '../../api/useLiveProcess'
 import { wemBadgeClass } from '../../utils/wem'
 import NumericStepper from '../devices/NumericStepper'
+import { t } from 'src/i18n'
 
 // Two-sided (min AND max both matter for an enclosure reading, unlike
 // ResourceMonitorPanel.jsx's ceiling-only CPU/RAM/disk/temp) - error zone
@@ -14,7 +15,7 @@ import NumericStepper from '../devices/NumericStepper'
 const METRIC_ROWS = [
   {
     key: 'temperature',
-    label: 'Temperature',
+    label: t('Temperature'),
     unit: '°C',
     minKey: 'envTempMin',
     maxKey: 'envTempMax',
@@ -25,7 +26,7 @@ const METRIC_ROWS = [
   },
   {
     key: 'humidity',
-    label: 'Humidity',
+    label: t('Humidity'),
     unit: '%RH',
     minKey: 'envHumidityMin',
     maxKey: 'envHumidityMax',
@@ -108,7 +109,10 @@ const ControlNodePanel = ({ process, onConfigChange }) => {
                 </div>
               </CCol>
               <CCol xs="auto">
-                <div className="text-body-secondary small">Warning Min{unit}</div>
+                <div className="text-body-secondary small">
+                  {t('Warning Min')}
+                  {unit}
+                </div>
                 <NumericStepper
                   value={warnMin ?? stepperMin}
                   step={1}
@@ -118,7 +122,10 @@ const ControlNodePanel = ({ process, onConfigChange }) => {
                 />
               </CCol>
               <CCol xs="auto">
-                <div className="text-body-secondary small">Warning Max{unit}</div>
+                <div className="text-body-secondary small">
+                  {t('Warning Max')}
+                  {unit}
+                </div>
                 <NumericStepper
                   value={warnMax ?? stepperMax}
                   step={1}
@@ -128,7 +135,10 @@ const ControlNodePanel = ({ process, onConfigChange }) => {
                 />
               </CCol>
               <CCol xs="auto">
-                <div className="text-body-secondary small">Error Min{unit}</div>
+                <div className="text-body-secondary small">
+                  {t('Error Min')}
+                  {unit}
+                </div>
                 <NumericStepper
                   value={min ?? stepperMin}
                   step={1}
@@ -138,7 +148,10 @@ const ControlNodePanel = ({ process, onConfigChange }) => {
                 />
               </CCol>
               <CCol xs="auto">
-                <div className="text-body-secondary small">Error Max{unit}</div>
+                <div className="text-body-secondary small">
+                  {t('Error Max')}
+                  {unit}
+                </div>
                 <NumericStepper
                   value={max ?? stepperMax}
                   step={1}

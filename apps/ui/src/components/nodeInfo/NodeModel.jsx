@@ -1,6 +1,7 @@
 import React from 'react'
 import { CTable, CTableBody, CTableDataCell, CTableHeaderCell, CTableRow } from '@coreui/react'
 import { api } from 'src/api/client'
+import { t } from 'src/i18n'
 
 // A node's model (AGENTS_TO_DO.md 2026-10-20 X1, 2026-10-22 C): the real
 // unit's picture from the node type's Library model, else its type's icon,
@@ -54,18 +55,18 @@ const NodeModel = ({ info, picture }) => {
                 target="_blank"
                 rel="noreferrer"
                 className="small"
-                title="The maker's page or datasheet (opens a new tab)"
+                title={t("The maker's page or datasheet (opens a new tab)")}
               >
-                The maker's data
+                {t("The maker's data")}
               </a>
             )}
           </>
         ) : (
           <p className="mb-2">
-            {info.type?.description ?? 'No model data for this node type yet.'}
+            {info.type?.description ?? t('No model data for this node type yet.')}
           </p>
         )}
-        <div className="text-body-secondary small mt-2" title="The node type in the Library">
+        <div className="text-body-secondary small mt-2" title={t('The node type in the Library')}>
           {info.type?.name ?? info.node.type}
           {info.node.location ? ` · ${info.node.location}` : ''}
         </div>

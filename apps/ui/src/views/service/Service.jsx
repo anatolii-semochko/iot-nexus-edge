@@ -29,6 +29,7 @@ import AiConfigTab from './AiConfigTab'
 import DashboardConfigTab from './DashboardConfigTab'
 import DatabaseTab from './DatabaseTab'
 import PageTitle from '../../components/PageTitle'
+import { t as tr } from 'src/i18n'
 
 // Service page (AGENTS_TO_DO.md, 2026-08-30) - admin-only (server-side
 // requireAdmin on every /service/* route, same pattern as UsersList.jsx's
@@ -38,10 +39,10 @@ import PageTitle from '../../components/PageTitle'
 // card tree, DashboardConfigTab, 2026-10-16); Database and Commands.
 // `permissions` - any of them opens the tab (access.js)
 const TABS = [
-  { key: 'config', label: 'Config', permissions: ['dashboard.manage', 'ai.configure'] },
+  { key: 'config', label: tr('Config'), permissions: ['dashboard.manage', 'ai.configure'] },
   {
     key: 'database',
-    label: 'Database',
+    label: tr('Database'),
     permissions: [
       'service.view',
       'service.database.backup',
@@ -49,7 +50,7 @@ const TABS = [
       'service.database.clear-logs',
     ],
   },
-  { key: 'commands', label: 'Commands', permissions: ['service.view', 'service.system'] },
+  { key: 'commands', label: tr('Commands'), permissions: ['service.view', 'service.system'] },
 ]
 
 const PLACEHOLDER_TABS = new Set([])
@@ -58,7 +59,7 @@ const PLACEHOLDER_TABS = new Set([])
 const CONFIG_TABS = [
   {
     key: 'dashboard',
-    label: 'Dashboard',
+    label: tr('Dashboard'),
     permission: 'dashboard.manage',
     icon: (
       <SubTabIcon>
@@ -126,7 +127,7 @@ const CommandRow = ({ command, onRun, allowed }) => (
     <CTableDataCell className="text-body-secondary small align-middle w-100">
       {!command.enabled && (
         <CBadge color="secondary" className="me-3">
-          disabled
+          {tr('disabled')}
         </CBadge>
       )}
       {command.description}
@@ -179,8 +180,11 @@ const CommandsTab = () => {
           onClose={() => setResult(null)}
         >
           {result.ok
-            ? `${result.label} command sent.`
-            : `${result.label} command failed: ${result.message}`}
+            ? tr('{{label}} command sent.', { label: result.label })
+            : tr('{{label}} command failed: {{message}}', {
+                label: result.label,
+                message: result.message,
+              })}
         </CAlert>
       )}
       <CTable borderless>
@@ -193,11 +197,13 @@ const CommandsTab = () => {
 
       <CModal visible={pending !== null} onClose={() => setPending(null)}>
         <CModalHeader>
-          <CModalTitle>Confirm {pending?.label}</CModalTitle>
+          <CModalTitle>
+            {tr('Confirm')} {pending?.label}
+          </CModalTitle>
         </CModalHeader>
         <CModalBody>
-          {pending?.description} This affects the host machine this stack runs on, not just this
-          browser tab.
+          {pending?.description}{' '}
+          {tr('This affects the host machine this stack runs on, not just this browser tab.')}
         </CModalBody>
         <CModalFooter>
           <CButton
@@ -206,10 +212,10 @@ const CommandsTab = () => {
             onClick={() => setPending(null)}
             disabled={running}
           >
-            Cancel
+            {tr('Cancel')}
           </CButton>
           <CButton color="danger" onClick={handleConfirm} disabled={running}>
-            {running ? <CSpinner size="sm" /> : `Confirm ${pending?.label}`}
+            {running ? <CSpinner size="sm" /> : tr('Confirm {{label}}', { label: pending?.label })}
           </CButton>
         </CModalFooter>
       </CModal>
@@ -218,7 +224,9 @@ const CommandsTab = () => {
 }
 
 const PlaceholderTab = ({ label }) => (
-  <div className="pt-2 text-body-secondary">{label} is not configured yet.</div>
+  <div className="pt-2 text-body-secondary">
+    {label} {tr('is not configured yet.')}
+  </div>
 )
 
 // Registration for usePersistedState (AGENTS.md section 22) - remembers
@@ -239,7 +247,7 @@ const Service = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <PageTitle title="Service" />
+        <PageTitle title={tr('Service')} />
       </CCardHeader>
       <CCardBody>
         <CTabs activeItemKey={activeTab} onChange={setActiveTab}>

@@ -27,6 +27,9 @@ import SeriesChart from 'src/components/charts/SeriesChart'
 import StatTile from 'src/components/StatTile'
 import LedgerBlock from './LedgerBlock'
 import { LEVEL_COLOR, priceHoursOf, priceLevel } from './priceLevels'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('energy-field')
 
 // The Energy Field - the user's scene (Dashboard component, images/AQUARIUM
 // V17-V19.png and the reviewed mockup 2026-10-19): the sky and the wind,
@@ -151,7 +154,9 @@ const EnergyFieldScene = ({ process }) => {
   }
   if (!m.totals)
     return (
-      <div className="text-body-secondary small p-3">No state yet - the process hasn't run.</div>
+      <div className="text-body-secondary small p-3">
+        {tr("No state yet - the process hasn't run.")}
+      </div>
     )
 
   const t = m.totals
@@ -168,7 +173,7 @@ const EnergyFieldScene = ({ process }) => {
     const keys = new Set(own.map((g) => g.key))
     const inGroup = (x, key) => (key === null ? !keys.has(x.group) : x.group === key)
     const used = Object.values(lists).some((list) => list.some((x) => keys.has(x.group)))
-    const shown = used ? [...own, { key: null, name: 'Other' }] : [{ key: null, name: null }]
+    const shown = used ? [...own, { key: null, name: tr('Other') }] : [{ key: null, name: null }]
     return shown
       .map((g) => ({
         ...g,
@@ -299,37 +304,56 @@ const EnergyFieldScene = ({ process }) => {
   )
   const genAlerts = [...pvItems, ...windItems].map((x) => unitAlert(x.nodeId)).filter(Boolean)
   const batAlerts = (m.batteries ?? []).map((x) => unitAlert(x.nodeId)).filter(Boolean)
-  const alertLine = (a) => (a ? `\n${a.level === 'critical' ? 'Error' : 'Warning'}: ${a.text}` : '')
-  const unitsLine = (list) => (list.length ? `\nError: ${list.join('; ')}` : '')
-  const more = "\nClick for the details and today's chart"
+  const alertLine = (a) =>
+    a ? `\n${a.level === 'critical' ? tr('Error') : tr('Warning')}: ${a.text}` : ''
+  const unitsLine = (list) => (list.length ? tr(' Error: {{join}}', { join: list.join('; ') }) : '')
+  const more = tr("Click for the details and today's chart")
   const flowTitles = {
     generation:
       (generation > 0.05
-        ? `Generation ${kwText(generation)} kW (PV ${kwText(t.pvKw ?? 0)}, wind ${kwText(t.windKw ?? 0)}) - for us`
-        : 'No generation now') +
+        ? tr('Generation {{kwText}} kW (PV {{kwText2}}, wind {{kwText22}}) - for us', {
+            kwText: kwText(generation),
+            kwText2: kwText(t.pvKw ?? 0),
+            kwText22: kwText(t.windKw ?? 0),
+          })
+        : tr('No generation now')) +
       unitsLine(genAlerts) +
       more,
     grid:
       (gridFlow === 'import'
-        ? `Import ${kwText(t.gridKw)} kW from the grid at ${fmt(gridMetrics?.buyCtKwh, 1)} ct/kWh - against us`
+        ? tr('Import {{kwText}} kW from the grid at {{fmt}} ct/kWh - against us', {
+            kwText: kwText(t.gridKw),
+            fmt: fmt(gridMetrics?.buyCtKwh, 1),
+          })
         : gridFlow === 'export'
-          ? `Export ${kwText(-t.gridKw)} kW to the grid at ${fmt(gridMetrics?.sellCtKwh, 1)} ct/kWh - for us`
-          : 'No flow to or from the grid') +
+          ? tr('Export {{kwText}} kW to the grid at {{fmt}} ct/kWh - for us', {
+              kwText: kwText(-t.gridKw),
+              fmt: fmt(gridMetrics?.sellCtKwh, 1),
+            })
+          : tr('No flow to or from the grid')) +
       alertLine(alerts.grid) +
       more,
     supply:
       (t.loadKw > 0.05
-        ? `The site's consumption ${kwText(t.loadKw)} kW - against us`
-        : 'No consumption') +
-      (t.shedKw > 0.05 ? `\nError: ${kwText(t.shedKw)} kW not covered` : '') +
+        ? tr("The site's consumption {{kwText}} kW - against us", {
+            kwText: kwText(t.loadKw),
+          })
+        : tr('No consumption')) +
+      (t.shedKw > 0.05
+        ? tr(' Error: {{kwText}} kW not covered', { kwText: kwText(t.shedKw) })
+        : '') +
       alertLine(alerts.load) +
       more,
     batteries:
       (batteryDir === 'charge'
-        ? `The batteries charging ${kwText(-t.batteryKw)} kW - for us (stored)`
+        ? tr('The batteries charging {{kwText}} kW - for us (stored)', {
+            kwText: kwText(-t.batteryKw),
+          })
         : batteryDir === 'discharge'
-          ? `The batteries discharging ${kwText(t.batteryKw)} kW - the stored energy spent`
-          : 'The batteries idle') +
+          ? tr('The batteries discharging {{kwText}} kW - the stored energy spent', {
+              kwText: kwText(t.batteryKw),
+            })
+          : tr('The batteries idle')) +
       ` - ${fmt(t.socPct, 0)} %` +
       unitsLine(batAlerts) +
       more,
@@ -348,7 +372,7 @@ const EnergyFieldScene = ({ process }) => {
         key={b.nodeId}
         type="button"
         className="ef-device"
-        title={`${b.name} - ${b.on ? `${fmt(b.socPct, 0)} %, ${fmt(b.kw)} kW` : 'switched off'}`}
+        title={`${b.name} - ${b.on ? tr('{{fmt}} %, {{fmt2}} kW', { fmt: fmt(b.socPct, 0), fmt2: fmt(b.kw) }) : tr('switched off')}`}
         onClick={() => setPopup({ kind: 'battery', item: b })}
       >
         <UnitPower
@@ -407,19 +431,19 @@ const EnergyFieldScene = ({ process }) => {
               {fmt(capacity.kWp, 0)}
             </span>
             <span className="sum-text">
-              <span className="sum-unit">kWp</span> PV,
+              <span className="sum-unit">kWp</span> {tr('PV,')}
             </span>
             <span className="sum-value" style={{ color: 'var(--ef-gen)' }}>
               {fmt(capacity.windKw, 1)}
             </span>
             <span className="sum-text">
-              <span className="sum-unit">kW</span> wind,
+              <span className="sum-unit">kW</span> {tr('wind,')}
             </span>
             <span className="sum-value" style={{ color: 'var(--ef-batt)' }}>
               {fmt(capacity.kWh, 0)}
             </span>
             <span className="sum-text">
-              <span className="sum-unit">kWh</span> storage
+              <span className="sum-unit">kWh</span> {tr('storage')}
             </span>
           </span>
         </div>
@@ -430,7 +454,7 @@ const EnergyFieldScene = ({ process }) => {
       <DayNotes
         processId={process.id}
         kinds={['outage', 'maintenance', 'other']}
-        title="The plant today"
+        title={tr('The plant today')}
         cardClass="ef-card"
         units={[
           ...(process.config?.pvBlocks ?? []),
@@ -457,10 +481,10 @@ const EnergyFieldScene = ({ process }) => {
       <section className="ef-card">
         <div className="d-flex align-items-center justify-content-between gap-2 mb-2 flex-wrap">
           <SummaryLine
-            title="Generation"
+            title={tr('Generation')}
             color="var(--ef-gen)"
-            hint="The generation now - the PV blocks and the wind turbines"
-            items={[{ v: kwText(t.pvKw) }, 'kW PV +', { v: kwText(t.windKw) }, 'kW wind']}
+            hint={tr('The generation now - the PV blocks and the wind turbines')}
+            items={[{ v: kwText(t.pvKw) }, tr('kW PV +'), { v: kwText(t.windKw) }, tr('kW wind')]}
           />
         </div>
         {groups.map((g) => (
@@ -483,13 +507,17 @@ const EnergyFieldScene = ({ process }) => {
                         unit="kW"
                         color="var(--ef-gen)"
                       />{' '}
-                      wind
+                      {tr('wind')}
                     </>
                   )}
                   {g.pv.filter((x) => !x.on).length +
                     g.wind.filter((x) => x.state === 'off').length >
                     0 &&
-                    ` - ${g.pv.filter((x) => !x.on).length + g.wind.filter((x) => x.state === 'off').length} off`}
+                    tr(' - {{v0}} off', {
+                      v0:
+                        g.pv.filter((x) => !x.on).length +
+                        g.wind.filter((x) => x.state === 'off').length,
+                    })}
                 </span>
               </div>
             )}
@@ -499,7 +527,7 @@ const EnergyFieldScene = ({ process }) => {
                   key={x.nodeId}
                   type="button"
                   className="ef-device"
-                  title={`${x.name} - ${x.on ? `${fmt(x.kw, 2)} kW` : 'switched off'}${unitAlert(x.nodeId) ? ` - ${unitAlert(x.nodeId)}` : ''}`}
+                  title={`${x.name} - ${x.on ? `${fmt(x.kw, 2)} kW` : tr('switched off')}${unitAlert(x.nodeId) ? ` - ${unitAlert(x.nodeId)}` : ''}`}
                   onClick={() => setPopup({ kind: 'pv', item: x })}
                 >
                   <UnitPower
@@ -515,7 +543,7 @@ const EnergyFieldScene = ({ process }) => {
                   key={x.nodeId}
                   type="button"
                   className="ef-device"
-                  title={`${x.name} - ${x.state === 'off' ? 'switched off' : `${fmt(x.kw, 2)} kW, ${fmt(x.rpm, 0)} rpm`}${unitAlert(x.nodeId) ? ` - ${unitAlert(x.nodeId)}` : ''}`}
+                  title={`${x.name} - ${x.state === 'off' ? tr('switched off') : tr('{{fmt}} kW, {{fmt2}} rpm', { fmt: fmt(x.kw, 2), fmt2: fmt(x.rpm, 0) })}${unitAlert(x.nodeId) ? ` - ${unitAlert(x.nodeId)}` : ''}`}
                   onClick={() => setPopup({ kind: 'wind', item: x })}
                 >
                   {x.state === 'storm' ? (
@@ -548,7 +576,7 @@ const EnergyFieldScene = ({ process }) => {
           scaleKw={scaleKw}
           color={genAlerts.length ? 'var(--ef-bad)' : 'var(--ef-gain)'}
           size={FLOW_SIZE}
-          label={`Generation ${kwText(generation)} kW`}
+          label={tr('Generation {{kwText}} kW', { kwText: kwText(generation) })}
           title={flowTitles.generation}
           onClick={() => setPopup({ kind: 'generation' })}
         />
@@ -560,7 +588,7 @@ const EnergyFieldScene = ({ process }) => {
           }}
         >
           <span className="ef-flow-word" title={flowTitles.generation}>
-            generation
+            {tr('generation')}
           </span>
         </span>
       </div>
@@ -570,12 +598,12 @@ const EnergyFieldScene = ({ process }) => {
           type="button"
           className="ef-device ef-side px-3"
           onClick={() => setPopup({ kind: 'grid' })}
-          title="Grid connection - details"
+          title={tr('Grid connection - details')}
         >
           <span className="ef-side-icon">
             <GridIcon flow={gridFlow} voltage={voltage} outage={gridMetrics?.outage} />
           </span>
-          <span className="fw-semibold">Grid</span>
+          <span className="fw-semibold">{tr('Grid')}</span>
           {/* the prices now on their gauges (the user's mockup images/fix-icon-energy-tower-1.png): buy -
               red to the right (dear), sell - red to the left (cheap); the phases and the frequency - the popup */}
           <span className="d-flex gap-3 justify-content-center small ef-muted">
@@ -588,7 +616,13 @@ const EnergyFieldScene = ({ process }) => {
                   share={level?.share}
                   higherIsBetter={higherIsBetter}
                   width={GAUGE_PX}
-                  title={`${word === 'buy' ? 'Buying' : 'Selling'} now at ${fmt(ct, 1)} ct/kWh - ${level ? `${{ good: 'good', fair: 'middle', bad: 'poor' }[level.level]} among the next 24 hours` : 'no prices ahead'}`}
+                  title={tr('{{v0}} now at {{fmt}} ct/kWh - {{v2}}', {
+                    v0: word === 'buy' ? 'Buying' : 'Selling',
+                    fmt: fmt(ct, 1),
+                    v2: level
+                      ? `${{ good: 'good', fair: 'middle', bad: 'poor' }[level.level]} among the next 24 hours`
+                      : 'no prices ahead',
+                  })}
                 />
                 <span className="text-nowrap">
                   {word}{' '}
@@ -605,7 +639,7 @@ const EnergyFieldScene = ({ process }) => {
           {gridFlow !== 'export' && <FlowFigure kw={Math.abs(t.gridKw)} color={gridColor} />}
           {gridFlow === 'export' && (
             <span className="ef-flow-word" style={{ color: 'var(--ef-gain)' }}>
-              export
+              {tr('export')}
             </span>
           )}
           <span className="ef-hflow">
@@ -615,7 +649,10 @@ const EnergyFieldScene = ({ process }) => {
               scaleKw={scaleKw}
               color={gridColor}
               size={FLOW_SIZE}
-              label={`Grid ${gridFlow} ${kwText(Math.abs(t.gridKw))} kW`}
+              label={tr('Grid {{gridFlow}} {{kwText}} kW', {
+                gridFlow,
+                kwText: kwText(Math.abs(t.gridKw)),
+              })}
               title={flowTitles.grid}
               onClick={() => setPopup({ kind: 'grid' })}
             />
@@ -640,35 +677,38 @@ const EnergyFieldScene = ({ process }) => {
               scaleKw={scaleKw}
               color={loadColor}
               size={FLOW_SIZE}
-              label={`Supply ${kwText(t.loadKw)} kW`}
+              label={tr('Supply {{kwText}} kW', { kwText: kwText(t.loadKw) })}
               title={flowTitles.supply}
               onClick={() => setPopup({ kind: 'consumer' })}
             />
           </span>
           <span className="ef-flow-word" style={{ color: loadColor }} title={flowTitles.supply}>
-            supply
+            {tr('supply')}
           </span>
         </div>
         <button
           type="button"
           className="ef-device ef-side px-3"
           onClick={() => setPopup({ kind: 'consumer' })}
-          title="Consumption - details"
+          title={tr('Consumption - details')}
         >
           <span className="ef-side-icon">
             <ConsumerIcon state={consumerState} />
           </span>
-          <span className="fw-semibold text-center">{m.consumer?.name ?? 'Consumption'}</span>
+          <span className="fw-semibold text-center">{m.consumer?.name ?? tr('Consumption')}</span>
           <span className="small ef-muted text-center" style={{ lineHeight: 1.45 }}>
-            <KeyValue value={kwText(t.loadKw)} unit="kW" color="var(--ef-cons)" /> now
+            <KeyValue value={kwText(t.loadKw)} unit="kW" color="var(--ef-cons)" /> {tr('now')}
             {t.shedKw > 0.05 && (
               <>
                 <br />
-                <span style={{ color: 'var(--ef-bad)' }}>{kwText(t.shedKw)} kW not covered</span>
+                <span style={{ color: 'var(--ef-bad)' }}>
+                  {kwText(t.shedKw)} {tr('kW not covered')}
+                </span>
               </>
             )}
             <br />
-            today <KeyValue value={fmt(today.loadKwh, 0)} unit="kWh" color="var(--ef-cons)" />
+            {tr('today')}{' '}
+            <KeyValue value={fmt(today.loadKwh, 0)} unit="kWh" color="var(--ef-cons)" />
           </span>
         </button>
       </div>
@@ -679,7 +719,7 @@ const EnergyFieldScene = ({ process }) => {
           style={{ width: FLOW_SIDE, color: batteryColor }}
         >
           {batteryDir === 'discharge' ? (
-            <span className="ef-flow-word">discharging</span>
+            <span className="ef-flow-word">{tr('discharging')}</span>
           ) : (
             <FlowFigure kw={Math.abs(t.batteryKw)} color={batteryColor} />
           )}
@@ -690,7 +730,10 @@ const EnergyFieldScene = ({ process }) => {
           scaleKw={scaleKw}
           color={batAlerts.length ? 'var(--ef-bad)' : batteryColor}
           size={FLOW_SIZE}
-          label={`Batteries ${batteryDir} ${kwText(Math.abs(t.batteryKw))} kW`}
+          label={tr('Batteries {{batteryDir}} {{kwText}} kW', {
+            batteryDir,
+            kwText: kwText(Math.abs(t.batteryKw)),
+          })}
           title={flowTitles.batteries}
           onClick={() => setPopup({ kind: 'batteries' })}
         />
@@ -698,7 +741,9 @@ const EnergyFieldScene = ({ process }) => {
           {batteryDir === 'discharge' ? (
             <FlowFigure kw={Math.abs(t.batteryKw)} color={batteryColor} />
           ) : (
-            <span className="ef-flow-word">{batteryDir === 'charge' ? 'charging' : 'idle'}</span>
+            <span className="ef-flow-word">
+              {batteryDir === 'charge' ? tr('charging') : tr('idle')}
+            </span>
           )}
         </span>
       </div>
@@ -706,14 +751,14 @@ const EnergyFieldScene = ({ process }) => {
       <section className="ef-card">
         <SummaryLine
           className="mb-2"
-          title="Batteries"
+          title={tr('Batteries')}
           color="var(--ef-batt)"
-          hint="The batteries' charge - the share and the energy of their capacity"
+          hint={tr("The batteries' charge - the share and the energy of their capacity")}
           items={[
             { v: fmt(t.socPct, 0) },
             '% -',
             { v: fmt(batteryKwh, 0) },
-            `of ${fmt(capacity.kWh, 0)} kWh`,
+            tr('of {{fmt}} kWh', { fmt: fmt(capacity.kWh, 0) }),
           ]}
         />
         {batteryGroups.map((g) => {
@@ -728,7 +773,7 @@ const EnergyFieldScene = ({ process }) => {
               {g.name !== null && (
                 <div
                   className="d-flex align-items-baseline gap-2"
-                  title="The group's charge, its stored energy, its power now"
+                  title={tr("The group's charge, its stored energy, its power now")}
                 >
                   <span className="fw-semibold">{g.name}</span>
                   <span className="small ef-muted">
@@ -739,14 +784,19 @@ const EnergyFieldScene = ({ process }) => {
                     />
                     , <KeyValue value={fmt(kwh, 0)} unit="kWh" color="var(--ef-batt)" />,{' '}
                     {Math.abs(kw) < 0.05 ? (
-                      'idle'
+                      tr('idle')
                     ) : (
-                      <span style={{ color: kw < 0 ? 'var(--ef-gain)' : 'var(--ef-cost)' }}>
+                      <span
+                        style={{
+                          color: kw < 0 ? 'var(--ef-gain)' : 'var(--ef-cost)',
+                        }}
+                      >
                         <KeyValue value={kwText(Math.abs(kw))} unit="kW" />{' '}
-                        {kw < 0 ? 'charging' : 'discharging'}
+                        {kw < 0 ? tr('charging') : tr('discharging')}
                       </span>
                     )}
-                    {g.items.length > on.length && ` - ${g.items.length - on.length} off`}
+                    {g.items.length > on.length &&
+                      tr(' - {{v0}} off', { v0: g.items.length - on.length })}
                   </span>
                 </div>
               )}
@@ -812,13 +862,13 @@ const DevicePopup = ({
   const on = kind === 'wind' ? live?.state !== 'off' : live?.on
   const title =
     kind === 'grid'
-      ? 'Grid connection'
+      ? tr('Grid connection')
       : kind === 'consumer'
-        ? (m.consumer?.name ?? 'Consumption')
+        ? (m.consumer?.name ?? tr('Consumption'))
         : kind === 'generation'
-          ? 'Generation'
+          ? tr('Generation')
           : kind === 'batteries'
-            ? 'Batteries'
+            ? tr('Batteries')
             : item.name
   const t = m.totals ?? {}
   const today = m.today ?? {}
@@ -826,14 +876,14 @@ const DevicePopup = ({
     <div className="d-flex justify-content-between align-items-center border-top pt-2 mt-2 flex-wrap gap-2">
       <CFormCheck
         id={`ef-on-${item.nodeId}`}
-        label={kind === 'battery' ? 'In operation (contactor closed)' : 'In operation'}
-        title={control ? 'Switch this unit on or off' : 'You may only watch'}
+        label={kind === 'battery' ? tr('In operation (contactor closed)') : tr('In operation')}
+        title={control ? tr('Switch this unit on or off') : tr('You may only watch')}
         checked={!!on}
         disabled={!control}
         onChange={(e) => send('setEnabled', { nodeId: item.nodeId, enabled: e.target.checked })}
       />
       <span className="small text-body-secondary">
-        Limits and parameters - in the process's configuration
+        {tr("Limits and parameters - in the process's configuration")}
       </span>
     </div>
   )
@@ -861,19 +911,19 @@ const DevicePopup = ({
           }
           labels={
             kind === 'pv'
-              ? ["The field's PV today, kW (all blocks)"]
+              ? [tr("The field's PV today, kW (all blocks)")]
               : kind === 'wind'
-                ? ["The field's wind today, kW (all turbines)"]
+                ? [tr("The field's wind today, kW (all turbines)")]
                 : kind === 'generation'
-                  ? ['PV today, kW', 'Wind today, kW']
+                  ? [tr('PV today, kW'), tr('Wind today, kW')]
                   : kind === 'battery' || kind === 'batteries'
                     ? [
-                        'The array - state of charge, %',
-                        'The array - power, kW (+ discharge / - charge)',
+                        tr('The array - state of charge, %'),
+                        tr('The array - power, kW (+ discharge / - charge)'),
                       ]
                     : kind === 'grid'
-                      ? ['The grid today, kW (+ import / - export)']
-                      : ['Consumption today, kW']
+                      ? [tr('The grid today, kW (+ import / - export)')]
+                      : [tr('Consumption today, kW')]
           }
         />
       }
@@ -888,72 +938,76 @@ const DevicePopup = ({
       <div>
         <div
           className="d-grid mb-3"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}
+          style={{
+            gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+            gap: 12,
+          }}
         >
           {kind === 'pv' && (
             <>
-              <Stat label="Power">
+              <Stat label={tr('Power')}>
                 <KeyValue value={fmt(live?.kw, 2)} unit="kW" />
               </Stat>
-              <Stat label="Size">
-                {fmt(spec?.kWp, 1)} kWp / {fmt(spec?.acKw, 0)} kW AC
+              <Stat label={tr('Size')}>
+                {fmt(spec?.kWp, 1)} {tr('kWp /')} {fmt(spec?.acKw, 0)} {tr('kW AC')}
               </Stat>
-              <Stat label="Yield factor">
+              <Stat label={tr('Yield factor')}>
                 <KeyValue value={fmt(spec?.yieldFactor ?? 1, 2)} />
               </Stat>
             </>
           )}
           {kind === 'wind' && (
             <>
-              <Stat label="Power">
+              <Stat label={tr('Power')}>
                 <KeyValue value={fmt(live?.kw, 2)} unit="kW" />
               </Stat>
-              <Stat label="Rotor">
+              <Stat label={tr('Rotor')}>
                 <KeyValue value={fmt(live?.rpm, 0)} unit="rpm" />
               </Stat>
-              <Stat label="State">{live?.state}</Stat>
-              <Stat label="Rated">
-                {fmt(spec?.ratedKw, 1)} kW at {fmt(spec?.ratedMs, 0)} m/s
+              <Stat label={tr('State')}>{live?.state}</Stat>
+              <Stat label={tr('Rated')}>
+                {fmt(spec?.ratedKw, 1)} {tr('kW at')} {fmt(spec?.ratedMs, 0)} m/s
               </Stat>
-              <Stat label="Cut-in / out">
+              <Stat label={tr('Cut-in / out')}>
                 {fmt(spec?.cutInMs, 0)} / {fmt(spec?.cutOutMs, 0)} m/s
               </Stat>
             </>
           )}
           {kind === 'battery' && (
             <>
-              <Stat label="Charge">
+              <Stat label={tr('Charge')}>
                 <KeyValue value={fmt(live?.socPct, 0)} unit="%" />
               </Stat>
-              <Stat label="Power">
-                {fmt(Math.abs(live?.kw ?? 0))} kW {live?.kw < 0 ? 'in' : live?.kw > 0 ? 'out' : ''}
+              <Stat label={tr('Power')}>
+                {fmt(Math.abs(live?.kw ?? 0))} kW{' '}
+                {live?.kw < 0 ? tr('in') : live?.kw > 0 ? tr('out') : ''}
               </Stat>
               <Stat label="DC">
                 <KeyValue value={fmt(live?.voltage, 0)} unit="V" />
               </Stat>
-              <Stat label="Current">
+              <Stat label={tr('Current')}>
                 <KeyValue value={fmt(live?.currentA, 1)} unit="A" />
               </Stat>
-              <Stat label="Capacity">
-                {fmt(spec?.capacityKwh, 0)} kWh / {fmt(spec?.maxChargeKw, 0)} kW
+              <Stat label={tr('Capacity')}>
+                {fmt(spec?.capacityKwh, 0)} {tr('kWh /')} {fmt(spec?.maxChargeKw, 0)} kW
               </Stat>
             </>
           )}
           {kind === 'grid' && (
             <>
-              <Stat label="Power">
+              <Stat label={tr('Power')}>
                 {fmt(Math.abs(gridMetrics?.powerKw ?? 0))} kW {gridMetrics?.flow}
               </Stat>
-              <Stat label="Phases">
+              <Stat label={tr('Phases')}>
                 {(gridMetrics?.phasesV ?? []).map((v) => fmt(v, 0)).join(' / ')} V
               </Stat>
-              <Stat label="Frequency">
-                <KeyValue value={fmt(gridMetrics?.frequencyHz, 2)} unit="Hz" />
+              <Stat label={tr('Frequency')}>
+                <KeyValue value={fmt(gridMetrics?.frequencyHz, 2)} unit={tr('Hz')} />
               </Stat>
-              <Stat label="Buy / sell">
-                {fmt(gridMetrics?.buyCtKwh, 1)} / {fmt(gridMetrics?.sellCtKwh, 1)} ct
+              <Stat label={tr('Buy / sell')}>
+                {fmt(gridMetrics?.buyCtKwh, 1)} / {fmt(gridMetrics?.sellCtKwh, 1)} {tr('ct')}
               </Stat>
-              <Stat label="Today">
+              <Stat label={tr('Today')}>
                 {fmt(gridMetrics?.today?.costEur, 2)} / +{fmt(gridMetrics?.today?.revenueEur, 2)}{' '}
                 EUR
               </Stat>
@@ -961,46 +1015,47 @@ const DevicePopup = ({
           )}
           {kind === 'generation' && (
             <>
-              <Stat label="Now">
+              <Stat label={tr('Now')}>
                 <KeyValue value={fmt((t.pvKw ?? 0) + (t.windKw ?? 0))} unit="kW" />
               </Stat>
-              <Stat label="PV / wind">
+              <Stat label={tr('PV / wind')}>
                 {fmt(t.pvKw)} / {fmt(t.windKw)} kW
               </Stat>
-              <Stat label="Today">
+              <Stat label={tr('Today')}>
                 <KeyValue value={fmt((today.pvKwh ?? 0) + (today.windKwh ?? 0), 0)} unit="kWh" />
               </Stat>
-              <Stat label="Held back">
+              <Stat label={tr('Held back')}>
                 <KeyValue value={fmt(t.curtailedKw)} unit="kW" />
               </Stat>
             </>
           )}
           {kind === 'batteries' && (
             <>
-              <Stat label="Charge">
+              <Stat label={tr('Charge')}>
                 <KeyValue value={fmt(t.socPct, 0)} unit="%" />
               </Stat>
-              <Stat label="Power">
+              <Stat label={tr('Power')}>
                 {fmt(Math.abs(t.batteryKw ?? 0))} kW{' '}
-                {t.batteryKw < -0.05 ? 'in' : t.batteryKw > 0.05 ? 'out' : ''}
+                {t.batteryKw < -0.05 ? tr('in') : t.batteryKw > 0.05 ? tr('out') : ''}
               </Stat>
-              <Stat label="Today in / out">
+              <Stat label={tr('Today in / out')}>
                 {fmt(today.chargeKwh, 0)} / {fmt(today.dischargeKwh, 0)} kWh
               </Stat>
-              <Stat label="Units on">
-                {(m.batteries ?? []).filter((b) => b.on).length} of {(m.batteries ?? []).length}
+              <Stat label={tr('Units on')}>
+                {(m.batteries ?? []).filter((b) => b.on).length} {tr('of')}{' '}
+                {(m.batteries ?? []).length}
               </Stat>
             </>
           )}
           {kind === 'consumer' && (
             <>
-              <Stat label="Now">
+              <Stat label={tr('Now')}>
                 <KeyValue value={fmt(t.loadKw)} unit="kW" />
               </Stat>
-              <Stat label="Today">
+              <Stat label={tr('Today')}>
                 <KeyValue value={fmt(today.loadKwh, 0)} unit="kWh" />
               </Stat>
-              <Stat label="Not covered">
+              <Stat label={tr('Not covered')}>
                 <KeyValue value={fmt(t.shedKw)} unit="kW" />
               </Stat>
             </>

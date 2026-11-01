@@ -4,6 +4,9 @@ import KeyValue from 'src/components/KeyValue'
 import LedgerBlock from './LedgerBlock'
 import { BatteryIcon, ConsumerIcon, Flow, GenerationIcon, GridIcon, SCENE_CSS } from './fieldIcons'
 import { fmt, useFieldData } from './useFieldData'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('energy-field')
 
 // The energy's overview (iot AGENTS_TO_DO.md 2026-10-29, the user's layout): a Dashboard component drawn
 // at a folder's full width under its blocks - the whole picture at a glance. Three columns, the energy's
@@ -94,11 +97,11 @@ const EnergyOverview = ({ process }) => {
         <div className="eo-side">
           <Block
             icon={<GenerationIcon height={ICON_HEIGHT} on={generation > 0.05} rpm={meanRpm} />}
-            title="Generation"
+            title={tr('Generation')}
             value={kwText(generation)}
             color={generation > 0.05 ? 'var(--ef-gen)' : off}
           >
-            Solar <KeyValue value={kwText(t.pvKw ?? 0)} unit="kW" /> · wind{' '}
+            {tr('Solar')} <KeyValue value={kwText(t.pvKw ?? 0)} unit="kW" /> {tr('· wind')}{' '}
             <KeyValue value={kwText(t.windKw ?? 0)} unit="kW" />
           </Block>
           <Block
@@ -110,14 +113,18 @@ const EnergyOverview = ({ process }) => {
                 outage={gridMetrics?.outage}
               />
             }
-            title="Grid"
+            title={tr('Grid')}
             value={gridMetrics?.outage ? 'outage' : kwText(t.gridKw)}
             unit={gridMetrics?.outage ? '' : 'kW'}
             color={gridMetrics?.outage ? 'var(--ef-bad)' : gridColor}
           >
-            {gridFlow === 'none' ? 'No exchange' : gridFlow === 'import' ? 'Import' : 'Export'}
+            {gridFlow === 'none'
+              ? tr('No exchange')
+              : gridFlow === 'import'
+                ? tr('Import')
+                : tr('Export')}
             <br />
-            buy <KeyValue value={fmt(gridMetrics?.buyCtKwh, 1)} /> / sell{' '}
+            {tr('buy')} <KeyValue value={fmt(gridMetrics?.buyCtKwh, 1)} /> {tr('/ sell')}{' '}
             <KeyValue value={fmt(gridMetrics?.sellCtKwh, 1)} />{' '}
             <span className="kv-unit ms-0">ct/kWh</span>
           </Block>
@@ -128,14 +135,19 @@ const EnergyOverview = ({ process }) => {
             kw={generation}
             color={generation > 0.05 ? gain : off}
             scaleKw={scaleKw}
-            label={`Generation ${kwText(generation)} kW`}
+            label={tr('Generation {{kwText}} kW', {
+              kwText: kwText(generation),
+            })}
           />
           <FlowCell
             dir={gridFlow === 'export' ? 'left' : 'right'}
             kw={t.gridKw}
             color={gridColor}
             scaleKw={scaleKw}
-            label={`Grid ${gridFlow} ${kwText(t.gridKw)} kW`}
+            label={tr('Grid {{gridFlow}} {{kwText}} kW', {
+              gridFlow,
+              kwText: kwText(t.gridKw),
+            })}
           />
         </div>
         <LedgerBlock process={process} data={data} />
@@ -145,14 +157,19 @@ const EnergyOverview = ({ process }) => {
             kw={t.batteryKw}
             color={batteryColor}
             scaleKw={scaleKw}
-            label={`Batteries ${batteryDir} ${kwText(t.batteryKw)} kW`}
+            label={tr('Batteries {{batteryDir}} {{kwText}} kW', {
+              batteryDir,
+              kwText: kwText(t.batteryKw),
+            })}
           />
           <FlowCell
             dir="right"
             kw={t.loadKw ?? 0}
             color={loadColor}
             scaleKw={scaleKw}
-            label={`Consumption ${kwText(t.loadKw ?? 0)} kW`}
+            label={tr('Consumption {{kwText}} kW', {
+              kwText: kwText(t.loadKw ?? 0),
+            })}
           />
         </div>
         <div className="eo-side">
@@ -164,12 +181,16 @@ const EnergyOverview = ({ process }) => {
                 charging={batteryDir === 'charge'}
               />
             }
-            title="Batteries"
+            title={tr('Batteries')}
             value={fmt(t.socPct, 0)}
             unit="%"
             color="var(--ef-batt)"
           >
-            {batteryDir === 'none' ? 'Idle' : batteryDir === 'charge' ? 'Charging' : 'Discharging'}
+            {batteryDir === 'none'
+              ? tr('Idle')
+              : batteryDir === 'charge'
+                ? tr('Charging')
+                : tr('Discharging')}
             {batteryDir !== 'none' && (
               <>
                 {' '}
@@ -184,16 +205,16 @@ const EnergyOverview = ({ process }) => {
                 state={t.shedKw > 0.05 ? 'bad' : t.loadKw > 0.05 ? 'on' : 'idle'}
               />
             }
-            title="Consumption"
+            title={tr('Consumption')}
             value={kwText(t.loadKw ?? 0)}
             color={t.shedKw > 0.05 ? 'var(--ef-bad)' : 'var(--ef-cons)'}
           >
             {t.shedKw > 0.05 ? (
               <span style={{ color: 'var(--ef-bad)' }}>
-                <KeyValue value={kwText(t.shedKw)} unit="kW" /> not covered
+                <KeyValue value={kwText(t.shedKw)} unit="kW" /> {tr('not covered')}
               </span>
             ) : (
-              'The site now'
+              tr('The site now')
             )}
           </Block>
         </div>

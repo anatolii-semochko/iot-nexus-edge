@@ -12,6 +12,9 @@ import {
 import { request } from 'src/api/client'
 import { useCan } from 'src/access'
 import { useNow } from 'src/hooks/useNow'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('weather-control')
 
 // The weather-control process's forecast (api.ts - Open-Meteo, stored; the
 // last good one kept when a fetch fails): the place, when fetched, the next
@@ -65,7 +68,12 @@ const ForecastBlock = ({ processId }) => {
       .finally(() => setBusy(false))
   }
 
-  if (error && !forecast) return <div className="text-body-secondary small">Forecast: {error}</div>
+  if (error && !forecast)
+    return (
+      <div className="text-body-secondary small">
+        {t('Forecast:')} {error}
+      </div>
+    )
   if (!forecast) return <CSpinner size="sm" />
   const hours = forecast.hourly.filter((h) => h.t >= now - 3_600_000).slice(0, HOURS_SHOWN)
   const days = forecast.daily.filter((d) => d.t >= now - 86_400_000)
@@ -74,25 +82,27 @@ const ForecastBlock = ({ processId }) => {
     <div>
       <div className="d-flex align-items-center gap-3 mb-2 flex-wrap">
         <strong>
-          Forecast
+          {t('Forecast')}
           {forecast.location?.place ? ` - ${forecast.location.place}` : ''}
         </strong>
         <span className="text-body-secondary small">
           {forecast.fetchedAt
-            ? `fetched ${new Date(forecast.fetchedAt).toLocaleString()}`
-            : 'not fetched yet'}
+            ? t('fetched {{toLocaleString}}', {
+                toLocaleString: new Date(forecast.fetchedAt).toLocaleString(),
+              })
+            : t('not fetched yet')}
         </span>
         {forecast.error && (
           <span
             className="text-warning small"
             title={forecast.errorAt ? new Date(forecast.errorAt).toLocaleString() : undefined}
           >
-            the last fetch failed: {forecast.error}
+            {t('the last fetch failed:')} {forecast.error}
           </span>
         )}
         {can('processes.control', { process: processId }) && (
           <CButton size="sm" color="secondary" variant="outline" disabled={busy} onClick={refresh}>
-            {busy ? <CSpinner size="sm" /> : 'Refresh'}
+            {busy ? <CSpinner size="sm" /> : t('Refresh')}
           </CButton>
         )}
       </div>
@@ -100,12 +110,12 @@ const ForecastBlock = ({ processId }) => {
         <CTable small responsive className="mb-2">
           <CTableHead>
             <CTableRow>
-              <CTableHeaderCell>Hour</CTableHeaderCell>
-              <CTableHeaderCell>Temperature, °C</CTableHeaderCell>
-              <CTableHeaderCell>Clouds, %</CTableHeaderCell>
-              <CTableHeaderCell>Sun, W/m²</CTableHeaderCell>
-              <CTableHeaderCell>Wind, m/s</CTableHeaderCell>
-              <CTableHeaderCell>Rain, mm</CTableHeaderCell>
+              <CTableHeaderCell>{t('Hour')}</CTableHeaderCell>
+              <CTableHeaderCell>{t('Temperature, °C')}</CTableHeaderCell>
+              <CTableHeaderCell>{t('Clouds, %')}</CTableHeaderCell>
+              <CTableHeaderCell>{t('Sun, W/m²')}</CTableHeaderCell>
+              <CTableHeaderCell>{t('Wind, m/s')}</CTableHeaderCell>
+              <CTableHeaderCell>{t('Rain, mm')}</CTableHeaderCell>
             </CTableRow>
           </CTableHead>
           <CTableBody>
@@ -131,11 +141,11 @@ const ForecastBlock = ({ processId }) => {
             <div key={d.t}>
               <div className="fw-semibold">{day(d.t)}</div>
               <div>
-                {num(d.temperatureMinC)} .. {num(d.temperatureMaxC)} °C, rain{' '}
+                {num(d.temperatureMinC)} .. {num(d.temperatureMaxC)} {t('°C, rain')}{' '}
                 {num(d.precipitationMm, 1)} mm
               </div>
               <div className="text-body-secondary">
-                sun {d.sunrise ? time(d.sunrise) : '-'} - {d.sunset ? time(d.sunset) : '-'}
+                {t('sun')} {d.sunrise ? time(d.sunrise) : '-'} - {d.sunset ? time(d.sunset) : '-'}
               </div>
             </div>
           ))}

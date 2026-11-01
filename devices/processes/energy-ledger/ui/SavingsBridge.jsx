@@ -1,4 +1,7 @@
 import React from 'react'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('energy-ledger')
 
 // The savings bridge (a waterfall): "without the system" - the full bar,
 // each saving a step down (green), what was really paid - the last bar; the
@@ -42,7 +45,9 @@ const SavingsBridge = ({ steps, unit = 'eur' }) => {
       viewBox={`0 0 ${W} ${H}`}
       width="100%"
       role="img"
-      aria-label={`Savings bridge: ${bars.map((b) => `${b.label} ${fmtValue(b.v, unit)}`).join(', ')}`}
+      aria-label={t('Savings bridge: {{join}}', {
+        join: bars.map((b) => `${b.label} ${fmtValue(b.v, unit)}`).join(', '),
+      })}
     >
       <line x1={PAD.left} x2={W - PAD.right} y1={y(0)} y2={y(0)} stroke="var(--cui-border-color)" />
       {bars.map((b, i) => {

@@ -1,5 +1,8 @@
 import React, { useState } from 'react'
 import { CCol, CFormInput, CFormLabel, CFormSwitch, CRow } from '@coreui/react'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('energy-ledger')
 
 // The Energy Ledger's engineer settings (Processes -> its Settings; processes.config - iot
 // AGENTS_TO_DO.md 2026-10-25, S3): how it manages the energy - the operating parameters its plan keeps
@@ -29,7 +32,10 @@ const LedgerSettingsSection = ({ process, extraConfigRef }) => {
   const [plan, setPlan] = useState(c.plan ?? {})
   const [calendar, setCalendar] = useState(c.calendar ?? {})
   const stage = (section, value) => {
-    extraConfigRef.current = { ...(extraConfigRef.current ?? {}), [section]: value }
+    extraConfigRef.current = {
+      ...(extraConfigRef.current ?? {}),
+      [section]: value,
+    }
   }
   const edit = (state, setState, section, key, value) => {
     const next = { ...state, [key]: value }
@@ -43,69 +49,73 @@ const LedgerSettingsSection = ({ process, extraConfigRef }) => {
 
   return (
     <>
-      <h6>Operating parameters</h6>
+      <h6>{t('Operating parameters')}</h6>
       <p className="small text-body-secondary mb-2">
         What the plan keeps, over the energy field&apos;s own (empty - the field&apos;s). The
         operator switches them on the Energy scene too.
       </p>
       <CRow className="g-3 mb-2">
         <Num
-          label="Outage reserve, %"
-          hint="The batteries' charge the plan keeps for an outage (an outage note's window may use it)"
+          label={t('Outage reserve, %')}
+          hint={t(
+            "The batteries' charge the plan keeps for an outage (an outage note's window may use it)",
+          )}
           value={strategy.reservePct}
-          placeholder="the field's"
+          placeholder={t("the field's")}
           onChange={(v) => s('reservePct', v)}
         />
       </CRow>
       <div className="d-flex gap-4 mb-4 flex-wrap">
         <CFormSwitch
           id={`ledger-export-${process.id}`}
-          label="Selling allowed"
+          label={t('Selling allowed')}
           checked={strategy.exportAllowed ?? true}
           onChange={(e) => s('exportAllowed', e.target.checked)}
         />
         <CFormSwitch
           id={`ledger-gridcharge-${process.id}`}
-          label="Charging from the grid allowed"
+          label={t('Charging from the grid allowed')}
           checked={strategy.gridChargeAllowed ?? true}
           onChange={(e) => s('gridChargeAllowed', e.target.checked)}
         />
       </div>
 
-      <h6>Strategies</h6>
+      <h6>{t('Strategies')}</h6>
       <CRow className="g-3 mb-4">
         <Num
-          label="Reserve strategy's level, %"
-          hint='"Reserve" keeps the batteries this high (e.g. before a storm)'
+          label={t("Reserve strategy's level, %")}
+          hint={t('"Reserve" keeps the batteries this high (e.g. before a storm)')}
           value={strategy.reserveHighPct}
           placeholder="80"
           onChange={(v) => s('reserveHighPct', v)}
         />
         <Num
-          label="Peak limit, kW"
-          hint={`"Peak shaving" keeps the import under it (a business's capacity charge); empty - not offered`}
+          label={t('Peak limit, kW')}
+          hint={t(
+            '"Peak shaving" keeps the import under it (a business\'s capacity charge); empty - not offered',
+          )}
           value={strategy.peakLimitKw}
-          placeholder="none"
+          placeholder={t('none')}
           onChange={(v) => s('peakLimitKw', v ?? null)}
         />
         <Num
-          label="Over the peak, ct/kWh"
-          hint="What a kWh over the peak limit counts as"
+          label={t('Over the peak, ct/kWh')}
+          hint={t('What a kWh over the peak limit counts as')}
           value={strategy.peakPenaltyCtKwh}
           placeholder="200"
           onChange={(v) => s('peakPenaltyCtKwh', v)}
         />
         <Num
-          label="Sell above, ct/kWh"
-          hint='"Sales" sells the stored energy only above this price'
+          label={t('Sell above, ct/kWh')}
+          hint={t('"Sales" sells the stored energy only above this price')}
           value={strategy.sellThresholdCt}
           placeholder="15"
           step="0.1"
           onChange={(v) => s('sellThresholdCt', v)}
         />
         <Num
-          label="A change pays over, EUR"
-          hint="A strategy is proposed / recommended only when it saves more than this"
+          label={t('A change pays over, EUR')}
+          hint={t('A strategy is proposed / recommended only when it saves more than this')}
           value={strategy.minGainEur}
           placeholder="1"
           step="0.1"
@@ -113,33 +123,35 @@ const LedgerSettingsSection = ({ process, extraConfigRef }) => {
         />
       </CRow>
 
-      <h6>The plan</h6>
+      <h6>{t('The plan')}</h6>
       <CRow className="g-3 mb-4">
         <Num
-          label="Re-made every, min"
-          hint="The plan's regular update (also on new day-ahead prices, the day's notes, a drift)"
+          label={t('Re-made every, min')}
+          hint={t(
+            "The plan's regular update (also on new day-ahead prices, the day's notes, a drift)",
+          )}
           value={plan.intradayMinutes}
           placeholder="60"
           onChange={(v) => p('intradayMinutes', v)}
         />
         <Num
-          label="Re-made on a drift over, %"
-          hint="When the batteries' charge leaves the plan's by this much"
+          label={t('Re-made on a drift over, %')}
+          hint={t("When the batteries' charge leaves the plan's by this much")}
           value={plan.deviationPct}
           placeholder="10"
           onChange={(v) => p('deviationPct', v)}
         />
         <Num
-          label="Batteries' wear, ct/kWh"
-          hint="Per kWh discharged - the plan weighs it against the price gaps"
+          label={t("Batteries' wear, ct/kWh")}
+          hint={t('Per kWh discharged - the plan weighs it against the price gaps')}
           value={plan.wearCtKwh}
           placeholder="3"
           step="0.1"
           onChange={(v) => p('wearCtKwh', v)}
         />
         <Num
-          label="One-way efficiency"
-          hint="The batteries' charge / discharge efficiency, 0.7..1"
+          label={t('One-way efficiency')}
+          hint={t("The batteries' charge / discharge efficiency, 0.7..1")}
           value={plan.efficiency}
           placeholder="0.97"
           step="0.01"
@@ -154,7 +166,7 @@ const LedgerSettingsSection = ({ process, extraConfigRef }) => {
       </p>
       <CRow className="g-3">
         <CCol sm={4}>
-          <CFormLabel title="ISO 3166 code, e.g. DE">Country</CFormLabel>
+          <CFormLabel title={t('ISO 3166 code, e.g. DE')}>{t('Country')}</CFormLabel>
           <CFormInput
             value={calendar.country ?? ''}
             maxLength={3}
@@ -163,7 +175,9 @@ const LedgerSettingsSection = ({ process, extraConfigRef }) => {
           />
         </CCol>
         <CCol sm={4}>
-          <CFormLabel title="The state / province code, e.g. HE (Hesse)">Region</CFormLabel>
+          <CFormLabel title={t('The state / province code, e.g. HE (Hesse)')}>
+            {t('Region')}
+          </CFormLabel>
           <CFormInput
             value={calendar.region ?? ''}
             maxLength={10}
@@ -172,7 +186,7 @@ const LedgerSettingsSection = ({ process, extraConfigRef }) => {
           />
         </CCol>
         <Num
-          label="Days ahead"
+          label={t('Days ahead')}
           value={calendar.aheadDays}
           placeholder="14"
           onChange={(v) => cal('aheadDays', v)}

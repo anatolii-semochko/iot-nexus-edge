@@ -6,6 +6,7 @@ import { streamScope } from "../access/scope.js";
 import { endSession, sessionAlive, setSessionContext, startSession, type SessionPayload } from "../access/session.js";
 import { guestSettings } from "../access/guestSettings.js";
 import { verifyPassword } from "../auth.js";
+import { config } from "../config.js";
 import { pool } from "../db.js";
 
 // Sign in / out and "who am I" (AGENTS.md section 13; B1): the session is a
@@ -105,6 +106,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       // the groups the person may act in (two or more - the header's menu offers them) and the one now
       contexts: contexts.length > 1 ? contexts.map(({ key, name }) => ({ key, name })) : [],
       context,
+      // the role (the group) acted in now - its name for the header; with one role - that role
+      contextName: (context ? contexts.find((c) => c.key === context)?.name : contexts.length === 1 ? contexts[0].name : null) ?? null,
+      // the interface's languages (the flags)
+      languages: config.ui.languages,
       // the guest's session - the menu offers signing in; whether the guest is on (the sign-in page)
       guest,
       guestEnabled: Boolean(guestAccount),

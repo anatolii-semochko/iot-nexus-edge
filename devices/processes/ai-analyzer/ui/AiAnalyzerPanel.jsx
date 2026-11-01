@@ -6,13 +6,16 @@ import { useProcessLiveState } from 'src/api/useLiveProcess'
 import ImagesTab from './ImagesTab'
 import LastImageTab from './LastImageTab'
 import TargetsTab from './TargetsTab'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('ai-analyzer')
 
 // AI Analyzer process panel (AGENTS.md section 82) - the process row's
 // expand area: Last image / Images / Target objects.
 const TABS = [
-  { key: 'last', label: 'Last image' },
-  { key: 'images', label: 'Images' },
-  { key: 'targets', label: 'Target objects' },
+  { key: 'last', label: t('Last image') },
+  { key: 'images', label: t('Images') },
+  { key: 'targets', label: t('Target objects') },
 ]
 
 const AiAnalyzerPanel = ({ process }) => {
@@ -30,7 +33,7 @@ const AiAnalyzerPanel = ({ process }) => {
   }, [loadTargets])
 
   if (process.config.imageDeviceId === undefined) {
-    return <div className="text-danger small">Process config has no imageDeviceId.</div>
+    return <div className="text-danger small">{t('Process config has no imageDeviceId.')}</div>
   }
 
   return (

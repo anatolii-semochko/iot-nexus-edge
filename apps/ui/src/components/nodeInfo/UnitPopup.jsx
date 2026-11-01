@@ -14,6 +14,7 @@ import NodeModel from './NodeModel'
 import TileMap from './TileMap'
 import AiButton from '../ai/AiButton'
 import { ChartSize, ChartSpace } from '../charts/SeriesChart'
+import { t } from 'src/i18n'
 
 // A unit's popup (AGENTS_TO_DO.md 2026-10-22, C - images/device-popup.png):
 // tabs "Status" (the scene's live picture on the left - a narrow column, its
@@ -108,10 +109,10 @@ const UnitPopup = ({
   }, [chartsBox])
 
   const tabs = [
-    ...(hasStatus ? [['status', 'Status', 'The unit now - its readings and today']] : []),
-    ...(info ? [['model', 'Model', 'The model and its main technical data']] : []),
-    ...(info?.photo ? [['photo', 'Photo', 'A photo of the real unit']] : []),
-    ...(info?.position ? [['map', 'Map', 'Where the unit stands']] : []),
+    ...(hasStatus ? [['status', t('Status'), t('The unit now - its readings and today')]] : []),
+    ...(info ? [['model', t('Model'), t('The model and its main technical data')]] : []),
+    ...(info?.photo ? [['photo', t('Photo'), t('A photo of the real unit')]] : []),
+    ...(info?.position ? [['map', t('Map'), t('Where the unit stands')]] : []),
   ]
   const stacked = rowPx != null && rowPx < STACK_BELOW_PX
   const pictureStyle = stacked
@@ -141,7 +142,7 @@ const UnitPopup = ({
             label={title ?? info?.node?.name}
             size={24}
           />
-          {title ?? info?.node?.name ?? 'Unit'}
+          {title ?? info?.node?.name ?? t('Unit')}
         </CModalTitle>
       </CModalHeader>
       <CModalBody>
@@ -171,7 +172,7 @@ const UnitPopup = ({
                 <div
                   className={`unit-picture${stacked ? '' : ' side'}`}
                   style={pictureStyle}
-                  title="The unit now"
+                  title={t('The unit now')}
                 >
                   {picture}
                 </div>
@@ -206,7 +207,7 @@ const UnitPopup = ({
         {tab === 'photo' && info?.photo && (
           <img
             src={api.apiUrl(info.photo)}
-            alt={`${info.node.name} - photo`}
+            alt={t('{{name}} - photo', { name: info.node.name })}
             style={{
               maxWidth: '100%',
               maxHeight: '60vh',

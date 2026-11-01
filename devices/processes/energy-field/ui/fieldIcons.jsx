@@ -8,6 +8,9 @@ import {
   TURBINE_VIEW,
 } from './genIcons/genIconPaths'
 import { PRICE_QUARTER } from './priceLevels'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('energy-field')
 
 // The Energy Field's pictures in one style (images/AQUARIUM V16-V19.png,
 // the reviewed mockup 2026-10-19): filled shapes with a currentColor
@@ -58,7 +61,9 @@ export const SCENE_CSS = `
 // would only blur) - one turn per `ROTOR_SLOWDOWN` x the real period
 const ROTOR_SLOWDOWN = 6
 // the hubs the rotors turn about, in their icons' viewBox units
-const ROTOR_HUB = { turbine: `${TURBINE_HUB.x}px ${TURBINE_HUB.y}px` }
+const ROTOR_HUB = {
+  turbine: `${TURBINE_HUB.x}px ${TURBINE_HUB.y}px`,
+}
 export const rotorPeriod = (rpm) =>
   rpm > 0 ? `${((60 / rpm) * ROTOR_SLOWDOWN).toFixed(2)}s` : null
 
@@ -256,7 +261,7 @@ export const BatteryIcon = ({
       )}
       {!figures ? null : off ? (
         <text x="75" y="64" textAnchor="middle" fontSize="22" fontWeight="600" fill="var(--ef-off)">
-          off
+          {t('off')}
         </text>
       ) : (
         <g style={{ fontVariantNumeric: 'tabular-nums lining-nums' }}>
@@ -288,7 +293,15 @@ export const BatteryIcon = ({
 // three parts - the next 24 hours' cheapest quarter, the middle, the dearest quarter (priceLevels.js) -
 // green where the price is good for us (a purchase - the cheap end on the left; a sale - the dear end on
 // the right, `higherIsBetter`), red where it is not; the needle at the price now. No figures - under it.
-const GAUGE = { cx: 19, cy: 16, r: 9, from: 210, sweep: 240, gapDeg: 5, needle: 7.5 }
+const GAUGE = {
+  cx: 19,
+  cy: 16,
+  r: 9,
+  from: 210,
+  sweep: 240,
+  gapDeg: 5,
+  needle: 7.5,
+}
 const gaugePoint = (deg, r) => {
   const a = (deg * Math.PI) / 180
   return [GAUGE.cx + r * Math.cos(a), GAUGE.cy - r * Math.sin(a)]
@@ -467,7 +480,7 @@ export const Flow = ({
       height={size}
       viewBox="0 0 64 64"
       role="img"
-      aria-label={idle ? `${label ?? 'Flow'} - no flow` : label}
+      aria-label={idle ? t('{{v0}} - no flow', { v0: label ?? 'Flow' }) : label}
       style={{ color: idle ? 'var(--ef-off)' : color }}
     >
       {idle

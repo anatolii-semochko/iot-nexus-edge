@@ -18,6 +18,9 @@ import TablePagination from 'src/components/table/TablePagination'
 import TableSearchInput from 'src/components/table/TableSearchInput'
 import { useConfirmModal } from 'src/hooks/useConfirmModal'
 import { usePagination } from 'src/hooks/usePagination'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('ai-analyzer')
 
 // Target objects (AGENTS.md section 82): what the AI looks for. Paged and
 // searched on the client (the list is capped at 100); every change is one
@@ -50,7 +53,10 @@ const TargetsTab = ({ process, targets, limit, onChanged }) => {
 
   const add = () =>
     run(async () => {
-      await request(base, { method: 'POST', body: JSON.stringify({ text: newText }) })
+      await request(base, {
+        method: 'POST',
+        body: JSON.stringify({ text: newText }),
+      })
       setNewText('')
     })
 
@@ -65,9 +71,11 @@ const TargetsTab = ({ process, targets, limit, onChanged }) => {
 
   const remove = async (target) => {
     const ok = await confirm({
-      title: 'Delete target object',
-      body: `Delete "${target.text}"? Past results keep its name.`,
-      confirmLabel: 'Delete',
+      title: tr('Delete target object'),
+      body: tr('Delete "{{text}}"? Past results keep its name.', {
+        text: target.text,
+      }),
+      confirmLabel: tr('Delete'),
       confirmColor: 'danger',
     })
     if (ok) await run(() => request(`${base}/${target.id}`, { method: 'DELETE' }))
@@ -76,11 +84,15 @@ const TargetsTab = ({ process, targets, limit, onChanged }) => {
   return (
     <div>
       <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
-        <TableSearchInput value={search} onSearch={setSearch} placeholder="Search objects..." />
+        <TableSearchInput
+          value={search}
+          onSearch={setSearch}
+          placeholder={tr('Search objects...')}
+        />
         <CFormInput
           size="sm"
           style={{ width: '18rem' }}
-          placeholder="New target object (any language)"
+          placeholder={tr('New target object (any language)')}
           maxLength={TEXT_MAX}
           value={newText}
           onChange={(e) => setNewText(e.target.value)}
@@ -92,7 +104,7 @@ const TargetsTab = ({ process, targets, limit, onChanged }) => {
           disabled={!newText.trim() || targets.length >= limit}
           onClick={add}
         >
-          Add
+          {tr('Add')}
         </CButton>
         <span className="text-body-secondary small">
           {targets.length} / {limit}
@@ -103,8 +115,8 @@ const TargetsTab = ({ process, targets, limit, onChanged }) => {
         <CTableHead>
           <CTableRow>
             <CTableHeaderCell style={{ width: '4rem' }}>ID</CTableHeaderCell>
-            <CTableHeaderCell>Object</CTableHeaderCell>
-            <CTableHeaderCell style={{ width: '6rem' }}>Active</CTableHeaderCell>
+            <CTableHeaderCell>{tr('Object')}</CTableHeaderCell>
+            <CTableHeaderCell style={{ width: '6rem' }}>{tr('Active')}</CTableHeaderCell>
             <CTableHeaderCell style={{ width: '3rem' }} />
           </CTableRow>
         </CTableHead>
@@ -112,7 +124,7 @@ const TargetsTab = ({ process, targets, limit, onChanged }) => {
           {pagination.pageItems.length === 0 && (
             <CTableRow>
               <CTableDataCell colSpan={4} className="text-body-secondary text-center">
-                No target objects
+                {tr('No target objects')}
               </CTableDataCell>
             </CTableRow>
           )}
@@ -136,7 +148,7 @@ const TargetsTab = ({ process, targets, limit, onChanged }) => {
                 ) : (
                   <span
                     style={{ cursor: 'text' }}
-                    title="Click to edit"
+                    title={tr('Click to edit')}
                     onClick={() => setEditing({ id: t.id, text: t.text })}
                   >
                     {t.text}
@@ -146,7 +158,7 @@ const TargetsTab = ({ process, targets, limit, onChanged }) => {
               <CTableDataCell>
                 <Switch
                   checked={t.active}
-                  ariaLabel={`Active: ${t.text}`}
+                  ariaLabel={tr('Active: {{text}}', { text: t.text })}
                   onChange={(active) =>
                     run(() =>
                       request(`${base}/${t.id}`, {
@@ -162,8 +174,8 @@ const TargetsTab = ({ process, targets, limit, onChanged }) => {
                   icon={cilTrash}
                   size="sm"
                   color="danger"
-                  ariaLabel="Delete"
-                  title="Delete"
+                  ariaLabel={tr('Delete')}
+                  title={tr('Delete')}
                   onClick={() => remove(t)}
                 />
               </CTableDataCell>

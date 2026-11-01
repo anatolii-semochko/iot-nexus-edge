@@ -5,6 +5,7 @@ import AiBrainIcon from '../AiBrainIcon'
 import { ICON_BUTTON_WIDTH } from '../IconButton'
 import { useAiPanel } from './AiPanel'
 import { useAiEntities } from './useAiEntities'
+import { t } from 'src/i18n'
 
 /**
  * The AI button (2026-10-24, the user's images/ai-brain.png): the AI's mark that opens the side
@@ -18,7 +19,7 @@ const Inner = ({ subject, label, size, className, action }) => {
   const { data } = useAiEntities()
   const { open } = useAiPanel()
   if (!data?.entities?.length) return null
-  const title = `Ask the AI${label ? ` about ${label}` : ''}`
+  const title = t('Ask the AI{{v0}}', { v0: label ? ` about ${label}` : '' })
   const click = (e) => {
     e.preventDefault()
     e.stopPropagation()

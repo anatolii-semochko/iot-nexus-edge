@@ -4,6 +4,9 @@ import { request } from 'src/api/client'
 import { useProcessLiveState } from 'src/api/useLiveProcess'
 import { useCan } from 'src/access'
 import PriceChart from './PriceChart'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('energy-grid')
 
 // The "energy-grid" process (CORE Library package): the connection
 // point's meter now (phases, frequency, power - import / export), the
@@ -60,9 +63,9 @@ const EnergyGridPanel = ({ process }) => {
   return (
     <div className="pt-0 pb-3 px-2">
       <CRow className="align-items-end g-4 mb-3">
-        <Value label="Grid">
+        <Value label={t('Grid')}>
           {m.outage ? (
-            <CBadge color="danger">Outage</CBadge>
+            <CBadge color="danger">{t('Outage')}</CBadge>
           ) : (
             <span
               className={
@@ -74,17 +77,24 @@ const EnergyGridPanel = ({ process }) => {
             </span>
           )}
         </Value>
-        <Value label="Phases, V">{(m.phasesV ?? []).map((v) => n(v, 0)).join(' / ') || '-'}</Value>
-        <Value label="Frequency">{n(m.frequencyHz, 2)} Hz</Value>
-        <Value label="Buy now" sub={m.tariffZone ? `zone ${m.tariffZone}` : undefined}>
+        <Value label={t('Phases, V')}>
+          {(m.phasesV ?? []).map((v) => n(v, 0)).join(' / ') || '-'}
+        </Value>
+        <Value label={t('Frequency')}>{n(m.frequencyHz, 2)} Hz</Value>
+        <Value label={t('Buy now')} sub={m.tariffZone ? `zone ${m.tariffZone}` : undefined}>
           {n(m.buyCtKwh, 2)} <small className="fs-6">ct/kWh</small>
         </Value>
-        <Value label="Sell now">
+        <Value label={t('Sell now')}>
           {n(m.sellCtKwh, 2)} <small className="fs-6">ct/kWh</small>
         </Value>
         <Value
-          label="Today"
-          sub={`in ${n(today.importKwh, 1)} kWh (${n(today.costEur, 2)} EUR), out ${n(today.exportKwh, 1)} kWh (${n(today.revenueEur, 2)} EUR)`}
+          label={t('Today')}
+          sub={t('in {{n}} kWh ({{n2}} EUR), out {{n22}} kWh ({{n222}} EUR)', {
+            n: n(today.importKwh, 1),
+            n2: n(today.costEur, 2),
+            n22: n(today.exportKwh, 1),
+            n222: n(today.revenueEur, 2),
+          })}
         >
           <span className={balance >= 0 ? 'text-success' : ''}>
             {balance >= 0 ? '+' : ''}
@@ -94,27 +104,37 @@ const EnergyGridPanel = ({ process }) => {
       </CRow>
 
       <div className="d-flex align-items-center gap-3 mb-1 flex-wrap">
-        <strong>Prices - today and tomorrow</strong>
+        <strong>{t('Prices - today and tomorrow')}</strong>
         {prices && (
           <span className="text-body-secondary small">
-            buying:{' '}
+            {t('buying:')}{' '}
             {prices.purchaseMode === 'market'
-              ? `market ${prices.biddingZone ?? ''} + surcharge`
-              : 'tariff zones'}
-            ; selling: {prices.saleMode === 'market' ? 'market' : 'fixed'}
-            {prices.fetchedAt ? `; market data ${new Date(prices.fetchedAt).toLocaleString()}` : ''}
+              ? t('market {{v0}} + surcharge', { v0: prices.biddingZone ?? '' })
+              : t('tariff zones')}
+            {t('; selling:')} {prices.saleMode === 'market' ? t('market') : t('fixed')}
+            {prices.fetchedAt
+              ? t('; market data {{toLocaleString}}', {
+                  toLocaleString: new Date(prices.fetchedAt).toLocaleString(),
+                })
+              : ''}
           </span>
         )}
         {prices?.error && (
-          <span className="text-warning small">the last market fetch failed: {prices.error}</span>
+          <span className="text-warning small">
+            {t('the last market fetch failed:')} {prices.error}
+          </span>
         )}
         {prices?.biddingZone && can('processes.control', { process: process.id }) && (
           <CButton size="sm" color="secondary" variant="outline" disabled={busy} onClick={refresh}>
-            {busy ? <CSpinner size="sm" /> : 'Refresh'}
+            {busy ? <CSpinner size="sm" /> : t('Refresh')}
           </CButton>
         )}
       </div>
-      {error && !prices && <div className="text-body-secondary small">Prices: {error}</div>}
+      {error && !prices && (
+        <div className="text-body-secondary small">
+          {t('Prices:')} {error}
+        </div>
+      )}
       {!error && !prices && <CSpinner size="sm" />}
       {prices && <PriceChart slots={prices.slots} />}
       {prices?.attribution && (

@@ -38,11 +38,12 @@ import Breadcrumb from '../../components/UpBreadcrumb'
 import AddRegistryModal from './AddRegistryModal'
 import LibraryItemDetailRow from './LibraryItemDetailRow'
 import PageTitle from '../../components/PageTitle'
+import { t } from 'src/i18n'
 
 const KINDS = [
-  { value: 'device', label: 'Devices' },
-  { value: 'node', label: 'Nodes' },
-  { value: 'process', label: 'Processes' },
+  { value: 'device', label: t('Devices') },
+  { value: 'node', label: t('Nodes') },
+  { value: 'process', label: t('Processes') },
 ]
 
 // Process management (AGENTS_TO_DO.md, 2026-08-14) - a process-kind
@@ -80,7 +81,7 @@ const AddProcessModal = ({ item, visible, onClose, onCreated }) => {
     try {
       config = configText.trim() ? JSON.parse(configText) : {}
     } catch {
-      setError('Config must be valid JSON.')
+      setError(t('Config must be valid JSON.'))
       return
     }
     setBusy(true)
@@ -105,18 +106,20 @@ const AddProcessModal = ({ item, visible, onClose, onCreated }) => {
   return (
     <CModal visible={visible} onClose={onClose}>
       <CModalHeader>
-        <CModalTitle>Add process - {item?.name}</CModalTitle>
+        <CModalTitle>
+          {t('Add process -')} {item?.name}
+        </CModalTitle>
       </CModalHeader>
       <CModalBody>
         {error && <CAlert color="danger">{error}</CAlert>}
         <div className="mb-3">
-          <CFormLabel>Name</CFormLabel>
+          <CFormLabel>{t('Name')}</CFormLabel>
           <CFormInput value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
         </div>
         <div className="mb-3">
-          <CFormLabel>Group</CFormLabel>
+          <CFormLabel>{t('Group')}</CFormLabel>
           <CFormSelect value={groupId} onChange={(e) => setGroupId(e.target.value)} disabled={busy}>
-            <option value="">Select a group...</option>
+            <option value="">{t('Select a group...')}</option>
             {(groups ?? []).map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
@@ -125,14 +128,14 @@ const AddProcessModal = ({ item, visible, onClose, onCreated }) => {
           </CFormSelect>
         </div>
         <div className="mb-3">
-          <CFormLabel>Type</CFormLabel>
+          <CFormLabel>{t('Type')}</CFormLabel>
           <CFormSelect value={type} onChange={(e) => setType(e.target.value)} disabled={busy}>
-            <option value="controllable">Controllable</option>
-            <option value="permanent">Permanent</option>
+            <option value="controllable">{t('Controllable')}</option>
+            <option value="permanent">{t('Permanent')}</option>
           </CFormSelect>
         </div>
         <div className="mb-3">
-          <CFormLabel>Device id (optional)</CFormLabel>
+          <CFormLabel>{t('Device id (optional)')}</CFormLabel>
           <CFormInput
             value={deviceId}
             onChange={(e) => setDeviceId(e.target.value)}
@@ -159,10 +162,10 @@ const AddProcessModal = ({ item, visible, onClose, onCreated }) => {
       </CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="outline" onClick={onClose} disabled={busy}>
-          Cancel
+          {t('Cancel')}
         </CButton>
         <CButton color="primary" onClick={handleSubmit} disabled={busy || !name || !groupId}>
-          {busy ? <CSpinner size="sm" /> : 'Create'}
+          {busy ? <CSpinner size="sm" /> : t('Create')}
         </CButton>
       </CModalFooter>
     </CModal>
@@ -340,7 +343,12 @@ const LibraryBrowser = () => {
     setSyncMessage(null)
     try {
       const result = await api.syncLibrary()
-      setSyncMessage(`Synced: ${result.categories} categories, ${result.items} items.`)
+      setSyncMessage(
+        t('Synced: {{categories}} categories, {{items}} items.', {
+          categories: result.categories,
+          items: result.items,
+        }),
+      )
       loadBrowse(kind, categoryId)
     } catch (err) {
       setError(err.message)
@@ -363,7 +371,7 @@ const LibraryBrowser = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader className="d-flex justify-content-between align-items-center">
-        <PageTitle title="Library" />
+        <PageTitle title={t('Library')} />
         <CButton
           color="secondary"
           variant="outline"
@@ -372,7 +380,7 @@ const LibraryBrowser = () => {
           disabled={syncing || !can('library.manage')}
         >
           <CIcon icon={cilReload} className="me-1" />
-          {syncing ? 'Syncing...' : 'Sync'}
+          {syncing ? t('Syncing...') : t('Sync')}
         </CButton>
       </CCardHeader>
       <CCardBody>
@@ -386,10 +394,10 @@ const LibraryBrowser = () => {
         {typeFilter ? (
           <CAlert color="info" className="d-flex justify-content-between align-items-center">
             <span>
-              Showing only <strong>{typeFilter}</strong>.
+              {t('Showing only')} <strong>{typeFilter}</strong>.
             </span>
             <CButton size="sm" color="info" variant="outline" onClick={handleClearTypeFilter}>
-              Clear filter
+              {t('Clear filter')}
             </CButton>
           </CAlert>
         ) : (
@@ -413,7 +421,9 @@ const LibraryBrowser = () => {
                 <TableSearchInput
                   value={search}
                   onSearch={setSearch}
-                  placeholder={`Search ${kind === 'device' ? 'devices' : kind === 'node' ? 'nodes' : 'processes'} by name or description...`}
+                  placeholder={t('Search {{v0}} by name or description...', {
+                    v0: kind === 'device' ? 'devices' : kind === 'node' ? 'nodes' : 'processes',
+                  })}
                 />
               </CCol>
             </CRow>
@@ -425,15 +435,15 @@ const LibraryBrowser = () => {
         {!rows ? (
           <CSpinner size="sm" />
         ) : rows.length === 0 ? (
-          <CAlert color="info">{showingSearch ? 'No matches.' : 'Nothing here yet.'}</CAlert>
+          <CAlert color="info">{showingSearch ? t('No matches.') : t('Nothing here yet.')}</CAlert>
         ) : (
           <CTable responsive>
             <CTableHead>
               <CTableRow>
                 <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
-                <CTableHeaderCell>Name</CTableHeaderCell>
-                <CTableHeaderCell>Description</CTableHeaderCell>
-                <CTableHeaderCell>Used in project</CTableHeaderCell>
+                <CTableHeaderCell>{t('Name')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Description')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Used in project')}</CTableHeaderCell>
                 <CTableHeaderCell></CTableHeaderCell>
                 <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
               </CTableRow>
@@ -473,11 +483,11 @@ const LibraryBrowser = () => {
                           '-'
                         ) : row.usedInProject ? (
                           <CBadge color="success" className="mb-1">
-                            Used
+                            {t('Used')}
                           </CBadge>
                         ) : (
                           <CBadge color="secondary" className="mb-1">
-                            Not used
+                            {t('Not used')}
                           </CBadge>
                         )}
                       </CTableDataCell>
@@ -496,7 +506,7 @@ const LibraryBrowser = () => {
                                   : setAddRegistryItem(row)
                               }
                             >
-                              Add {kind}
+                              {t('Add')} {kind}
                             </CButton>
                           )}
                       </CTableDataCell>
@@ -541,7 +551,11 @@ const LibraryBrowser = () => {
         visible={Boolean(addProcessItem)}
         onClose={() => setAddProcessItem(null)}
         onCreated={() =>
-          setCreatedMessage(`Process "${addProcessItem?.name}" created - see the Processes page.`)
+          setCreatedMessage(
+            t('Process "{{name}}" created - see the Processes page.', {
+              name: addProcessItem?.name,
+            }),
+          )
         }
       />
       {createdMessage && (

@@ -2,6 +2,7 @@ import React from 'react'
 import { CFormInput, CFormLabel, CFormText } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
 import { cilCheckAlt, cilX } from '@coreui/icons'
+import { t as tr } from 'src/i18n'
 
 /**
  * The AI's tokens a day of an account or a role (2026-10-27 - api access/principal.ts): empty -
@@ -21,9 +22,9 @@ const Dot = ({ color, icon, title }) => (
 
 export const AiTokensMark = ({ value }) => {
   if (value === null || value === undefined)
-    return <Dot color="success" icon={cilCheckAlt} title="AI on, unlimited" />
-  if (value === 0) return <Dot color="danger" icon={cilX} title="AI off" />
-  return <span title="AI tokens a day">{value.toLocaleString()}</span>
+    return <Dot color="success" icon={cilCheckAlt} title={tr('AI on, unlimited')} />
+  if (value === 0) return <Dot color="danger" icon={cilX} title={tr('AI off')} />
+  return <span title={tr('AI tokens a day')}>{value.toLocaleString()}</span>
 }
 
 /** The value from the field: '' - null (unlimited), else a whole number >= 0 (undefined - not valid). */
@@ -36,17 +37,17 @@ export const parseAiTokens = (text) => {
 
 export const AiTokensInput = ({ id, value, onChange, disabled }) => (
   <>
-    <CFormLabel htmlFor={id}>AI tokens a day</CFormLabel>
+    <CFormLabel htmlFor={id}>{tr('AI tokens a day')}</CFormLabel>
     <CFormInput
       id={id}
       type="number"
       min={0}
       step={1000}
-      placeholder="Unlimited"
+      placeholder={tr('Unlimited')}
       value={value ?? ''}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
     />
-    <CFormText>Empty - unlimited, 0 - the AI off.</CFormText>
+    <CFormText>{tr('Empty - unlimited, 0 - the AI off.')}</CFormText>
   </>
 )

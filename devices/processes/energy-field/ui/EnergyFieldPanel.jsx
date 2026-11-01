@@ -18,6 +18,9 @@ import {
 import { api } from 'src/api/client'
 import { useProcessLiveState } from 'src/api/useLiveProcess'
 import { useCan } from 'src/access'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('energy-field')
 
 // The "energy-field" process (CORE Library package) - the engineer's view
 // in the process row: the mode and its decision, the totals, today, the
@@ -27,9 +30,9 @@ import { useCan } from 'src/access'
 
 const n = (v, d = 1) => (v === null || v === undefined ? '-' : Number(v).toFixed(d))
 const MODES = [
-  ['auto', 'Auto'],
-  ['manual', 'Manual'],
-  ['island', 'Island'],
+  ['auto', tr('Auto')],
+  ['manual', tr('Manual')],
+  ['island', tr('Island')],
 ]
 
 const Total = ({ label, value, unit = 'kW', className }) => (
@@ -54,7 +57,7 @@ const EnergyFieldPanel = ({ process }) => {
     setError(null)
     api.sendProcessCommand(process.id, action, params).catch((err) => setError(err.message))
   }
-  const groups = [...(m.groups ?? []), { key: null, name: 'Ungrouped' }]
+  const groups = [...(m.groups ?? []), { key: null, name: tr('Ungrouped') }]
   const itemsOf = (key) => [
     ...(m.pv ?? []).filter((x) => (x.group ?? null) === key).map((x) => ({ ...x, kind: 'PV' })),
     ...(m.wind ?? []).filter((x) => (x.group ?? null) === key).map((x) => ({ ...x, kind: 'Wind' })),
@@ -63,7 +66,7 @@ const EnergyFieldPanel = ({ process }) => {
   if (!m.totals)
     return (
       <div className="text-body-secondary small px-2 pb-3">
-        No state yet - the process hasn't run.
+        {tr("No state yet - the process hasn't run.")}
       </div>
     )
 
@@ -93,19 +96,19 @@ const EnergyFieldPanel = ({ process }) => {
               value={manualKw}
               onChange={(e) => setManualKw(e.target.value)}
             />
-            <span className="small">kW (+ discharge / - charge)</span>
+            <span className="small">{tr('kW (+ discharge / - charge)')}</span>
             <CButton
               size="sm"
               color="secondary"
               variant="outline"
               onClick={() => send('setManualPower', { kw: Number(manualKw) })}
             >
-              Set
+              {tr('Set')}
             </CButton>
           </span>
         )}
         <CFormCheck
-          label="Export allowed"
+          label={tr('Export allowed')}
           checked={m.strategy?.exportAllowed ?? true}
           disabled={!control}
           onChange={(e) => send('setExport', { allowed: e.target.checked })}
@@ -115,42 +118,53 @@ const EnergyFieldPanel = ({ process }) => {
 
       <CRow className="g-4 mb-3">
         <Total label="PV" value={n(t.pvKw)} />
-        <Total label="Wind" value={n(t.windKw)} />
-        <Total label="Consumption" value={n(t.loadKw)} />
+        <Total label={tr('Wind')} value={n(t.windKw)} />
+        <Total label={tr('Consumption')} value={n(t.loadKw)} />
         <Total
-          label={t.batteryKw >= 0 ? 'Battery - discharge' : 'Battery - charge'}
+          label={t.batteryKw >= 0 ? tr('Battery - discharge') : tr('Battery - charge')}
           value={n(Math.abs(t.batteryKw ?? 0))}
         />
         <Total
-          label={t.gridKw >= 0 ? 'Grid - import' : 'Grid - export'}
+          label={t.gridKw >= 0 ? tr('Grid - import') : tr('Grid - export')}
           value={n(Math.abs(t.gridKw ?? 0))}
           className={t.gridKw < 0 ? 'text-success' : undefined}
         />
-        <Total label="Batteries" value={n(t.socPct, 0)} unit="%" />
+        <Total label={tr('Batteries')} value={n(t.socPct, 0)} unit="%" />
         {t.curtailedKw > 0 && (
-          <Total label="Held back" value={n(t.curtailedKw)} className="text-warning" />
+          <Total label={tr('Held back')} value={n(t.curtailedKw)} className="text-warning" />
         )}
-        {t.shedKw > 0 && <Total label="Not covered" value={n(t.shedKw)} className="text-danger" />}
+        {t.shedKw > 0 && (
+          <Total label={tr('Not covered')} value={n(t.shedKw)} className="text-danger" />
+        )}
       </CRow>
       <div className="small text-body-secondary mb-3">
-        Today: PV {n(today.pvKwh)} kWh, wind {n(today.windKwh)} kWh, consumption {n(today.loadKwh)}{' '}
-        kWh, charged {n(today.chargeKwh)} / discharged {n(today.dischargeKwh)} kWh, import{' '}
-        {n(today.importKwh)} / export {n(today.exportKwh)} kWh, self-sufficiency{' '}
+        {tr('Today: PV')} {n(today.pvKwh)} {tr('kWh, wind')} {n(today.windKwh)}{' '}
+        {tr('kWh, consumption')} {n(today.loadKwh)} {tr('kWh, charged')} {n(today.chargeKwh)}{' '}
+        {tr('/ discharged')} {n(today.dischargeKwh)} {tr('kWh, import')} {n(today.importKwh)}{' '}
+        {tr('/ export')} {n(today.exportKwh)} {tr('kWh, self-sufficiency')}{' '}
         {n(today.selfSufficiencyPct, 0)} %
-        {m.price && `; price now ${n(m.price.buyCtKwh, 2)} / ${n(m.price.sellCtKwh, 2)} ct/kWh`}
+        {m.price &&
+          tr('; price now {{n}} / {{n2}} ct/kWh', {
+            n: n(m.price.buyCtKwh, 2),
+            n2: n(m.price.sellCtKwh, 2),
+          })}
         {m.weather &&
-          `; sun ${n(m.weather.radiationWm2, 0)} W/m², wind ${n(m.weather.windMs)} m/s, ${n(m.weather.temperatureC)} °C`}
+          tr('; sun {{n}} W/m², wind {{n2}} m/s, {{n22}} °C', {
+            n: n(m.weather.radiationWm2, 0),
+            n2: n(m.weather.windMs),
+            n22: n(m.weather.temperatureC),
+          })}
       </div>
 
-      <strong>Battery array</strong>
+      <strong>{tr('Battery array')}</strong>
       <CTable small responsive className="mb-3">
         <CTableHead>
           <CTableRow>
-            <CTableHeaderCell>Unit</CTableHeaderCell>
-            <CTableHeaderCell style={{ width: '30%' }}>State of charge</CTableHeaderCell>
-            <CTableHeaderCell>Power, kW</CTableHeaderCell>
+            <CTableHeaderCell>{tr('Unit')}</CTableHeaderCell>
+            <CTableHeaderCell style={{ width: '30%' }}>{tr('State of charge')}</CTableHeaderCell>
+            <CTableHeaderCell>{tr('Power, kW')}</CTableHeaderCell>
             <CTableHeaderCell>DC</CTableHeaderCell>
-            <CTableHeaderCell>On</CTableHeaderCell>
+            <CTableHeaderCell>{tr('On')}</CTableHeaderCell>
           </CTableRow>
         </CTableHead>
         <CTableBody>
@@ -167,17 +181,24 @@ const EnergyFieldPanel = ({ process }) => {
                 </CProgress>
               </CTableDataCell>
               <CTableDataCell>
-                {b.kw > 0 ? `${n(b.kw)} out` : b.kw < 0 ? `${n(-b.kw)} in` : '0'}
+                {b.kw > 0
+                  ? tr('{{n}} out', { n: n(b.kw) })
+                  : b.kw < 0
+                    ? tr('{{n}} in', { n: n(-b.kw) })
+                    : '0'}
               </CTableDataCell>
               <CTableDataCell>
-                {n(b.voltage, 0)} V, {n(b.currentA)} A
+                {n(b.voltage, 0)} {tr('V,')} {n(b.currentA)} A
               </CTableDataCell>
               <CTableDataCell>
                 <CFormCheck
                   checked={b.on}
                   disabled={!control}
                   onChange={(e) =>
-                    send('setEnabled', { nodeId: b.nodeId, enabled: e.target.checked })
+                    send('setEnabled', {
+                      nodeId: b.nodeId,
+                      enabled: e.target.checked,
+                    })
                   }
                 />
               </CTableDataCell>
@@ -194,7 +215,7 @@ const EnergyFieldPanel = ({ process }) => {
             <strong>{g.name}</strong>
             <span className="text-body-secondary small ms-2">
               PV {n(g.pvKw ?? items.filter((x) => x.kind === 'PV').reduce((a, x) => a + x.kw, 0))}{' '}
-              kW, wind{' '}
+              {tr('kW, wind')}{' '}
               {n(g.windKw ?? items.filter((x) => x.kind === 'Wind').reduce((a, x) => a + x.kw, 0))}{' '}
               kW
             </span>
@@ -211,7 +232,10 @@ const EnergyFieldPanel = ({ process }) => {
                       checked={x.on !== false && x.state !== 'off'}
                       disabled={!control}
                       onChange={(e) =>
-                        send('setEnabled', { nodeId: x.nodeId, enabled: e.target.checked })
+                        send('setEnabled', {
+                          nodeId: x.nodeId,
+                          enabled: e.target.checked,
+                        })
                       }
                     />
                   </div>
@@ -220,7 +244,7 @@ const EnergyFieldPanel = ({ process }) => {
                     {x.kind === 'Wind' && (
                       <span className="text-body-secondary">{n(x.rpm, 0)} rpm</span>
                     )}{' '}
-                    {x.state === 'storm' && <CBadge color="warning">storm</CBadge>}
+                    {x.state === 'storm' && <CBadge color="warning">{tr('storm')}</CBadge>}
                   </div>
                 </div>
               ))}

@@ -20,6 +20,7 @@ import { cilLockLocked, cilUser } from '@coreui/icons'
 import { api } from '../../../api/client'
 import { accountFromUrl } from '../../../accountLink'
 import { PROJECT_NAME } from '../../../projectName'
+import { t } from 'src/i18n'
 
 /**
  * Real login form (AGENTS.md section 13) - no self-registration link (the
@@ -56,6 +57,7 @@ const Login = () => {
         user: null,
         access: null,
         accessContexts: [],
+        accessContextName: null,
         accessContext: null,
         guest: false,
       })
@@ -75,15 +77,17 @@ const Login = () => {
             <CCard className="p-4">
               <CCardBody>
                 <CForm onSubmit={handleSubmit}>
-                  <h1>Login</h1>
-                  <p className="text-body-secondary">Sign in to {PROJECT_NAME}</p>
+                  <h1>{t('Login')}</h1>
+                  <p className="text-body-secondary">
+                    {t('Sign in to')} {PROJECT_NAME}
+                  </p>
                   {error && <CAlert color="danger">{error}</CAlert>}
                   <CInputGroup className="mb-3">
                     <CInputGroupText>
                       <CIcon icon={cilUser} />
                     </CInputGroupText>
                     <CFormInput
-                      placeholder="Username"
+                      placeholder={t('Username')}
                       autoComplete="username"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
@@ -96,7 +100,7 @@ const Login = () => {
                     </CInputGroupText>
                     <CFormInput
                       type="password"
-                      placeholder="Password"
+                      placeholder={t('Password')}
                       autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -104,11 +108,11 @@ const Login = () => {
                   </CInputGroup>
                   <div className="d-flex align-items-center gap-3 flex-wrap">
                     <CButton type="submit" color="primary" className="px-4" disabled={busy}>
-                      {busy ? <CSpinner size="sm" /> : 'Login'}
+                      {busy ? <CSpinner size="sm" /> : t('Login')}
                     </CButton>
                     {guestEnabled && (
                       <CButton color="link" className="px-0" onClick={() => navigate('/')}>
-                        Continue as a guest
+                        {t('Continue as a guest')}
                       </CButton>
                     )}
                   </div>

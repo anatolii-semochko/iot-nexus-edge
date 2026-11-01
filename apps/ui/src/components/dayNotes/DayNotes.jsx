@@ -19,6 +19,7 @@ import CIcon from '@coreui/icons-react'
 import { cilPencil, cilPlus, cilTrash } from '@coreui/icons'
 import { request } from 'src/api/client'
 import { useCan } from 'src/access'
+import { t as tr } from 'src/i18n'
 
 // A process's operational days' notes (the core's day_notes - api dayNotes.ts,
 // iot AGENTS_TO_DO.md 2026-10-25): what is known about today and the days
@@ -35,19 +36,19 @@ const AHEAD_DAYS = 14
 const KINDS = [
   [
     'outage',
-    'Grid outage',
-    'No grid in its window - the batteries charged ahead to carry the site',
+    tr('Grid outage'),
+    tr('No grid in its window - the batteries charged ahead to carry the site'),
   ],
-  ['holiday', 'Holiday', 'A public holiday - the consumption as a day off'],
-  ['day-off', 'Day off', 'Not a working day - the consumption as a day off'],
-  ['workday', 'Working day', 'A working weekend - the consumption as a working day'],
+  ['holiday', tr('Holiday'), tr('A public holiday - the consumption as a day off')],
+  ['day-off', tr('Day off'), tr('Not a working day - the consumption as a day off')],
+  ['workday', tr('Working day'), tr('A working weekend - the consumption as a working day')],
   [
     'maintenance',
-    'Maintenance',
-    'Its units out in its window - no generation from them, less battery power',
+    tr('Maintenance'),
+    tr('Its units out in its window - no generation from them, less battery power'),
   ],
-  ['room-closed', 'Room closed', 'A room not in use - its fan coil may rest'],
-  ['other', 'Other', 'For people and the AI'],
+  ['room-closed', tr('Room closed'), tr('A room not in use - its fan coil may rest')],
+  ['other', tr('Other'), tr('For people and the AI')],
 ]
 const KIND_LABEL = Object.fromEntries(KINDS.map(([k, l]) => [k, l]))
 const KIND_COLOR = {
@@ -60,7 +61,15 @@ const KIND_COLOR = {
   other: 'secondary',
 }
 const SOURCE_LABEL = { auto: 'calendar', ai: 'AI', user: 'person' }
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const WEEKDAYS = [
+  tr('Sunday'),
+  tr('Monday'),
+  tr('Tuesday'),
+  tr('Wednesday'),
+  tr('Thursday'),
+  tr('Friday'),
+  tr('Saturday'),
+]
 
 const plusDays = (day, n) =>
   new Date(Date.parse(`${day}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
@@ -74,9 +83,9 @@ const toLocalInput = (ms) => {
 }
 const dayLabel = (day, today) =>
   day === today
-    ? 'Today'
+    ? tr('Today')
     : day === plusDays(today, 1)
-      ? 'Tomorrow'
+      ? tr('Tomorrow')
       : new Date(`${day}T12:00:00Z`).toLocaleDateString(undefined, {
           weekday: 'short',
           day: 'numeric',
@@ -170,7 +179,7 @@ const NotesEditor = ({ processId, kinds, today, notes, units, onClose, onChanged
   return (
     <CModal visible onClose={onClose} size="lg" alignment="center">
       <CModalHeader>
-        <CModalTitle>Operational days</CModalTitle>
+        <CModalTitle>{tr('Operational days')}</CModalTitle>
       </CModalHeader>
       <CModalBody>
         <p className="small text-body-secondary">
@@ -181,7 +190,9 @@ const NotesEditor = ({ processId, kinds, today, notes, units, onClose, onChanged
           <CTableBody>
             {notes.length === 0 && (
               <CTableRow>
-                <CTableDataCell className="text-body-secondary">No notes ahead.</CTableDataCell>
+                <CTableDataCell className="text-body-secondary">
+                  {tr('No notes ahead.')}
+                </CTableDataCell>
               </CTableRow>
             )}
             {notes.map((n) => (
@@ -195,14 +206,16 @@ const NotesEditor = ({ processId, kinds, today, notes, units, onClose, onChanged
                   </div>
                 </CTableDataCell>
                 <CTableDataCell className="text-end text-nowrap">
-                  <CButton size="sm" variant="ghost" title="Edit" onClick={() => edit(n)}>
+                  <CButton size="sm" variant="ghost" title={tr('Edit')} onClick={() => edit(n)}>
                     <CIcon icon={cilPencil} />
                   </CButton>
                   <CButton
                     size="sm"
                     variant="ghost"
                     color="danger"
-                    title={n.auto ? 'Dismiss (the calendar will not add it again)' : 'Delete'}
+                    title={
+                      n.auto ? tr('Dismiss (the calendar will not add it again)') : tr('Delete')
+                    }
                     onClick={() => remove(n.id)}
                   >
                     <CIcon icon={cilTrash} />
@@ -213,17 +226,17 @@ const NotesEditor = ({ processId, kinds, today, notes, units, onClose, onChanged
           </CTableBody>
         </CTable>
 
-        <div className="fw-semibold mb-2">{editing ? 'Edit the note' : 'Add a note'}</div>
+        <div className="fw-semibold mb-2">{editing ? tr('Edit the note') : tr('Add a note')}</div>
         <div
           className="d-grid gap-2"
           style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}
         >
           <div>
-            <CFormLabel className="small mb-1">Day</CFormLabel>
+            <CFormLabel className="small mb-1">{tr('Day')}</CFormLabel>
             <CFormInput type="date" value={form.day} onChange={(e) => set('day', e.target.value)} />
           </div>
           <div>
-            <CFormLabel className="small mb-1">Kind</CFormLabel>
+            <CFormLabel className="small mb-1">{tr('Kind')}</CFormLabel>
             <CFormSelect value={form.kind} onChange={(e) => set('kind', e.target.value)}>
               {KINDS.filter(([k]) => kinds.includes(k)).map(([k, l, hint]) => (
                 <option key={k} value={k} title={hint}>
@@ -233,8 +246,8 @@ const NotesEditor = ({ processId, kinds, today, notes, units, onClose, onChanged
             </CFormSelect>
           </div>
           <div>
-            <CFormLabel className="small mb-1" title="Empty - the whole day">
-              From (optional)
+            <CFormLabel className="small mb-1" title={tr('Empty - the whole day')}>
+              {tr('From (optional)')}
             </CFormLabel>
             <CFormInput
               type="datetime-local"
@@ -243,8 +256,8 @@ const NotesEditor = ({ processId, kinds, today, notes, units, onClose, onChanged
             />
           </div>
           <div>
-            <CFormLabel className="small mb-1" title="Empty - the whole day">
-              To (optional)
+            <CFormLabel className="small mb-1" title={tr('Empty - the whole day')}>
+              {tr('To (optional)')}
             </CFormLabel>
             <CFormInput
               type="datetime-local"
@@ -253,16 +266,16 @@ const NotesEditor = ({ processId, kinds, today, notes, units, onClose, onChanged
             />
           </div>
         </div>
-        <CFormLabel className="small mb-1 mt-2">Description</CFormLabel>
+        <CFormLabel className="small mb-1 mt-2">{tr('Description')}</CFormLabel>
         <CFormInput
           value={form.text}
           maxLength={500}
-          placeholder="e.g. Grid works announced by the operator"
+          placeholder={tr('e.g. Grid works announced by the operator')}
           onChange={(e) => set('text', e.target.value)}
         />
         {(form.kind === 'maintenance' || form.kind === 'room-closed') && units.length > 0 && (
           <div className="mt-2">
-            <div className="small mb-1">Units out</div>
+            <div className="small mb-1">{tr('Units out')}</div>
             <div className="d-flex flex-wrap gap-3">
               {units.map((u) => (
                 <CFormCheck
@@ -295,11 +308,11 @@ const NotesEditor = ({ processId, kinds, today, notes, units, onClose, onChanged
               setForm({ ...EMPTY, day: today })
             }}
           >
-            Cancel the edit
+            {tr('Cancel the edit')}
           </CButton>
         )}
         <CButton color="primary" disabled={busy || !form.day} onClick={save}>
-          {editing ? 'Save' : 'Add'}
+          {editing ? tr('Save') : tr('Add')}
         </CButton>
       </CModalFooter>
     </CModal>
@@ -317,7 +330,7 @@ const DayNotes = ({
   kinds = ['other'],
   units = [],
   cardClass = 'card',
-  title = 'Notes',
+  title = tr('Notes'),
   dayType = false,
   summary = null,
 }) => {
@@ -350,7 +363,7 @@ const DayNotes = ({
           {dayType && (
             <span className="text-body-secondary ms-2">
               {WEEKDAYS[weekdayOf(today)]} -{' '}
-              {workingOf(today, notes) ? 'a working day' : 'a day off'}
+              {workingOf(today, notes) ? tr('a working day') : tr('a day off')}
             </span>
           )}
         </div>
@@ -358,25 +371,27 @@ const DayNotes = ({
           <CButton
             size="sm"
             variant="ghost"
-            title={`${title} - add, change`}
+            title={tr('{{title}} - add, change', { title })}
             onClick={() => setEditor(true)}
           >
             <CIcon icon={own.length || ahead.length ? cilPencil : cilPlus} className="me-1" />
-            Notes
+            {tr('Notes')}
           </CButton>
         )}
       </div>
       {summary && (
-        <div title={summary.source === 'ai' ? "The AI's day plan" : "The ledger's own (no AI)"}>
+        <div
+          title={summary.source === 'ai' ? tr("The AI's day plan") : tr("The ledger's own (no AI)")}
+        >
           <span
             className={`badge me-2 ${summary.source === 'ai' ? 'text-bg-primary' : 'text-bg-light border'}`}
           >
-            {summary.source === 'ai' ? 'AI' : 'Plan'}
+            {summary.source === 'ai' ? 'AI' : tr('Plan')}
           </span>
           {summary.text}
           {summary.conversationId && (
             <a className="ms-2 small" href={`#/ai-assistant/${summary.conversationId}`}>
-              details
+              {tr('details')}
             </a>
           )}
         </div>
@@ -387,7 +402,7 @@ const DayNotes = ({
         </div>
       ))}
       {!own.length && !summary && (
-        <div className="small text-body-secondary">Nothing noted for today.</div>
+        <div className="small text-body-secondary">{tr('Nothing noted for today.')}</div>
       )}
       {ahead.length > 0 && (
         <div className="small text-body-secondary d-flex flex-column gap-1">
@@ -397,7 +412,11 @@ const DayNotes = ({
               <Note n={n} units={units} />
             </div>
           ))}
-          {ahead.length > 4 && <div>+{ahead.length - 4} more</div>}
+          {ahead.length > 4 && (
+            <div>
+              +{ahead.length - 4} {tr('more')}
+            </div>
+          )}
         </div>
       )}
       {editor && (

@@ -23,6 +23,7 @@ import CIcon from '@coreui/icons-react'
 import { cilTrash } from '@coreui/icons'
 import { api } from '../../api/client'
 import { formatSmartDateTime } from '../../utils/format'
+import { t as tr } from 'src/i18n'
 
 /**
  * Service -> Config -> AI -> MCP access (Nexus Edge AI Assistant, stage 3;
@@ -53,7 +54,7 @@ const CopyField = ({ value, label }) => {
         onFocus={(e) => e.target.select()}
       />
       <CButton color="secondary" variant="outline" onClick={copy}>
-        {copied ? 'Copied' : 'Copy'}
+        {copied ? tr('Copied') : tr('Copy')}
       </CButton>
     </CInputGroup>
   )
@@ -113,29 +114,31 @@ const AiMcpAccess = () => {
         </CAlert>
       )}
       <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-        <span className="small text-body-secondary">Endpoint:</span>
+        <span className="small text-body-secondary">{tr('Endpoint:')}</span>
         <div style={{ minWidth: '18rem', flex: 1, maxWidth: '32rem' }}>
-          <CopyField value={endpoint()} label="MCP endpoint" />
+          <CopyField value={endpoint()} label={tr('MCP endpoint')} />
         </div>
         <CButton
           color="primary"
           size="sm"
           onClick={() => setForm({ name: '', instanceKey: 'nexus-edge' })}
         >
-          + Token
+          {tr('+ Token')}
         </CButton>
       </div>
       {tokens.length === 0 ? (
-        <div className="small text-body-secondary mb-2">No token - the MCP server is closed.</div>
+        <div className="small text-body-secondary mb-2">
+          {tr('No token - the MCP server is closed.')}
+        </div>
       ) : (
         <CTable small hover responsive className="align-middle">
           <CTableHead>
             <CTableRow>
-              <CTableHeaderCell>Name</CTableHeaderCell>
-              <CTableHeaderCell>Token</CTableHeaderCell>
-              <CTableHeaderCell>Acts as</CTableHeaderCell>
-              <CTableHeaderCell>Last used</CTableHeaderCell>
-              <CTableHeaderCell>Enabled</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Name')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Token')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Acts as')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Last used')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Enabled')}</CTableHeaderCell>
               <CTableHeaderCell />
             </CTableRow>
           </CTableHead>
@@ -146,13 +149,13 @@ const AiMcpAccess = () => {
                 <CTableDataCell className="font-monospace small">{t.prefix}...</CTableDataCell>
                 <CTableDataCell className="small">{nameOf(t.instanceKey)}</CTableDataCell>
                 <CTableDataCell className="small">
-                  {t.lastUsedAt ? formatSmartDateTime(t.lastUsedAt) : 'never'}
+                  {t.lastUsedAt ? formatSmartDateTime(t.lastUsedAt) : tr('never')}
                 </CTableDataCell>
                 <CTableDataCell>
                   <CFormSwitch
                     checked={t.enabled}
                     onChange={(e) => toggle(t, e.target.checked)}
-                    aria-label={`${t.name} - enabled`}
+                    aria-label={tr('{{name}} - enabled', { name: t.name })}
                   />
                 </CTableDataCell>
                 <CTableDataCell className="text-end">
@@ -161,8 +164,8 @@ const AiMcpAccess = () => {
                     color="danger"
                     variant="outline"
                     onClick={() => remove(t)}
-                    title="Revoke"
-                    aria-label={`Revoke ${t.name}`}
+                    title={tr('Revoke')}
+                    aria-label={tr('Revoke {{name}}', { name: t.name })}
                   >
                     <CIcon icon={cilTrash} />
                   </CButton>
@@ -176,17 +179,17 @@ const AiMcpAccess = () => {
       {form && (
         <CModal visible onClose={() => setForm(null)}>
           <CModalHeader>
-            <CModalTitle>New MCP token</CModalTitle>
+            <CModalTitle>{tr('New MCP token')}</CModalTitle>
           </CModalHeader>
           <CModalBody className="d-flex flex-column gap-3">
             <CFormInput
-              label="Name"
-              placeholder="e.g. Claude Code - my laptop"
+              label={tr('Name')}
+              placeholder={tr('e.g. Claude Code - my laptop')}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
             <CFormSelect
-              label="Acts as (its access levels apply)"
+              label={tr('Acts as (its access levels apply)')}
               value={form.instanceKey}
               onChange={(e) => setForm({ ...form, instanceKey: e.target.value })}
             >
@@ -204,10 +207,10 @@ const AiMcpAccess = () => {
               onClick={() => setForm(null)}
               disabled={busy}
             >
-              Cancel
+              {tr('Cancel')}
             </CButton>
             <CButton color="primary" onClick={create} disabled={busy || !form.name.trim()}>
-              {busy ? <CSpinner size="sm" /> : 'Create'}
+              {busy ? <CSpinner size="sm" /> : tr('Create')}
             </CButton>
           </CModalFooter>
         </CModal>
@@ -220,27 +223,27 @@ const AiMcpAccess = () => {
           </CModalHeader>
           <CModalBody className="d-flex flex-column gap-3">
             <CAlert color="warning" className="mb-0 small">
-              Shown once - copy it now. Only its hash is stored.
+              {tr('Shown once - copy it now. Only its hash is stored.')}
             </CAlert>
             <div>
-              <div className="small text-body-secondary mb-1">Token</div>
-              <CopyField value={created.token} label="MCP token" />
+              <div className="small text-body-secondary mb-1">{tr('Token')}</div>
+              <CopyField value={created.token} label={tr('MCP token')} />
             </div>
             <div>
-              <div className="small text-body-secondary mb-1">Claude Code</div>
+              <div className="small text-body-secondary mb-1">{tr('Claude Code')}</div>
               <CopyField
                 value={`claude mcp add --transport http nexus-edge ${endpoint()} --header "Authorization: Bearer ${created.token}"`}
-                label="Claude Code command"
+                label={tr('Claude Code command')}
               />
             </div>
             <div className="small text-body-secondary">
-              Any MCP client: Streamable HTTP at {endpoint()}, header Authorization: Bearer
+              {tr('Any MCP client: Streamable HTTP at')} {endpoint()}, header Authorization: Bearer
               &lt;token&gt;.
             </div>
           </CModalBody>
           <CModalFooter>
             <CButton color="primary" onClick={() => setCreated(null)}>
-              Done
+              {tr('Done')}
             </CButton>
           </CModalFooter>
         </CModal>

@@ -6,6 +6,7 @@ import { usePersistedState } from '../../hooks/usePersistedState'
 import GuestTab from './GuestTab'
 import RolesTab from './RolesTab'
 import UsersList from './UsersList'
+import { t as tr } from 'src/i18n'
 
 /**
  * Users (B1.2; roles without groups since 2026-10-27): the people, the roles (what a person acts as -
@@ -13,9 +14,9 @@ import UsersList from './UsersList'
  * loaded here once for all.
  */
 const TABS = [
-  { key: 'users', label: 'Users' },
-  { key: 'roles', label: 'Roles' },
-  { key: 'guest', label: 'Guest' },
+  { key: 'users', label: tr('Users') },
+  { key: 'roles', label: tr('Roles') },
+  { key: 'guest', label: tr('Guest') },
 ]
 
 const UsersPage = () => {

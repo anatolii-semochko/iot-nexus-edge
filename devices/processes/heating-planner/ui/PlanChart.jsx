@@ -1,6 +1,9 @@
 import React from 'react'
 import { useNow } from 'src/hooks/useNow'
 import { fmt, hhmm } from './usePlan'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('heating-planner')
 
 // The heating plan's chart (P2 - iot AGENTS_TO_DO.md 2026-10-29), over the horizon, in bands one under
 // another: the prices (buy, sell) with the Ledger's signal (hold off - grey, store - green) and the sun's
@@ -87,7 +90,9 @@ const PlanChart = ({ slots, mode, single }) => {
       viewBox={`0 0 ${W} ${H}`}
       width="100%"
       role="img"
-      aria-label="The heating plan: prices, the heat planned and needed, the units, the store, the rooms"
+      aria-label={tr(
+        'The heating plan: prices, the heat planned and needed, the units, the store, the rooms',
+      )}
     >
       {/* the Ledger's signal and the sun's surplus - behind the prices */}
       {runs((s) => (s.signal === 1 ? 'hold' : s.signal === 3 ? 'store' : null)).map((r) => (
@@ -99,7 +104,13 @@ const PlanChart = ({ slots, mode, single }) => {
           height={BANDS.price[1] - BANDS.price[0]}
           fill={r.v === 'hold' ? COLORS.holdOff : COLORS.storeSig}
         >
-          <title>{`${hhmm(r.t)}-${hhmm(r.end)}: the Energy Ledger's signal - ${r.v === 'hold' ? 'hold off (dear energy)' : 'store heat (cheap energy / the sun)'}`}</title>
+          <title>
+            {tr("{{hhmm}}-{{hhmm2}}: the Energy Ledger's signal - {{v2}}", {
+              hhmm: hhmm(r.t),
+              hhmm2: hhmm(r.end),
+              v2: r.v === 'hold' ? 'hold off (dear energy)' : 'store heat (cheap energy / the sun)',
+            })}
+          </title>
         </rect>
       ))}
       {runs((s) => (s.cheapKw > 0.5 ? 'sun' : null)).map((r) => (
@@ -111,7 +122,12 @@ const PlanChart = ({ slots, mode, single }) => {
           height={BANDS.heat[1] - BANDS.heat[0]}
           fill={COLORS.sun}
         >
-          <title>{`${hhmm(r.t)}-${hhmm(r.end)}: the sun's surplus (the Ledger would export it) - the heat at the sale price`}</title>
+          <title>
+            {tr(
+              "{{hhmm}}-{{hhmm2}}: the sun's surplus (the Ledger would export it) - the heat at the sale price",
+              { hhmm: hhmm(r.t), hhmm2: hhmm(r.end) },
+            )}
+          </title>
         </rect>
       ))}
       {hours
@@ -128,13 +144,15 @@ const PlanChart = ({ slots, mode, single }) => {
             />
             <text x={x(t) + 2} y={H - 8} fontSize="11" fill="var(--cui-secondary-color)">
               {new Date(t).getHours() === 0
-                ? new Date(t).toLocaleDateString(undefined, { weekday: 'short' })
+                ? new Date(t).toLocaleDateString(undefined, {
+                    weekday: 'short',
+                  })
                 : hhmm(t)}
             </text>
           </g>
         ))}
 
-      <Label y={BANDS.price[0]}>ct</Label>
+      <Label y={BANDS.price[0]}>{tr('ct')}</Label>
       <Tick y={BANDS.price[0] + 10}>{Math.round(pHi)}</Tick>
       <polyline
         points={step((s) => s.buyCtKwh, BANDS.price, pLo, pHi)}
@@ -142,7 +160,7 @@ const PlanChart = ({ slots, mode, single }) => {
         stroke={COLORS.buy}
         strokeWidth="1.8"
       >
-        <title>The purchase price, ct/kWh</title>
+        <title>{tr('The purchase price, ct/kWh')}</title>
       </polyline>
       <polyline
         points={step((s) => s.sellCtKwh ?? 0, BANDS.price, pLo, pHi)}
@@ -151,7 +169,7 @@ const PlanChart = ({ slots, mode, single }) => {
         strokeWidth="1.4"
         strokeDasharray="4 3"
       >
-        <title>The sale price, ct/kWh - the sun's surplus is worth this</title>
+        <title>{tr("The sale price, ct/kWh - the sun's surplus is worth this")}</title>
       </polyline>
 
       <Label y={BANDS.heat[0]}>kW</Label>
@@ -174,7 +192,19 @@ const PlanChart = ({ slots, mode, single }) => {
             fill={heatColor}
             opacity="0.8"
           >
-            <title>{`${hhmm(s.t)}: ${cooling ? 'cold' : 'heat'} ${fmt(s.heatKw)} kW - ${s.units} unit(s), the need ${fmt(s.needKw)} kW, ${fmt(s.buyCtKwh)} ct/kWh`}</title>
+            <title>
+              {tr(
+                '{{hhmm}}: {{v1}} {{fmt}} kW - {{units}} unit(s), the need {{fmt2}} kW, {{fmt22}} ct/kWh',
+                {
+                  hhmm: hhmm(s.t),
+                  v1: cooling ? 'cold' : 'heat',
+                  fmt: fmt(s.heatKw),
+                  units: s.units,
+                  fmt2: fmt(s.needKw),
+                  fmt22: fmt(s.buyCtKwh),
+                },
+              )}
+            </title>
           </rect>
         ) : null,
       )}
@@ -185,10 +215,14 @@ const PlanChart = ({ slots, mode, single }) => {
         strokeWidth="1.6"
         strokeDasharray="5 3"
       >
-        <title>{`The rooms' need - the ${cooling ? 'cold' : 'heat'} they lose now, kW`}</title>
+        <title>
+          {tr("The rooms' need - the {{v0}} they lose now, kW", {
+            v0: cooling ? 'cold' : 'heat',
+          })}
+        </title>
       </polyline>
 
-      <Label y={BANDS.units[0] - 4}>units</Label>
+      <Label y={BANDS.units[0] - 4}>{tr('units')}</Label>
       <Tick y={BANDS.units[0] + 8}>{uHi}</Tick>
       <polyline
         points={step((s) => s.units, BANDS.units, 0, uHi)}
@@ -196,7 +230,7 @@ const PlanChart = ({ slots, mode, single }) => {
         stroke={COLORS.units}
         strokeWidth="1.6"
       >
-        <title>The heat pumps running</title>
+        <title>{tr('The heat pumps running')}</title>
       </polyline>
 
       <Label y={BANDS.store[0]}>{single ? '°C' : 'kWh'}</Label>
@@ -210,18 +244,25 @@ const PlanChart = ({ slots, mode, single }) => {
       >
         <title>
           {single
-            ? "The tanks' average temperature at each slot's end, °C"
-            : "The store at each slot's end - all the systems' tanks and the rooms' margin, kWh"}
+            ? tr("The tanks' average temperature at each slot's end, °C")
+            : tr(
+                "The store at each slot's end - all the systems' tanks and the rooms' margin, kWh",
+              )}
         </title>
       </polyline>
 
-      <Label y={BANDS.rooms[0] - 2}>rooms</Label>
+      <Label y={BANDS.rooms[0] - 2}>{tr('rooms')}</Label>
       <polygon
         points={`${x(t0)},${BANDS.rooms[0]} ${step((s) => s.roomOffsetK ?? 0, [BANDS.rooms[0], BANDS.rooms[0] + (BANDS.rooms[1] - BANDS.rooms[0])], offHi, 0)} ${x(t1)},${BANDS.rooms[0]}`}
         fill={COLORS.rooms}
         opacity="0.45"
       >
-        <title>{`The rooms off their setpoint (${cooling ? 'above' : 'below'} it) - the comfort margin in use, K (at most ${fmt(offHi, 1)})`}</title>
+        <title>
+          {tr(
+            'The rooms off their setpoint ({{v0}} it) - the comfort margin in use, K (at most {{fmt}})',
+            { v0: cooling ? 'above' : 'below', fmt: fmt(offHi, 1) },
+          )}
+        </title>
       </polygon>
       <line
         x1={LEFT}
@@ -246,16 +287,16 @@ const PlanChart = ({ slots, mode, single }) => {
 }
 
 export const LEGEND = [
-  ['buy', COLORS.buy, 'buy price'],
-  ['sell', COLORS.sell, 'sale price'],
-  ['heat', COLORS.heat, 'heat planned'],
-  ['need', COLORS.need, "the rooms' need"],
+  ['buy', COLORS.buy, tr('buy price')],
+  ['sell', COLORS.sell, tr('sale price')],
+  ['heat', COLORS.heat, tr('heat planned')],
+  ['need', COLORS.need, tr("the rooms' need")],
   ['units', COLORS.units, 'units'],
   ['store', COLORS.store, 'store'],
-  ['rooms', COLORS.rooms, 'rooms off setpoint'],
-  ['hold', COLORS.holdOff, 'hold off'],
-  ['storeSig', COLORS.storeSig, 'store heat'],
-  ['sun', COLORS.sun, "the sun's surplus"],
+  ['rooms', COLORS.rooms, tr('rooms off setpoint')],
+  ['hold', COLORS.holdOff, tr('hold off')],
+  ['storeSig', COLORS.storeSig, tr('store heat')],
+  ['sun', COLORS.sun, tr("the sun's surplus")],
 ]
 
 export default PlanChart

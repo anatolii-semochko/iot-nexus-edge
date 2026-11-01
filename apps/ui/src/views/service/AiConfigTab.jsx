@@ -27,6 +27,7 @@ import { cilLockLocked, cilPencil, cilTrash } from '@coreui/icons'
 import { api } from '../../api/client'
 import AiInstances from './AiInstances'
 import AiMcpAccess from './AiMcpAccess'
+import { t as tr } from 'src/i18n'
 
 /**
  * Service -> Config -> AI (Nexus Edge AI Assistant, stage 1 - nexus-edge-
@@ -42,21 +43,21 @@ import AiMcpAccess from './AiMcpAccess'
 const TYPES = [
   {
     value: 'openai',
-    label: 'OpenAI',
+    label: tr('OpenAI'),
     endpoint: 'https://api.openai.com/v1 (default)',
     model: 'gpt-4.1-mini',
   },
   {
     value: 'anthropic',
-    label: 'Anthropic (Claude)',
+    label: tr('Anthropic (Claude)'),
     endpoint: 'https://api.anthropic.com (default)',
     model: 'claude-sonnet-5-5',
   },
   {
     value: 'openai-compatible',
-    label: 'OpenAI-compatible (a local model: Ollama, LM Studio, vLLM)',
-    endpoint: 'e.g. http://ollama:11434/v1',
-    model: 'e.g. llama3.1',
+    label: tr('OpenAI-compatible (a local model: Ollama, LM Studio, vLLM)'),
+    endpoint: tr('e.g. http://ollama:11434/v1'),
+    model: tr('e.g. llama3.1'),
   },
 ]
 const typeOf = (value) => TYPES.find((t) => t.value === value) ?? TYPES[0]
@@ -88,16 +89,16 @@ const KeyField = ({ value, onChange, hasKey, removeKey, onRemove }) => {
           type={shown ? 'text' : 'password'}
           autoComplete="new-password"
           value={value}
-          placeholder={hasKey && !removeKey ? 'Set - leave empty to keep it' : 'Not set'}
+          placeholder={hasKey && !removeKey ? tr('Set - leave empty to keep it') : tr('Not set')}
           onChange={(e) => onChange(e.target.value)}
-          aria-label="API key"
+          aria-label={tr('API key')}
         />
         <CButton
           color="secondary"
           variant="outline"
           onClick={() => setShown((s) => !s)}
-          title={shown ? 'Hide what is typed' : 'Show what is typed'}
-          aria-label={shown ? 'Hide the key being typed' : 'Show the key being typed'}
+          title={shown ? tr('Hide what is typed') : tr('Show what is typed')}
+          aria-label={shown ? tr('Hide the key being typed') : tr('Show the key being typed')}
         >
           <svg
             viewBox="0 0 24 24"
@@ -117,7 +118,7 @@ const KeyField = ({ value, onChange, hasKey, removeKey, onRemove }) => {
       {hasKey && (
         <CFormSwitch
           className="mt-1 small"
-          label="Remove the stored key"
+          label={tr('Remove the stored key')}
           checked={removeKey}
           onChange={(e) => onRemove(e.target.checked)}
         />
@@ -161,16 +162,16 @@ const ConnectionModal = ({ form, setForm, onClose, onSaved, secretsAvailable }) 
   return (
     <CModal visible onClose={onClose} size="lg">
       <CModalHeader>
-        <CModalTitle>{form.id ? 'Edit connection' : 'New connection'}</CModalTitle>
+        <CModalTitle>{form.id ? tr('Edit connection') : tr('New connection')}</CModalTitle>
       </CModalHeader>
       <CModalBody className="d-flex flex-column gap-3">
         {error && <CAlert color="danger">{error}</CAlert>}
         <div>
-          <CFormLabel>Name</CFormLabel>
+          <CFormLabel>{tr('Name')}</CFormLabel>
           <CFormInput value={form.name} onChange={(e) => set({ name: e.target.value })} />
         </div>
         <div>
-          <CFormLabel>Type</CFormLabel>
+          <CFormLabel>{tr('Type')}</CFormLabel>
           <CFormSelect value={form.type} onChange={(e) => set({ type: e.target.value })}>
             {TYPES.map((t) => (
               <option key={t.value} value={t.value}>
@@ -180,7 +181,7 @@ const ConnectionModal = ({ form, setForm, onClose, onSaved, secretsAvailable }) 
           </CFormSelect>
         </div>
         <div>
-          <CFormLabel>Endpoint</CFormLabel>
+          <CFormLabel>{tr('Endpoint')}</CFormLabel>
           <CFormInput
             value={form.endpoint}
             placeholder={type.endpoint}
@@ -188,7 +189,7 @@ const ConnectionModal = ({ form, setForm, onClose, onSaved, secretsAvailable }) 
           />
         </div>
         <div>
-          <CFormLabel>Model</CFormLabel>
+          <CFormLabel>{tr('Model')}</CFormLabel>
           <CFormInput
             value={form.model}
             placeholder={type.model}
@@ -196,7 +197,7 @@ const ConnectionModal = ({ form, setForm, onClose, onSaved, secretsAvailable }) 
           />
         </div>
         <div>
-          <CFormLabel>API key</CFormLabel>
+          <CFormLabel>{tr('API key')}</CFormLabel>
           {secretsAvailable ? (
             <KeyField
               value={form.apiKey}
@@ -213,34 +214,34 @@ const ConnectionModal = ({ form, setForm, onClose, onSaved, secretsAvailable }) 
         </div>
         <div className="d-flex flex-wrap gap-3">
           <div style={{ minWidth: '14rem', flex: 1 }}>
-            <CFormLabel>Answer limit, tokens</CFormLabel>
+            <CFormLabel>{tr('Answer limit, tokens')}</CFormLabel>
             <CFormInput
               type="number"
               min={1}
               value={form.maxOutputTokens}
-              placeholder="The server's default"
+              placeholder={tr("The server's default")}
               onChange={(e) => set({ maxOutputTokens: e.target.value })}
             />
           </div>
           <div style={{ minWidth: '14rem', flex: 1 }}>
-            <CFormLabel>Tokens a day</CFormLabel>
+            <CFormLabel>{tr('Tokens a day')}</CFormLabel>
             <CFormInput
               type="number"
               min={1}
               value={form.dailyTokenLimit}
-              placeholder="No limit"
+              placeholder={tr('No limit')}
               onChange={(e) => set({ dailyTokenLimit: e.target.value })}
             />
           </div>
         </div>
         <div className="d-flex flex-wrap gap-4">
           <CFormSwitch
-            label="Default connection"
+            label={tr('Default connection')}
             checked={form.isDefault}
             onChange={(e) => set({ isDefault: e.target.checked })}
           />
           <CFormSwitch
-            label="Enabled"
+            label={tr('Enabled')}
             checked={form.enabled}
             onChange={(e) => set({ enabled: e.target.checked })}
           />
@@ -248,10 +249,10 @@ const ConnectionModal = ({ form, setForm, onClose, onSaved, secretsAvailable }) 
       </CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="outline" onClick={onClose} disabled={busy}>
-          Cancel
+          {tr('Cancel')}
         </CButton>
         <CButton color="primary" onClick={save} disabled={busy}>
-          {busy ? <CSpinner size="sm" /> : 'Save'}
+          {busy ? <CSpinner size="sm" /> : tr('Save')}
         </CButton>
       </CModalFooter>
     </CModal>
@@ -305,13 +306,13 @@ const AiConfigTab = () => {
         </CAlert>
       )}
       <div className="d-flex align-items-center justify-content-between mb-2">
-        <h5 className="mb-0">Connections</h5>
+        <h5 className="mb-0">{tr('Connections')}</h5>
         <CButton
           color="primary"
           size="sm"
           onClick={() => setForm({ ...EMPTY, isDefault: data.connections.length === 0 })}
         >
-          + Connection
+          {tr('+ Connection')}
         </CButton>
       </div>
       {!data.secretsAvailable && (
@@ -321,18 +322,18 @@ const AiConfigTab = () => {
       )}
       {data.connections.length === 0 ? (
         <CAlert color="info">
-          No connection yet - the AI features are off until one is added.
+          {tr('No connection yet - the AI features are off until one is added.')}
         </CAlert>
       ) : (
         <CTable small hover responsive className="align-middle">
           <CTableHead>
             <CTableRow>
-              <CTableHeaderCell>Name</CTableHeaderCell>
-              <CTableHeaderCell>Type</CTableHeaderCell>
-              <CTableHeaderCell>Model</CTableHeaderCell>
-              <CTableHeaderCell>Key</CTableHeaderCell>
-              <CTableHeaderCell>Limits</CTableHeaderCell>
-              <CTableHeaderCell className="text-end">Actions</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Name')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Type')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Model')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Key')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Limits')}</CTableHeaderCell>
+              <CTableHeaderCell className="text-end">{tr('Actions')}</CTableHeaderCell>
             </CTableRow>
           </CTableHead>
           <CTableBody>
@@ -345,12 +346,12 @@ const AiConfigTab = () => {
                       <span className="fw-semibold">{c.name}</span>
                       {c.isDefault && (
                         <CBadge color="primary" className="ms-2">
-                          Default
+                          {tr('Default')}
                         </CBadge>
                       )}
                       {!c.enabled && (
                         <CBadge color="secondary" className="ms-2">
-                          Off
+                          {tr('Off')}
                         </CBadge>
                       )}
                       {c.endpoint && <div className="small text-body-secondary">{c.endpoint}</div>}
@@ -359,17 +360,21 @@ const AiConfigTab = () => {
                     <CTableDataCell className="font-monospace small">{c.model}</CTableDataCell>
                     <CTableDataCell>
                       {c.hasKey ? (
-                        <span className="small" title="Stored encrypted, never shown">
+                        <span className="small" title={tr('Stored encrypted, never shown')}>
                           <CIcon icon={cilLockLocked} size="sm" className="me-1" />
-                          set
+                          {tr('set')}
                         </span>
                       ) : (
                         <span className="small text-body-secondary">-</span>
                       )}
                     </CTableDataCell>
                     <CTableDataCell className="small text-body-secondary">
-                      {c.maxOutputTokens ? `${c.maxOutputTokens} / answer` : 'default / answer'}
-                      {c.dailyTokenLimit ? `, ${c.dailyTokenLimit} / day` : ''}
+                      {c.maxOutputTokens
+                        ? tr('{{maxOutputTokens}} / answer', { maxOutputTokens: c.maxOutputTokens })
+                        : tr('default / answer')}
+                      {c.dailyTokenLimit
+                        ? tr(', {{dailyTokenLimit}} / day', { dailyTokenLimit: c.dailyTokenLimit })
+                        : ''}
                     </CTableDataCell>
                     <CTableDataCell className="text-end">
                       <CButtonGroup size="sm">
@@ -379,14 +384,14 @@ const AiConfigTab = () => {
                           onClick={() => test(c)}
                           disabled={t?.busy || !c.enabled}
                         >
-                          {t?.busy ? <CSpinner size="sm" /> : 'Test'}
+                          {t?.busy ? <CSpinner size="sm" /> : tr('Test')}
                         </CButton>
                         <CButton
                           color="secondary"
                           variant="outline"
                           onClick={() => edit(c)}
-                          title="Edit"
-                          aria-label={`Edit ${c.name}`}
+                          title={tr('Edit')}
+                          aria-label={tr('Edit {{name}}', { name: c.name })}
                         >
                           <CIcon icon={cilPencil} />
                         </CButton>
@@ -394,8 +399,8 @@ const AiConfigTab = () => {
                           color="danger"
                           variant="outline"
                           onClick={() => remove(c)}
-                          title="Delete"
-                          aria-label={`Delete ${c.name}`}
+                          title={tr('Delete')}
+                          aria-label={tr('Delete {{name}}', { name: c.name })}
                         >
                           <CIcon icon={cilTrash} />
                         </CButton>
@@ -408,7 +413,10 @@ const AiConfigTab = () => {
                         {t.ok ? (
                           <span className="text-success">
                             Answered &quot;{t.text}&quot; ({t.model}, {t.latencyMs} ms
-                            {t.usage ? `, ${t.usage.totalTokens} tokens` : ''})
+                            {t.usage
+                              ? tr(', {{totalTokens}} tokens', { totalTokens: t.usage.totalTokens })
+                              : ''}
+                            )
                           </span>
                         ) : (
                           <span className="text-danger">{t.error}</span>
@@ -422,13 +430,14 @@ const AiConfigTab = () => {
           </CTableBody>
         </CTable>
       )}
-      <h5 className="mt-4 mb-2">Instances</h5>
+      <h5 className="mt-4 mb-2">{tr('Instances')}</h5>
       <div className="small text-body-secondary mb-2">
-        Where the assistant works and what it may do: Confirm - a person accepts each change; Auto -
-        done by the ai-agent account.
+        {tr(
+          'Where the assistant works and what it may do: Confirm - a person accepts each change; Auto - done by the ai-agent account.',
+        )}
       </div>
       <AiInstances connections={data.connections} />
-      <h5 className="mt-4 mb-2">MCP access</h5>
+      <h5 className="mt-4 mb-2">{tr('MCP access')}</h5>
       <div className="small text-body-secondary mb-2">
         External AI clients (Claude Code, Claude Desktop, other agents) read this system through the
         assistant&apos;s tools over the Model Context Protocol - each token with the access levels

@@ -18,6 +18,9 @@ import KeyValue from 'src/components/KeyValue'
 import StatTile from 'src/components/StatTile'
 import { fmt } from './useFieldData'
 import { LEVEL_COLOR, priceHoursOf, priceLevel, quartersOf } from './priceLevels'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('energy-field')
 
 // The Energy Ledger's block (the centre of the Energy scene; the user, 2026-10-30 - the same block in the
 // energy's overview too): the mode (Auto / Manual / Island), today's self-sufficiency, the plan's
@@ -42,12 +45,12 @@ const CSS = `
 `
 
 const FOR_CHOICES = [
-  ['', 'Until changed'],
-  ['20', '20 minutes'],
-  ['60', '1 hour'],
-  ['240', '4 hours'],
-  ['eod', 'Until the end of the day'],
-  ['other', 'Other...'],
+  ['', t('Until changed')],
+  ['20', t('20 minutes')],
+  ['60', t('1 hour')],
+  ['240', t('4 hours')],
+  ['eod', t('Until the end of the day')],
+  ['other', t('Other...')],
 ]
 const durationText = (min) => (min < 60 ? `${Math.round(min)} min` : `${+(min / 60).toFixed(1)} h`)
 
@@ -82,16 +85,16 @@ const ChangeModal = ({ label, canAdapt, onCancel, onConfirm }) => {
       </CModalHeader>
       <CModalBody className="d-flex flex-column gap-3">
         <div>
-          <CFormLabel className="small mb-1">Why (optional)</CFormLabel>
+          <CFormLabel className="small mb-1">{t('Why (optional)')}</CFormLabel>
           <CFormInput
             value={reason}
             maxLength={200}
-            placeholder="e.g. a storm coming, repairs on the inverter"
+            placeholder={t('e.g. a storm coming, repairs on the inverter')}
             onChange={(e) => setReason(e.target.value)}
           />
         </div>
         <div>
-          <CFormLabel className="small mb-1">For</CFormLabel>
+          <CFormLabel className="small mb-1">{t('For')}</CFormLabel>
           <div className="d-flex gap-2 flex-wrap">
             <CFormSelect
               value={choice}
@@ -111,24 +114,24 @@ const ChangeModal = ({ label, canAdapt, onCancel, onConfirm }) => {
                   min={1}
                   value={amount}
                   style={{ width: 90 }}
-                  aria-label="How long"
+                  aria-label={t('How long')}
                   onChange={(e) => setAmount(e.target.value)}
                 />
                 <CFormSelect
                   value={unit}
                   style={{ width: 'auto' }}
-                  aria-label="The unit"
+                  aria-label={t('The unit')}
                   onChange={(e) => setUnit(e.target.value)}
                 >
                   <option value="min">min</option>
-                  <option value="h">hours</option>
+                  <option value="h">{t('hours')}</option>
                 </CFormSelect>
               </>
             )}
           </div>
           {minutes && (
             <div className="small text-body-secondary mt-1">
-              Put back by itself in {durationText(minutes)}.
+              {t('Put back by itself in')} {durationText(minutes)}.
             </div>
           )}
         </div>
@@ -141,7 +144,7 @@ const ChangeModal = ({ label, canAdapt, onCancel, onConfirm }) => {
       </CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="ghost" onClick={onCancel}>
-          Cancel
+          {t('Cancel')}
         </CButton>
         <CButton
           color={canAdapt ? 'secondary' : 'primary'}
@@ -149,11 +152,11 @@ const ChangeModal = ({ label, canAdapt, onCancel, onConfirm }) => {
           disabled={invalid}
           onClick={() => onConfirm(false, extra)}
         >
-          {canAdapt ? 'Only switch' : 'Switch'}
+          {canAdapt ? t('Only switch') : t('Switch')}
         </CButton>
         {canAdapt && (
           <CButton color="primary" disabled={invalid} onClick={() => onConfirm(true, extra)}>
-            Adapt the plan
+            {t('Adapt the plan')}
           </CButton>
         )}
       </CModalFooter>
@@ -166,7 +169,10 @@ const Key = ({ color, outline, children, title }) => (
   <span title={title}>
     <span
       className="ef-ledger-key"
-      style={{ background: color, outline: outline ? '1px solid var(--ef-ink)' : undefined }}
+      style={{
+        background: color,
+        outline: outline ? '1px solid var(--ef-ink)' : undefined,
+      }}
     />
     {children}
   </span>
@@ -197,7 +203,10 @@ const LedgerBlock = ({ process, data }) => {
   // `apply(adapt, { reason, forMinutes })`; `noteOn` - the process whose day note tells why / for how long
   const ask = (label, apply, noteOn) => setPending({ label, apply, noteOn })
   const confirmChange = (adapt, { reason, forMinutes }) => {
-    pending.apply(adapt, { ...(reason ? { reason } : {}), ...(forMinutes ? { forMinutes } : {}) })
+    pending.apply(adapt, {
+      ...(reason ? { reason } : {}),
+      ...(forMinutes ? { forMinutes } : {}),
+    })
     // the reason and the time - a day note of the process (the AI sees it), the window - the change's time
     if ((reason || forMinutes) && pending.noteOn) {
       const at = new Date()
@@ -222,9 +231,13 @@ const LedgerBlock = ({ process, data }) => {
       return setReserveDraft(null)
     }
     ask(
-      `Outage reserve ${pct} %`,
+      t('Outage reserve {{pct}} %', { pct }),
       (adapt, extra) => {
-        sendLedger('setOperating', { reservePct: pct, replan: adapt, ...extra })
+        sendLedger('setOperating', {
+          reservePct: pct,
+          replan: adapt,
+          ...extra,
+        })
         setReserveDraft(null)
       },
       ledgerId,
@@ -246,7 +259,10 @@ const LedgerBlock = ({ process, data }) => {
     hours.map((p) => p.sell),
     true,
   )
-  const selfLevels = { ...SELF_LEVELS, ...(process.config?.selfSufficiencyLevels ?? {}) }
+  const selfLevels = {
+    ...SELF_LEVELS,
+    ...(process.config?.selfSufficiencyLevels ?? {}),
+  }
   const self = today.selfSufficiencyPct
   const selfColor =
     self == null
@@ -263,14 +279,14 @@ const LedgerBlock = ({ process, data }) => {
     <section className="ef-ledger">
       <style>{CSS}</style>
       <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
-        <div className="btn-group" role="group" aria-label="Mode">
+        <div className="btn-group" role="group" aria-label={t('Mode')}>
           {[
-            ['auto', 'Auto', 'The batteries follow the prices and the surplus by themselves'],
-            ['manual', 'Manual', 'The batteries at the power you set'],
+            ['auto', t('Auto'), t('The batteries follow the prices and the surplus by themselves')],
+            ['manual', t('Manual'), t('The batteries at the power you set')],
             [
               'island',
-              'Island',
-              'Off the grid - the site lives on its own generation and batteries',
+              t('Island'),
+              t('Off the grid - the site lives on its own generation and batteries'),
             ],
           ].map(([key, label, hint]) => (
             <CButton
@@ -278,7 +294,7 @@ const LedgerBlock = ({ process, data }) => {
               color="primary"
               variant={m.mode === key ? undefined : 'outline'}
               disabled={!control}
-              title={control ? hint : `${hint} - you may only watch`}
+              title={control ? hint : t('{{hint}} - you may only watch', { hint })}
               aria-pressed={m.mode === key}
               onClick={() => send('setMode', { mode: key })}
             >
@@ -288,9 +304,12 @@ const LedgerBlock = ({ process, data }) => {
         </div>
         <span
           className="small ef-muted"
-          title={`The share of today's consumption covered by our own generation - good from ${selfLevels.good} %, fair from ${selfLevels.fair} %`}
+          title={t(
+            "The share of today's consumption covered by our own generation - good from {{good}} %, fair from {{fair}} %",
+            { good: selfLevels.good, fair: selfLevels.fair },
+          )}
         >
-          Self-sufficiency today:{' '}
+          {t('Self-sufficiency today:')}{' '}
           <KeyValue
             value={fmt(self, 0)}
             unit="%"
@@ -303,19 +322,26 @@ const LedgerBlock = ({ process, data }) => {
       {hours.length > 0 && buyQ && (
         <div className="mb-2">
           <div className="d-flex justify-content-between small ef-muted">
-            <span>Prices, the next 24 hours</span>
+            <span>{t('Prices, the next 24 hours')}</span>
             <span>ct/kWh</span>
           </div>
           <div
             className="d-flex align-items-end"
             style={{ gap: 2, height: BAR_H + 2 }}
             role="img"
-            aria-label="Buy prices by hour"
+            aria-label={t('Buy prices by hour')}
           >
             {hours.map((p) => (
               <div
                 key={p.t}
-                title={`${new Date(p.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - buy ${fmt(p.buy, 1)}, sell ${fmt(p.sell, 1)} ct/kWh`}
+                title={t('{{toLocaleTimeString}} - buy {{fmt}}, sell {{fmt2}} ct/kWh', {
+                  toLocaleTimeString: new Date(p.t).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                  fmt: fmt(p.buy, 1),
+                  fmt2: fmt(p.sell, 1),
+                })}
                 style={{
                   flex: '1 1 0',
                   height: `${Math.max(3, ((p.buy ?? 0) / maxCt) * BAR_H)}px`,
@@ -335,30 +361,32 @@ const LedgerBlock = ({ process, data }) => {
           <div className="d-flex gap-3 small ef-muted flex-wrap mt-1">
             <Key
               color="var(--ef-batt)"
-              title="The cheapest quarter of the hours - the batteries charge"
+              title={t('The cheapest quarter of the hours - the batteries charge')}
             >
-              cheap - charge
+              {t('cheap - charge')}
             </Key>
             <Key
               color="var(--ef-panel-grid)"
-              title="The hours between the cheap and the dear quarter"
+              title={t('The hours between the cheap and the dear quarter')}
             >
-              middle
+              {t('middle')}
             </Key>
             <Key
               color="var(--ef-cons)"
-              title="The dearest quarter of the hours - the batteries give, the surplus sold"
+              title={t('The dearest quarter of the hours - the batteries give, the surplus sold')}
             >
-              dear - sell
+              {t('dear - sell')}
             </Key>
-            <Key color="var(--ef-grid)" outline title="The hour now">
-              now
+            <Key color="var(--ef-grid)" outline title={t('The hour now')}>
+              {t('now')}
             </Key>
             <span
               className="ms-auto"
-              title="The price now - buy / sell, ct/kWh: green good for us, yellow middle, red not (as the grid's gauges)"
+              title={t(
+                "The price now - buy / sell, ct/kWh: green good for us, yellow middle, red not (as the grid's gauges)",
+              )}
             >
-              now{' '}
+              {t('now')}{' '}
               <KeyValue value={fmt(gridMetrics?.buyCtKwh, 1)} className={levelClass(buyLevel)} /> /{' '}
               <KeyValue value={fmt(gridMetrics?.sellCtKwh, 1)} className={levelClass(sellLevel)} />
             </span>
@@ -367,29 +395,32 @@ const LedgerBlock = ({ process, data }) => {
       )}
       <div
         className="d-grid mb-2"
-        style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(84px, 1fr))', gap: 8 }}
+        style={{
+          gridTemplateColumns: 'repeat(auto-fit, minmax(84px, 1fr))',
+          gap: 8,
+        }}
       >
-        <StatTile label="Bought">
+        <StatTile label={t('Bought')}>
           <KeyValue value={fmt(today.importKwh, 0)} unit="kWh" color="var(--ef-cost)" />
         </StatTile>
-        <StatTile label="Sold">
+        <StatTile label={t('Sold')}>
           <KeyValue value={fmt(today.exportKwh, 0)} unit="kWh" color="var(--ef-gain)" />
         </StatTile>
-        <StatTile label="Balance">
+        <StatTile label={t('Balance')}>
           <KeyValue
             value={`${balance >= 0 ? '+' : ''}${fmt(balance, 2)}`}
             unit="EUR"
             color={balance >= 0 ? 'var(--ef-gen)' : 'var(--ef-bad)'}
           />
         </StatTile>
-        <StatTile label="Generated">
+        <StatTile label={t('Generated')}>
           <KeyValue
             value={fmt((today.pvKwh ?? 0) + (today.windKwh ?? 0), 0)}
             unit="kWh"
             color="var(--ef-gain)"
           />
         </StatTile>
-        <StatTile label="Consumed">
+        <StatTile label={t('Consumed')}>
           <KeyValue value={fmt(today.loadKwh, 0)} unit="kWh" color="var(--ef-cons)" />
         </StatTile>
       </div>
@@ -397,14 +428,14 @@ const LedgerBlock = ({ process, data }) => {
       <div className="d-flex gap-2 align-items-center justify-content-between small ef-ops flex-wrap">
         <CFormSwitch
           id={`ef-grid-${process.id}`}
-          label="Grid connected"
-          title="Connected to the grid - off switches the site to island mode"
+          label={t('Grid connected')}
+          title={t('Connected to the grid - off switches the site to island mode')}
           checked={m.mode !== 'island'}
           disabled={!control}
           onChange={(e) => {
             const mode = e.target.checked ? 'auto' : 'island'
             ask(
-              mode === 'island' ? 'Island mode - off the grid' : 'Back on the grid',
+              mode === 'island' ? t('Island mode - off the grid') : t('Back on the grid'),
               (adapt, extra) => {
                 send('setMode', { mode, ...extra })
                 if (adapt) sendLedger('replan', {})
@@ -415,17 +446,23 @@ const LedgerBlock = ({ process, data }) => {
         />
         <CFormSwitch
           id={`ef-export-${process.id}`}
-          label="Selling allowed"
-          title="The surplus may go to the grid at the sale price; off - it is stored or held back"
+          label={t('Selling allowed')}
+          title={t(
+            'The surplus may go to the grid at the sale price; off - it is stored or held back',
+          )}
           checked={m.strategy?.exportAllowed ?? true}
           disabled={!control}
           onChange={(e) => {
             const allowed = e.target.checked
             if (!ledgerId) return send('setExport', { allowed })
             ask(
-              allowed ? 'Selling allowed' : 'Selling not allowed',
+              allowed ? t('Selling allowed') : t('Selling not allowed'),
               (adapt, extra) =>
-                sendLedger('setOperating', { exportAllowed: allowed, replan: adapt, ...extra }),
+                sendLedger('setOperating', {
+                  exportAllowed: allowed,
+                  replan: adapt,
+                  ...extra,
+                }),
               ledgerId,
             )
           }}
@@ -433,9 +470,9 @@ const LedgerBlock = ({ process, data }) => {
         <label
           className="d-flex align-items-center gap-2 flex-grow-1 justify-content-end"
           htmlFor={`ef-reserve-${process.id}`}
-          title="The outage reserve - the batteries' charge kept for an outage"
+          title={t("The outage reserve - the batteries' charge kept for an outage")}
         >
-          Reserve
+          {t('Reserve')}
           <input
             id={`ef-reserve-${process.id}`}
             type="range"

@@ -6,6 +6,9 @@ import KeyValue from 'src/components/KeyValue'
 import ModelLink from 'src/components/nodeInfo/ModelLink'
 import { FAN_COIL_SWITCH, FAN_COIL_VIEW, FanCoilIcon } from './heatIcons'
 import { fmt, useHeatingData } from './useHeatingData'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('heating-control')
 
 // One room of the heating (Dashboard component `heatingControl.room`, its
 // card's `params.nodeId` - the room's fan coil; iot AGENTS_TO_DO.md
@@ -30,7 +33,9 @@ const HeatingRoom = ({ process, params = {} }) => {
   if (!coil)
     return (
       <div className="text-body-secondary small p-3">
-        {params.nodeId ? "This room's fan coil has no state yet." : 'No room chosen for this card.'}
+        {params.nodeId
+          ? t("This room's fan coil has no state yet.")
+          : t('No room chosen for this card.')}
       </div>
     )
   const mode = m.mode
@@ -59,30 +64,41 @@ const HeatingRoom = ({ process, params = {} }) => {
           }}
           disabled={!control || off}
           aria-pressed={coil.on}
-          aria-label={`${coil.name}: the valve ${coil.on ? 'open - close it' : 'closed - open it'}`}
+          aria-label={t('{{name}}: the valve {{v1}}', {
+            name: coil.name,
+            v1: coil.on ? 'open - close it' : 'closed - open it',
+          })}
           title={
             !control
-              ? `The valve is ${coil.on ? 'open' : 'closed'} - you may only watch`
+              ? t('The valve is {{v0}} - you may only watch', {
+                  v0: coil.on ? 'open' : 'closed',
+                })
               : off
-                ? 'The heating is off'
+                ? t('The heating is off')
                 : coil.on
-                  ? 'Close the valve - switch this room off'
-                  : 'Open the valve - switch this room on'
+                  ? t('Close the valve - switch this room off')
+                  : t('Open the valve - switch this room on')
           }
           onClick={() => send('setEnabled', { nodeId: coil.nodeId, enabled: !coil.on })}
         />
       </div>
       <div className="d-flex align-items-center gap-3 flex-wrap">
-        <div title={`The room's target temperature (${cooling ? 'cooling' : 'heating'})`}>
-          <div className="small text-body-secondary">Setpoint</div>
+        <div
+          title={t("The room's target temperature ({{v0}})", {
+            v0: cooling ? 'cooling' : 'heating',
+          })}
+        >
+          <div className="small text-body-secondary">{t('Setpoint')}</div>
           <div className="d-flex align-items-center gap-2">
             <CButton
               size="sm"
               color="secondary"
               variant="outline"
               disabled={!control || !mode || coil.setpointC == null}
-              aria-label="Lower the setpoint"
-              title={`Lower the room's setpoint by ${SETPOINT_STEP} °C`}
+              aria-label={t('Lower the setpoint')}
+              title={t("Lower the room's setpoint by {{SETPOINT_STEP}} °C", {
+                SETPOINT_STEP,
+              })}
               onClick={() =>
                 send('setSetpoint', {
                   mode,
@@ -99,8 +115,10 @@ const HeatingRoom = ({ process, params = {} }) => {
               color="secondary"
               variant="outline"
               disabled={!control || !mode || coil.setpointC == null}
-              aria-label="Raise the setpoint"
-              title={`Raise the room's setpoint by ${SETPOINT_STEP} °C`}
+              aria-label={t('Raise the setpoint')}
+              title={t("Raise the room's setpoint by {{SETPOINT_STEP}} °C", {
+                SETPOINT_STEP,
+              })}
               onClick={() =>
                 send('setSetpoint', {
                   mode,
@@ -114,24 +132,30 @@ const HeatingRoom = ({ process, params = {} }) => {
           </div>
         </div>
         <div
-          title={`The fan coil now: ${coil.working ? `${cooling ? 'cooling' : 'heating'} - its fan turns` : 'idle - the room is at its setpoint'}`}
+          title={t('The fan coil now: {{v0}}', {
+            v0: coil.working
+              ? `${cooling ? 'cooling' : 'heating'} - its fan turns`
+              : 'idle - the room is at its setpoint',
+          })}
         >
-          <div className="small text-body-secondary">{coil.working ? 'Working' : 'Idle'}</div>
+          <div className="small text-body-secondary">{coil.working ? t('Working') : t('Idle')}</div>
           <KeyValue value={fmt(Math.abs(coil.heatKw))} unit="kW" className="fs-5" />
         </div>
         <div
-          title={`The room's heat meter - the ${cooling ? 'cold' : 'heat'} its fan coil gave today`}
+          title={t("The room's heat meter - the {{v0}} its fan coil gave today", {
+            v0: cooling ? 'cold' : 'heat',
+          })}
         >
-          <div className="small text-body-secondary">Heat meter today</div>
+          <div className="small text-body-secondary">{t('Heat meter today')}</div>
           <KeyValue value={fmt(coil.todayKwh, 1)} unit="kWh" className="fs-5" />
         </div>
-        <div title="The heating's mode and the Energy Ledger's signal">
-          <div className="small text-body-secondary">Mode</div>
+        <div title={t("The heating's mode and the Energy Ledger's signal")}>
+          <div className="small text-body-secondary">{t('Mode')}</div>
           <div className="fw-semibold">
             {off
-              ? 'off'
-              : `${cooling ? 'cooling' : 'heating'} · ${m.control === 'auto' ? 'auto' : 'by hand'}`}
-            {m.signal === 3 ? ' · storing heat' : m.signal === 1 ? ' · holding off' : ''}
+              ? t('off')
+              : `${cooling ? 'cooling' : 'heating'} · ${m.control === 'auto' ? 'auto' : t('by hand')}`}
+            {m.signal === 3 ? t('· storing heat') : m.signal === 1 ? t('· holding off') : ''}
           </div>
         </div>
       </div>

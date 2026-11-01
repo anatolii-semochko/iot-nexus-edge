@@ -23,6 +23,7 @@ import { api } from '../../api/client'
 import { useCan } from '../../access'
 import { formatBytes, formatSmartDateTime } from '../../utils/format'
 import ClearLogsModal from './ClearLogsModal'
+import { t } from 'src/i18n'
 
 // Service->Database (AGENTS_TO_DO.md, 2026-08-30) - donut segments read
 // straight off CoreUI's own theme CSS variables rather than hardcoded hex,
@@ -51,7 +52,7 @@ const DonutChart = ({ configBytes, logsBytes, otherBytes, totalBytes }) => {
     <svg
       viewBox="0 0 160 160"
       role="img"
-      aria-label="Database volume breakdown"
+      aria-label={t('Database volume breakdown')}
       style={{ width: '100%', maxWidth: 220, height: 'auto' }}
     >
       <g transform="translate(80,80) rotate(-90)">
@@ -87,7 +88,7 @@ const DonutChart = ({ configBytes, logsBytes, otherBytes, totalBytes }) => {
         {formatBytes(totalBytes)}
       </text>
       <text x="80" y="94" textAnchor="middle" fontSize="10" fill="var(--cui-secondary-color)">
-        total
+        {t('total')}
       </text>
     </svg>
   )
@@ -96,9 +97,9 @@ const DonutChart = ({ configBytes, logsBytes, otherBytes, totalBytes }) => {
 const ChartLegend = ({ configBytes, logsBytes, otherBytes }) => (
   <div className="small mt-2">
     {[
-      { label: 'Config', value: configBytes, color: CHART_COLORS.config },
-      { label: 'Logs', value: logsBytes, color: CHART_COLORS.logs },
-      { label: 'Other', value: otherBytes, color: CHART_COLORS.other },
+      { label: t('Config'), value: configBytes, color: CHART_COLORS.config },
+      { label: t('Logs'), value: logsBytes, color: CHART_COLORS.logs },
+      { label: t('Other'), value: otherBytes, color: CHART_COLORS.other },
     ].map((row) => (
       <div key={row.label} className="d-flex align-items-center justify-content-between">
         <span className="d-flex align-items-center gap-1">
@@ -122,31 +123,36 @@ const ChartLegend = ({ configBytes, logsBytes, otherBytes }) => (
 const ACTION_ROWS = [
   {
     key: 'save',
-    label: 'Save State',
-    description:
+    label: t('Save State'),
+    description: t(
       'Snapshot the current configuration (devices, nodes, processes, users, groups...) and add it to the list below.',
+    ),
   },
   {
     key: 'download',
-    label: 'Download State',
-    description:
+    label: t('Download State'),
+    description: t(
       'Download a snapshot of the current configuration as a file - not saved on the server.',
+    ),
   },
   {
     key: 'upload',
-    label: 'Upload State',
-    description:
+    label: t('Upload State'),
+    description: t(
       'Upload a previously downloaded snapshot and apply it, replacing the current configuration.',
+    ),
   },
   {
     key: 'download-logs',
-    label: 'Download Logs',
-    description: 'Download the command/device/message logs as a file - not saved on the server.',
+    label: t('Download Logs'),
+    description: t('Download the command/device/message logs as a file - not saved on the server.'),
   },
   {
     key: 'clear-logs',
-    label: 'Clear Logs',
-    description: 'Permanently delete command/device/message logs. Configuration is not affected.',
+    label: t('Clear Logs'),
+    description: t(
+      'Permanently delete command/device/message logs. Configuration is not affected.',
+    ),
   },
 ]
 
@@ -205,7 +211,7 @@ const StampRow = ({ stamp, onApply, onDeleted, onError, may }) => {
             disabled={busy || !may.apply}
             onClick={() => onApply(stamp)}
           >
-            Apply
+            {t('Apply')}
           </CButton>
           <CButton
             size="sm"
@@ -214,7 +220,7 @@ const StampRow = ({ stamp, onApply, onDeleted, onError, may }) => {
             disabled={busy || !may.remove}
             onClick={handleDelete}
           >
-            {deleteArmed ? 'Confirm?' : 'Delete'}
+            {deleteArmed ? t('Confirm?') : t('Delete')}
           </CButton>
         </div>
       </CTableDataCell>
@@ -284,7 +290,7 @@ const DatabaseTab = () => {
       await api.saveDatabaseStamp(saveName)
       setSaveModalOpen(false)
       setSaveName('')
-      setMessage('State saved.')
+      setMessage(t('State saved.'))
       reloadStamps()
     } catch (err) {
       setError(err.message)
@@ -305,7 +311,7 @@ const DatabaseTab = () => {
     try {
       await api.uploadDatabaseStamp(pendingUploadFile)
       setPendingUploadFile(null)
-      setMessage('State uploaded and applied.')
+      setMessage(t('State uploaded and applied.'))
       reloadStats()
       reloadStamps()
     } catch (err) {
@@ -321,7 +327,7 @@ const DatabaseTab = () => {
     try {
       await api.applyDatabaseStamp(applyTarget.filename)
       setApplyTarget(null)
-      setMessage(`Applied "${applyTarget.name}".`)
+      setMessage(t('Applied "{{name}}".', { name: applyTarget.name }))
       reloadStats()
     } catch (err) {
       setError(err.message)
@@ -403,20 +409,20 @@ const DatabaseTab = () => {
         </CCol>
       </CRow>
 
-      <h6 className="mt-4 mb-2">Saved states</h6>
+      <h6 className="mt-4 mb-2">{t('Saved states')}</h6>
       {!stamps ? (
         <CSpinner size="sm" />
       ) : stamps.length === 0 ? (
-        <CAlert color="info">No saved states yet.</CAlert>
+        <CAlert color="info">{t('No saved states yet.')}</CAlert>
       ) : (
         <CTable small responsive>
           <CTableHead>
             <CTableRow>
-              <CTableHeaderCell scope="col">Name</CTableHeaderCell>
-              <CTableHeaderCell scope="col">Created</CTableHeaderCell>
-              <CTableHeaderCell scope="col">Size</CTableHeaderCell>
+              <CTableHeaderCell scope="col">{t('Name')}</CTableHeaderCell>
+              <CTableHeaderCell scope="col">{t('Created')}</CTableHeaderCell>
+              <CTableHeaderCell scope="col">{t('Size')}</CTableHeaderCell>
               <CTableHeaderCell scope="col" className="text-end">
-                Actions
+                {t('Actions')}
               </CTableHeaderCell>
             </CTableRow>
           </CTableHead>
@@ -441,10 +447,10 @@ const DatabaseTab = () => {
       {/* Save State */}
       <CModal visible={saveModalOpen} onClose={() => setSaveModalOpen(false)}>
         <CModalHeader>
-          <CModalTitle>Save State</CModalTitle>
+          <CModalTitle>{t('Save State')}</CModalTitle>
         </CModalHeader>
         <CModalBody>
-          <CFormLabel>Name</CFormLabel>
+          <CFormLabel>{t('Name')}</CFormLabel>
           <CFormInput
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
@@ -458,10 +464,10 @@ const DatabaseTab = () => {
             onClick={() => setSaveModalOpen(false)}
             disabled={saving}
           >
-            Cancel
+            {t('Cancel')}
           </CButton>
           <CButton color="primary" onClick={handleSave} disabled={saving}>
-            {saving ? <CSpinner size="sm" /> : 'Save'}
+            {saving ? <CSpinner size="sm" /> : t('Save')}
           </CButton>
         </CModalFooter>
       </CModal>
@@ -469,12 +475,13 @@ const DatabaseTab = () => {
       {/* Upload State confirm */}
       <CModal visible={pendingUploadFile !== null} onClose={() => setPendingUploadFile(null)}>
         <CModalHeader>
-          <CModalTitle>Confirm Upload State</CModalTitle>
+          <CModalTitle>{t('Confirm Upload State')}</CModalTitle>
         </CModalHeader>
         <CModalBody>
-          Applying <strong>{pendingUploadFile?.name}</strong> replaces the ENTIRE current
-          configuration (devices, nodes, processes, users, groups...) with what's in this file. Logs
-          are not affected. This cannot be undone unless you have a separate saved state.
+          {t('Applying')} <strong>{pendingUploadFile?.name}</strong>{' '}
+          {t(
+            "replaces the ENTIRE current configuration (devices, nodes, processes, users, groups...) with what's in this file. Logs are not affected. This cannot be undone unless you have a separate saved state.",
+          )}
         </CModalBody>
         <CModalFooter>
           <CButton
@@ -483,10 +490,10 @@ const DatabaseTab = () => {
             onClick={() => setPendingUploadFile(null)}
             disabled={uploading}
           >
-            Cancel
+            {t('Cancel')}
           </CButton>
           <CButton color="danger" onClick={handleUpload} disabled={uploading}>
-            {uploading ? <CSpinner size="sm" /> : 'Upload and Apply'}
+            {uploading ? <CSpinner size="sm" /> : t('Upload and Apply')}
           </CButton>
         </CModalFooter>
       </CModal>
@@ -494,13 +501,14 @@ const DatabaseTab = () => {
       {/* Apply State (per-row) confirm */}
       <CModal visible={applyTarget !== null} onClose={() => setApplyTarget(null)}>
         <CModalHeader>
-          <CModalTitle>Confirm Apply State</CModalTitle>
+          <CModalTitle>{t('Confirm Apply State')}</CModalTitle>
         </CModalHeader>
         <CModalBody>
-          Applying <strong>{applyTarget?.name}</strong> (
-          {formatSmartDateTime(applyTarget?.createdAt)}) replaces the ENTIRE current configuration
-          with this saved state. Logs are not affected. Consider using Save State first to keep a
-          copy of what's about to be overwritten.
+          {t('Applying')} <strong>{applyTarget?.name}</strong> (
+          {formatSmartDateTime(applyTarget?.createdAt)}
+          {t(
+            ") replaces the ENTIRE current configuration with this saved state. Logs are not affected. Consider using Save State first to keep a copy of what's about to be overwritten.",
+          )}
         </CModalBody>
         <CModalFooter>
           <CButton
@@ -509,10 +517,10 @@ const DatabaseTab = () => {
             onClick={() => setApplyTarget(null)}
             disabled={applying}
           >
-            Cancel
+            {t('Cancel')}
           </CButton>
           <CButton color="danger" onClick={handleApply} disabled={applying}>
-            {applying ? <CSpinner size="sm" /> : 'Apply'}
+            {applying ? <CSpinner size="sm" /> : t('Apply')}
           </CButton>
         </CModalFooter>
       </CModal>

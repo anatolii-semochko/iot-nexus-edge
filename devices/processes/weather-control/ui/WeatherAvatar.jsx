@@ -1,4 +1,7 @@
 import React from 'react'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('weather-control')
 
 // The Weather component's Dashboard avatar (dashboardRegistry.js
 // `avatars`, 2026-10-16): a static picture - the sun behind a cloud, rain,
@@ -11,7 +14,7 @@ const WeatherAvatar = () => (
     height="100%"
     preserveAspectRatio="xMidYMid meet"
     role="img"
-    aria-label="Weather"
+    aria-label={t('Weather')}
   >
     {/* the sun with its rays */}
     <g stroke="#f6b100" strokeWidth="4" strokeLinecap="round">

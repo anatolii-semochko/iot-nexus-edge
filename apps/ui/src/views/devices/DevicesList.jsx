@@ -54,6 +54,7 @@ import DeviceSettingsModal from './DeviceSettingsModal'
 import NumericStepper from './NumericStepper'
 import AiButton from '../../components/ai/AiButton'
 import PageTitle from '../../components/PageTitle'
+import { t } from 'src/i18n'
 
 // How long to wait after the last slider/stepper move before actually
 // sending it (DeviceValueEditor's own handleSimulate below) - dragging a
@@ -278,7 +279,7 @@ const DeviceValueEditor = ({ device, value, mode, onWrite, onSimulate, onRelease
         className="text-body-secondary text-uppercase fw-semibold mb-1"
         style={{ fontSize: '0.6875rem', letterSpacing: '0.04em' }}
       >
-        Override
+        {t('Override')}
       </div>
       <div className="d-flex align-items-center gap-2 flex-wrap">
         {CustomSimulator ? (
@@ -340,7 +341,7 @@ const DeviceValueEditor = ({ device, value, mode, onWrite, onSimulate, onRelease
             disabled={busy || mode !== 'MANUAL'}
             onClick={handleRelease}
           >
-            {busy ? <CSpinner size="sm" /> : 'Auto'}
+            {busy ? <CSpinner size="sm" /> : t('Auto')}
           </CButton>
         )}
       </div>
@@ -363,20 +364,20 @@ const ValueTab = ({
 }) => (
   <div>
     <KeyValueTable
-      title="Value"
+      title={t('Value')}
       rows={[
-        { label: 'Value', value },
-        { label: 'Value type', value: fetched?.valueType },
-        { label: 'Units', value: fetched?.units },
-        { label: 'Mode', value: mode },
-        { label: 'Auto value', value: valueAuto },
-        { label: 'Manual value', value: valueManual },
+        { label: t('Value'), value },
+        { label: t('Value type'), value: fetched?.valueType },
+        { label: t('Units'), value: fetched?.units },
+        { label: t('Mode'), value: mode },
+        { label: t('Auto value'), value: valueAuto },
+        { label: t('Manual value'), value: valueManual },
         // formatRelativeTime (utils/format.js, already used by
         // NodesList.jsx's own last-heartbeat column) is typed for an
         // ISO string but really just does `new Date(x)` - an epoch-ms
         // number (readingOrigin/expiresAt) works identically.
         {
-          label: 'Last reading',
+          label: t('Last reading'),
           value: fetched?.readingOrigin ? formatRelativeTime(fetched.readingOrigin) : undefined,
         },
         // Same overdue threshold DeviceRow's own row-color check uses
@@ -384,7 +385,7 @@ const ValueTab = ({
         // numberSkippedPeriods) - previously only visible indirectly as
         // the row turning danger-red, not as an actual value (AGENTS_TO_DO.md,
         // 2026-08-15: "не бачу значення expiration").
-        { label: 'Expires', value: expiresAt ? formatRelativeTime(expiresAt) : undefined },
+        { label: t('Expires'), value: expiresAt ? formatRelativeTime(expiresAt) : undefined },
       ]}
     />
     {/* A readOnly device's Override only makes sense while it's actually
@@ -422,37 +423,37 @@ const InfoTab = ({ device }) => (
     }}
   >
     <KeyValueTable
-      title="Identity"
+      title={t('Identity')}
       rows={[
         { label: 'ID', value: device.id },
-        { label: 'Type', value: device.type },
-        { label: 'Node', value: device.node_name },
-        { label: 'Backend', value: device.backend },
-        { label: 'Created', value: formatSmartDateTime(device.created_at) },
-        { label: 'Updated', value: formatSmartDateTime(device.updated_at) },
+        { label: t('Type'), value: device.type },
+        { label: t('Node'), value: device.node_name },
+        { label: t('Backend'), value: device.backend },
+        { label: t('Created'), value: formatSmartDateTime(device.created_at) },
+        { label: t('Updated'), value: formatSmartDateTime(device.updated_at) },
       ]}
     />
     <KeyValueTable
-      title="EdgeX & Config"
+      title={t('EdgeX & Config')}
       rows={[
-        { label: 'EdgeX name', value: device.edgex_device_name },
-        { label: 'EdgeX status', value: device.edgex?.operatingState },
-        { label: 'Simulated', value: device.simulated },
-        { label: 'Simulated twin', value: device.edgex_device_name_simulated },
-        { label: 'Capabilities', value: device.capabilities },
-        { label: 'Data Logger', value: device.data_logger_control },
-        { label: 'Heartbeat Control', value: device.heartbeat_control },
+        { label: t('EdgeX name'), value: device.edgex_device_name },
+        { label: t('EdgeX status'), value: device.edgex?.operatingState },
+        { label: t('Simulated'), value: device.simulated },
+        { label: t('Simulated twin'), value: device.edgex_device_name_simulated },
+        { label: t('Capabilities'), value: device.capabilities },
+        { label: t('Data Logger'), value: device.data_logger_control },
+        { label: t('Heartbeat Control'), value: device.heartbeat_control },
       ]}
     />
   </div>
 )
 
 const DETAIL_TABS = [
-  { key: 'value', label: 'Value' },
-  { key: 'info', label: 'Info' },
+  { key: 'value', label: t('Value') },
+  { key: 'info', label: t('Info') },
 ]
 // Media devices (AGENTS.md section 81) get a Media tab between the two.
-const MEDIA_DETAIL_TABS = [DETAIL_TABS[0], { key: 'media', label: 'Media' }, DETAIL_TABS[1]]
+const MEDIA_DETAIL_TABS = [DETAIL_TABS[0], { key: 'media', label: t('Media') }, DETAIL_TABS[1]]
 
 // Detail row (AGENTS_TO_DO.md, 2026-08-02, redesigned 2026-08-15,
 // re-laid-out 2026-08-16, retabbed 2026-08-29 "СИМУЛЯЦІЯ") - Value/Info
@@ -648,10 +649,10 @@ const DeviceRow = ({
                   inactiveColor="#d3d3d3"
                   ariaLabel={
                     device.simulated
-                      ? `${device.name} is simulated - switch to physical`
+                      ? t('{{name}} is simulated - switch to physical', { name: device.name })
                       : device.edgex_device_name_simulated
-                        ? `${device.name} is physical - switch to simulated`
-                        : `${device.name} has no simulated twin provisioned`
+                        ? t('{{name}} is physical - switch to simulated', { name: device.name })
+                        : t('{{name}} has no simulated twin provisioned', { name: device.name })
                   }
                 />
               )}
@@ -707,10 +708,10 @@ const deviceRowColor = (device, hideSimulation = false) =>
   device.isOverdue ? 'danger' : simulationTint(deviceEffectivelySimulated(device), hideSimulation)
 
 const STATUS_FILTER_OPTIONS = [
-  { value: '', label: 'All statuses' },
+  { value: '', label: t('All statuses') },
   { value: 'ok', label: 'OK' },
-  { value: 'danger', label: 'Error' },
-  { value: 'info', label: 'Simulation' },
+  { value: 'danger', label: t('Error') },
+  { value: 'info', label: t('Simulation') },
 ]
 
 /**
@@ -851,7 +852,7 @@ const DevicesList = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <PageTitle title="Devices" />
+        <PageTitle title={t('Devices')} />
       </CCardHeader>
       <CCardBody>
         {error && <CAlert color="danger">{error}</CAlert>}
@@ -864,7 +865,7 @@ const DevicesList = () => {
                   size="sm"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  aria-label="Filter by status"
+                  aria-label={t('Filter by status')}
                 >
                   {STATUS_FILTER_OPTIONS.filter(
                     (opt) => !hideSimulation || opt.value !== 'info',
@@ -881,7 +882,7 @@ const DevicesList = () => {
                   value={groupFilter}
                   onChange={(e) => setGroupFilter(e.target.value)}
                 >
-                  <option value="">All groups</option>
+                  <option value="">{t('All groups')}</option>
                   {deviceGroups.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.name}
@@ -895,7 +896,7 @@ const DevicesList = () => {
                   value={nodeFilter}
                   onChange={(e) => setNodeFilter(e.target.value)}
                 >
-                  <option value="">All nodes</option>
+                  <option value="">{t('All nodes')}</option>
                   {nodes.map((n) => (
                     <option key={n.id} value={n.id}>
                       {n.name}
@@ -908,7 +909,7 @@ const DevicesList = () => {
                   key={searchResetToken}
                   value={search}
                   onSearch={setSearch}
-                  placeholder="Search by name, type..."
+                  placeholder={t('Search by name, type...')}
                 />
               </CCol>
               <CCol className="d-flex justify-content-end gap-2">
@@ -917,7 +918,7 @@ const DevicesList = () => {
                   size="sm"
                   center
                   onClick={() => setConfigVisible(true)}
-                  ariaLabel="Configure Device Groups"
+                  ariaLabel={t('Configure Device Groups')}
                 />
                 <ResetFiltersButton active={hasActiveFilters} onClick={handleResetFilters} />
               </CCol>
@@ -925,24 +926,24 @@ const DevicesList = () => {
             {filtered.length === 0 ? (
               <CAlert color="info">
                 {devices.length === 0
-                  ? 'No devices registered yet.'
-                  : 'No devices match these filters.'}
+                  ? t('No devices registered yet.')
+                  : t('No devices match these filters.')}
               </CAlert>
             ) : (
               <>
                 <CTable responsive>
                   <CTableHead>
                     <CTableRow>
-                      <CTableHeaderCell scope="col">Status</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Backend</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Status')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Backend')}</CTableHeaderCell>
                       <CTableHeaderCell scope="col"></CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Value</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Name</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Node</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Type</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Value')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Name')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Node')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Type')}</CTableHeaderCell>
                       <CTableHeaderCell scope="col" className="text-end">
                         <div className="d-flex justify-content-end align-items-center gap-2">
-                          <span>Actions</span>
+                          <span>{t('Actions')}</span>
                           <ExpandAllToggleButton
                             ids={pageItems.map((device) => device.id)}
                             expandedIds={expandedIds}
@@ -987,9 +988,9 @@ const DevicesList = () => {
       <GroupsConfigModal
         visible={configVisible}
         onClose={() => setConfigVisible(false)}
-        title="Device Groups"
-        addLabel="Add Group"
-        namePlaceholder="Group name"
+        title={t('Device Groups')}
+        addLabel={t('Add Group')}
+        namePlaceholder={t('Group name')}
         items={deviceGroups}
         onAdd={async (name) => {
           await api.createDeviceGroup(name)

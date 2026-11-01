@@ -16,6 +16,7 @@ import {
 } from '@coreui/react'
 import { api } from '../../api/client'
 import { userInitials } from '../../utils/format'
+import { t } from 'src/i18n'
 
 const AVATAR_SIZE = '4rem'
 
@@ -56,9 +57,9 @@ const ProfileForm = ({ onClose, onSaved }) => {
   const preview = avatarFile ? avatarUrl : avatarRemoved ? null : existing
   const passwordProblem =
     password && password !== repeat
-      ? 'The new password and its repeat differ.'
+      ? t('The new password and its repeat differ.')
       : password && !currentPassword
-        ? 'Enter your current password to set a new one.'
+        ? t('Enter your current password to set a new one.')
         : null
 
   const pick = (e) => {
@@ -102,7 +103,7 @@ const ProfileForm = ({ onClose, onSaved }) => {
   return (
     <CModal visible onClose={onClose}>
       <CModalHeader>
-        <CModalTitle>Profile</CModalTitle>
+        <CModalTitle>{t('Profile')}</CModalTitle>
       </CModalHeader>
       <CForm onSubmit={save}>
         <CModalBody>
@@ -130,7 +131,7 @@ const ProfileForm = ({ onClose, onSaved }) => {
                   <CFormInput
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
-                    aria-label="Avatar"
+                    aria-label={t('Avatar')}
                     onChange={pick}
                     ref={fileInput}
                   />
@@ -142,18 +143,18 @@ const ProfileForm = ({ onClose, onSaved }) => {
                       className="mt-1 p-0"
                       onClick={removeLocal}
                     >
-                      Remove avatar
+                      {t('Remove avatar')}
                     </CButton>
                   )}
-                  <CFormText>Applied when you Save.</CFormText>
+                  <CFormText>{t('Applied when you Save.')}</CFormText>
                 </div>
               </div>
               <div className="mb-3">
-                <CFormLabel htmlFor="profile-username">Username</CFormLabel>
+                <CFormLabel htmlFor="profile-username">{t('Username')}</CFormLabel>
                 <CFormInput id="profile-username" value={profile.username} disabled />
               </div>
               <div className="mb-3">
-                <CFormLabel htmlFor="profile-name">Display name</CFormLabel>
+                <CFormLabel htmlFor="profile-name">{t('Display name')}</CFormLabel>
                 <CFormInput
                   id="profile-name"
                   value={displayName}
@@ -161,7 +162,7 @@ const ProfileForm = ({ onClose, onSaved }) => {
                 />
               </div>
               <div className="mb-3">
-                <CFormLabel htmlFor="profile-email">Email</CFormLabel>
+                <CFormLabel htmlFor="profile-email">{t('Email')}</CFormLabel>
                 <CFormInput
                   id="profile-email"
                   type="email"
@@ -170,12 +171,12 @@ const ProfileForm = ({ onClose, onSaved }) => {
                 />
               </div>
               <div className="mb-2">
-                <CFormLabel htmlFor="profile-password">New password</CFormLabel>
+                <CFormLabel htmlFor="profile-password">{t('New password')}</CFormLabel>
                 <CFormInput
                   id="profile-password"
                   type="password"
                   autoComplete="new-password"
-                  placeholder="Leave blank to keep the current one"
+                  placeholder={t('Leave blank to keep the current one')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -184,7 +185,7 @@ const ProfileForm = ({ onClose, onSaved }) => {
               {password && (
                 <>
                   <div className="mb-2">
-                    <CFormLabel htmlFor="profile-repeat">Repeat the new password</CFormLabel>
+                    <CFormLabel htmlFor="profile-repeat">{t('Repeat the new password')}</CFormLabel>
                     <CFormInput
                       id="profile-repeat"
                       type="password"
@@ -194,7 +195,7 @@ const ProfileForm = ({ onClose, onSaved }) => {
                     />
                   </div>
                   <div className="mb-2">
-                    <CFormLabel htmlFor="profile-current">Current password</CFormLabel>
+                    <CFormLabel htmlFor="profile-current">{t('Current password')}</CFormLabel>
                     <CFormInput
                       id="profile-current"
                       type="password"
@@ -202,7 +203,7 @@ const ProfileForm = ({ onClose, onSaved }) => {
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                     />
-                    <CFormText>Your other sessions end with a new password.</CFormText>
+                    <CFormText>{t('Your other sessions end with a new password.')}</CFormText>
                   </div>
                 </>
               )}
@@ -211,10 +212,10 @@ const ProfileForm = ({ onClose, onSaved }) => {
         </CModalBody>
         <CModalFooter>
           <CButton color="secondary" variant="outline" onClick={onClose} disabled={busy}>
-            Cancel
+            {t('Cancel')}
           </CButton>
           <CButton type="submit" color="primary" disabled={busy || !profile}>
-            {busy ? <CSpinner size="sm" /> : 'Save'}
+            {busy ? <CSpinner size="sm" /> : t('Save')}
           </CButton>
         </CModalFooter>
       </CForm>

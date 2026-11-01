@@ -9,6 +9,9 @@ import {
 } from '@coreui/react'
 import KeyValue from 'src/components/KeyValue'
 import StatTile from 'src/components/StatTile'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('energy-ledger')
 
 // Who the energy was for (the ledger's cost accounts, accounts.ts): the
 // owner's private costs, the business's, the tenants' - what to re-bill them
@@ -17,15 +20,18 @@ import StatTile from 'src/components/StatTile'
 // system's cost of heat).
 
 const KINDS = [
-  ['private', 'Private', "The owner's own costs - the house"],
-  ['business', 'Business', "The business's costs - its offices, workshop, halls"],
-  ['tenant', 'To re-bill to tenants', 'The let units - their electricity and heat'],
+  ['private', t('Private'), t("The owner's own costs - the house")],
+  ['business', t('Business'), t("The business's costs - its offices, workshop, halls")],
+  ['tenant', t('To re-bill to tenants'), t('The let units - their electricity and heat')],
 ]
 
 const money = (v) =>
   v === null || v === undefined
     ? '-'
-    : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : Number(v).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
 const kwh = (v) =>
   v === null || v === undefined
     ? '-'
@@ -34,11 +40,14 @@ const kwh = (v) =>
 const AccountsView = ({ accounts }) => {
   if (!accounts?.items?.length) return null
   return (
-    <section className="d-flex flex-column gap-3" aria-label="Who the energy was for">
-      <div className="fw-semibold">Who the energy was for</div>
+    <section className="d-flex flex-column gap-3" aria-label={t('Who the energy was for')}>
+      <div className="fw-semibold">{t('Who the energy was for')}</div>
       <div
         className="d-grid"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}
+        style={{
+          gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+          gap: 12,
+        }}
       >
         {KINDS.map(([key, label, hint]) => (
           <StatTile key={key} label={label} hint={hint}>
@@ -46,8 +55,10 @@ const AccountsView = ({ accounts }) => {
           </StatTile>
         ))}
         <StatTile
-          label="Other"
-          hint="The consumption no account has - the field's own needs, the meters not on an account"
+          label={t('Other')}
+          hint={t(
+            "The consumption no account has - the field's own needs, the meters not on an account",
+          )}
         >
           <KeyValue value={money(accounts.otherEur)} unit="€" />
         </StatTile>
@@ -55,19 +66,19 @@ const AccountsView = ({ accounts }) => {
       <CTable small responsive hover className="mb-0">
         <CTableHead>
           <CTableRow>
-            <CTableHeaderCell>Account</CTableHeaderCell>
-            <CTableHeaderCell className="text-end" title="Its meters' electricity">
-              Electricity, kWh
+            <CTableHeaderCell>{t('Account')}</CTableHeaderCell>
+            <CTableHeaderCell className="text-end" title={t("Its meters' electricity")}>
+              {t('Electricity, kWh')}
             </CTableHeaderCell>
             <CTableHeaderCell className="text-end">€</CTableHeaderCell>
             <CTableHeaderCell
               className="text-end"
-              title="Its heat meters' heat, at its system's cost of heat"
+              title={t("Its heat meters' heat, at its system's cost of heat")}
             >
-              Heat, kWh
+              {t('Heat, kWh')}
             </CTableHeaderCell>
             <CTableHeaderCell className="text-end">€</CTableHeaderCell>
-            <CTableHeaderCell className="text-end">Total, €</CTableHeaderCell>
+            <CTableHeaderCell className="text-end">{t('Total, €')}</CTableHeaderCell>
           </CTableRow>
         </CTableHead>
         <CTableBody>

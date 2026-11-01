@@ -14,6 +14,7 @@
  */
 
 import React from 'react'
+import { t } from 'src/i18n'
 
 const Dashboard = React.lazy(() => import('./views/dashboard/Dashboard'))
 const AiAssistant = React.lazy(() => import('./views/ai/AiAssistant'))
@@ -58,29 +59,30 @@ const Service = React.lazy(() => import('./views/service/Service'))
  * { path: '/base', name: 'Base', element: Cards, exact: true }
  */
 export const routes = [
-  { path: '/', exact: true, name: 'Home' },
-  { path: '/dashboard', name: 'Dashboard', element: Dashboard },
+  { path: '/', exact: true, name: t('Home') },
+  { path: '/dashboard', name: t('Dashboard'), element: Dashboard },
   // a card of the Dashboard's tree (a folder or a component on the whole page)
-  { path: '/dashboard/:cardId', name: 'Dashboard', element: Dashboard },
+  { path: '/dashboard/:cardId', name: t('Dashboard'), element: Dashboard },
   // the AI Assistant's messenger (2026-10-17)
-  { path: '/ai-assistant', name: 'AI Assistant', element: AiAssistant, bleed: true },
+  { path: '/ai-assistant', name: t('AI Assistant'), element: AiAssistant, bleed: true },
   // a conversation opened by link (a scheduled run's warning, the calendar)
   {
     path: '/ai-assistant/:conversationId',
-    name: 'AI Assistant',
+    name: t('AI Assistant'),
     element: AiAssistant,
     bleed: true,
   },
-  { path: '/docs', name: 'Docs', element: Docs },
-  { path: '/nodes', name: 'Nodes', element: NodesList },
-  { path: '/devices', name: 'Devices', element: DevicesList, exact: true },
-  { path: '/simulator', name: 'Simulator', element: Simulator },
-  { path: '/library', name: 'Library', element: LibraryBrowser },
-  { path: '/processes', name: 'Processes', element: ProcessesList },
-  { path: '/live-events', name: 'Live Events', element: LiveEvents },
-  { path: '/logs', name: 'Logs', element: LogsList },
-  { path: '/users', name: 'Users', element: UsersPage },
-  { path: '/service', name: 'Service', element: Service },
+  { path: '/docs', name: t('Docs'), element: Docs },
+  { path: '/docs/*', name: t('Docs'), element: Docs },
+  { path: '/nodes', name: t('Nodes'), element: NodesList },
+  { path: '/devices', name: t('Devices'), element: DevicesList, exact: true },
+  { path: '/simulator', name: t('Simulator'), element: Simulator },
+  { path: '/library', name: t('Library'), element: LibraryBrowser },
+  { path: '/processes', name: t('Processes'), element: ProcessesList },
+  { path: '/live-events', name: t('Live Events'), element: LiveEvents },
+  { path: '/logs', name: t('Logs'), element: LogsList },
+  { path: '/users', name: t('Users'), element: UsersPage },
+  { path: '/service', name: t('Service'), element: Service },
 ]
 
 export default routes

@@ -1,6 +1,7 @@
 import React from 'react'
 import { cilChevronBottom, cilChevronTop } from '@coreui/icons'
 import IconButton from '../IconButton'
+import { t } from 'src/i18n'
 
 /**
  * Row-expand toggle, styled like the outline action buttons next to it
@@ -14,7 +15,7 @@ const ExpandToggleButton = ({ expanded, onClick, size = 'sm' }) => (
     icon={expanded ? cilChevronTop : cilChevronBottom}
     size={size}
     onClick={onClick}
-    ariaLabel={expanded ? 'Collapse' : 'Expand'}
+    ariaLabel={expanded ? t('Collapse') : t('Expand')}
     center
   />
 )

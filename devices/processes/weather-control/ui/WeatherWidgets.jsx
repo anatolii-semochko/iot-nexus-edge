@@ -6,6 +6,9 @@ import SummaryLine from 'src/components/SummaryLine'
 import { useNow } from 'src/hooks/useNow'
 import AnemometerIcon from './anemometer/AnemometerIcon'
 import { SkyIcon, skyAspect } from './SkyIcon'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('weather-control')
 
 // The weather widgets of the scenes (the energy field's sun and wind, the heating's outdoor
 // temperature) in one style (the user's mockup images/fix-weather-widjet.png, 2026-10-24;
@@ -136,8 +139,8 @@ const HourCurve = ({ hours, now, value, min, max, color, label, onOpen }) => {
       className="wx-curve"
       role="button"
       tabIndex={0}
-      title={`${label} - open the detailed chart`}
-      aria-label={`${label} - open the detailed chart`}
+      title={tr('{{label}} - open the detailed chart', { label })}
+      aria-label={tr('{{label}} - open the detailed chart', { label })}
       onClick={onOpen}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -216,15 +219,15 @@ const DAY_MS = 86_400_000
 const RANGES = [
   {
     key: '2d',
-    label: 'Two days',
-    hint: 'The last 24 hours and the next 24 - the forecast',
+    label: tr('Two days'),
+    hint: tr('The last 24 hours and the next 24 - the forecast'),
     days: 1,
     from: (now) => now - DAY_MS,
   },
   {
     key: 'week',
-    label: 'Week',
-    hint: 'Seven days and today, the next day - the forecast',
+    label: tr('Week'),
+    hint: tr('Seven days and today, the next day - the forecast'),
     days: 7,
     from: (now) => {
       const d = new Date(now)
@@ -234,8 +237,8 @@ const RANGES = [
   },
   {
     key: 'month',
-    label: 'Month',
-    hint: 'The last month and today, the next day - the forecast',
+    label: tr('Month'),
+    hint: tr('The last month and today, the next day - the forecast'),
     days: 31,
     from: (now) => {
       const d = new Date(now)
@@ -417,7 +420,7 @@ const TimeChart = ({ title, unit, rows, lines, t0, t1, now, min, max }) => {
             />
             {W - PAD.right - nowX > FORECAST_LABEL_PX && (
               <text x={nowX + 4} y={PAD.top + 12} fontSize="11" fill="var(--wx-muted)">
-                forecast
+                {tr('forecast')}
               </text>
             )}
           </svg>
@@ -430,64 +433,104 @@ const TimeChart = ({ title, unit, rows, lines, t0, t1, now, min, max }) => {
 // what each widget's popup shows - the charts one under another
 const CHARTS = {
   sun: {
-    title: 'The sun',
+    title: tr('The sun'),
     charts: [
       {
-        title: 'Solar radiation',
+        title: tr('Solar radiation'),
         unit: 'W/m²',
         min: 0,
-        lines: [{ key: 'radiationWm2', label: 'radiation', color: 'var(--wx-sun-line)' }],
+        lines: [
+          {
+            key: 'radiationWm2',
+            label: 'radiation',
+            color: 'var(--wx-sun-line)',
+          },
+        ],
       },
       {
-        title: 'Cloud cover',
+        title: tr('Cloud cover'),
         unit: '%',
         min: 0,
         max: 100,
-        lines: [{ key: 'cloudCoverPct', label: 'clouds', color: 'var(--wx-cloud-edge, #9aa8b6)' }],
+        lines: [
+          {
+            key: 'cloudCoverPct',
+            label: 'clouds',
+            color: 'var(--wx-cloud-edge, #9aa8b6)',
+          },
+        ],
       },
       {
-        title: 'Temperature',
+        title: tr('Temperature'),
         unit: '°C',
-        lines: [{ key: 'temperatureC', label: 'temperature', color: 'var(--wx-temp-line)' }],
+        lines: [
+          {
+            key: 'temperatureC',
+            label: 'temperature',
+            color: 'var(--wx-temp-line)',
+          },
+        ],
       },
     ],
   },
   temperature: {
-    title: 'Outside',
+    title: tr('Outside'),
     charts: [
       {
-        title: 'Temperature',
+        title: tr('Temperature'),
         unit: '°C',
-        lines: [{ key: 'temperatureC', label: 'temperature', color: 'var(--wx-temp-line)' }],
+        lines: [
+          {
+            key: 'temperatureC',
+            label: 'temperature',
+            color: 'var(--wx-temp-line)',
+          },
+        ],
       },
       {
-        title: 'Humidity',
+        title: tr('Humidity'),
         unit: '%',
         min: 0,
         max: 100,
-        lines: [{ key: 'humidityPct', label: 'humidity', color: 'var(--wx-humidity-line)' }],
+        lines: [
+          {
+            key: 'humidityPct',
+            label: 'humidity',
+            color: 'var(--wx-humidity-line)',
+          },
+        ],
       },
     ],
   },
   wind: {
-    title: 'The wind',
+    title: tr('The wind'),
     charts: [
       {
-        title: 'Wind speed',
+        title: tr('Wind speed'),
         unit: 'm/s',
         min: 0,
         lines: [
           { key: 'windSpeedMs', label: 'wind', color: 'var(--wx-wind-line)' },
-          { key: 'windGustsMs', label: 'gusts', color: 'var(--wx-wind-line)', dashed: true },
+          {
+            key: 'windGustsMs',
+            label: 'gusts',
+            color: 'var(--wx-wind-line)',
+            dashed: true,
+          },
         ],
       },
       {
-        title: 'Wind direction (from)',
+        title: tr('Wind direction (from)'),
         unit: '°',
         min: 0,
         max: 360,
         lines: [
-          { key: 'windDirectionDeg', label: 'direction', color: 'var(--wx-wind-line)', dots: true },
+          {
+            key: 'windDirectionDeg',
+            label: 'direction',
+            color: 'var(--wx-wind-line)',
+            dots: true,
+          },
         ],
       },
     ],
@@ -528,7 +571,11 @@ const WeatherPopup = ({ kind, weatherId, onClose }) => {
     >
       <CModalHeader>
         <CModalTitle className="d-flex align-items-center gap-2">
-          <AiButton subject={{ type: 'process', id: weatherId }} label="the weather" size={24} />
+          <AiButton
+            subject={{ type: 'process', id: weatherId }}
+            label={tr('the weather')}
+            size={24}
+          />
           <span>
             {spec.title}
             <div className="small text-body-secondary fw-normal">{range.hint}</div>
@@ -536,7 +583,7 @@ const WeatherPopup = ({ kind, weatherId, onClose }) => {
         </CModalTitle>
       </CModalHeader>
       <CModalBody>
-        <div className="btn-group mb-3" role="group" aria-label="Scale">
+        <div className="btn-group mb-3" role="group" aria-label={tr('Scale')}>
           {RANGES.map((r) => (
             <CButton
               key={r.key}
@@ -555,7 +602,11 @@ const WeatherPopup = ({ kind, weatherId, onClose }) => {
             </CButton>
           ))}
         </div>
-        {error && <div className="small text-danger">No history: {error}</div>}
+        {error && (
+          <div className="small text-danger">
+            {tr('No history:')} {error}
+          </div>
+        )}
         {!error && !data && <CSpinner size="sm" />}
         {data && (
           <div className="d-grid gap-3">
@@ -609,10 +660,12 @@ export const SunWidget = ({ m, forecast, weatherId, cardClass }) => {
       >
         <SummaryLine
           className="wx-line"
-          hint="The sun's radiation now"
-          items={[{ v: fmt(m.weather?.radiationWm2, 0) }, 'W/m² sun']}
+          hint={tr("The sun's radiation now")}
+          items={[{ v: fmt(m.weather?.radiationWm2, 0) }, tr('W/m² sun')]}
         >
-          <span className="wx-muted">clouds {fmt(hourNow?.cloudCoverPct, 0)} %</span>
+          <span className="wx-muted">
+            {tr('clouds')} {fmt(hourNow?.cloudCoverPct, 0)} %
+          </span>
         </SummaryLine>
         <HourCurve
           hours={hours}
@@ -621,7 +674,7 @@ export const SunWidget = ({ m, forecast, weatherId, cardClass }) => {
           min={0}
           max={Math.max(200, ...hours.map((h) => h.radiationWm2 ?? 0))}
           color="var(--wx-sun-line)"
-          label="The sun, the last day and the next (W/m²)"
+          label={tr('The sun, the last day and the next (W/m²)')}
           onOpen={() => weatherId && setOpen(true)}
         />
       </WeatherCard>
@@ -646,10 +699,12 @@ export const WindWidget = ({ m, forecast, weatherId, cardClass }) => {
       >
         <SummaryLine
           className="wx-line"
-          hint="The wind now"
-          items={[{ v: fmt(m.weather?.windMs) }, 'm/s wind']}
+          hint={tr('The wind now')}
+          items={[{ v: fmt(m.weather?.windMs) }, tr('m/s wind')]}
         >
-          <span className="wx-muted">gusts {fmt(hourNow?.windGustsMs)} m/s</span>
+          <span className="wx-muted">
+            {tr('gusts')} {fmt(hourNow?.windGustsMs)} m/s
+          </span>
         </SummaryLine>
         <HourCurve
           hours={hours}
@@ -658,7 +713,7 @@ export const WindWidget = ({ m, forecast, weatherId, cardClass }) => {
           min={0}
           max={Math.max(5, ...hours.map((h) => h.windGustsMs ?? h.windSpeedMs ?? 0))}
           color="var(--wx-wind-line)"
-          label="The wind, the last day and the next (m/s)"
+          label={tr('The wind, the last day and the next (m/s)')}
           onOpen={() => weatherId && setOpen(true)}
         />
       </WeatherCard>
@@ -694,15 +749,21 @@ export const TemperatureWidget = ({ forecast, outdoor, weatherId, cardClass }) =
       >
         <SummaryLine
           className="wx-line"
-          hint="The outdoor temperature now - the heat pumps' efficiency depends on it"
-          items={[{ v: fmt(temp, 1) }, '°C outside']}
+          hint={tr("The outdoor temperature now - the heat pumps' efficiency depends on it")}
+          items={[{ v: fmt(temp, 1) }, tr('°C outside')]}
         >
           {trend !== null && (
             <span
               className="wx-muted"
-              title={Math.abs(trend) < STEADY_C ? 'Steady' : trend > 0 ? 'Warming' : 'Cooling down'}
+              title={
+                Math.abs(trend) < STEADY_C
+                  ? tr('Steady')
+                  : trend > 0
+                    ? tr('Warming')
+                    : tr('Cooling down')
+              }
             >
-              in 3 h {fmt(outdoor.in3hC, 1)} °C
+              {tr('in 3 h')} {fmt(outdoor.in3hC, 1)} °C
             </span>
           )}
         </SummaryLine>
@@ -713,7 +774,7 @@ export const TemperatureWidget = ({ forecast, outdoor, weatherId, cardClass }) =
           min={temps.length ? Math.floor(Math.min(...temps)) - 1 : 0}
           max={temps.length ? Math.ceil(Math.max(...temps)) + 1 : 1}
           color="var(--wx-temp-line)"
-          label="The temperature, the last day and the next (°C)"
+          label={tr('The temperature, the last day and the next (°C)')}
           onOpen={() => weatherId && setOpen(true)}
         />
       </WeatherCard>

@@ -23,6 +23,7 @@ import CIcon from '@coreui/icons-react'
 import { cilMediaPlay, cilPlus, cilTrash } from '@coreui/icons'
 import { api } from '../../api/client'
 import { formatSmartDateTime } from '../../utils/format'
+import { t } from 'src/i18n'
 
 /**
  * An instance's calendar (Nexus Edge AI Assistant, stage 7 - api
@@ -37,35 +38,35 @@ import { formatSmartDateTime } from '../../utils/format'
  */
 
 const REPEATS = [
-  { value: 'day', label: 'Every day' },
-  { value: 'week', label: 'Every week' },
-  { value: 'month', label: 'Every month' },
-  { value: 'year', label: 'Every year' },
-  { value: 'hours', label: 'Every N hours' },
+  { value: 'day', label: t('Every day') },
+  { value: 'week', label: t('Every week') },
+  { value: 'month', label: t('Every month') },
+  { value: 'year', label: t('Every year') },
+  { value: 'hours', label: t('Every N hours') },
 ]
 // 1 (Monday) first; the value - JS getDay (0 - Sunday)
 const WEEKDAYS = [
-  [1, 'Monday'],
-  [2, 'Tuesday'],
-  [3, 'Wednesday'],
-  [4, 'Thursday'],
-  [5, 'Friday'],
-  [6, 'Saturday'],
-  [0, 'Sunday'],
+  [1, t('Monday')],
+  [2, t('Tuesday')],
+  [3, t('Wednesday')],
+  [4, t('Thursday')],
+  [5, t('Friday')],
+  [6, t('Saturday')],
+  [0, t('Sunday')],
 ]
 const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
+  t('January'),
+  t('February'),
+  t('March'),
+  t('April'),
+  t('May'),
+  t('June'),
+  t('July'),
+  t('August'),
+  t('September'),
+  t('October'),
+  t('November'),
+  t('December'),
 ]
 const STATUS_COLOR = {
   running: 'info',
@@ -93,12 +94,12 @@ const DayFields = ({ s, onChange, label }) => {
           {...sm}
           value={s.everyHours ?? 2}
           onChange={(e) => onChange({ everyHours: Number(e.target.value) })}
-          aria-label={`${label} - every hours`}
-          title="From the time below every so many hours, to the day's end"
+          aria-label={t('{{label}} - every hours', { label })}
+          title={t("From the time below every so many hours, to the day's end")}
         >
           {[1, 2, 3, 4, 6, 8, 12].map((h) => (
             <option key={h} value={h}>
-              every {h} h
+              {t('every')} {h} h
             </option>
           ))}
         </CFormSelect>
@@ -108,7 +109,7 @@ const DayFields = ({ s, onChange, label }) => {
           {...sm}
           value={s.weekday}
           onChange={(e) => onChange({ weekday: Number(e.target.value) })}
-          aria-label={`${label} - weekday`}
+          aria-label={t('{{label}} - weekday', { label })}
         >
           {WEEKDAYS.map(([v, l]) => (
             <option key={v} value={v}>
@@ -122,7 +123,7 @@ const DayFields = ({ s, onChange, label }) => {
           {...sm}
           value={s.month}
           onChange={(e) => onChange({ month: Number(e.target.value) })}
-          aria-label={`${label} - month`}
+          aria-label={t('{{label}} - month', { label })}
         >
           {MONTHS.map((l, i) => (
             <option key={l} value={i + 1}>
@@ -136,8 +137,8 @@ const DayFields = ({ s, onChange, label }) => {
           {...sm}
           value={s.monthDay}
           onChange={(e) => onChange({ monthDay: Number(e.target.value) })}
-          aria-label={`${label} - day`}
-          title="A day past a shorter month's end - its last day"
+          aria-label={t('{{label}} - day', { label })}
+          title={t("A day past a shorter month's end - its last day")}
         >
           {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
             <option key={d} value={d}>
@@ -196,7 +197,9 @@ const AiCalendarModal = ({ instance, onClose }) => {
   return (
     <CModal visible size="xl" onClose={onClose}>
       <CModalHeader>
-        <CModalTitle>Calendar - {instance.name}</CModalTitle>
+        <CModalTitle>
+          {t('Calendar -')} {instance.name}
+        </CModalTitle>
       </CModalHeader>
       <CModalBody>
         {error && (
@@ -206,7 +209,7 @@ const AiCalendarModal = ({ instance, onClose }) => {
         )}
         {instance.connectionId === null && (
           <CAlert color="warning">
-            The assistant is off for this instance (no connection) - its runs are skipped.
+            {t('The assistant is off for this instance (no connection) - its runs are skipped.')}
           </CAlert>
         )}
         {!schedules ? (
@@ -215,13 +218,13 @@ const AiCalendarModal = ({ instance, onClose }) => {
           <CTable small responsive className="align-middle">
             <CTableHead>
               <CTableRow>
-                <CTableHeaderCell>On</CTableHeaderCell>
-                <CTableHeaderCell>Work type</CTableHeaderCell>
-                <CTableHeaderCell>Repeat</CTableHeaderCell>
-                <CTableHeaderCell>Day</CTableHeaderCell>
-                <CTableHeaderCell>Time</CTableHeaderCell>
-                <CTableHeaderCell>Next</CTableHeaderCell>
-                <CTableHeaderCell>Last run</CTableHeaderCell>
+                <CTableHeaderCell>{t('On')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Work type')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Repeat')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Day')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Time')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Next')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Last run')}</CTableHeaderCell>
                 <CTableHeaderCell />
               </CTableRow>
             </CTableHead>
@@ -229,7 +232,7 @@ const AiCalendarModal = ({ instance, onClose }) => {
               {schedules.length === 0 && (
                 <CTableRow>
                   <CTableDataCell colSpan={8} className="text-body-secondary small">
-                    No scheduled run yet.
+                    {t('No scheduled run yet.')}
                   </CTableDataCell>
                 </CTableRow>
               )}
@@ -241,7 +244,7 @@ const AiCalendarModal = ({ instance, onClose }) => {
                       <CFormSwitch
                         checked={s.enabled}
                         onChange={(e) => update(s, { enabled: e.target.checked })}
-                        aria-label={`${label} - on`}
+                        aria-label={t('{{label}} - on', { label })}
                       />
                     </CTableDataCell>
                     <CTableDataCell>
@@ -249,7 +252,7 @@ const AiCalendarModal = ({ instance, onClose }) => {
                         size="sm"
                         value={s.workType}
                         onChange={(e) => update(s, { workType: e.target.value })}
-                        aria-label={`${label} - work type`}
+                        aria-label={t('{{label}} - work type', { label })}
                       >
                         {instance.scheduledTypes.map((k) => (
                           <option key={k} value={k}>
@@ -263,7 +266,7 @@ const AiCalendarModal = ({ instance, onClose }) => {
                         size="sm"
                         value={s.repeat}
                         onChange={(e) => update(s, forRepeat(e.target.value, s))}
-                        aria-label={`${label} - repeat`}
+                        aria-label={t('{{label}} - repeat', { label })}
                       >
                         {REPEATS.map((r) => (
                           <option key={r.value} value={r.value}>
@@ -286,7 +289,7 @@ const AiCalendarModal = ({ instance, onClose }) => {
                           e.target.value !== s.time &&
                           update(s, { time: e.target.value })
                         }
-                        aria-label={`${label} - time`}
+                        aria-label={t('{{label}} - time', { label })}
                         style={{ width: '7rem' }}
                       />
                     </CTableDataCell>
@@ -303,7 +306,9 @@ const AiCalendarModal = ({ instance, onClose }) => {
                           {s.lastConversationId && (
                             <>
                               {' - '}
-                              <Link to={`/ai-assistant/${s.lastConversationId}`}>report</Link>
+                              <Link to={`/ai-assistant/${s.lastConversationId}`}>
+                                {t('report')}
+                              </Link>
                             </>
                           )}
                           {s.lastNote && (
@@ -317,7 +322,7 @@ const AiCalendarModal = ({ instance, onClose }) => {
                           )}
                         </>
                       ) : (
-                        <span className="text-body-tertiary">never</span>
+                        <span className="text-body-tertiary">{t('never')}</span>
                       )}
                     </CTableDataCell>
                     <CTableDataCell className="text-end text-nowrap">
@@ -325,21 +330,21 @@ const AiCalendarModal = ({ instance, onClose }) => {
                         size="sm"
                         color="primary"
                         variant="ghost"
-                        title="Run now"
-                        aria-label={`${label} - run now`}
+                        title={t('Run now')}
+                        aria-label={t('{{label}} - run now', { label })}
                         disabled={s.lastStatus === 'running'}
                         onClick={() => runNow(s)}
                       >
                         {/* labelled - a bare play mark wasn't found (the user, 2026-10-25) */}
                         <CIcon icon={cilMediaPlay} className="me-1" />
-                        Run now
+                        {t('Run now')}
                       </CButton>
                       <CButton
                         size="sm"
                         color="danger"
                         variant="ghost"
-                        title="Delete"
-                        aria-label={`${label} - delete`}
+                        title={t('Delete')}
+                        aria-label={t('{{label}} - delete', { label })}
                         onClick={() => remove(s)}
                       >
                         <CIcon icon={cilTrash} />
@@ -352,7 +357,7 @@ const AiCalendarModal = ({ instance, onClose }) => {
           </CTable>
         )}
         <CButton size="sm" color="primary" variant="outline" onClick={add} disabled={!schedules}>
-          <CIcon icon={cilPlus} className="me-1" /> Add a scheduled run
+          <CIcon icon={cilPlus} className="me-1" /> {t('Add a scheduled run')}
         </CButton>
         <div className="small text-body-secondary mt-2">
           Times are the server&apos;s local time; a time the clock skips (daylight saving) runs

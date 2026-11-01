@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { CButton, CSpinner } from '@coreui/react'
+import { t } from 'src/i18n'
 
 // Generic single-file upload button (AGENTS.md section 81) - a visible
 // button driving a hidden file input. `onFile(file)` is the caller's own
@@ -7,7 +8,7 @@ import { CButton, CSpinner } from '@coreui/react'
 // and surfaces its error inline.
 const FileUploadButton = ({
   accept,
-  label = 'Upload',
+  label = t('Upload'),
   onFile,
   disabled,
   size = 'sm',

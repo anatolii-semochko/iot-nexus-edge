@@ -8,6 +8,9 @@ import { SkyIcon } from '../../weather-control/ui/SkyIcon'
 import { currentHour } from '../../weather-control/ui/WeatherWidgets'
 import { FanCoilCompactIcon, HeatPumpIcon, TankIcon } from './heatIcons'
 import { fmt } from './useHeatingData'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('heating-control')
 
 // The heating's overview - a MOCKUP (iot AGENTS_TO_DO.md 2026-10-29: the heating's logic is to be
 // reworked, the overview finished in this package then): a Dashboard component (no process - every
@@ -68,7 +71,7 @@ const FlowCell = ({ kw, cooling, color: own, word }) => {
         scaleKw={50}
         color={color}
         size={FLOW_SIZE}
-        label={`${word ?? (cooling ? 'Cooling' : 'Heating')} ${fmt(Math.abs(kw), 1)} kW`}
+        label={`${word ?? (cooling ? t('Cooling') : t('Heating'))} ${fmt(Math.abs(kw), 1)} kW`}
       />
       <KeyValue value={fmt(Math.abs(kw), 1)} unit="kW" color={color} />
     </div>
@@ -82,7 +85,7 @@ const Flows = ({ heat, cool }) => (
     {cool > 0.05 && <FlowCell kw={cool} cooling />}
     {!(heat > 0.05) && !(cool > 0.05) && (
       <div className="ho-flow mx-3">
-        <Flow kw={0} dir="right" size={FLOW_SIZE} label="Heat" />
+        <Flow kw={0} dir="right" size={FLOW_SIZE} label={t('Heat')} />
       </div>
     )}
   </div>
@@ -143,7 +146,7 @@ const HeatingOverview = () => {
   const { loading, systems, forecast } = useHeatingSystems()
   if (loading) return <CSpinner size="sm" />
   if (systems.length === 0)
-    return <div className="small text-body-secondary">No heating system to show.</div>
+    return <div className="small text-body-secondary">{t('No heating system to show.')}</div>
   const heating = systems.filter((s) => s.m.mode !== 'cooling')
   const cooling = systems.filter((s) => s.m.mode === 'cooling')
   const totals = (list, key) => sum(list.map((s) => Math.abs(s.m.totals[key] ?? 0)))
@@ -163,7 +166,7 @@ const HeatingOverview = () => {
   const mode = cooling.length > heating.length ? 'cooling' : 'heating'
   const avgOf = (items, key) => avg(items.map((x) => x[key]))
   const pump = {
-    name: 'The heat pumps',
+    name: t('The heat pumps'),
     on: pumps.some((p) => p.on),
     running: running.length > 0,
     modulation: avgOf(running, 'modulation') ?? 0,
@@ -175,14 +178,14 @@ const HeatingOverview = () => {
     electricKw,
   }
   const tank = {
-    name: 'The tanks',
+    name: t('The tanks'),
     pct: fullKwh > 0 ? (storedKwh / fullKwh) * 100 : null,
     storedKwh,
     fullKwh,
     ...Object.fromEntries(['topC', 'avgC', 'bottomC'].map((k) => [k, avgOf(tanks, k)])),
   }
   const coil = {
-    name: 'The rooms',
+    name: t('The rooms'),
     on: coils.some((c) => c.on),
     fan: avgOf(working, 'fan') ?? 0,
     heatKw: totals(systems, 'consumersKw'),
@@ -208,7 +211,7 @@ const HeatingOverview = () => {
       <div className="ho-row">
         <div className="ho-side">
           <MiniBlock
-            title="Outdoors"
+            title={t('Outdoors')}
             icon={
               <SkyIcon
                 height={SIDE_ICON}
@@ -220,29 +223,29 @@ const HeatingOverview = () => {
           >
             <KeyValue value={fmt(outdoorC, 1)} unit="°C" className="ho-main" />
             <div className="small ef-muted">
-              {mode === 'cooling' ? 'The air - takes the heat' : 'The air - gives the heat'}
+              {mode === 'cooling' ? t('The air - takes the heat') : t('The air - gives the heat')}
             </div>
           </MiniBlock>
           <MiniBlock
-            title="Electricity"
+            title={t('Electricity')}
             icon={<GridIcon height={SIDE_ICON} flow={electricKw > 0.05 ? 'import' : 'none'} />}
           >
             <KeyValue value={fmt(electricKw, 1)} unit="kW" className="ho-main" />
-            <div className="small ef-muted">The heat pumps take</div>
+            <div className="small ef-muted">{t('The heat pumps take')}</div>
           </MiniBlock>
         </div>
         <div className="ho-side-flows">
           <Flows heat={airHeat} cool={airCool} />
           {electricKw > 0.05 ? (
-            <FlowCell kw={electricKw} color="var(--ho-elec)" word="Electricity" />
+            <FlowCell kw={electricKw} color="var(--ho-elec)" word={t('Electricity')} />
           ) : (
             <div className="ho-flow mx-3">
-              <Flow kw={0} dir="right" size={FLOW_SIZE} label="Electricity" />
+              <Flow kw={0} dir="right" size={FLOW_SIZE} label={t('Electricity')} />
             </div>
           )}
         </div>
         <Block
-          title="Heat pumps"
+          title={t('Heat pumps')}
           icon={<HeatPumpIcon pump={pump} mode={mode} height={BLOCK_ICON * 0.8} gauges={false} />}
         >
           <KeyValue value={fmt(heatKw, 1)} unit="kW" className="ho-main" />{' '}
@@ -254,31 +257,36 @@ const HeatingOverview = () => {
           />
           <div
             className="small ef-muted"
-            title="The heat = the air's heat + the electricity; the COP = the heat over the electricity"
+            title={t(
+              "The heat = the air's heat + the electricity; the COP = the heat over the electricity",
+            )}
           >
-            <KeyValue value={fmt(electricKw, 1)} unit="kW" /> electricity · {running.length} of{' '}
-            {pumps.length} running
+            <KeyValue value={fmt(electricKw, 1)} unit="kW" /> {t('electricity ·')} {running.length}{' '}
+            {t('of')} {pumps.length} {t('running')}
           </div>
         </Block>
         <Flows heat={totals(heating, 'heatKw')} cool={totals(cooling, 'heatKw')} />
-        <Block title="Heat storage" icon={<TankIcon tank={tank} height={BLOCK_ICON} />}>
+        <Block title={t('Heat storage')} icon={<TankIcon tank={tank} height={BLOCK_ICON} />}>
           <KeyValue value={fmt(storedKwh, 0)} unit="kWh" className="ho-main" />{' '}
           <KeyValue value={fmt(tank.pct, 0)} unit="%" />
-          <div className="small ef-muted">of {fmt(fullKwh, 0)} kWh</div>
+          <div className="small ef-muted">
+            {t('of')} {fmt(fullKwh, 0)} kWh
+          </div>
         </Block>
         <Flows heat={totals(heating, 'consumersKw')} cool={totals(cooling, 'consumersKw')} />
         <Block
-          title="Rooms"
+          title={t('Rooms')}
           icon={<FanCoilCompactIcon coil={coil} mode={mode} width={COIL_WIDTH} />}
         >
           <KeyValue value={coil.roomC ?? '-'} unit="°C" className="ho-main" />
           <div className="small ef-muted">
-            {working.length} of {coils.length} fan coils running
+            {working.length} {t('of')} {coils.length} {t('fan coils running')}
           </div>
         </Block>
       </div>
       <div className="small ef-muted text-center mt-2">
-        {systems.length} heating system{systems.length === 1 ? '' : 's'}
+        {systems.length} {t('heating system')}
+        {systems.length === 1 ? '' : 's'}
         {modes.length > 0 && ': '}
         {modes.map(([n, word]) => `${n} ${word}`).join(' · ')}
       </div>

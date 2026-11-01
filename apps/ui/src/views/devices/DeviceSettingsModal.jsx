@@ -14,6 +14,7 @@ import {
   CSpinner,
 } from '@coreui/react'
 import { api } from '../../api/client'
+import { t } from 'src/i18n'
 
 /**
  * Per-device Settings popup (AGENTS_TO_DO.md, 2026-08-01) - unlike Nodes'
@@ -62,7 +63,7 @@ const DeviceSettingsModal = ({ visible, onClose, device, deviceGroups, nodes, on
   const handleSave = async () => {
     const trimmedName = name.trim()
     if (!trimmedName) {
-      setError('Name is required')
+      setError(t('Name is required'))
       return
     }
     setBusy(true)
@@ -86,18 +87,20 @@ const DeviceSettingsModal = ({ visible, onClose, device, deviceGroups, nodes, on
   return (
     <CModal visible={visible} onClose={onClose}>
       <CModalHeader>
-        <CModalTitle>{device?.name} settings</CModalTitle>
+        <CModalTitle>
+          {device?.name} {t('settings')}
+        </CModalTitle>
       </CModalHeader>
       <CModalBody>
         {error && <CAlert color="danger">{error}</CAlert>}
         <div className="mb-3">
-          <CFormLabel>Name</CFormLabel>
+          <CFormLabel>{t('Name')}</CFormLabel>
           <CFormInput value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
         </div>
         <div className="mb-3">
-          <CFormLabel>Node</CFormLabel>
+          <CFormLabel>{t('Node')}</CFormLabel>
           <CFormSelect value={nodeId} onChange={(e) => setNodeId(e.target.value)} disabled={busy}>
-            <option value="">No node</option>
+            <option value="">{t('No node')}</option>
             {nodes.map((n) => (
               <option key={n.id} value={n.id}>
                 {n.name}
@@ -106,15 +109,15 @@ const DeviceSettingsModal = ({ visible, onClose, device, deviceGroups, nodes, on
           </CFormSelect>
         </div>
         <div className="mb-3">
-          <CFormLabel>Physical ID</CFormLabel>
+          <CFormLabel>{t('Physical ID')}</CFormLabel>
           <CFormInput
             value={device?.capabilities?.physicalId ?? ''}
             disabled
-            placeholder="Not wired up yet"
+            placeholder={t('Not wired up yet')}
           />
         </div>
         <div className="mb-3">
-          <CFormLabel>Background color when active</CFormLabel>
+          <CFormLabel>{t('Background color when active')}</CFormLabel>
           <div className="d-flex align-items-center gap-2">
             <CFormInput
               type="color"
@@ -129,9 +132,11 @@ const DeviceSettingsModal = ({ visible, onClose, device, deviceGroups, nodes, on
           </div>
         </div>
         <div>
-          <div className="text-body-secondary small mb-2">Device Groups</div>
+          <div className="text-body-secondary small mb-2">{t('Device Groups')}</div>
           {deviceGroups.length === 0 ? (
-            <div className="text-body-secondary">Nothing here yet - add some via Config.</div>
+            <div className="text-body-secondary">
+              {t('Nothing here yet - add some via Config.')}
+            </div>
           ) : (
             deviceGroups.map((g) => (
               <CFormCheck
@@ -148,10 +153,10 @@ const DeviceSettingsModal = ({ visible, onClose, device, deviceGroups, nodes, on
       </CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="outline" onClick={onClose} disabled={busy}>
-          Cancel
+          {t('Cancel')}
         </CButton>
         <CButton color="success" onClick={handleSave} disabled={busy}>
-          {busy ? <CSpinner size="sm" /> : 'Save'}
+          {busy ? <CSpinner size="sm" /> : t('Save')}
         </CButton>
       </CModalFooter>
     </CModal>

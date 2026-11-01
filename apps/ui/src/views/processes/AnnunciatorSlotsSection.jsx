@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { CCol, CFormSelect, CRow } from '@coreui/react'
+import { t } from 'src/i18n'
 
 // Per-kind extra section, rendered below the standard Tab Groups/Message
 // Casting Groups pair in ProcessSettingsModal.jsx (AGENTS_TO_DO.md,
@@ -32,11 +33,13 @@ const AnnunciatorSlotsSection = ({ process, groups, extraConfigRef }) => {
 
   return (
     <div className="mb-3">
-      <div className="text-body-secondary small mb-2">Alarm Annunciator - slot bindings</div>
+      <div className="text-body-secondary small mb-2">{t('Alarm Annunciator - slot bindings')}</div>
       {slots.map((slot, index) => (
         <CRow key={index} className="align-items-center g-2 mb-2">
           <CCol xs="3">
-            <div className="text-body-secondary small">Slot {index + 1}</div>
+            <div className="text-body-secondary small">
+              {t('Slot')} {index + 1}
+            </div>
           </CCol>
           <CCol>
             <CFormSelect
@@ -46,7 +49,7 @@ const AnnunciatorSlotsSection = ({ process, groups, extraConfigRef }) => {
                 updateSlot(index, e.target.value === '' ? null : Number(e.target.value))
               }
             >
-              <option value="">Not bound</option>
+              <option value="">{t('Not bound')}</option>
               {groups.map((group) => (
                 <option key={group.id} value={group.id}>
                   {group.name}

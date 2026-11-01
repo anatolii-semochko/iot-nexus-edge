@@ -39,6 +39,7 @@ import { formatRelativeTime } from '../../utils/format'
 import NodeSettingsModal from './NodeSettingsModal'
 import AiButton from '../../components/ai/AiButton'
 import PageTitle from '../../components/PageTitle'
+import { t } from 'src/i18n'
 
 // Registration for usePersistedState (AGENTS_TO_DO.md, 2026-08-01, joined
 // 2026-08-02 by `expandedIds`) - flat variant (no tabs), unlike
@@ -116,10 +117,10 @@ const nodeRowColor = (node, hideSimulation = false) =>
 // unset - means OK, the same "anything not danger/info" default
 // RowStatusBadge itself falls back to).
 const STATUS_FILTER_OPTIONS = [
-  { value: '', label: 'All statuses' },
+  { value: '', label: t('All statuses') },
   { value: 'ok', label: 'OK' },
-  { value: 'danger', label: 'Error' },
-  { value: 'info', label: 'Simulation' },
+  { value: 'danger', label: t('Error') },
+  { value: 'info', label: t('Simulation') },
 ]
 
 /**
@@ -224,7 +225,7 @@ const NodesList = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <PageTitle title="Nodes" />
+        <PageTitle title={t('Nodes')} />
       </CCardHeader>
       <CCardBody>
         {error && <CAlert color="danger">{error}</CAlert>}
@@ -237,7 +238,7 @@ const NodesList = () => {
                   size="sm"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  aria-label="Filter by status"
+                  aria-label={t('Filter by status')}
                 >
                   {STATUS_FILTER_OPTIONS.filter(
                     (opt) => !hideSimulation || opt.value !== 'info',
@@ -254,7 +255,7 @@ const NodesList = () => {
                   value={groupFilter}
                   onChange={(e) => setGroupFilter(e.target.value)}
                 >
-                  <option value="">All groups</option>
+                  <option value="">{t('All groups')}</option>
                   {nodeGroups.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.name}
@@ -267,7 +268,7 @@ const NodesList = () => {
                   key={searchResetToken}
                   value={search}
                   onSearch={setSearch}
-                  placeholder="Search by name, type, location..."
+                  placeholder={t('Search by name, type, location...')}
                 />
               </CCol>
               <CCol className="d-flex justify-content-end gap-2">
@@ -277,7 +278,7 @@ const NodesList = () => {
                     size="sm"
                     center
                     onClick={() => setConfigVisible(true)}
-                    ariaLabel="Configure Node Groups"
+                    ariaLabel={t('Configure Node Groups')}
                   />
                 )}
                 <ResetFiltersButton active={hasActiveFilters} onClick={handleResetFilters} />
@@ -285,23 +286,25 @@ const NodesList = () => {
             </CRow>
             {filtered.length === 0 ? (
               <CAlert color="info">
-                {nodes.length === 0 ? 'No nodes registered yet.' : 'No nodes match these filters.'}
+                {nodes.length === 0
+                  ? t('No nodes registered yet.')
+                  : t('No nodes match these filters.')}
               </CAlert>
             ) : (
               <>
                 <CTable responsive>
                   <CTableHead>
                     <CTableRow>
-                      <CTableHeaderCell scope="col">Status</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Status')}</CTableHeaderCell>
                       <CTableHeaderCell scope="col"></CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Name</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Group</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Location</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Type</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Last heartbeat</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Name')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Group')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Location')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Type')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Last heartbeat')}</CTableHeaderCell>
                       <CTableHeaderCell scope="col" className="text-end">
                         <div className="d-flex justify-content-end align-items-center gap-2">
-                          <span>Actions</span>
+                          <span>{t('Actions')}</span>
                           <ExpandAllToggleButton
                             ids={pageItems.map((node) => node.id)}
                             expandedIds={expandedIds}
@@ -334,7 +337,7 @@ const NodesList = () => {
                               {node.name}
                               {node.parent_name && (
                                 <div className="small text-body-secondary">
-                                  Attached to {node.parent_name}
+                                  {t('Attached to')} {node.parent_name}
                                 </div>
                               )}
                             </CTableDataCell>
@@ -379,10 +382,16 @@ const NodesList = () => {
                                     inactiveColor="#d3d3d3"
                                     ariaLabel={
                                       node.simulated
-                                        ? `${node.name} is simulated - switch to physical`
+                                        ? t('{{name}} is simulated - switch to physical', {
+                                            name: node.name,
+                                          })
                                         : node.can_enable_simulated
-                                          ? `${node.name} is physical - switch to simulated`
-                                          : `${node.name} has no simulated twin provisioned`
+                                          ? t('{{name}} is physical - switch to simulated', {
+                                              name: node.name,
+                                            })
+                                          : t('{{name}} has no simulated twin provisioned', {
+                                              name: node.name,
+                                            })
                                     }
                                   />
                                 )}
@@ -420,9 +429,9 @@ const NodesList = () => {
       <GroupsConfigModal
         visible={configVisible}
         onClose={() => setConfigVisible(false)}
-        title="Node Groups"
-        addLabel="Add Group"
-        namePlaceholder="Group name"
+        title={t('Node Groups')}
+        addLabel={t('Add Group')}
+        namePlaceholder={t('Group name')}
         items={nodeGroups}
         onAdd={async (name) => {
           await api.createNodeGroup(name)

@@ -4,6 +4,9 @@ import { CSpinner } from '@coreui/react'
 import { api, request } from 'src/api/client'
 import BoxOverlay from './BoxOverlay'
 import ResultDetails from './ResultDetails'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('ai-analyzer')
 
 // Last image (AGENTS.md section 82): the newest stored image with its boxes
 // and result. Refetched whenever the process reports a new analysis
@@ -28,14 +31,21 @@ const LastImageTab = ({ process, metrics }) => {
       {metrics.analyzing && (
         <div className="text-body-secondary small mb-2">
           <CSpinner size="sm" className="me-2" />
-          Analysing a new image...
+          {t('Analysing a new image...')}
         </div>
       )}
       {!entry ? (
-        <div className="text-body-secondary">No images yet</div>
+        <div className="text-body-secondary">{t('No images yet')}</div>
       ) : (
         <div className="d-flex flex-wrap gap-3 align-items-start">
-          <div style={{ position: 'relative', lineHeight: 0, maxWidth: '32rem', width: '100%' }}>
+          <div
+            style={{
+              position: 'relative',
+              lineHeight: 0,
+              maxWidth: '32rem',
+              width: '100%',
+            }}
+          >
             <img
               src={api.deviceMediaUrl(imageDeviceId, entry.id)}
               alt=""

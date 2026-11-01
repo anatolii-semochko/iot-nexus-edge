@@ -1,4 +1,5 @@
 import React from 'react'
+import { t } from 'src/i18n'
 
 /**
  * Clickable variant of `../control/ActiveBuzzerControl.jsx` for the Dev
@@ -30,9 +31,16 @@ const ActiveBuzzerSimulator = ({ value, onChange }) => {
         justifyContent: 'center',
       }}
       aria-pressed={active}
-      aria-label="Toggle buzzer"
+      aria-label={t('Toggle buzzer')}
     >
-      <div style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: GRILLE_COLOR }} />
+      <div
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          backgroundColor: GRILLE_COLOR,
+        }}
+      />
     </button>
   )
 }

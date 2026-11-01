@@ -22,11 +22,17 @@ import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { usePagination } from '../../hooks/usePagination'
 import HeartbeatEditModal from './HeartbeatEditModal'
+import { t } from 'src/i18n'
 
-const TYPE_LABEL = { process: 'Process', device: 'Device', node: 'Node' }
+const TYPE_LABEL = { process: t('Process'), device: t('Device'), node: t('Node') }
 
 const formatThreshold = (threshold) =>
-  threshold ? `${threshold.numberSkippedTicks} ticks → level ${threshold.level}` : 'off'
+  threshold
+    ? t('{{numberSkippedTicks}} ticks → level {{level}}', {
+        numberSkippedTicks: threshold.numberSkippedTicks,
+        level: threshold.level,
+      })
+    : 'off'
 
 // Same background-color rule as Devices/Nodes/Processes (section 56):
 // error -> danger, warning -> warning - no "simulation" tier here, this
@@ -37,9 +43,9 @@ const entityRowColor = (entry) =>
   entry.staleness === 'error' ? 'danger' : entry.staleness === 'warning' ? 'warning' : undefined
 
 const STATUS_FILTER_OPTIONS = [
-  { value: '', label: 'All statuses' },
+  { value: '', label: t('All statuses') },
   { value: 'ok', label: 'OK' },
-  { value: 'problem', label: 'Warning or Error' },
+  { value: 'problem', label: t('Warning or Error') },
 ]
 
 // AGENTS_TO_DO.md, 2026-08-16 - found live: `entries` was fetched once on
@@ -141,10 +147,10 @@ const HeartbeatControlPanel = () => {
               setPage(1)
             }}
           >
-            <option value="">All</option>
-            <option value="process">Processes</option>
-            <option value="device">Devices</option>
-            <option value="node">Nodes</option>
+            <option value="">{t('All')}</option>
+            <option value="process">{t('Processes')}</option>
+            <option value="device">{t('Devices')}</option>
+            <option value="node">{t('Nodes')}</option>
           </CFormSelect>
         </CCol>
         <CCol xs="auto">
@@ -155,7 +161,7 @@ const HeartbeatControlPanel = () => {
               setStatusFilter(e.target.value)
               setPage(1)
             }}
-            aria-label="Filter by status"
+            aria-label={t('Filter by status')}
           >
             {STATUS_FILTER_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -165,10 +171,14 @@ const HeartbeatControlPanel = () => {
           </CFormSelect>
         </CCol>
         <CCol xs="auto">
-          <TableSearchInput value={search} onSearch={setSearch} placeholder="Search by name..." />
+          <TableSearchInput
+            value={search}
+            onSearch={setSearch}
+            placeholder={t('Search by name...')}
+          />
         </CCol>
         <CCol className="d-flex justify-content-end gap-2">
-          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel="Reload" />
+          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel={t('Reload')} />
           <ResetFiltersButton active={hasActiveFilters} onClick={resetFilters} />
         </CCol>
       </CRow>
@@ -176,8 +186,8 @@ const HeartbeatControlPanel = () => {
       {pageItems.length === 0 ? (
         <CAlert color="info">
           {entries.length === 0
-            ? 'Nothing is heartbeat-monitored yet.'
-            : 'No entities match this filter.'}
+            ? t('Nothing is heartbeat-monitored yet.')
+            : t('No entities match this filter.')}
         </CAlert>
       ) : (
         <>
@@ -185,11 +195,11 @@ const HeartbeatControlPanel = () => {
             <CTableHead>
               <CTableRow>
                 <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
-                <CTableHeaderCell>Name</CTableHeaderCell>
-                <CTableHeaderCell>Type</CTableHeaderCell>
-                <CTableHeaderCell>Warning</CTableHeaderCell>
-                <CTableHeaderCell>Error</CTableHeaderCell>
-                <CTableHeaderCell className="text-end">Actions</CTableHeaderCell>
+                <CTableHeaderCell>{t('Name')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Type')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Warning')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Error')}</CTableHeaderCell>
+                <CTableHeaderCell className="text-end">{t('Actions')}</CTableHeaderCell>
               </CTableRow>
             </CTableHead>
             <CTableBody>
@@ -208,7 +218,9 @@ const HeartbeatControlPanel = () => {
                         icon={cilSettings}
                         size="sm"
                         center
-                        ariaLabel={`Edit heartbeat thresholds for ${entry.name}`}
+                        ariaLabel={t('Edit heartbeat thresholds for {{name}}', {
+                          name: entry.name,
+                        })}
                         onClick={() => setEditing(entry)}
                       />
                       <Switch
@@ -217,8 +229,8 @@ const HeartbeatControlPanel = () => {
                         onChange={(next) => handleToggleStopped(entry, !next)}
                         ariaLabel={
                           entry.stopped
-                            ? `Resume monitoring ${entry.name}`
-                            : `Pause monitoring ${entry.name}`
+                            ? t('Resume monitoring {{name}}', { name: entry.name })
+                            : t('Pause monitoring {{name}}', { name: entry.name })
                         }
                       />
                     </div>

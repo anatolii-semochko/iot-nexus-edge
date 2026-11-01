@@ -13,6 +13,9 @@ import {
   CTableHeaderCell,
   CTableRow,
 } from '@coreui/react'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('energy-field')
 
 // The energy field's engineer settings (Processes -> its Settings; processes.config - iot
 // AGENTS_TO_DO.md 2026-10-25, S1): the plant, not the operation - the groups (one level, each of
@@ -22,8 +25,8 @@ import {
 // changed sections (registered with '*').
 
 const BLOCKS = [
-  ['generation', 'Generation', 'PV blocks and wind turbines'],
-  ['batteries', 'Batteries', 'Battery units'],
+  ['generation', t('Generation'), t('PV blocks and wind turbines')],
+  ['batteries', t('Batteries'), t('Battery units')],
 ]
 const numberOr = (text) => (text.trim() === '' ? undefined : Number(text))
 const keyOf = (name, taken) => {
@@ -52,7 +55,10 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
   const [alerts, setAlerts] = useState(c.alerts ?? {})
   const [selfLevels, setSelfLevels] = useState(c.selfSufficiencyLevels ?? {})
   const stage = (section, value) => {
-    extraConfigRef.current = { ...(extraConfigRef.current ?? {}), [section]: value }
+    extraConfigRef.current = {
+      ...(extraConfigRef.current ?? {}),
+      [section]: value,
+    }
   }
   const saveGroups = (next) => {
     setGroups(next)
@@ -91,14 +97,14 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
     stage('selfSufficiencyLevels', next)
   }
   const rows = [
-    ...units.pvBlocks.map((x, i) => ['pvBlocks', 'PV block', 'generation', x, i]),
-    ...units.turbines.map((x, i) => ['turbines', 'Wind turbine', 'generation', x, i]),
-    ...units.batteries.map((x, i) => ['batteries', 'Battery', 'batteries', x, i]),
+    ...units.pvBlocks.map((x, i) => ['pvBlocks', t('PV block'), 'generation', x, i]),
+    ...units.turbines.map((x, i) => ['turbines', t('Wind turbine'), 'generation', x, i]),
+    ...units.batteries.map((x, i) => ['batteries', t('Battery'), 'batteries', x, i]),
   ]
 
   return (
     <>
-      <h6>Groups</h6>
+      <h6>{t('Groups')}</h6>
       <p className="small text-body-secondary mb-2">
         One level. A generation group holds PV blocks and turbines, a battery group - battery units.
         The scene shows the units by their groups; the ungrouped ones - in &quot;Other&quot; (no
@@ -108,7 +114,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
         <div key={g.key} className="d-flex gap-2 mb-2 align-items-center">
           <CFormInput
             size="sm"
-            aria-label="Group name"
+            aria-label={t('Group name')}
             value={g.name}
             maxLength={60}
             onChange={(e) =>
@@ -118,7 +124,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
           <CFormSelect
             size="sm"
             style={{ width: 'auto' }}
-            aria-label={`${g.name} - block`}
+            aria-label={t('{{name}} - block', { name: g.name })}
             value={g.block}
             onChange={(e) => {
               const block = e.target.value
@@ -142,10 +148,10 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
             size="sm"
             color="danger"
             variant="outline"
-            title="Remove this group - its units stay, ungrouped"
+            title={t('Remove this group - its units stay, ungrouped')}
             onClick={() => removeGroup(g)}
           >
-            Delete
+            {t('Delete')}
           </CButton>
         </div>
       ))}
@@ -164,22 +170,24 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
                     `${block} group`,
                     groups.map((g) => g.key),
                   ),
-                  name: `New ${label.toLowerCase()} group`,
+                  name: t('New {{toLowerCase}} group', {
+                    toLowerCase: label.toLowerCase(),
+                  }),
                   block,
                 },
               ])
             }
           >
-            Add a {label.toLowerCase()} group
+            {t('Add a')} {label.toLowerCase()} {t('group')}
           </CButton>
         ))}
       </div>
       <CTable small responsive className="mb-4">
         <CTableHead>
           <CTableRow>
-            <CTableHeaderCell>Unit</CTableHeaderCell>
-            <CTableHeaderCell>Kind</CTableHeaderCell>
-            <CTableHeaderCell style={{ width: '40%' }}>Group</CTableHeaderCell>
+            <CTableHeaderCell>{t('Unit')}</CTableHeaderCell>
+            <CTableHeaderCell>{t('Kind')}</CTableHeaderCell>
+            <CTableHeaderCell style={{ width: '40%' }}>{t('Group')}</CTableHeaderCell>
           </CTableRow>
         </CTableHead>
         <CTableBody>
@@ -190,7 +198,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
               <CTableDataCell>
                 <CFormSelect
                   size="sm"
-                  aria-label={`${x.name} - group`}
+                  aria-label={t('{{name}} - group', { name: x.name })}
                   value={x.group ?? ''}
                   onChange={(e) =>
                     saveUnits(
@@ -201,7 +209,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
                     )
                   }
                 >
-                  <option value="">No group (Other)</option>
+                  <option value="">{t('No group (Other)')}</option>
                   {groups
                     .filter((g) => g.block === block)
                     .map((g) => (
@@ -223,7 +231,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
       </p>
       <CRow className="g-3 mb-4">
         <CCol sm={4}>
-          <CFormLabel>Lowest charge, %</CFormLabel>
+          <CFormLabel>{t('Lowest charge, %')}</CFormLabel>
           <CFormInput
             type="number"
             min={0}
@@ -234,7 +242,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
           />
         </CCol>
         <CCol sm={4}>
-          <CFormLabel>Highest charge, %</CFormLabel>
+          <CFormLabel>{t('Highest charge, %')}</CFormLabel>
           <CFormInput
             type="number"
             min={50}
@@ -246,7 +254,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
         </CCol>
       </CRow>
 
-      <h6>Critical states (red on the scene)</h6>
+      <h6>{t('Critical states (red on the scene)')}</h6>
       <p className="small text-body-secondary mb-2">
         The import or the consumption over the plan&apos;s by both the share and the kW below; a
         unit over its model&apos;s rating by the share. The import at the connection&apos;s limit is
@@ -254,7 +262,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
       </p>
       <CRow className="g-3">
         <CCol sm={4}>
-          <CFormLabel>Over the plan, %</CFormLabel>
+          <CFormLabel>{t('Over the plan, %')}</CFormLabel>
           <CFormInput
             type="number"
             min={0}
@@ -264,7 +272,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
           />
         </CCol>
         <CCol sm={4}>
-          <CFormLabel>Over the plan, kW</CFormLabel>
+          <CFormLabel>{t('Over the plan, kW')}</CFormLabel>
           <CFormInput
             type="number"
             min={0}
@@ -274,7 +282,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
           />
         </CCol>
         <CCol sm={4}>
-          <CFormLabel>Over a rating, %</CFormLabel>
+          <CFormLabel>{t('Over a rating, %')}</CFormLabel>
           <CFormInput
             type="number"
             min={0}
@@ -292,7 +300,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
       </p>
       <CRow className="g-3">
         <CCol sm={4}>
-          <CFormLabel>Good from, %</CFormLabel>
+          <CFormLabel>{t('Good from, %')}</CFormLabel>
           <CFormInput
             type="number"
             min={0}
@@ -303,7 +311,7 @@ const EnergyFieldSettingsSection = ({ process, extraConfigRef }) => {
           />
         </CCol>
         <CCol sm={4}>
-          <CFormLabel>Fair from, %</CFormLabel>
+          <CFormLabel>{t('Fair from, %')}</CFormLabel>
           <CFormInput
             type="number"
             min={0}

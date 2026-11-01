@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { api } from 'src/api/client'
 import UnitPopup from './UnitPopup'
+import { t } from 'src/i18n'
 
 // A card's model line (AGENTS_TO_DO.md 2026-10-20 X1; the scenes' unit
 // popups have the Model tab instead, 2026-10-22 C): the unit's model (its
@@ -32,7 +33,7 @@ const ModelLink = ({ nodeId, picture, fallback }) => {
       <button
         type="button"
         className="btn btn-link p-0 text-decoration-none small align-baseline"
-        title="The model, its technical data, the photo and the place on the map"
+        title={t('The model, its technical data, the photo and the place on the map')}
         onClick={() => setOpen(true)}
       >
         {name}

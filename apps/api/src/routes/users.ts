@@ -46,6 +46,7 @@ interface UserRow {
   avatar_path: string | null;
   active: boolean;
   ai_daily_tokens: number | null;
+  language: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -280,6 +281,7 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
     display_name: u.display_name,
     email: u.email,
     avatar_path: u.avatar_path,
+    language: u.language,
   });
 
   app.get("/profile", async (request, reply) => {
@@ -287,7 +289,7 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
     return user ? profileOf(user) : reply;
   });
 
-  app.patch<{ Body: { display_name?: string | null; email?: string | null; password?: string; current_password?: string } }>(
+  app.patch<{ Body: { display_name?: string | null; email?: string | null; password?: string; current_password?: string; language?: string | null } }>(
     "/profile",
     async (request, reply) => {
       const user = await own(request, reply);
@@ -296,6 +298,10 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
       const displayName = body.display_name === undefined ? user.display_name : String(body.display_name ?? "").trim() || null;
       const email = body.email === undefined ? user.email : emailOf(body.email);
       if (email === undefined) return reply.code(400).send({ error: "email: an address like name@example.com" });
+      // the interface's language - one of UI_LANGUAGES, null - the browser's
+      const language = body.language === undefined ? user.language : body.language || null;
+      if (language !== null && !config.ui.languages.includes(language))
+        return reply.code(400).send({ error: `language: one of ${config.ui.languages.join(", ")}` });
       let passwordHash = user.password_hash;
       if (body.password) {
         if (!body.current_password || !(await verifyPassword(body.current_password, user.password_hash)))
@@ -304,8 +310,8 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
       }
       try {
         const result = await pool.query<UserRow>(
-          "UPDATE users SET display_name = $1, email = $2, password_hash = $3, updated_at = now() WHERE id = $4 RETURNING *",
-          [displayName, email, passwordHash, user.id],
+          "UPDATE users SET display_name = $1, email = $2, password_hash = $3, language = $5, updated_at = now() WHERE id = $4 RETURNING *",
+          [displayName, email, passwordHash, user.id, language],
         );
         invalidatePrincipals();
         // a new password - the person's other sessions are over (this one stays)

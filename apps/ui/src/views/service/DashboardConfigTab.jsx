@@ -26,6 +26,7 @@ import IconButton from '../../components/IconButton'
 import UpBreadcrumb from '../../components/UpBreadcrumb'
 import Switch from '../../components/Switch'
 import { BlockCard, cardFrame, dashboardCardWidth, pictureSource } from '../dashboard/Dashboard'
+import { t } from 'src/i18n'
 
 /**
  * Service -> Config -> Dashboard (Dashboard cards, 2026-10-16): the
@@ -72,12 +73,12 @@ const ComponentSelect = ({ value, options, onChange }) => {
     <CFormSelect
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      aria-label="Component"
+      aria-label={t('Component')}
       invalid={!value}
     >
-      <option value="">- choose -</option>
+      <option value="">{t('- choose -')}</option>
       {system.length > 0 && (
-        <optgroup label="System">
+        <optgroup label={t('System')}>
           {system.map((o) => (
             <option key={o.key} value={componentValue(o.key, null)}>
               {o.title}
@@ -149,7 +150,9 @@ const FolderCascade = ({ cards, value, exclude, onChange }) => {
     levels.push({ parent, options, chosen: chain[i]?.id ?? '' })
   }
   if (levels.length === 0)
-    return <div className="small text-body-secondary">Dashboard (the top) - no folders yet</div>
+    return (
+      <div className="small text-body-secondary">{t('Dashboard (the top) - no folders yet')}</div>
+    )
   return (
     <div className="d-flex flex-column gap-1">
       {levels.map(({ parent, options, chosen }, i) => (
@@ -161,10 +164,14 @@ const FolderCascade = ({ cards, value, exclude, onChange }) => {
           onChange={(e) =>
             onChange(e.target.value === '' ? (parent ? parent.id : null) : Number(e.target.value))
           }
-          aria-label={parent ? `A folder in ${parent.title}` : 'A folder on the top'}
+          aria-label={
+            parent ? t('A folder in {{title}}', { title: parent.title }) : t('A folder on the top')
+          }
         >
           <option value="">
-            {parent ? `- here, in ${parent.title} -` : 'Dashboard (the top)'}
+            {parent
+              ? t('- here, in {{title}} -', { title: parent.title })
+              : t('Dashboard (the top)')}
           </option>
           {options.map((f) => (
             <option key={f.id} value={f.id}>
@@ -204,14 +211,14 @@ const Slider = ({ label, value, min, max, step = 5, hint, onChange }) => (
 )
 
 const FRAME_ROWS = [
-  ['top', 'Border top', "The picture's block bordered (the picture padded)"],
-  ['middle', 'Border middle', 'A line between the picture and the title'],
+  ['top', t('Border top'), t("The picture's block bordered (the picture padded)")],
+  ['middle', t('Border middle'), t('A line between the picture and the title')],
   [
     'bottom',
-    'Border bottom',
-    "The title's block bordered; with the top - one border round the card",
+    t('Border bottom'),
+    t("The title's block bordered; with the top - one border round the card"),
   ],
-  ['fill', 'Fill', "The card's background"],
+  ['fill', t('Fill'), t("The card's background")],
 ]
 
 /**
@@ -267,46 +274,48 @@ const CardPictureRows = ({ form, set, def }) => {
           type="file"
           accept="image/png,image/jpeg,image/webp,image/gif"
           className="form-control form-control-sm"
-          aria-label={`Upload the ${slot}`}
+          aria-label={t('Upload the {{slot}}', { slot })}
           onChange={(e) => upload(slot, e.target.files?.[0])}
         />
         {picture[slot] && (
           <CButton size="sm" color="danger" variant="ghost" onClick={() => remove(slot)}>
-            Remove
+            {t('Remove')}
           </CButton>
         )}
       </div>
     ) : (
-      <div className="small text-body-secondary">The file - after the card is added.</div>
+      <div className="small text-body-secondary">{t('The file - after the card is added.')}</div>
     )
   const sizeDefault =
     source === 'file' ? 80 : source === 'icon' ? (cardFrame(form).top ? 60 : 100) : 100
   return (
     <>
-      <Row label="Picture">
+      <Row label={t('Picture')}>
         <div className="d-flex flex-column gap-2">
           <CFormSelect
             size="sm"
             value={source}
             onChange={(e) => setPicture({ source: e.target.value })}
-            aria-label="The picture's source"
+            aria-label={t("The picture's source")}
           >
-            <option value="none">No - no picture (the background only, if any)</option>
-            {form.type === 'avatar' && <option value="avatar">Avatar - the component's</option>}
-            <option value="icon">Icon - from the set</option>
-            <option value="file">File - an own image</option>
+            <option value="none">{t('No - no picture (the background only, if any)')}</option>
+            {form.type === 'avatar' && (
+              <option value="avatar">{t("Avatar - the component's")}</option>
+            )}
+            <option value="icon">{t('Icon - from the set')}</option>
+            <option value="file">{t('File - an own image')}</option>
           </CFormSelect>
           {source === 'avatar' && (
             <CFormSelect
               size="sm"
               value={form.preview}
               onChange={(e) => set({ preview: e.target.value })}
-              aria-label="Avatar"
+              aria-label={t('Avatar')}
             >
               <option value="auto">
                 {def?.avatars?.length
-                  ? `Auto - ${def.avatars[0].title}`
-                  : 'Auto - a scaled copy (the component has no avatar)'}
+                  ? t('Auto - {{title}}', { title: def.avatars[0].title })
+                  : t('Auto - a scaled copy (the component has no avatar)')}
               </option>
               {/* the component's avatars (dashboardRegistry.js) */}
               {(def?.avatars ?? []).map((a) => (
@@ -314,12 +323,12 @@ const CardPictureRows = ({ form, set, def }) => {
                   {a.title}
                 </option>
               ))}
-              <option value="scaled">A scaled copy</option>
+              <option value="scaled">{t('A scaled copy')}</option>
             </CFormSelect>
           )}
           {source === 'icon' && (
             // the card icons (dashboardIcons.js); none chosen - the type's own
-            <div className="d-flex flex-wrap gap-1" role="radiogroup" aria-label="Icon">
+            <div className="d-flex flex-wrap gap-1" role="radiogroup" aria-label={t('Icon')}>
               {Object.entries(DASHBOARD_ICONS).map(([key, icon]) => {
                 const chosen = cardIcon(form) === icon
                 return (
@@ -344,32 +353,34 @@ const CardPictureRows = ({ form, set, def }) => {
           {source !== 'none' && (
             <div className="dc-sliders">
               <Slider
-                label="Size"
+                label={t('Size')}
                 value={picture.imageScalePct ?? sizeDefault}
                 min={10}
                 max={300}
-                hint="Over 100 % - larger than the block, only its middle seen"
+                hint={t('Over 100 % - larger than the block, only its middle seen')}
                 onChange={(v) => setPicture({ imageScalePct: v })}
               />
             </div>
           )}
         </div>
       </Row>
-      <Row label="Background">
+      <Row label={t('Background')}>
         <div className="d-flex flex-column gap-2">
           {file('background')}
           {picture.background && (
             <div className="dc-sliders">
               <Slider
-                label="Size"
+                label={t('Size')}
                 value={picture.backgroundScalePct ?? 100}
                 min={10}
                 max={300}
-                hint="100 % - covers the block; over - larger, only its middle seen; under - smaller"
+                hint={t(
+                  '100 % - covers the block; over - larger, only its middle seen; under - smaller',
+                )}
                 onChange={(v) => setPicture({ backgroundScalePct: v })}
               />
               <Slider
-                label="Opacity"
+                label={t('Opacity')}
                 value={picture.backgroundOpacityPct ?? 40}
                 min={0}
                 max={100}
@@ -423,19 +434,21 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
   return (
     <CModal visible onClose={onClose} alignment="center" size="xl">
       <CModalHeader>
-        <CModalTitle>{form.id ? `Edit the ${noun}` : `New ${noun}`}</CModalTitle>
+        <CModalTitle>
+          {form.id ? t('Edit the {{noun}}', { noun }) : t('New {{noun}}', { noun })}
+        </CModalTitle>
       </CModalHeader>
       <CModalBody>
         <style>{FORM_CSS}</style>
         {error && <CAlert color="danger">{error}</CAlert>}
         <div className="dc-layout">
           {/* how the card will look on the Dashboard */}
-          <div className="dc-preview" aria-label="Preview">
-            <div className="small text-body-secondary mb-2">On the Dashboard</div>
+          <div className="dc-preview" aria-label={t('Preview')}>
+            <div className="small text-body-secondary mb-2">{t('On the Dashboard')}</div>
             {block ? (
               <div style={{ width: cardWidth ?? '100%', maxWidth: cardWidth ? '100%' : 360 }}>
                 <BlockCard
-                  card={{ ...form, title: form.title || 'Untitled' }}
+                  card={{ ...form, title: form.title || t('Untitled') }}
                   processes={processes}
                   linked={false}
                 />
@@ -448,16 +461,16 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
             )}
           </div>
           <div className="dc-form">
-            <Row label="Title">
+            <Row label={t('Title')}>
               <CFormInput
                 value={form.title}
                 onChange={(e) => set({ title: e.target.value })}
                 invalid={!form.title.trim()}
                 autoFocus
-                aria-label="Title"
+                aria-label={t('Title')}
               />
             </Row>
-            <Row label="In">
+            <Row label={t('In')}>
               <FolderCascade
                 cards={cards}
                 value={form.parentId ?? null}
@@ -466,19 +479,19 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
               />
             </Row>
             {form.type === 'folder' ? (
-              <Row label="Shows">
+              <Row label={t('Shows')}>
                 <CFormSelect
                   value={form.layout}
                   onChange={(e) => set({ layout: e.target.value })}
-                  aria-label="Layout"
+                  aria-label={t('Layout')}
                 >
-                  <option value="blocks">Its cards as blocks</option>
-                  <option value="list">Its cards as a list</option>
+                  <option value="blocks">{t('Its cards as blocks')}</option>
+                  <option value="list">{t('Its cards as a list')}</option>
                 </CFormSelect>
               </Row>
             ) : (
               <>
-                <Row label="Shows">
+                <Row label={t('Shows')}>
                   <div>
                     <ComponentSelect
                       value={componentValue(form.componentKey, form.processId)}
@@ -512,7 +525,7 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
                       aria-label={d.label}
                       title={d.hint}
                     >
-                      <option value="">{d.required ? 'Choose…' : 'All'}</option>
+                      <option value="">{d.required ? t('Choose…') : t('All')}</option>
                       {d.options.map((o) => (
                         <option key={o.value} value={o.value}>
                           {o.label}
@@ -526,10 +539,10 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
             {!block && (
               <>
                 <div className="dc-group" />
-                <Row label="Its title" hint="The card's title over the component">
+                <Row label={t('Its title')} hint={t("The card's title over the component")}>
                   <Switch
                     checked={form.frame?.title !== false}
-                    ariaLabel="Its title"
+                    ariaLabel={t('Its title')}
                     onChange={(on) => set({ frame: { ...frame, title: on } })}
                   />
                 </Row>
@@ -554,25 +567,30 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
             {form.type === 'avatar' && (
               <>
                 <div className="dc-group" />
-                <Row label="Opened" hint="The default - with the switch below, the viewer's own">
+                <Row
+                  label={t('Opened')}
+                  hint={t("The default - with the switch below, the viewer's own")}
+                >
                   <CFormSelect
                     value={form.view}
                     onChange={(e) => set({ view: e.target.value })}
-                    aria-label="View"
+                    aria-label={t('View')}
                   >
                     <option value="fit-height">
-                      On the visible height - scaled to fit, no scrolling
+                      {t('On the visible height - scaled to fit, no scrolling')}
                     </option>
-                    <option value="fit-width">On the visible width - laid out in it</option>
+                    <option value="fit-width">{t('On the visible width - laid out in it')}</option>
                   </CFormSelect>
                 </Row>
                 <Row
-                  label="Viewer can switch the fit"
-                  hint="Two buttons right of the path on top - the width / the height; each viewer's choice kept in their browser"
+                  label={t('Viewer can switch the fit')}
+                  hint={t(
+                    "Two buttons right of the path on top - the width / the height; each viewer's choice kept in their browser",
+                  )}
                 >
                   <Switch
                     checked={!!form.userFit}
-                    ariaLabel="Viewer can switch the fit"
+                    ariaLabel={t('Viewer can switch the fit')}
                     onChange={(on) => set({ userFit: on })}
                   />
                 </Row>
@@ -581,7 +599,7 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
             <div className="dc-row">
               <span />
               <div className="small text-body-secondary">
-                Who sees the card - each role&apos;s Dashboard tab (Users {'->'} Roles).
+                Who sees the card - each role&apos;s Dashboard tab (Users {'->'} {t('Roles).')}
               </div>
             </div>
           </div>
@@ -589,10 +607,10 @@ const CardModal = ({ draft, cards, options, processes = [], onClose, onSave }) =
       </CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="outline" onClick={onClose}>
-          Cancel
+          {t('Cancel')}
         </CButton>
         <CButton color="primary" disabled={busy || !valid} onClick={save}>
-          {busy ? <CSpinner size="sm" /> : form.id ? 'Save' : 'Add'}
+          {busy ? <CSpinner size="sm" /> : form.id ? t('Save') : t('Add')}
         </CButton>
       </CModalFooter>
     </CModal>
@@ -661,21 +679,27 @@ const DashboardConfigTab = () => {
   const remove = async (card) => {
     const inside = subtreeIds(cards, card.id).size - 1
     const ok = await confirm({
-      title: 'Delete the card',
+      title: t('Delete the card'),
       body:
         inside > 0
-          ? `"${card.title}" and the ${inside} card(s) inside it will be deleted.`
-          : `"${card.title}" will be deleted.`,
-      confirmLabel: 'Delete',
+          ? t('"{{title}}" and the {{inside}} card(s) inside it will be deleted.', {
+              title: card.title,
+              inside,
+            })
+          : t('"{{title}}" will be deleted.', { title: card.title }),
+      confirmLabel: t('Delete'),
       confirmColor: 'danger',
     })
     if (ok) run(() => api.deleteDashboardCard(card.id))
   }
   const what = (card) =>
     card.type === 'folder'
-      ? `folder, ${childrenOf(cards, card.id).length} inside, ${card.layout === 'list' ? 'a list' : 'blocks'}`
+      ? t('folder, {{length}} inside, {{v1}}', {
+          length: childrenOf(cards, card.id).length,
+          v1: card.layout === 'list' ? 'a list' : 'blocks',
+        })
       : [
-          card.type === 'avatar' ? 'avatar' : 'component, full width',
+          card.type === 'avatar' ? 'avatar' : t('component, full width'),
           dashboardComponents[card.componentKey]?.title ?? card.componentKey,
           processes.find((p) => p.id === card.processId)?.name,
         ]
@@ -696,17 +720,21 @@ const DashboardConfigTab = () => {
       {error && <CAlert color="danger">{error}</CAlert>}
       <div className="d-flex align-items-center gap-2 mb-2">
         <div className="me-auto">
-          <UpBreadcrumb trail={trail} onNavigate={setFolderId} rootLabel="Dashboard" />
+          <UpBreadcrumb trail={trail} onNavigate={setFolderId} rootLabel={t('Dashboard')} />
         </div>
         {/* the two adds - one button group */}
-        <div className="btn-group" role="group" aria-label="Add">
+        <div className="btn-group" role="group" aria-label={t('Add')}>
           {[
-            ['folder', 'Folder', 'A folder - its cards on a level of their own'],
-            ['avatar', 'Avatar', "A block - the component's picture, opening it on the whole page"],
+            ['folder', t('Folder'), t('A folder - its cards on a level of their own')],
+            [
+              'avatar',
+              t('Avatar'),
+              t("A block - the component's picture, opening it on the whole page"),
+            ],
             [
               'component',
-              'Component',
-              "The component itself - at the full width under the level's blocks",
+              t('Component'),
+              t("The component itself - at the full width under the level's blocks"),
             ],
           ].map(([type, label, hint]) => (
             <CButton
@@ -724,8 +752,10 @@ const DashboardConfigTab = () => {
       {level.length === 0 ? (
         <CAlert color="info">
           {folder
-            ? 'This folder is empty - add a folder, an avatar or a component.'
-            : `No cards yet - the Dashboard shows the project's own page${options.length > 0 ? '' : ' (no module offers components)'}.`}
+            ? t('This folder is empty - add a folder, an avatar or a component.')
+            : t("No cards yet - the Dashboard shows the project's own page{{v0}}.", {
+                v0: options.length > 0 ? '' : ' (no module offers components)',
+              })}
         </CAlert>
       ) : (
         // a table - the rows' lines, none under the last
@@ -758,14 +788,14 @@ const DashboardConfigTab = () => {
                 <CTableDataCell className="text-end text-nowrap" style={{ width: '1%' }}>
                   <span className="d-inline-flex gap-2">
                     {/* the order - up / down as one button group */}
-                    <span className="btn-group" role="group" aria-label="Order">
+                    <span className="btn-group" role="group" aria-label={t('Order')}>
                       <IconButton
                         icon={cilArrowTop}
                         size="sm"
                         center
                         disabled={i === 0}
-                        ariaLabel="Up"
-                        title="Up"
+                        ariaLabel={t('Up')}
+                        title={t('Up')}
                         onClick={() => run(() => api.moveDashboardCard(card.id, 'up'))}
                       />
                       <IconButton
@@ -773,8 +803,8 @@ const DashboardConfigTab = () => {
                         size="sm"
                         center
                         disabled={i === level.length - 1}
-                        ariaLabel="Down"
-                        title="Down"
+                        ariaLabel={t('Down')}
+                        title={t('Down')}
                         onClick={() => run(() => api.moveDashboardCard(card.id, 'down'))}
                       />
                     </span>
@@ -782,8 +812,8 @@ const DashboardConfigTab = () => {
                       icon={cilPencil}
                       size="sm"
                       center
-                      ariaLabel="Edit"
-                      title="Edit"
+                      ariaLabel={t('Edit')}
+                      title={t('Edit')}
                       onClick={() => setDraft({ ...EMPTY, ...card })}
                     />
                     <IconButton
@@ -791,8 +821,8 @@ const DashboardConfigTab = () => {
                       size="sm"
                       color="danger"
                       center
-                      ariaLabel="Delete"
-                      title="Delete"
+                      ariaLabel={t('Delete')}
+                      title={t('Delete')}
                       onClick={() => remove(card)}
                     />
                   </span>

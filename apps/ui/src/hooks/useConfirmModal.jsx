@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { CButton, CModal, CModalBody, CModalFooter, CModalHeader, CModalTitle } from '@coreui/react'
+import { t } from 'src/i18n'
 
 /**
  * Generic "are you sure?" confirm dialog (AGENTS_TO_DO.md 2026-09-04,
@@ -36,15 +37,15 @@ export function useConfirmModal() {
   const modal = (
     <CModal visible={state !== null} onClose={() => close(false)} alignment="center">
       <CModalHeader>
-        <CModalTitle>{state?.title ?? 'Confirm'}</CModalTitle>
+        <CModalTitle>{state?.title ?? t('Confirm')}</CModalTitle>
       </CModalHeader>
       <CModalBody>{state?.body}</CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="outline" onClick={() => close(false)}>
-          Cancel
+          {t('Cancel')}
         </CButton>
         <CButton color={state?.confirmColor ?? 'primary'} onClick={() => close(true)}>
-          {state?.confirmLabel ?? 'Confirm'}
+          {state?.confirmLabel ?? t('Confirm')}
         </CButton>
       </CModalFooter>
     </CModal>

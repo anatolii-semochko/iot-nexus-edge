@@ -3,6 +3,7 @@ import { CBadge, CButton, CSpinner } from '@coreui/react'
 import { api } from '../../api/client'
 import { useCan } from '../../access'
 import { formatSmartDateTime } from '../../utils/format'
+import { t } from 'src/i18n'
 
 /**
  * One AI Assistant proposal (Nexus Edge AI Assistant, stage 6 - api
@@ -19,7 +20,7 @@ const STATUS_COLOR = {
   rejected: 'secondary',
   failed: 'danger',
 }
-const ACCESS_LABEL = { config: 'Config', control: 'Control', install: 'Install' }
+const ACCESS_LABEL = { config: t('Config'), control: t('Control'), install: t('Install') }
 
 // the leaves of a value by path ("channels[0].dailyMl") - so a diff shows the fields that change
 const leavesOf = (value, prefix = '', out = {}) => {
@@ -78,12 +79,16 @@ const DiffTable = ({ rows }) => (
 const Change = ({ proposal: p }) => {
   if (p.operation === 'config') {
     const rows = diffOf(p.before?.sections, p.payload.sections)
-    return rows.length ? <DiffTable rows={rows} /> : <div className="small">No field changes.</div>
+    return rows.length ? (
+      <DiffTable rows={rows} />
+    ) : (
+      <div className="small">{t('No field changes.')}</div>
+    )
   }
   if (p.operation === 'grants') {
     // a person's access - their roles before and after (api access.propose)
     const rows = diffOf({ grants: p.before?.grants }, { grants: p.payload.grants })
-    return rows.length ? <DiffTable rows={rows} /> : <div className="small">No change.</div>
+    return rows.length ? <DiffTable rows={rows} /> : <div className="small">{t('No change.')}</div>
   }
   if (p.operation === 'switch')
     return (
@@ -100,7 +105,7 @@ const Change = ({ proposal: p }) => {
   if (p.operation === 'command')
     return (
       <div className="small">
-        Command <span className="font-monospace fw-semibold">{p.payload.action}</span>
+        {t('Command')} <span className="font-monospace fw-semibold">{p.payload.action}</span>
         {Object.keys(p.payload.params ?? {}).length > 0 && (
           <DiffTable
             rows={Object.entries(leavesOf(p.payload.params)).map(([k, v]) => [k, undefined, v])}
@@ -143,7 +148,7 @@ const ProposalCard = ({ proposal: p, onDecided }) => {
       <Change proposal={p} />
       {p.status === 'pending' && !canDecide ? (
         <div className="small text-body-secondary mt-1">
-          Waiting for a person with the right to decide.
+          {t('Waiting for a person with the right to decide.')}
         </div>
       ) : p.status === 'pending' ? (
         <div className="d-flex gap-2 mt-2 align-items-center">
@@ -153,7 +158,8 @@ const ProposalCard = ({ proposal: p, onDecided }) => {
             disabled={Boolean(busy)}
             onClick={() => decide('accept')}
           >
-            {busy === 'accept' && <CSpinner size="sm" className="me-1" />}Accept
+            {busy === 'accept' && <CSpinner size="sm" className="me-1" />}
+            {t('Accept')}
           </CButton>
           <CButton
             size="sm"
@@ -162,14 +168,19 @@ const ProposalCard = ({ proposal: p, onDecided }) => {
             disabled={Boolean(busy)}
             onClick={() => decide('reject')}
           >
-            {busy === 'reject' && <CSpinner size="sm" className="me-1" />}Reject
+            {busy === 'reject' && <CSpinner size="sm" className="me-1" />}
+            {t('Reject')}
           </CButton>
           {error && <span className="small text-danger">{error}</span>}
         </div>
       ) : (
         <div className="small text-body-secondary mt-1">
-          {p.status === 'rejected' ? 'Rejected' : p.status === 'failed' ? 'Failed' : 'Applied'}
-          {p.decidedBy && ` by ${p.decidedBy.name}`}
+          {p.status === 'rejected'
+            ? t('Rejected')
+            : p.status === 'failed'
+              ? t('Failed')
+              : t('Applied')}
+          {p.decidedBy && t(' by {{name}}', { name: p.decidedBy.name })}
           {p.decidedAt && `, ${formatSmartDateTime(p.decidedAt)}`}
           {p.error && <span className="text-danger"> - {p.error}</span>}
         </div>

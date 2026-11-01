@@ -14,6 +14,7 @@ import {
   CSpinner,
 } from '@coreui/react'
 import { api } from '../../api/client'
+import { t as tr } from 'src/i18n'
 
 /**
  * Library -> a node / device type's "Add node" / "Add device" (Nexus Edge
@@ -47,12 +48,15 @@ const AddNodeForm = ({ item, nodes, value, onChange }) => {
     <>
       {nodeType.parents.length > 0 && (
         <div className="mb-3">
-          <CFormLabel>Plugs into</CFormLabel>
+          <CFormLabel>{tr('Plugs into')}</CFormLabel>
           <CFormSelect
             value={value.parentId ?? ''}
             onChange={(e) => onChange({ parentId: e.target.value ? Number(e.target.value) : null })}
           >
-            <option value="">- choose ({nodeType.parents.join(' / ')}) -</option>
+            <option value="">
+              {tr('- choose (')}
+              {nodeType.parents.join(' / ')}) -
+            </option>
             {parents.map((n) => (
               <option key={n.id} value={n.id}>
                 {n.name}
@@ -62,11 +66,12 @@ const AddNodeForm = ({ item, nodes, value, onChange }) => {
         </div>
       )}
       <CFormLabel>
-        Devices ({roles.length} of {nodeType.devices.length})
+        {tr('Devices (')}
+        {roles.length} {tr('of')} {nodeType.devices.length})
       </CFormLabel>
       <div className="border rounded p-2" style={{ maxHeight: '14rem', overflow: 'auto' }}>
         {nodeType.devices.length === 0 && (
-          <div className="small text-body-secondary">The type declares no devices.</div>
+          <div className="small text-body-secondary">{tr('The type declares no devices.')}</div>
         )}
         {nodeType.devices.map((d) => (
           <CFormCheck
@@ -93,12 +98,12 @@ const AddNodeForm = ({ item, nodes, value, onChange }) => {
 const AddDeviceForm = ({ nodes, value, onChange }) => (
   <>
     <div className="mb-3">
-      <CFormLabel>Node</CFormLabel>
+      <CFormLabel>{tr('Node')}</CFormLabel>
       <CFormSelect
         value={value.nodeId ?? ''}
         onChange={(e) => onChange({ nodeId: e.target.value ? Number(e.target.value) : null })}
       >
-        <option value="">- standalone -</option>
+        <option value="">{tr('- standalone -')}</option>
         {nodes.map((n) => (
           <option key={n.id} value={n.id}>
             {n.name} ({n.type})
@@ -107,10 +112,10 @@ const AddDeviceForm = ({ nodes, value, onChange }) => (
       </CFormSelect>
     </div>
     <div className="mb-3">
-      <CFormLabel>Role</CFormLabel>
+      <CFormLabel>{tr('Role')}</CFormLabel>
       <CFormInput
         value={value.role ?? ''}
-        placeholder="how its process finds it, e.g. heater"
+        placeholder={tr('how its process finds it, e.g. heater')}
         onChange={(e) => onChange({ role: e.target.value })}
       />
     </div>
@@ -137,11 +142,14 @@ const AddRegistryModal = ({ kind, item, onClose, onCreated }) => {
       if (kind === 'node') {
         const r = await api.createNode({ ...form, type: item.typeName })
         onCreated(
-          `Node "${form.name}" registered with ${r.deviceIds.length} device(s) - see the Nodes page.`,
+          tr('Node "{{name}}" registered with {{length}} device(s) - see the Nodes page.', {
+            name: form.name,
+            length: r.deviceIds.length,
+          }),
         )
       } else {
         await api.createDevice({ ...form, type: item.typeName, role: form.role || null })
-        onCreated(`Device "${form.name}" registered - see the Devices page.`)
+        onCreated(tr('Device "{{name}}" registered - see the Devices page.', { name: form.name }))
       }
       onClose()
     } catch (err) {
@@ -154,13 +162,13 @@ const AddRegistryModal = ({ kind, item, onClose, onCreated }) => {
     <CModal visible onClose={onClose}>
       <CModalHeader>
         <CModalTitle>
-          Add {kind} - {item.name}
+          {tr('Add')} {kind} - {item.name}
         </CModalTitle>
       </CModalHeader>
       <CModalBody>
         {error && <CAlert color="danger">{error}</CAlert>}
         <div className="mb-3">
-          <CFormLabel>Name</CFormLabel>
+          <CFormLabel>{tr('Name')}</CFormLabel>
           <CFormInput
             value={form.name}
             onChange={(e) => change({ name: e.target.value })}
@@ -175,15 +183,16 @@ const AddRegistryModal = ({ kind, item, onClose, onCreated }) => {
           <AddDeviceForm nodes={nodes} value={form} onChange={change} />
         )}
         <div className="small text-body-secondary mt-2">
-          Virtual - played by a simulation until the hardware is wired.
+          {tr('Virtual - played by a simulation until the hardware is wired.')}
         </div>
       </CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="outline" onClick={onClose} disabled={busy}>
-          Cancel
+          {tr('Cancel')}
         </CButton>
         <CButton color="primary" onClick={submit} disabled={busy || !form.name?.trim()}>
-          {busy && <CSpinner size="sm" className="me-1" />}Register
+          {busy && <CSpinner size="sm" className="me-1" />}
+          {tr('Register')}
         </CButton>
       </CModalFooter>
     </CModal>

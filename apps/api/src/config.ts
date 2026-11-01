@@ -14,6 +14,10 @@ function required(name: string): string {
 }
 
 export const config = {
+  // the interface's languages (the UI's flags; a person's choice - users.language), the first the default
+  ui: {
+    languages: (process.env.UI_LANGUAGES ?? "en,uk,de,es").split(",").map((l) => l.trim()).filter(Boolean),
+  },
   host: process.env.API_HOST ?? "0.0.0.0",
   port: Number(process.env.API_PORT ?? 3001),
   // Fastify's own per-request auto-logging (every incoming request +

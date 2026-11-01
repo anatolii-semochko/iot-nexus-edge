@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { CButton } from '@coreui/react'
 import { api } from 'src/api/client'
+import { t } from 'src/i18n'
 
 // A small map around one point (a node's information popup, AGENTS_TO_DO.md
 // 2026-10-20 X1): the slippy-map tiles (256 px, Web Mercator) laid out
@@ -77,8 +78,8 @@ const TileMap = ({ latitude, longitude, zoom: initialZoom = 15, height = 300, la
       <div
         ref={box}
         role="img"
-        aria-label={`Map: ${label ?? 'the unit'} at ${coords}`}
-        title={`${label ?? 'The unit'} at ${coords}`}
+        aria-label={t('Map: {{v0}} at {{coords}}', { v0: label ?? 'the unit', coords })}
+        title={t('{{v0}} at {{coords}}', { v0: label ?? 'The unit', coords })}
         style={{
           position: 'relative',
           height,
@@ -118,8 +119,8 @@ const TileMap = ({ latitude, longitude, zoom: initialZoom = 15, height = 300, la
             color="light"
             disabled={zoom >= MAX_ZOOM}
             onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z + 1))}
-            aria-label="Zoom in"
-            title="Zoom in"
+            aria-label={t('Zoom in')}
+            title={t('Zoom in')}
           >
             +
           </CButton>
@@ -128,15 +129,15 @@ const TileMap = ({ latitude, longitude, zoom: initialZoom = 15, height = 300, la
             color="light"
             disabled={zoom <= MIN_ZOOM}
             onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z - 1))}
-            aria-label="Zoom out"
-            title="Zoom out"
+            aria-label={t('Zoom out')}
+            title={t('Zoom out')}
           >
             −
           </CButton>
         </div>
       </div>
       <div className="d-flex justify-content-between flex-wrap gap-2 small text-body-secondary mt-1">
-        <span title="Latitude, longitude">{coords}</span>
+        <span title={t('Latitude, longitude')}>{coords}</span>
         {attribution && <span>{attribution}</span>}
       </div>
     </div>

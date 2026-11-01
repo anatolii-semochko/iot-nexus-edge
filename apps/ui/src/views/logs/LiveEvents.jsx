@@ -22,6 +22,7 @@ import TableSearchInput from '../../components/table/TableSearchInput'
 import { usePersistedState } from '../../hooks/usePersistedState'
 import LiveBadge from '../devices/LiveBadge'
 import PageTitle from '../../components/PageTitle'
+import { t as tr } from 'src/i18n'
 
 // How many recent messages to keep in the buffer - client-side only (no
 // pagination, no server round trip - this is a raw tap on the socket, not
@@ -194,14 +195,14 @@ const LiveEvents = () => {
     <CCard className="mb-4">
       <CCardHeader className="d-flex justify-content-between align-items-center">
         <div className="d-flex align-items-center gap-2">
-          <PageTitle title="Live Events" />
-          <small>last</small>
+          <PageTitle title={tr('Live Events')} />
+          <small>{tr('last')}</small>
           <CFormSelect
             size="sm"
             className="w-auto d-inline-block"
             value={limit}
             onChange={(e) => changeLimit(Number(e.target.value))}
-            aria-label="Buffer size"
+            aria-label={tr('Buffer size')}
           >
             {LIMIT_OPTIONS.map((n) => (
               <option key={n} value={n}>
@@ -212,7 +213,7 @@ const LiveEvents = () => {
           <LiveBadge />
         </div>
         <CButton size="sm" color="secondary" variant="outline" onClick={() => setRows([])}>
-          Clear
+          {tr('Clear')}
         </CButton>
       </CCardHeader>
       <CCardBody>
@@ -223,7 +224,7 @@ const LiveEvents = () => {
               value={domainFilter}
               onChange={(e) => setDomainFilter(e.target.value)}
             >
-              <option value="">All domains</option>
+              <option value="">{tr('All domains')}</option>
               {domains.map((domain) => (
                 <option key={domain} value={domain}>
                   {domain}
@@ -237,7 +238,7 @@ const LiveEvents = () => {
               value={entityFilter}
               onChange={(e) => setEntityFilter(e.target.value)}
             >
-              <option value="">All entities</option>
+              <option value="">{tr('All entities')}</option>
               {entities.map((entity) => (
                 <option key={entity} value={entity}>
                   {entity}
@@ -251,7 +252,7 @@ const LiveEvents = () => {
               value={modeFilter}
               onChange={(e) => setModeFilter(e.target.value)}
             >
-              <option value="">All modes</option>
+              <option value="">{tr('All modes')}</option>
               {modes.map((mode) => (
                 <option key={mode} value={mode}>
                   {mode}
@@ -265,7 +266,7 @@ const LiveEvents = () => {
               value={sourceFilter}
               onChange={(e) => setSourceFilter(e.target.value)}
             >
-              <option value="">All sources</option>
+              <option value="">{tr('All sources')}</option>
               {sources.map((source) => (
                 <option key={source} value={source}>
                   {source}
@@ -278,7 +279,7 @@ const LiveEvents = () => {
               key={searchResetToken}
               value={search}
               onSearch={setSearch}
-              placeholder="Search..."
+              placeholder={tr('Search...')}
             />
           </CCol>
           <CCol className="d-flex justify-content-end">
@@ -287,19 +288,21 @@ const LiveEvents = () => {
         </CRow>
 
         {rows.length === 0 ? (
-          <p className="text-body-secondary mb-0">No messages yet - waiting for live events...</p>
+          <p className="text-body-secondary mb-0">
+            {tr('No messages yet - waiting for live events...')}
+          </p>
         ) : filtered.length === 0 ? (
-          <CAlert color="info">No events match this filter.</CAlert>
+          <CAlert color="info">{tr('No events match this filter.')}</CAlert>
         ) : (
           <CTable hover responsive small>
             <CTableHead>
               <CTableRow>
-                <CTableHeaderCell scope="col">Time</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Routing key</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Entity</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Value</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Mode</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Source</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{tr('Time')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{tr('Routing key')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{tr('Entity')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{tr('Value')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{tr('Mode')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{tr('Source')}</CTableHeaderCell>
               </CTableRow>
             </CTableHead>
             <CTableBody>

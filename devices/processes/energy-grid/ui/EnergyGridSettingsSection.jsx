@@ -2,6 +2,9 @@ import React, { useState } from 'react'
 import CIcon from '@coreui/icons-react'
 import { cilPlus, cilTrash } from '@coreui/icons'
 import { CButton, CCol, CFormInput, CFormLabel, CFormSelect, CRow } from '@coreui/react'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const t = packageT('energy-grid')
 
 // The energy-grid process's Settings ("Configuration" tab): the purchase
 // (a time-of-use tariff or the market plus surcharge, the tariff zones),
@@ -29,7 +32,10 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
   const [timeZone, setTimeZone] = useState(c.timeZone ?? '')
 
   const stage = (section, value) => {
-    extraConfigRef.current = { ...(extraConfigRef.current ?? {}), [section]: value }
+    extraConfigRef.current = {
+      ...(extraConfigRef.current ?? {}),
+      [section]: value,
+    }
   }
   // one section's field; an empty value - the key dropped (the default)
   const edit = (section, current, set, key, value) => {
@@ -50,18 +56,18 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
 
   return (
     <>
-      <h6>Buying</h6>
+      <h6>{t('Buying')}</h6>
       <CRow className="g-3 mb-2">
-        <Field label="Price">
+        <Field label={t('Price')}>
           <CFormSelect
             value={purchase.mode ?? 'tariff'}
             onChange={(e) => editPurchase('mode', e.target.value)}
           >
-            <option value="tariff">Tariff zones</option>
-            <option value="market">Market (dynamic tariff)</option>
+            <option value="tariff">{t('Tariff zones')}</option>
+            <option value="market">{t('Market (dynamic tariff)')}</option>
           </CFormSelect>
         </Field>
-        <Field label="Surcharge on the market price, ct/kWh">
+        <Field label={t('Surcharge on the market price, ct/kWh')}>
           <CFormInput
             type="number"
             step="0.01"
@@ -73,15 +79,16 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
         </Field>
       </CRow>
       <div className="small text-body-secondary mb-1">
-        Tariff zones - the time of day, local; a zone may wrap midnight. With the market price they
-        label the slots and price them when the market data is missing.
+        {t(
+          'Tariff zones - the time of day, local; a zone may wrap midnight. With the market price they label the slots and price them when the market data is missing.',
+        )}
       </div>
       {zones.map((z, i) => (
         <CRow key={i} className="g-2 mb-1 align-items-center">
           <CCol xs={3}>
             <CFormInput
               size="sm"
-              placeholder="key, e.g. night"
+              placeholder={t('key, e.g. night')}
               value={z.key}
               onChange={(e) => editZone(i, 'key', e.target.value)}
             />
@@ -117,7 +124,7 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
               size="sm"
               color="danger"
               variant="ghost"
-              title="Remove the zone"
+              title={t('Remove the zone')}
               onClick={() => setZones(zones.filter((_, j) => j !== i))}
             >
               <CIcon icon={cilTrash} />
@@ -131,21 +138,21 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
         variant="outline"
         onClick={() => setZones([...zones, { key: '', from: '00:00', to: '00:00', priceCtKwh: 0 }])}
       >
-        <CIcon icon={cilPlus} /> Zone
+        <CIcon icon={cilPlus} /> {t('Zone')}
       </CButton>
 
-      <h6 className="mt-4">Selling</h6>
+      <h6 className="mt-4">{t('Selling')}</h6>
       <CRow className="g-3">
-        <Field label="Price">
+        <Field label={t('Price')}>
           <CFormSelect
             value={sale.mode ?? 'fixed'}
             onChange={(e) => editSale('mode', e.target.value)}
           >
-            <option value="fixed">Fixed (feed-in tariff)</option>
-            <option value="market">Market (direct marketing)</option>
+            <option value="fixed">{t('Fixed (feed-in tariff)')}</option>
+            <option value="market">{t('Market (direct marketing)')}</option>
           </CFormSelect>
         </Field>
-        <Field label="Fixed price, ct/kWh">
+        <Field label={t('Fixed price, ct/kWh')}>
           <CFormInput
             type="number"
             step="0.01"
@@ -155,7 +162,7 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
             onChange={(e) => editSale('fixedCtKwh', num(e.target.value))}
           />
         </Field>
-        <Field label="Marketer's fee, ct/kWh">
+        <Field label={t("Marketer's fee, ct/kWh")}>
           <CFormInput
             type="number"
             step="0.01"
@@ -167,16 +174,16 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
         </Field>
       </CRow>
 
-      <h6 className="mt-4">Market, connection, quality</h6>
+      <h6 className="mt-4">{t('Market, connection, quality')}</h6>
       <CRow className="g-3">
-        <Field label="Bidding zone">
+        <Field label={t('Bidding zone')}>
           <CFormInput
-            placeholder="DE-LU"
+            placeholder={t('DE-LU')}
             value={market.biddingZone ?? ''}
             onChange={(e) => editMarket('biddingZone', e.target.value.trim())}
           />
         </Field>
-        <Field label="Market refresh, min">
+        <Field label={t('Market refresh, min')}>
           <CFormInput
             type="number"
             min={15}
@@ -185,7 +192,7 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
             onChange={(e) => editMarket('refreshMinutes', num(e.target.value))}
           />
         </Field>
-        <Field label="Max import, kW">
+        <Field label={t('Max import, kW')}>
           <CFormInput
             type="number"
             min={0}
@@ -193,7 +200,7 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
             onChange={(e) => editLimits('maxImportKw', num(e.target.value))}
           />
         </Field>
-        <Field label="Max export, kW">
+        <Field label={t('Max export, kW')}>
           <CFormInput
             type="number"
             min={0}
@@ -201,7 +208,7 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
             onChange={(e) => editLimits('maxExportKw', num(e.target.value))}
           />
         </Field>
-        <Field label="Nominal voltage, V">
+        <Field label={t('Nominal voltage, V')}>
           <CFormInput
             type="number"
             placeholder="230"
@@ -209,7 +216,7 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
             onChange={(e) => editQuality('nominalV', num(e.target.value))}
           />
         </Field>
-        <Field label="Voltage tolerance, %">
+        <Field label={t('Voltage tolerance, %')}>
           <CFormInput
             type="number"
             placeholder="10"
@@ -217,7 +224,7 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
             onChange={(e) => editQuality('voltageTolerancePct', num(e.target.value))}
           />
         </Field>
-        <Field label="Frequency tolerance, Hz">
+        <Field label={t('Frequency tolerance, Hz')}>
           <CFormInput
             type="number"
             step="0.01"
@@ -226,9 +233,9 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
             onChange={(e) => editQuality('frequencyToleranceHz', num(e.target.value))}
           />
         </Field>
-        <Field label="Time zone (tariff zones, the day)">
+        <Field label={t('Time zone (tariff zones, the day)')}>
           <CFormInput
-            placeholder="the server's"
+            placeholder={t("the server's")}
             value={timeZone}
             onChange={(e) => {
               setTimeZone(e.target.value)
@@ -241,6 +248,6 @@ const EnergyGridSettingsSection = ({ process, extraConfigRef }) => {
   )
 }
 
-EnergyGridSettingsSection.settingsTabs = ['Configuration']
+EnergyGridSettingsSection.settingsTabs = [t('Configuration')]
 
 export default EnergyGridSettingsSection

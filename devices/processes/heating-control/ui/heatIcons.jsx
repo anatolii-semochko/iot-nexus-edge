@@ -1,5 +1,8 @@
 import React, { useId } from 'react'
 import RoundGauge from 'src/components/indicators/RoundGauge'
+import { packageT } from 'src/i18n'
+// the package's words (its own locales/, then the core's)
+const tr = packageT('heating-control')
 
 // Heating / cooling pictures (the user's mockups images/heating-pump.png,
 // water-cylinder.png, fancoil.png; the reviewed icon canvas 2026-10-20):
@@ -9,7 +12,10 @@ import RoundGauge from 'src/components/indicators/RoundGauge'
 
 // The gauges' coloured limits (the user, 2026-10-24 - only where they mean something):
 // the supply water - too hot for the heat pump in heating, near freezing in cooling; the scales
-const WATER_RANGE = { heating: { min: 10, max: 70 }, cooling: { min: 0, max: 30 } }
+const WATER_RANGE = {
+  heating: { min: 10, max: 70 },
+  cooling: { min: 0, max: 30 },
+}
 const SUPPLY_LIMITS = {
   heating: { warnHigh: 55, errHigh: 62 },
   cooling: { errLow: 4, warnLow: 6 },
@@ -120,11 +126,11 @@ export const HeatPumpIcon = ({ pump, mode, height = 120, gauges = true }) => {
       height={height}
       viewBox={`0 0 ${viewW} 214`}
       role="img"
-      aria-label={`${pump.name} - heat pump`}
+      aria-label={tr('{{name}} - heat pump', { name: pump.name })}
       style={pump.on === false ? OFF_STYLE : undefined}
     >
       <title>
-        {`${pump.name}${pump.model ? ` (${pump.model})` : ''}: ${!pump.on ? 'switched off' : running ? `running at ${Math.round(pump.modulation * 100)} %` : 'standby'}`}
+        {`${pump.name}${pump.model ? ` (${pump.model})` : ''}: ${!pump.on ? tr('switched off') : running ? tr('running at {{round}} %', { round: Math.round(pump.modulation * 100) }) : 'standby'}`}
       </title>
       <Gradients id={id} />
       <clipPath id={`${id}grille`}>
@@ -199,7 +205,12 @@ export const HeatPumpIcon = ({ pump, mode, height = 120, gauges = true }) => {
         strokeWidth="2"
       />
       <g>
-        <title>{`${copLabel} - the heat ${cooling ? 'taken' : 'given'} per unit of electricity`}</title>
+        <title>
+          {tr('{{copLabel}} - the heat {{v1}} per unit of electricity', {
+            copLabel,
+            v1: cooling ? 'taken' : 'given',
+          })}
+        </title>
         <RoundGauge
           x={244}
           y={76}
@@ -227,7 +238,12 @@ export const HeatPumpIcon = ({ pump, mode, height = 120, gauges = true }) => {
       {gauges && (
         <>
           <g>
-            <title>{`Flow ${pump.flowC} C (big) / return ${pump.returnC} C (small, blue) - the water to and from the tanks`}</title>
+            <title>
+              {tr(
+                'Flow {{flowC}} C (big) / return {{returnC}} C (small, blue) - the water to and from the tanks',
+                { flowC: pump.flowC, returnC: pump.returnC },
+              )}
+            </title>
             <RoundGauge
               x={384}
               y={55}
@@ -246,7 +262,17 @@ export const HeatPumpIcon = ({ pump, mode, height = 120, gauges = true }) => {
           </g>
           <g>
             {/* one way - the heat or the cold it makes, both counted up from zero (the user, 2026-10-25) */}
-            <title>{`${cooling ? 'Cold' : 'Heat'} ${Math.abs(pump.heatKw).toFixed(1)} kW (big) / electricity ${pump.electricKw.toFixed(1)} kW (small, magenta)${cooling ? '' : ' - the heat is the electricity plus the heat from the air'}`}</title>
+            <title>
+              {tr(
+                '{{v0}} {{toFixed}} kW (big) / electricity {{toFixed2}} kW (small, magenta){{v3}}',
+                {
+                  v0: cooling ? 'Cold' : 'Heat',
+                  toFixed: Math.abs(pump.heatKw).toFixed(1),
+                  toFixed2: pump.electricKw.toFixed(1),
+                  v3: cooling ? '' : ' - the heat is the electricity plus the heat from the air',
+                },
+              )}
+            </title>
             <RoundGauge
               x={384}
               y={151}
@@ -334,9 +360,25 @@ export const TankIcon = ({ tank, height = 200, labels = 'all' }) => {
       height={height}
       viewBox="0 0 160 334"
       role="img"
-      aria-label={`${tank.name} - ${pct.toFixed(0)} percent`}
+      aria-label={tr('{{name}} - {{toFixed}} percent', {
+        name: tank.name,
+        toFixed: pct.toFixed(0),
+      })}
     >
-      <title>{`${tank.name}: ${tank.storedKwh} of ${tank.fullKwh} kWh stored (${pct.toFixed(0)} %) - top ${tank.topC} C, middle ${tank.avgC} C, bottom ${tank.bottomC} C`}</title>
+      <title>
+        {tr(
+          '{{name}}: {{storedKwh}} of {{fullKwh}} kWh stored ({{toFixed}} %) - top {{topC}} C, middle {{avgC}} C, bottom {{bottomC}} C',
+          {
+            name: tank.name,
+            storedKwh: tank.storedKwh,
+            fullKwh: tank.fullKwh,
+            toFixed: pct.toFixed(0),
+            topC: tank.topC,
+            avgC: tank.avgC,
+            bottomC: tank.bottomC,
+          },
+        )}
+      </title>
       <defs>
         <linearGradient id={`${id}tank`} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="#e4e7ea" />
@@ -429,15 +471,15 @@ export const TankIcon = ({ tank, height = 200, labels = 'all' }) => {
  */
 export const TankGauges = ({ tank, mode, maxKw, pumpHeight = 120 }) => {
   const cooling = mode === 'cooling'
-  const what = cooling ? 'Cold' : 'Heat'
+  const what = cooling ? tr('Cold') : tr('Heat')
   const R = 45 // the pump's gauge radius in its viewBox (214 high)
   const W = 2 * R + 8
   const H = 196 // the pump's two gauges: 96 apart
   const scale = pumpHeight / 214
   const end = Math.max(1, Math.ceil(maxKw))
   const gauges = [
-    [R + 4, tank.inKw ?? 0, `${what} in from the heat pumps`],
-    [R + 4 + 96, tank.outKw ?? 0, `${what} out to the fan coils`],
+    [R + 4, tank.inKw ?? 0, tr('{{what}} in from the heat pumps', { what })],
+    [R + 4 + 96, tank.outKw ?? 0, tr('{{what}} out to the fan coils', { what })],
   ]
   return (
     <svg
@@ -445,11 +487,16 @@ export const TankGauges = ({ tank, mode, maxKw, pumpHeight = 120 }) => {
       height={H * scale}
       viewBox={`0 0 ${W} ${H}`}
       role="img"
-      aria-label={`${tank.name} - the heat in and out`}
+      aria-label={tr('{{name}} - the heat in and out', { name: tank.name })}
     >
       {gauges.map(([cy, kw, text]) => (
         <g key={cy}>
-          <title>{`${text}: ${Number(kw).toFixed(1)} kW`}</title>
+          <title>
+            {tr('{{text}}: {{toFixed}} kW', {
+              text,
+              toFixed: Number(kw).toFixed(1),
+            })}
+          </title>
           <RoundGauge
             x={W / 2}
             y={cy}
@@ -523,7 +570,12 @@ const Toggle = ({ id, on }) => {
 /** The fan coil's front - the switch area (viewBox units) for an overlaid button. */
 const FAN_COIL_SWITCH_X = 22
 const FAN_COIL_SWITCH_W = 62
-export const FAN_COIL_SWITCH = { x: FAN_COIL_SWITCH_X, y: 14, w: FAN_COIL_SWITCH_W, h: 32 }
+export const FAN_COIL_SWITCH = {
+  x: FAN_COIL_SWITCH_X,
+  y: 14,
+  w: FAN_COIL_SWITCH_W,
+  h: 32,
+}
 // the fan's grey ring (r 30.5, its stroke 3) - the grille fills its inner edge
 const COIL_GRILLE_R = 29
 // the name's block: as far from the fan opening (x 272) as from the switch (its right edge 84)
@@ -569,11 +621,21 @@ export const FanCoilIcon = ({ coil, mode, width = 330 }) => {
       height={(width * FAN_COIL_VIEW.h) / FAN_COIL_VIEW.w}
       viewBox="0 0 440 168"
       role="img"
-      aria-label={`${coil.name} - fan coil`}
+      aria-label={tr('{{name}} - fan coil', { name: coil.name })}
       style={coil.on ? undefined : OFF_STYLE}
     >
       <title>
-        {`${coil.name}: room ${coil.roomC ?? '-'} C, humidity ${coil.humidityPct ?? '-'} %, setpoint ${coil.setpointC ?? '-'} C; ${!coil.on ? 'valve closed' : running ? `${mode === 'cooling' ? 'cooling' : 'heating'} ${Math.abs(coil.heatKw).toFixed(1)} kW, fan ${Math.round(coil.fan * 100)} %` : 'idle - the room is at its setpoint'}`}
+        {tr('{{name}}: room {{v1}} C, humidity {{v2}} %, setpoint {{v3}} C; {{v4}}', {
+          name: coil.name,
+          v1: coil.roomC ?? '-',
+          v2: coil.humidityPct ?? '-',
+          v3: coil.setpointC ?? '-',
+          v4: !coil.on
+            ? 'valve closed'
+            : running
+              ? `${mode === 'cooling' ? 'cooling' : 'heating'} ${Math.abs(coil.heatKw).toFixed(1)} kW, fan ${Math.round(coil.fan * 100)} %`
+              : 'idle - the room is at its setpoint',
+        })}
       </title>
       <Gradients id={id} />
       <radialGradient id={`${id}hole`} cx="0.5" cy="0.5" r="0.5">
@@ -635,7 +697,13 @@ export const FanCoilIcon = ({ coil, mode, width = 330 }) => {
         <Grille cx={306} cy={52} r={COIL_GRILLE_R} {...COIL_GRILLE} />
       </g>
       <g>
-        <title>{`${mode === 'cooling' ? 'Cold' : 'Heat'} to the room ${heat.toFixed(1)} kW (rated ${ratedKw} kW)`}</title>
+        <title>
+          {tr('{{v0}} to the room {{toFixed}} kW (rated {{ratedKw}} kW)', {
+            v0: mode === 'cooling' ? 'Cold' : 'Heat',
+            toFixed: heat.toFixed(1),
+            ratedKw,
+          })}
+        </title>
         <RoundGauge
           x={384}
           y={52}
@@ -677,11 +745,18 @@ export const FanCoilCompactIcon = ({ coil, mode, width = 220 }) => {
       height={(width * FAN_COIL_COMPACT_VIEW.h) / FAN_COIL_COMPACT_VIEW.w}
       viewBox={`0 0 ${FAN_COIL_COMPACT_VIEW.w} ${FAN_COIL_COMPACT_VIEW.h}`}
       role="img"
-      aria-label={`${coil.name} - fan coil`}
+      aria-label={tr('{{name}} - fan coil', { name: coil.name })}
       style={coil.on === false ? OFF_STYLE : undefined}
     >
       <title>
-        {`${coil.name}: room ${coil.roomC ?? '-'} C, humidity ${coil.humidityPct ?? '-'} %; ${running ? `${mode === 'cooling' ? 'cooling' : 'heating'} ${heat.toFixed(1)} kW` : 'idle'}`}
+        {tr('{{name}}: room {{v1}} C, humidity {{v2}} %; {{v3}}', {
+          name: coil.name,
+          v1: coil.roomC ?? '-',
+          v2: coil.humidityPct ?? '-',
+          v3: running
+            ? `${mode === 'cooling' ? 'cooling' : 'heating'} ${heat.toFixed(1)} kW`
+            : 'idle',
+        })}
       </title>
       <Gradients id={id} />
       <radialGradient id={`${id}hole`} cx="0.5" cy="0.5" r="0.5">
@@ -746,7 +821,12 @@ export const FanCoilCompactIcon = ({ coil, mode, width = 220 }) => {
       <circle cx="404" cy="194" r="3" fill="#a3adb8" />
       <rect x="392" y="208" width="24" height="12" rx="3" fill="#e8eaec" stroke="#b9bec4" />
       <g>
-        <title>{`${mode === 'cooling' ? 'Cold' : 'Heat'} to the rooms ${heat.toFixed(1)} kW`}</title>
+        <title>
+          {tr('{{v0}} to the rooms {{toFixed}} kW', {
+            v0: mode === 'cooling' ? 'Cold' : 'Heat',
+            toFixed: heat.toFixed(1),
+          })}
+        </title>
         <RoundGauge
           x={360}
           y={fan.cy}

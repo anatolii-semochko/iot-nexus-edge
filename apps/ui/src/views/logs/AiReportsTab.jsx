@@ -13,6 +13,7 @@ import { api } from '../../api/client'
 import TablePagination from '../../components/table/TablePagination'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
 import { formatSmartDateTime } from '../../utils/format'
+import { t } from 'src/i18n'
 
 /**
  * Logs -> AI Reports (Nexus Edge AI Assistant, stage 4): what the assistant
@@ -45,10 +46,10 @@ const AiReportsTab = () => {
         <CTable small hover responsive className="align-middle">
           <CTableHead>
             <CTableRow>
-              <CTableHeaderCell>When</CTableHeaderCell>
-              <CTableHeaderCell>Report</CTableHeaderCell>
-              <CTableHeaderCell>Instance</CTableHeaderCell>
-              <CTableHeaderCell className="text-end">Conversation</CTableHeaderCell>
+              <CTableHeaderCell>{t('When')}</CTableHeaderCell>
+              <CTableHeaderCell>{t('Report')}</CTableHeaderCell>
+              <CTableHeaderCell>{t('Instance')}</CTableHeaderCell>
+              <CTableHeaderCell className="text-end">{t('Conversation')}</CTableHeaderCell>
             </CTableRow>
           </CTableHead>
           <CTableBody>

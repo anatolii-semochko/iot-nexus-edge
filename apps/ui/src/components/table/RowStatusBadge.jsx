@@ -1,5 +1,6 @@
 import React from 'react'
 import { CBadge } from '@coreui/react'
+import { t } from 'src/i18n'
 
 /**
  * Row-level status label (AGENTS_TO_DO.md, 2026-08-15 background-color
@@ -22,9 +23,9 @@ import { CBadge } from '@coreui/react'
  * "OK" can't tell apart.
  */
 const LABELS = {
-  danger: { text: 'Error', color: 'danger' },
-  warning: { text: 'Warning', color: 'warning' },
-  info: { text: 'Simulation', color: 'primary' },
+  danger: { text: t('Error'), color: 'danger' },
+  warning: { text: t('Warning'), color: 'warning' },
+  info: { text: t('Simulation'), color: 'primary' },
 }
 
 const RowStatusBadge = ({ rowColor, defaultLabel }) => {
