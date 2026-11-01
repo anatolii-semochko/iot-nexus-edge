@@ -1133,7 +1133,9 @@ real user would go. All of it is now deleted:
   the sidebar's external link to CoreUI's own doc site. This platform's
   actual documentation lives in the repo (`README.md`, this file,
   `docs/PROJECT_MASTER-1.1.md`), not behind a UI page - stays empty until
-  there's a real reason to render docs in-app.
+  there's a real reason to render docs in-app. (Both later became real: the
+  Dashboard - its cards and folders; the Docs - the user guide from
+  `docs/guide/`, 2026-10-31.)
 - `views/pages/login/`, `page404/`, `page500/` — real functional pages
   (section 13), wired directly in `App.jsx` outside `routes.js`/`_nav.jsx`.
   The sidebar shortcut *links* to `/login`/`/404`/`/500` (the old "Extras >
@@ -5982,6 +5984,27 @@ production}`, same plumbing as `VITE_PROJECT_NAME`), read by
 `src/appEnv.js` (`IS_PRODUCTION`); unset counts as production. Changing
 `NODE_ENV` therefore needs a UI rebuild, not just a restart.
 
+**The footer (2026-10-31)** - on the left the installation's name
+(`VITE_PROJECT_NAME` from `PROJECT_NAME`, e.g. "Nexus Edge Demo" or a
+client's site) with the current year; on the right always "Powered by
+Nexus Edge" - the product, the same in every installation (the old
+"EdgeCore Runtime" name is gone).
+
+**The brand and the project's website (2026-11-01)** - the logo is the
+Nexus Edge mark ("Nexus node", the same as nexus-edge.tech), rendered in
+3D (`iot/images/logo/make_logo_3d.py`, Blender): `components/
+BrandMark.jsx`, two tones - light nodes on dark grounds (the sidebar,
+always), dark nodes on light ones (the header's brand follows the theme,
+`.brand-mark-on-light/-dark` in style.scss). The favicon is the site's
+flat mark; the old chip logo is gone. Optional `VITE_HOME_URL` /
+`VITE_HOME_LANGS` build args (from `HOME_URL` / `HOME_LANGS` in the
+project's `.env`; `src/homeSite.js`): set - the brand links to that site
+in the interface's language (`<url><lang>/` when the language is in
+HOME_LANGS, else the root), same tab, and the user menu gets a link with
+the site's host (the way back on a phone, where the sidebar is hidden);
+unset - the brand goes to the app's start, as before. The demo sets them
+to nexus-edge.tech (`uk,de,es`).
+
 **Nodes/Devices status filter** - a new leftmost filter dropdown (OK/
 Error/Simulation), filtering by the exact same `rowColor` value each
 table already computes for its own row - factored into a shared
@@ -8811,8 +8834,13 @@ package documents itself in its `docs/README.md`; here - what exists:
   the profile's consumption (`withLoads` - plus the loadProcessIds'
   electricity), a real one is read; metrics `subMeters[]` (kW, today's kWh
   and EUR), series `field.meter.<nodeId>.kw`; the Dashboard component
-  `energyField.meter`. heating-control's `heatingControl.room` - one room's
+  `energyField.meter` - its card picture `EnergyMeterAvatar` (2026-11-01: the
+  big meter on the left, the kW now, today's kWh and cost on the right; the
+  chart only in the popup). heating-control's `heatingControl.room` - one room's
   climate (its fan coil, valve, temperature, humidity, setpoint + / -).
+  Its card picture `HeatingRoomAvatar` (2026-11-01): the fan coil large,
+  under it the setpoint, the heat now, the heat meter today - the controls
+  only in the popup (before - a tiny scaled copy of the whole component).
 - A node's information popup (2026-10-20, X1): `nodes.model` (a key of
   the node type's Library `models`, null - the first), `latitude` /
   `longitude` (the map), `photo_media_id` (Media Store scope `node-<id>`)
@@ -9365,3 +9393,112 @@ Energy Ledger's README has the details.
   slants the unit the words after a figure start with); the flows' big
   figures keep their unit in the flow's colour. The skill ui-key-values
   holds the rule.
+
+## The interface's languages (2026-10-31)
+
+- **i18next + react-i18next**, the English text is the key (`t('Save')`,
+  `keySeparator` / `nsSeparator` off): English needs no file, an
+  untranslated text shows in English. `apps/ui/src/i18n/index.js`:
+  `LANGUAGES` (en, uk, de, es - the site's), `t` (outside a hook),
+  `packageT(ns)` (a package's own), `setLanguage`, `tKey` (marks a text kept
+  in data - e.g. `_nav.jsx`'s names - translated where shown).
+- **A language change loads the page again** (`setLanguage`): the texts a
+  module builds at its start (lists of labels, options, route names) are
+  then in the new language too - a choice made rarely.
+- **Namespaces**: `core` - `apps/ui/src/i18n/locales/<lang>.json`; each
+  package its own - its folder name, `devices/<kind>/<pkg>/ui/locales/<lang>.json`,
+  `plugins/<pkg>/ui/locales/<lang>.json` (a target project's too - the
+  aquarium's five plugins; found at build time like `register.js`); a
+  package file: `const t = packageT('<pkg>')` (or `tr` where `t` is taken);
+  the core's words found too. Words shared by packages live in the core.
+- **Not translated**: user data (names, titles, roles); the server's texts
+  (logs, alerts, API errors, day notes, the plans' reasons) - English for now
+  (the journal's to-do); texts for the AI (the page context it is sent -
+  `String.raw` there, the codemod skips tagged templates); a pure module
+  (e.g. `weatherMath.js`, also the tests') keeps English with a local
+  identity `tKey` and the display translates (`tr(weatherText(code))`).
+  Numbers keep the point in every language (the user's choice); relative
+  times - `Intl.RelativeTimeFormat` in the language.
+- **The choice**: the header's dropdown (`components/header/LanguageSelector.jsx`,
+  as the site's switcher - the current flag and code, the languages with flags); a person's in their profile
+  (`users.language`, migration 102, `PATCH /profile {language}`, applied by
+  AuthGate at sign-in), the guest's (a shared account) only in the browser
+  (localStorage `ne-lang` - the site's key); a first visit - the browser's
+  language. `UI_LANGUAGES` (env) - the offered ones (`/auth/me`
+  `languages`). The header also shows the role acted in beside the avatar
+  (`/auth/me` `contextName` - the context's name, with one role - that role).
+- **The tools** (`scripts/`):
+  - `i18n-wrap.mjs [--dry] [--loose] <dirs>` - the codemod: wraps visible
+    texts in `t(...)` by position (the formatting kept - no prettier
+    needed): JSX text, the read props (title, label, placeholder, hint, ...),
+    string branches, object props (title, label, body, ...), template
+    literals as interpolations (`t('A folder in {{title}}', { title })`);
+    `--loose` - also every other literal the rules call a text. Idempotent
+    (a second run wraps nothing). Run it on new code, then `i18n-check`.
+  - `i18n-text.mjs` - the shared rules telling a text from data (ids,
+    classes, css, svg values and paths, series keys, markup, font stacks).
+  - `i18n-leftovers.mjs [--count] <dirs>` - the English literals left
+    outside `t` (for a person to judge).
+  - `i18n-check.mjs [--write] [--lang ..] [--plugins <dir>]` - every key per
+    namespace against each language (`--write` adds the missing as "").
+  - `i18n-fill.mjs <locales dir> <translations.json>` - writes a
+    translation pass's {lang: {key: text}}.
+- State: the core, every package and the aquarium's plugins - every wrapped
+  text in uk, de, es (`i18n-check`: all translated); ~25 composed fragments
+  ("… kW", "… settings") left as they are.
+
+## The user guide - one source (2026-10-31)
+
+- `docs/guide/*.md` (English; `docs/guide/<lang>/*.md` - uk, de, es, the
+  UI's names as the translated UI shows them; front matter values quoted -
+  YAML) - the people's documentation: index, concepts, dashboard, energy,
+  heating, aquarium, ai, users, extending, install; Starlight front matter
+  (`title`, `description`).
+- One source for three readers: the **Docs page** (`views/docs/Docs.jsx`,
+  `/docs` and `/docs/:page` - the pages bundled at build time by
+  `import.meta.glob`, react-markdown + GFM, links between the pages kept in
+  the app, a page without a translation shown in English with a note; every
+  UI Dockerfile copies `docs/guide` - the core's, the template's, the
+  aquarium's, the demo's); the **site's /docs** (nexus-edge-tech
+  `scripts/sync-docs.mjs` before every build / dev run); the **AI's docs
+  search** (the api image copies `docs/` into `docs-core`).
+- **A tree** (2026-10-31, the docs grow deeper): a folder is a section, its
+  `index.md` - the section's page, any depth (e.g. `energy/index.md`,
+  `energy/strategies.md`, `energy/ledger.md`); translations - the same tree
+  under `<lang>/` (a section is never named uk / de / es). A page's place
+  among its siblings - front matter `order` (a translation without one takes
+  the English page's). Docs.jsx: the tree in the list (a section's pages
+  shown while it is open), routes `/docs/*`, links relative to the page as on
+  the site, the sections above as a path.
+- `NOTICE` (2026-10-31) - the copyright, the author, CoreUI (MIT), EdgeX
+  (separate containers).
+
+## An update while a tab is open (2026-10-31)
+
+After a UI rebuild the hashed chunk names change; a tab opened before it
+asked for the old ones and got `index.html` (the SPA fallback) - "Expected a
+JavaScript module ... MIME type text/html", the page fell; during the
+container's restart - 502s. Now: nginx serves `/assets/` with `try_files
+$uri =404` (a hashed file cached for good - immutable) and `index.html` with
+`no-cache`; `src/chunkReload.js` loads the page again once on Vite's
+`vite:preloadError` (not again within 10 s - a real failure then shows).
+- **A page's layout** (2026-10-31, the user): the breadcrumbs (the shared
+  `UpBreadcrumb` - since then styled as the Dashboard's: semibold, links
+  without underline; also the Library's and Service -> Config -> Dashboard's),
+  the title and description, the section's pages (each title a link, its
+  description under it), the page's own text. The site does the same
+  (nexus-edge-tech `src/components/docs/DocsPageTitle.astro` - Starlight's
+  PageTitle overridden).
+- **The tree** (2026-10-31): Getting started; Concepts; The platform
+  (Dashboard; Devices - Nodes, Devices, Simulator; Processes; Logs - Live
+  Events, Logs; Notifications; Configuration - Service (Config, Database,
+  Commands), Users settings (Users, Roles, Guest), Library); the AI
+  Assistant (Conversations, Access levels, Scheduled runs, Connections and
+  MCP); Modules (Energy - Strategies, the Ledger; Heating; Weather; Aquarium -
+  the light, water and CO2, maintenance); Extending; Operations.
+- **Screenshots**: `![caption](screen:<name>)` - `docs/guide/_screens/<name>-light.webp`
+  / `-dark.webp` (one English set; taken by nexus-edge-tech
+  `scripts/capture-docs-screens.mjs` from `_screens/screens.json`); Docs.jsx
+  shows the theme's one (style.scss `.ne-shot`); a folder starting with `_`
+  is never a section.
+
