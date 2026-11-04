@@ -6,6 +6,7 @@
 // words found too (fallbackNS). The numbers keep the point everywhere (the user's choice).
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
+import { clearParamFromUrl, paramFromUrl } from '../accountLink'
 
 // the interface's languages - the flags offered (the API's UI_LANGUAGES narrows them at sign-in)
 export const LANGUAGES = [
@@ -49,7 +50,21 @@ const browserLanguage = () =>
     .map((l) => String(l).slice(0, 2).toLowerCase())
     .find(known) ?? DEFAULT_LANGUAGE
 
-const initial = known(stored()) ? stored() : browserLanguage()
+// a link's language (`?lang=uk` - a site's link into the application, accountLink.js): this visit's,
+// remembered as the browser's choice, taken off the address
+const linked = paramFromUrl('lang')?.toLowerCase()
+export const languageFromLink = known(linked) ? linked : null
+if (linked) {
+  clearParamFromUrl('lang')
+  if (languageFromLink)
+    try {
+      localStorage.setItem(STORAGE_KEY, languageFromLink)
+    } catch {
+      // blocked storage - this page only
+    }
+}
+
+const initial = languageFromLink ?? (known(stored()) ? stored() : browserLanguage())
 
 i18n.use(initReactI18next).init({
   resources,

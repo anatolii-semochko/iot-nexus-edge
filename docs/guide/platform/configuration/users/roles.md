@@ -17,5 +17,5 @@ Users -> Roles: a role is a table of what it may do:
 
 A person with several roles acts in one at a time - **Act as** in the user
 menu; the header shows the role now. A link with `?account=<role link name>`
-opens the application in that role.
-
+opens the application in that role. Add `lang=<en|uk|de|es>` for
+the interface's language on that visit (e.g. `?account=owner&lang=uk#/dashboard/16`).

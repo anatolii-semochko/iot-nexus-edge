@@ -5,7 +5,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { CSpinner } from '@coreui/react'
 import { api } from '../api/client'
 import { accountFromUrl, clearAccountFromUrl } from '../accountLink'
-import { setLanguage } from '../i18n'
+import { languageFromLink, setLanguage } from '../i18n'
 
 /**
  * Wraps the whole authenticated app shell (AGENTS.md section 13 and
@@ -59,8 +59,10 @@ const AuthGate = ({ children }) => {
             uiLanguages: languages ?? null,
             guest: Boolean(guest),
           })
-          // a person's own language (their profile) - not the guest's (a shared account)
-          if (!guest && currentUser?.language) setLanguage(currentUser.language)
+          // a person's own language (their profile) - not the guest's (a shared account); a link's
+          // language (`?lang=`) wins for this visit
+          if (!guest && currentUser?.language && !languageFromLink)
+            setLanguage(currentUser.language)
         },
       )
       .catch(() => {
