@@ -6,6 +6,7 @@ import { setUserRoles } from "../access/principal.js";
 import { rolesProblem } from "../routes/access.js";
 import { writeDayNote } from "../dayNotes.js";
 import type { Instance, Level } from "./instances.js";
+import { dnpActionOf } from "./dnpActions.js";
 
 // The AI Assistant's proposals (Nexus Edge AI Assistant, stage 6 - nexus-
 // edge-aquarium AGENTS_TO_DO.md 2026-10-17; migration 071): every change an
@@ -24,7 +25,7 @@ import type { Instance, Level } from "./instances.js";
 // refused on Accept (failed), never overwritten unseen.
 
 export type ProposalAccess = "config" | "control" | "install";
-export type Operation = "config" | "command" | "switch" | "create-process" | "create-node" | "create-device" | "roles" | "day-note";
+export type Operation = "config" | "command" | "switch" | "create-process" | "create-node" | "create-device" | "roles" | "day-note" | "dnp";
 export type ProposalStatus = "pending" | "applied" | "rejected" | "failed";
 
 /** What applies, per operation (`payload`). */
@@ -36,7 +37,8 @@ export type Payload =
   | NewNode // create-node (with the devices its node.yaml declares)
   | NewDevice // create-device
   | { userId: number; roles: string[] } // roles - a person's roles, replaced as a whole
-  | { op: "add" | "update" | "delete"; noteId: number | null; fields: Record<string, unknown> }; // day-note
+  | { op: "add" | "update" | "delete"; noteId: number | null; fields: Record<string, unknown> } // day-note
+  | { action: string; data: Record<string, unknown> }; // dnp - a package's own action (ai/dnpActions.ts)
 
 export interface ProposalInput {
   access: ProposalAccess;
@@ -247,6 +249,22 @@ async function apply(p: ProposalRow, userId: number): Promise<unknown> {
       const out = await writeDayNote(needProcess(), op, noteId, fields, "ai", userId);
       if (out.status !== 200) throw new ProcessWriteError(out.error ?? "the note is gone", out.status);
       return { noteId: out.id };
+    }
+    case "dnp": {
+      const { action: name, data } = p.payload as { action: string; data: Record<string, unknown> };
+      const action = dnpActionOf(name);
+      if (!action) throw new ProcessWriteError(`the package's action ${name} is not loaded`, 410);
+      const proc = (
+        await pool.query<{ id: number; name: string; kind: string; node_id: number | null }>("SELECT id, name, kind, node_id FROM processes WHERE id = $1", [needProcess()])
+      ).rows[0];
+      if (!proc) throw new ProcessWriteError("the process is gone", 410);
+      try {
+        return await action.apply(data, { id: proc.id, name: proc.name, kind: proc.kind, nodeId: proc.node_id }, userId);
+      } catch (err) {
+        // the package's refusal reaches the person; the stack - the api log
+        logger.warn({ err, proposal: p.id, action: name }, "a package's AI action failed");
+        throw new ProcessWriteError((err as Error).message, 400);
+      }
     }
     case "roles": {
       const { userId: target, roles } = p.payload as { userId: number; roles: string[] };
