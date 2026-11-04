@@ -8735,6 +8735,29 @@ directory takes a comma-separated LIST of roots, a dependency's first.
   "must NOT have additional properties"). `series.stats` / `series.points`
   say their keys are full series keys from `series.list`.
 
+## A DNP's proposing AI actions (2026-11-04)
+
+A change the core's proposing tools can't express - a record of the
+package's own (an aquarium's water test, a probe's calibration) - is the
+package's action:
+- `registerAiAction(action)` in the api plugins' context (apiPlugins.ts;
+  `ai/dnpActions.ts` DnpAction): `name` (the tool's - `<package>.<what>.propose`),
+  `description`, `access` (config / control - the instance's level that
+  governs it), `properties` / `required` (its fields; `processId` and
+  `reason` are added), `kinds` (the process kinds it is for), `prepare(input,
+  process)` - checks the input now and answers `{summary, data}` (its error
+  is the model's to act on), `apply(data, process, userId)` - applies as the
+  deciding person (or `ai-agent` on Auto), its result kept with the proposal.
+- `ai/tools.ts` `registerDnpAction` serves it as a proposing tool - in the
+  assistant and over MCP, offered by the access level; the process is
+  checked against the instance's group and the kinds; then the proposal's
+  operation `dnp`, payload `{action, data}` (`ai/proposals.ts` applies it
+  with the package's `apply`; an action no longer loaded - failed, 410; the
+  package's error - failed with its message, the stack in the api log).
+- `ProposalCard.jsx` shows a `dnp` proposal's `data` fields.
+- The first - the aquarium's `aquarium.test.propose` and
+  `aquarium.calibration.propose` (with the reading tool `aquarium.records`).
+
 
 ## Energy packages - the shared base (2026-10-19)
 

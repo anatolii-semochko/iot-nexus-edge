@@ -16,6 +16,7 @@ import { instanceUnits } from "../dnpInstances.js";
 import { querySeries, seriesStats } from "../timeSeries.js";
 import { docSources, readDoc, searchDocs } from "./docs.js";
 import type { Instance } from "./instances.js";
+import { addDnpAction, type DnpAction } from "./dnpActions.js";
 import { aiManifests } from "./manifests.js";
 import { type ProposalAccess, type ProposalOrigin, propose } from "./proposals.js";
 
@@ -921,3 +922,55 @@ registerTool({
     return proposalAnswer(proposal);
   },
 });
+
+// --- a DNP package's own proposing actions (ai/dnpActions.ts) ----------------
+
+/**
+ * Serves a package's action as a proposing tool of its access level: the
+ * process checked against the instance's group and the action's kinds, the
+ * package's `prepare` checks the input (its error - the model's to act on),
+ * then the proposal "dnp" - applied by ai/proposals.ts with the package's `apply`.
+ */
+export function registerDnpAction(action: DnpAction): void {
+  addDnpAction(action);
+  registerTool({
+    name: action.name,
+    description: `${action.description} Applied at once or shown to a person to accept, per this instance's ${action.access === "config" ? "Config" : "Control"} level.`,
+    access: action.access,
+    input: {
+      type: "object",
+      properties: {
+        processId: { type: "integer", description: `the process (${action.kinds.join(" / ")}); default - the instance's own` },
+        ...action.properties,
+        reason: REASON,
+      },
+      required: [...(action.required ?? []), "reason"],
+      additionalProperties: false,
+    },
+    async run(input, ctx) {
+      const p = await writableProcess(input, ctx);
+      if (!action.kinds.includes(p.kind)) throw new ToolError(`${p.name} is a ${p.kind} process - ${action.name} is for ${action.kinds.join(" / ")}`);
+      const nodeId = (await pool.query<{ node_id: number | null }>("SELECT node_id FROM processes WHERE id = $1", [p.id])).rows[0]?.node_id ?? null;
+      const { processId: _p, reason, ...fields } = input;
+      let prepared: Awaited<ReturnType<DnpAction["prepare"]>>;
+      try {
+        prepared = await action.prepare(fields, { id: p.id, name: p.name, kind: p.kind, nodeId });
+      } catch (err) {
+        throw new ToolError((err as Error).message);
+      }
+      const proposal = await propose(
+        {
+          access: action.access,
+          operation: "dnp",
+          processId: p.id,
+          summary: `${p.name}: ${prepared.summary}`,
+          reason: reason as string,
+          payload: { action: action.name, data: prepared.data },
+          before: null,
+        },
+        ctx,
+      );
+      return proposalAnswer(proposal);
+    },
+  });
+}

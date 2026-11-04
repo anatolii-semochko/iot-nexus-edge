@@ -24,7 +24,8 @@ import {
 } from "./mediaStore.js";
 import { registerConfigSchema } from "./configSchemas.js";
 import { onProjectMigrationsApplied } from "./extraMigrations.js";
-import { registerTool, type Tool } from "./ai/tools.js";
+import type { DnpAction } from "./ai/dnpActions.js";
+import { registerDnpAction, registerTool, type Tool } from "./ai/tools.js";
 import { processStateEvents } from "./processStateEvents.js";
 import { timeSeries } from "./timeSeries.js";
 
@@ -106,6 +107,8 @@ export interface ApiPluginContext {
   // an AI Assistant tool of the DNP (ai/tools.ts) - reading only: changes go
   // through the core's proposing tools (config / control / install)
   registerAiTool: (tool: Omit<Tool, "access">) => void;
+  // the package's own proposing AI tool (a record of its own - ai/dnpActions.ts): served under its access level, applied on Accept / Auto
+  registerAiAction: (action: DnpAction) => void;
   // external data services' addresses (config.ts `services`, .env)
   services: typeof config.services;
   // a process's live metrics (processRegistry - what its process.ts last reported)
@@ -140,6 +143,7 @@ const pluginContext: ApiPluginContext = {
   registerConfigSchema,
   onProjectMigrationsApplied,
   registerAiTool: (tool) => registerTool({ ...tool, access: "read" }),
+  registerAiAction: registerDnpAction,
   services: config.services,
   processMetrics: getMetrics,
   proposeConfig: proposeProcessConfig,

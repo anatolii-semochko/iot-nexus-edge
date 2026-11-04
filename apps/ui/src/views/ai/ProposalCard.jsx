@@ -113,7 +113,11 @@ const Change = ({ proposal: p }) => {
         )}
       </div>
     )
-  return <DiffTable rows={Object.entries(leavesOf(p.payload)).map(([k, v]) => [k, undefined, v])} />
+  // a package's own action (api ai/dnpActions.ts) - what it records
+  const shown = p.operation === 'dnp' ? p.payload.data : p.payload
+  return (
+    <DiffTable rows={Object.entries(leavesOf(shown ?? {})).map(([k, v]) => [k, undefined, v])} />
+  )
 }
 
 /** `onDecided(proposal)` - the proposal after a decision. */
