@@ -18,5 +18,5 @@ Usuarios -> Roles: un rol es una tabla de lo que puede hacer:
 
 Una persona con varios roles actúa en uno a la vez - **Actuar como** en el
 menú de usuario; la cabecera muestra el rol actual. Un enlace con
-`?account=<nombre de enlace del rol>` abre la aplicación en ese rol.
-
+`?account=<nombre de enlace del rol>` abre la aplicación en ese rol. Con `lang=<en|uk|de|es>`, el
+idioma de la interfaz en esa visita (p. ej. `?account=owner&lang=es#/dashboard/16`).

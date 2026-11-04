@@ -8616,6 +8616,13 @@ plan and the decisions - iot `AGENTS_TO_DO.md` (B1).
   not a built-in), `/access/objects` (the levels, the sections, the
   objects), `PUT /access/users/:id/roles`; `GET /users` carries each
   person's `roleKeys`.
+- **A link's language** (2026-11-03): `?lang=<en|uk|de|es>` (before the
+  hash or in it, as `?account=` - `accountLink.js` `paramFromUrl` /
+  `clearParamFromUrl`) - read once at the start by `i18n/index.js`
+  (`languageFromLink`), remembered as the browser's choice, taken off the
+  address; for a signed-in person it wins over the profile's language on
+  that visit (AuthGate). A site's links into the demo carry their page's
+  language (nexus-edge-tech `src/lib/demo.ts`).
 - The guest (2026-10-27, replacing the demo mode of B1.3 - the core knows no
   demo): the built-in `guest` account (migration 094 - the former `demo`;
   never deleted, off at first; its role `guest`, its AI tokens 0). On
