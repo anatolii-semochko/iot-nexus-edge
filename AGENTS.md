@@ -9563,3 +9563,36 @@ $uri =404` (a hashed file cached for good - immutable) and `index.html` with
   shows the theme's one (style.scss `.ne-shot`); a folder starting with `_`
   is never a section.
 
+
+## The tick's load on a small server (2026-11-05)
+
+Measured on the demo's 4-vCPU VPS (iot `PERF_PROD_2026-11-05.md`): ticks of
+1-2 s (most skipped), the API at 20 requests / s with p99 2 s - while the
+CPU was half idle. The cause: a system call there costs ~6x a laptop's
+(Spectre / Retbleed mitigations in a VM), so what is expensive is the
+number of small exchanges between containers, not the work behind them -
+the same on a Raspberry Pi. Rules since then:
+
+- **Fewer round trips, not faster code.** A new process reads what the tick
+  already has (`tickProcesses()`), batches its device reads
+  (`getDeviceValues`), caches reference data by change events
+  (`changeEvents.ts`) - never a request per tick that returns the same thing.
+- **The tick runs at most `ORCHESTRATOR_TICK_CONCURRENCY` (4) process
+  runners at once** (`runLimited.ts`) - all of them together made bursts
+  (a run queue of 14-33 on 4 cores) that slowed every one.
+- **`apiClient.listProcesses()` / `listNodes()` are shared within a tick**
+  (`shared.ts`, `tickShared` - one request, reused for
+  `ORCHESTRATOR_TICK_SHARE_MS`); the tick's own read is `fetchProcesses()`.
+- **`getMessageLevels()` is kept until `message_levels` changes**
+  (`cachedRead`; migration 104 adds the table's change trigger - no `id`, so
+  the event is `message_levels.all.changed`), `ORCHESTRATOR_REFERENCE_CACHE_MS`
+  at most.
+- **Device value reads are coalesced** (`valueBatcher.ts`): the asks of
+  processes running together within `ORCHESTRATOR_VALUE_BATCH_WINDOW_MS`
+  (15 ms) go as one `POST /devices/values`.
+- **`PUT /devices/simulate-auto`** looks its devices up in one query.
+- **EdgeX core-data does not store events** (`WRITABLE_PERSISTDATA=false`;
+  on a running stack the keeper key `edgex/v4/core-data/Writable/PersistData`)
+  - Nexus Edge never reads them; storing cost ~40 % of a core.
+- The aquarium's light control keeps its templates and the day's plan
+  (DMCTW) until they change (nexus-edge-aquarium).

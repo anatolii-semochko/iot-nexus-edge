@@ -547,11 +547,16 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
   app.put<{ Body: { values: { id: number; value: unknown }[] } }>("/devices/simulate-auto", async (request, reply) => {
     const values = request.body?.values;
     if (!Array.isArray(values)) return reply.code(400).send({ error: "request body must include 'values' - [{id, value}]" });
+    // the devices in one query, not one per value (iot PERF_PROD_2026-11-05.md)
+    const ids = values.map((v) => Number(v?.id)).filter(Number.isFinite);
+    const byId = new Map(
+      (await pool.query<DeviceRowWithNode>(`${SELECT_DEVICE_WITH_NODE} WHERE d.id = ANY($1::int[])`, [ids])).rows.map((r) => [r.id, r]),
+    );
     const results = await Promise.all(
       values.map(async ({ id, value }) => {
         try {
           if (value === undefined) return { id, ok: false, error: "no value" };
-          const device = await findDevice(String(id));
+          const device = byId.get(Number(id));
           if (!device) return { id, ok: false, error: "device not found" };
           const edgexName = resolveEdgexName(device);
           if (!edgexName || !device.capabilities.edgexResource) return { id, ok: false, error: "device is not backed by EdgeX" };

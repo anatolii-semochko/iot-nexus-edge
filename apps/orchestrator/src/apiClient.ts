@@ -3,6 +3,8 @@
 // SDK, just the handful of calls the process tick loop needs.
 
 import { config } from "./config.js";
+import { cachedRead, tickShared } from "./shared.js";
+import { createValueBatcher } from "./valueBatcher.js";
 import { tickStats } from "./tickStats.js";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -313,19 +315,26 @@ export interface DataLoggerSettings {
   tickLoggingEnabled: boolean;
 }
 
+const batchedValues = createValueBatcher((ids, maxAgeMs) =>
+  request<{ values: Record<number, { value: unknown; at: number | null; source: string }> }>("/devices/values", {
+    method: "POST",
+    body: JSON.stringify({ ids, maxAgeMs }),
+  }),
+);
+
 export const apiClient = {
-  listProcesses: () => request<ProcessRecord[]>("/processes"),
-  listNodes: () => request<NodeRecord[]>("/nodes"),
+  // the lists are read once per tick and shared by its processes (shared.ts);
+  // `fetchProcesses` - the tick's own fresh read (server.ts)
+  listProcesses: () => tickShared("processes", () => request<ProcessRecord[]>("/processes")),
+  fetchProcesses: () => request<ProcessRecord[]>("/processes"),
+  listNodes: () => tickShared("nodes", () => request<NodeRecord[]>("/nodes")),
   getDevice: (deviceId: number) => request<DeviceRecord>(`/devices/${deviceId}`),
   // AGENTS.md section 88 - many devices' current values in one call, served
   // from the cache wherever the cache is the source (actuators' commanded
   // value, simulated/virtual sensors), EdgeX only for a physical sensor
   // whose cached reading is older than `maxAgeMs` (API default from config).
-  getDeviceValues: (deviceIds: number[], maxAgeMs?: number) =>
-    request<{ values: Record<number, { value: unknown; at: number | null; source: string }> }>("/devices/values", {
-      method: "POST",
-      body: JSON.stringify({ ids: deviceIds, maxAgeMs }),
-    }),
+  // ... the reads of processes running together coalesced (valueBatcher.ts)
+  getDeviceValues: (deviceIds: number[], maxAgeMs?: number) => batchedValues(deviceIds, maxAgeMs),
   // Node-side counterpart of the heartbeat call below - see routes/
   // nodes.ts's POST /nodes/heartbeat (AGENTS_TO_DO.md, 2026-08-09).
   touchNodeHeartbeats: (nodeIds: number[]) =>
@@ -334,10 +343,10 @@ export const apiClient = {
       body: JSON.stringify({ nodeIds }),
     }),
   // AGENTS.md's Active Zummer section - the admin-configured beep policy
-  // per (type, level), read fresh every tick rather than cached, since an
-  // admin edit in Settings -> Message Levels should take effect on the
-  // very next tick, not require an orchestrator restart.
-  getMessageLevels: () => request<MessageLevelRecord[]>("/message-levels"),
+  // per (type, level): kept until the table changes (an admin edit in
+  // Settings -> Message Levels takes effect on the change event - shared.ts),
+  // not read every tick.
+  getMessageLevels: () => cachedRead("message-levels", ["message_levels"], () => request<MessageLevelRecord[]>("/message-levels")),
   // Same "read fresh every tick" convention as getMessageLevels above.
   getMessageSignalTiming: () => request<MessageSignalTimingRecord>("/message-signal-timing"),
   // Alarm Annunciator (AGENTS_TO_DO.md, 2026-08-02) - "does this group
