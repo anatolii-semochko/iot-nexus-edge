@@ -256,17 +256,45 @@ export async function listActiveMessages(processId: number): Promise<ProcessMess
     `SELECT * FROM log_messages WHERE process_id = $1 AND resolved_at IS NULL AND hidden = false`,
     [processId],
   );
-  // `created_at` comes back from `pg` as a Date, not the `string` its own
-  // type says (no custom type parser is registered for timestamptz) - a
-  // plain `.localeCompare` here throws the moment two active entries tie
-  // on type+level and this tiebreak actually runs, which single-message
-  // testing never exercises. Comparing via `Date` works for either shape.
+  return sortActive(rows);
+}
+
+// `created_at` comes back from `pg` as a Date, not the `string` its own
+// type says (no custom type parser is registered for timestamptz) - a
+// plain `.localeCompare` here throws the moment two active entries tie
+// on type+level and this tiebreak actually runs, which single-message
+// testing never exercises. Comparing via `Date` works for either shape.
+function sortActive(rows: ProcessMessage[]): ProcessMessage[] {
   return rows.sort(
     (a, b) =>
       TYPE_RANK[a.type] - TYPE_RANK[b.type] ||
       b.level - a.level ||
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
+}
+
+/**
+ * listActiveMessages + hasActiveEntries for many processes in ONE query
+ * (GET /processes, every orchestrator tick - iot PERF_PROD_2026-11-05.md:
+ * two queries per process before). `messages` - active, not hidden, sorted
+ * as listActiveMessages; `hasActive` - any active entry, hidden included.
+ */
+export async function activeMessagesOf(processIds: number[]): Promise<Map<number, { messages: ProcessMessage[]; hasActive: boolean }>> {
+  const out = new Map<number, { messages: ProcessMessage[]; hasActive: boolean }>();
+  for (const id of processIds) out.set(id, { messages: [], hasActive: false });
+  if (processIds.length === 0) return out;
+  const { rows } = await pool.query<ProcessMessage>(
+    `SELECT * FROM log_messages WHERE process_id = ANY($1::int[]) AND resolved_at IS NULL`,
+    [processIds],
+  );
+  for (const row of rows) {
+    const entry = out.get(row.process_id);
+    if (!entry) continue;
+    entry.hasActive = true;
+    if (!row.hidden) entry.messages.push(row);
+  }
+  for (const entry of out.values()) sortActive(entry.messages);
+  return out;
 }
 
 // Trimmed to what the bus's public-state broadcast actually needs

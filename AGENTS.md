@@ -9611,3 +9611,12 @@ the same on a Raspberry Pi. Rules since then:
   - Nexus Edge never reads them; storing cost ~40 % of a core.
 - The aquarium's light control keeps its templates and the day's plan
   (DMCTW) until they change (nexus-edge-aquarium).
+- **The lists the tick reads are built in a fixed number of round trips,
+  not N+1** (2026-11-05): `GET /processes` - one SQL for every process's
+  active messages (`processMessages.activeMessagesOf`), one Redis pipeline
+  for status / flags / metrics (`processRegistry.getPublicMany`), one MGET
+  for the heartbeats (`heartbeatControl.processHeartbeatMany`) - it was ~10
+  per process; `GET /nodes` - one MGET (`nodeHeartbeatMany`);
+  `GET /data-logger-controls` - one MGET for every sensor's last-logged time
+  (it was a GET per sensor, ~500 on the demo, every tick). A new per-row
+  live field goes into these batch readers, never as a call per row.

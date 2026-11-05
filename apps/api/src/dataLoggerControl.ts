@@ -70,11 +70,6 @@ function lastLoggedKey(deviceId: number): string {
   return `data-logger:${deviceId}:lastLoggedAt`;
 }
 
-async function getLastLoggedAt(deviceId: number): Promise<string | null> {
-  const raw = await redis.get(lastLoggedKey(deviceId));
-  return raw ? new Date(Number(raw)).toISOString() : null;
-}
-
 /** AGENTS_TO_DO.md, 2026-08-16 - moves the Devices list's own overdue/
  * staleness check (previously computed client-side, DevicesList.jsx)
  * server-side, mirroring nodeHeartbeatStaleness's own role for Nodes. A
@@ -165,14 +160,15 @@ export async function listDataLoggerControls(): Promise<DataLoggerControlEntry[]
      WHERE (capabilities->>'readOnly')::boolean IS TRUE
      ORDER BY name`,
   );
-  return Promise.all(
-    rows.map(async (row) => ({
-      id: row.id,
-      name: row.name,
-      dataLoggerControl: normalizeDataLoggerControl(row.data_logger_control),
-      lastLoggedAt: await getLastLoggedAt(row.id),
-    })),
-  );
+  // every device's last-logged time in one MGET, not a GET each (read every
+  // orchestrator tick - iot PERF_PROD_2026-11-05.md)
+  const raw = rows.length ? await redis.mget(...rows.map((row) => lastLoggedKey(row.id))) : [];
+  return rows.map((row, i) => ({
+    id: row.id,
+    name: row.name,
+    dataLoggerControl: normalizeDataLoggerControl(row.data_logger_control),
+    lastLoggedAt: raw[i] ? new Date(Number(raw[i])).toISOString() : null,
+  }));
 }
 
 export class NotFoundError extends Error {}
