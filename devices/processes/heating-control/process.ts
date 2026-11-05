@@ -177,7 +177,7 @@ const r = (x: number, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
 const add = (a: number | null, b: number) => (a ?? 0) + b;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a Library package is loaded at run time by the orchestrator and imports nothing from it
-export default function registerHeatingControl(register: any, { apiClient, logger }: any): void {
+export default function registerHeatingControl(register: any, { apiClient, logger, stepDue }: any): void {
   const systemTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const states = new Map<
     number,
@@ -274,7 +274,9 @@ export default function registerHeatingControl(register: any, { apiClient, logge
     if ((process.commands ?? []).length) config = await applyCommands(process, config);
     const intervalMs = (config.simulation?.intervalSeconds ?? DEFAULT_INTERVAL_S) * 1000;
     if (st) await switchNext(process.id, st.relays, now);
-    if (st && now - st.lastRun < intervalMs && !(process.commands ?? []).length) return;
+    // the simulation's step - once per interval, at this process's own place in it (the platform's
+    // schedule - ctx.stepDue); a command runs it at once
+    if (st && !stepDue(process.id, intervalMs, st.lastRun, now) && !(process.commands ?? []).length) return;
     const timeZone = config.timeZone || systemTimeZone;
     const local = localParts(now, timeZone);
     if (!st) {
@@ -574,7 +576,9 @@ export default function registerHeatingControl(register: any, { apiClient, logge
       write(d.power, x.fanW / 1000);
       write(d.fanSpeed, x.fanRpm);
     }
-    if (writes.length) await apiClient.simulateDevices(writes);
+    // the readings go out while the switches below are set (each request a round trip - nexus-edge
+    // iot PERF_PROD_2026-11-05.md); awaited before the step's reports
+    const writing = writes.length ? apiClient.simulateDevices(writes) : Promise.resolve();
 
     // the heat pumps' operation follows the stage, one switch per `pumpStaggerS` (the inrush currents
     // never all at once): the queue - the stops first (in the reverse order), then the starts (in the
@@ -594,14 +598,18 @@ export default function registerHeatingControl(register: any, { apiClient, logge
     // a fan coil's valve follows the config (AUTO); one switch failing - e.g. its device not
     // provisioned yet - doesn't stop the rest
     const switches: [number | undefined, boolean, number][] = coils.map((c) => [c.devices?.valve, !disabled.has(c.nodeId) && control.mode !== "off", c.nodeId]);
-    for (const [relay, on, nodeId] of switches) {
-      if (typeof relay !== "number") continue;
-      try {
-        await apiClient.setDeviceAuto(relay, on);
-      } catch (err) {
-        logger.warn({ processId: process.id, nodeId, err }, "heating-control: the switch didn't take");
-      }
-    }
+    // the valves all at once (the heat pumps above keep their own staggered queue)
+    await Promise.all(
+      switches.map(async ([relay, on, nodeId]) => {
+        if (typeof relay !== "number") return;
+        try {
+          await apiClient.setDeviceAuto(relay, on);
+        } catch (err) {
+          logger.warn({ processId: process.id, nodeId, err }, "heating-control: the switch didn't take");
+        }
+      }),
+    );
+    await writing;
 
     // --- today -------------------------------------------------------------------
     const t = st.today;
@@ -632,10 +640,13 @@ export default function registerHeatingControl(register: any, { apiClient, logge
     for (const x of pumpView) if (x.running && x.cop !== null && x.cop < 2) warnings.push({ code: `low_cop_${x.item.nodeId}`, level: 1, text: `${x.item.name}: ${mode === "cooling" ? "EER" : "COP"} ${x.cop.toFixed(1)} - inefficient at this weather` });
     if (mode === "heating" && fullKwh > 0 && storedKwh / fullKwh < 0.1 && coilsHeatKw > 0) warnings.push({ code: "tanks_low", level: 1, text: "The tanks are nearly empty - the rooms may cool down" });
     if (config.weatherProcessId && outdoorC === null) warnings.push({ code: "no_forecast", level: 1, text: "No weather forecast - the outdoor temperature is unknown" });
-    await apiClient.syncMessages(process.id, "error", errors);
-    await apiClient.syncMessages(process.id, "warning", warnings);
-    await apiClient.setCritical(process.id, errors.length > 0);
-    await apiClient.setWarning(process.id, warnings.length > 0);
+    // the state reports together - independent of each other
+    await Promise.all([
+      apiClient.syncMessages(process.id, "error", errors),
+      apiClient.syncMessages(process.id, "warning", warnings),
+      apiClient.setCritical(process.id, errors.length > 0),
+      apiClient.setWarning(process.id, warnings.length > 0),
+    ]);
 
     // --- metrics -------------------------------------------------------------------
     const running = pumpView.filter((x) => x.running);

@@ -9622,3 +9622,26 @@ the same on a Raspberry Pi. Rules since then:
   live field goes into these batch readers, never as a call per row.
 - **A device's AUTO / MANUAL state** (`dualDevicesModel.getState`) is one
   MGET, `setActive` - the write and the read back in one pipeline.
+- **`simulate-auto` publishes its readings together** (`publishReadings` -
+  the cache in one Redis pipeline); **`GET /devices?live=false`** - the
+  registry only, without EdgeX's device list and the overdue snapshots (a
+  process mapping devices by node and type - energy-field). Found with the
+  tick stats' `slowestTick` / per-kind `maxMs`: energy-field's 30 s
+  simulation step was the rare 1.5-2 s run.
+- **Periodic steps are the platform's schedule** (`schedule.ts`): a step of
+  `intervalMs` is due once per interval, at the process's own place in it -
+  the slots shifted by a phase from the process id (a multiplicative hash),
+  so processes with the same interval never step in the same tick; the first
+  tick in a new slot runs it, a skipped tick included. The same rule for a
+  kind's registry `intervalMs` (server.ts) and for a periodic part of a
+  runner - `ctx.stepDue(processId, intervalMs, lastAt, now)` in the plugin
+  context (energy-field, heating-control, heating-planner, energy-ledger use
+  it). A process never counts its own interval.
+- **A step sends its independent requests together** (the readings with the
+  switches, the valves at once, the state reports at once - the heat pumps
+  keep their deliberate staggered queue).
+- **The tick stats report the orchestrator's event loop delay**
+  (`eventLoopDelayMs` - p50 / p99 / max, resolution 20 ms): near the
+  resolution while ticks are long - the time is waiting on the API; well
+  above it - a process computes on the main thread (then a worker thread is
+  the tool). On 2026-11-06: p99 ~30 ms, max ~40 ms - waiting, not computing.
