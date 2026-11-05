@@ -116,7 +116,7 @@ function autoSummary(key: string, horizonH: number, totals: { savingEur: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a Library package is loaded at run time by the orchestrator and imports nothing from it
-export default function registerHeatingPlanner(register: any, { apiClient, logger }: any): void {
+export default function registerHeatingPlanner(register: any, { apiClient, logger, stepDue }: any): void {
   const systemTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const states = new Map<
     number,
@@ -157,7 +157,8 @@ export default function registerHeatingPlanner(register: any, { apiClient, logge
     if (commanded) config = await applyCommands(process, config);
     const intervalMs = (config.intervalSeconds ?? DEFAULT_INTERVAL_S) * 1000;
     let st = states.get(process.id);
-    if (st && now - st.lastRun < intervalMs && !commanded) return;
+    // once per interval, at this process's own place in it (the platform's schedule - ctx.stepDue)
+    if (st && !stepDue(process.id, intervalMs, st.lastRun, now) && !commanded) return;
     if (!st) {
       st = { lastRun: 0, madeAt: 0, ledgerMadeAt: null, configKey: "", weather: new Map(), lastPlan: null, lastPlanStrategy: null, lastPlanTotals: null };
       try {

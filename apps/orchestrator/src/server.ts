@@ -12,6 +12,7 @@ import { runHeartbeatControlTest } from "./processes/heartbeatControlTest.js";
 import { runResourceMonitor } from "./processes/resourceMonitor.js";
 import { dispatchDeviceEvent, processLockedRun } from "./processDispatch.js";
 import { runLimited } from "./runLimited.js";
+import { stepDue } from "./schedule.js";
 import { setTickShared } from "./shared.js";
 import { setTickProcesses } from "./tickProcesses.js";
 import { processRegistry } from "./processRegistry.js";
@@ -101,10 +102,10 @@ async function tickBody(): Promise<void> {
     async (process) => {
       const runner = processRegistry.get(process.kind);
       if (!runner) return;
-      // a kind with its own interval runs only when due (half a tick of slack)
+      // a kind with its own interval runs once per interval, at the process's own place in it (schedule.ts)
       const intervalMs = processRegistry.hooks(process.kind)?.intervalMs ?? 0;
       const now = Date.now();
-      if (intervalMs > TICK_INTERVAL_MS && now - (lastRunAt.get(process.id) ?? 0) < intervalMs - TICK_INTERVAL_MS / 2) {
+      if (intervalMs > TICK_INTERVAL_MS && !stepDue(process.id, intervalMs, lastRunAt.get(process.id), now)) {
         alive.push(process.id); // not run this tick by design - still alive
         return;
       }

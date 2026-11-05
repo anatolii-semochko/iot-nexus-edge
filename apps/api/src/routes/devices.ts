@@ -254,11 +254,14 @@ async function publishDeviceMetadata(deviceId: number, source: string): Promise<
 export async function deviceRoutes(app: FastifyInstance): Promise<void> {
   // List view: registry metadata plus EdgeX admin/operating state, fetched
   // once for every device.
-  app.get("/devices", async (request) => {
+  app.get<{ Querystring: { live?: string } }>("/devices", async (request) => {
     const all = await pool.query<DeviceListRow>(`${SELECT_DEVICE_LIST_BASE} GROUP BY d.id, n.name, n.simulated, li.icon_path ORDER BY d.name`);
     // a person limited to some DNP instances sees only theirs (access/scope.ts)
     const scope = await scopeFilter(request, "devices.view");
     const result = { rows: all.rows.filter((d) => !scope || scope.device(d.id)) };
+    // `?live=false` - the registry only, without EdgeX's live status and the overdue snapshots (a process
+    // mapping its devices by node and type needs no more - iot PERF_PROD_2026-11-05.md)
+    if (request.query.live === "false") return result.rows;
 
     let edgexByName = new Map<string, EdgeXDeviceStatus>();
     try {
@@ -565,6 +568,8 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     const byId = new Map(
       (await pool.query<DeviceRowWithNode>(`${SELECT_DEVICE_WITH_NODE} WHERE d.id = ANY($1::int[])`, [ids])).rows.map((r) => [r.id, r]),
     );
+    // the readings published together after the checks (one Redis pipeline - publishReadings)
+    const published: { deviceId: number; value: unknown }[] = [];
     const results = await Promise.all(
       values.map(async ({ id, value }) => {
         try {
@@ -575,13 +580,14 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
           if (!edgexName || !device.capabilities.edgexResource) return { id, ok: false, error: "device is not backed by EdgeX" };
           if (!device.capabilities.readOnly) return { id, ok: false, error: "device is not read-only" };
           if (edgexSyncDue(device.id)) await writeValue(edgexName, device.capabilities.edgexResource, value);
-          await dualDevicesModel.publishReading(device.id, value, "process");
+          published.push({ deviceId: device.id, value });
           return { id, ok: true };
         } catch (err) {
           return { id, ok: false, error: err instanceof Error ? err.message : String(err) };
         }
       }),
     );
+    await dualDevicesModel.publishReadings(published, "process");
     return { results };
   });
 
