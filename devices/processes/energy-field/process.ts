@@ -194,7 +194,10 @@ export default function registerEnergyField(register: any, { apiClient, logger }
       logger.info({ processId: process.id, reverted: due.map((r) => r.ops) }, "energy-field: temporary changes put back");
     }
     const intervalMs = (config.simulation?.intervalSeconds ?? DEFAULT_INTERVAL_S) * 1000;
-    if (st && now - st.lastRun < intervalMs && !(process.commands ?? []).length) return;
+    // each process's step at its own place in the interval (by its id) - the heating and energy
+    // simulations no longer all run in the same tick (nexus-edge iot PERF_PROD_2026-11-05.md)
+    const slotOf = (t: number) => Math.floor((t + ((process.id * 7919) % intervalMs)) / intervalMs);
+    if (st && slotOf(now) === slotOf(st.lastRun) && !(process.commands ?? []).length) return;
     const timeZone = config.timeZone || systemTimeZone;
     const local = localParts(now, timeZone);
     if (!st) {
@@ -393,19 +396,24 @@ export default function registerEnergyField(register: any, { apiClient, logger }
     }
     // the site's balance on the grid meter (the energy-grid process integrates its registers)
     write(gridPowerId, d.gridKw);
-    if (writes.length) await apiClient.simulateDevices(writes);
+    // the readings and the switches go together, the switches all at once - not one request after
+    // another (each is a round trip; nexus-edge iot PERF_PROD_2026-11-05.md)
+    const writing = writes.length ? apiClient.simulateDevices(writes) : Promise.resolve();
 
     // the switches follow the config (AUTO)
     // (one switch failing - e.g. its device not provisioned yet - doesn't stop the field)
-    for (const it of [...pvBlocks, ...turbines, ...batteryItems]) {
-      const relay = dev(it.nodeId, "relay");
-      if (typeof relay !== "number") continue;
-      try {
-        await apiClient.setDeviceAuto(relay, !disabled.has(it.nodeId));
-      } catch (err) {
-        logger.warn({ processId: process.id, nodeId: it.nodeId, err }, "energy-field: the switch didn't take");
-      }
-    }
+    const switching = Promise.all(
+      [...pvBlocks, ...turbines, ...batteryItems].map(async (it) => {
+        const relay = dev(it.nodeId, "relay");
+        if (typeof relay !== "number") return;
+        try {
+          await apiClient.setDeviceAuto(relay, !disabled.has(it.nodeId));
+        } catch (err) {
+          logger.warn({ processId: process.id, nodeId: it.nodeId, err }, "energy-field: the switch didn't take");
+        }
+      }),
+    );
+    await Promise.all([writing, switching]);
 
     // --- today ---------------------------------------------------------------
     const t = st.today;
@@ -433,10 +441,13 @@ export default function registerEnergyField(register: any, { apiClient, logger }
     for (const x of wind) if (x.state === "storm") warnings.push({ code: `storm_${x.item.nodeId}`, level: 1, text: `${x.item.name}: braked - the wind is over its cut-out speed` });
     if (d.curtailedKw > 0.01) warnings.push({ code: "curtailed", level: 1, text: `${d.curtailedKw.toFixed(1)} kW of generation held back - no room in the batteries${strategy.exportAllowed ? " and the export at its limit" : ", export not allowed"}` });
     if (config.weatherProcessId && !weather) warnings.push({ code: "no_forecast", level: 1, text: "No weather forecast - the simulated generation is 0" });
-    await apiClient.syncMessages(process.id, "error", errors);
-    await apiClient.syncMessages(process.id, "warning", warnings);
-    await apiClient.setCritical(process.id, errors.length > 0);
-    await apiClient.setWarning(process.id, warnings.length > 0);
+    // the state reports together - independent of each other
+    await Promise.all([
+      apiClient.syncMessages(process.id, "error", errors),
+      apiClient.syncMessages(process.id, "warning", warnings),
+      apiClient.setCritical(process.id, errors.length > 0),
+      apiClient.setWarning(process.id, warnings.length > 0),
+    ]);
 
     // --- metrics -------------------------------------------------------------
     const group = (g: string | undefined) => g ?? "";

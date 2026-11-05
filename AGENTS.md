@@ -9628,3 +9628,14 @@ the same on a Raspberry Pi. Rules since then:
   process mapping devices by node and type - energy-field). Found with the
   tick stats' `slowestTick` / per-kind `maxMs`: energy-field's 30 s
   simulation step was the rare 1.5-2 s run.
+- **A periodic step runs at its own place in the interval** (energy-field,
+  heating-control: `slotOf` by the process id - the five simulations no
+  longer step in the same tick) and **sends its independent requests
+  together** (the readings with the switches, the valves at once, the state
+  reports at once - the heat pumps keep their staggered queue). A process
+  with a periodic step does the same.
+- **The tick stats report the orchestrator's event loop delay**
+  (`eventLoopDelayMs` - p50 / p99 / max, resolution 20 ms): near the
+  resolution while ticks are long - the time is waiting on the API; well
+  above it - a process computes on the main thread (then a worker thread is
+  the tool). On 2026-11-06: p99 ~30 ms, max ~40 ms - waiting, not computing.

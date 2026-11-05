@@ -5,7 +5,15 @@
 // a summary in the log once per window. Every optimisation step is
 // measured with it before / after.
 
+import { monitorEventLoopDelay } from "node:perf_hooks";
+
 const WINDOW = 60;
+
+// The orchestrator's event loop delay over the window (iot PERF_PROD_2026-11-05.md): near zero
+// while ticks are long - the time goes to waiting on the API; high - a process computes on the main
+// thread (then a worker thread is the tool). Resolution 20 ms.
+const loopDelay = monitorEventLoopDelay({ resolution: 20 });
+loopDelay.enable();
 
 interface Window {
   ticks: number;
@@ -79,6 +87,7 @@ function summary(w: Window) {
       max: Math.round(sorted[sorted.length - 1] ?? 0),
     },
     slowestTick: { ms: Math.round(w.slowest.ms), longestKind: w.slowest.kind, longestKindMs: Math.round(w.slowest.kindMs) },
+    eventLoopDelayMs: loopDelayWindow(),
     requestsPerTick: Math.round((totalRequests / w.ticks) * 10) / 10,
     topRoutes: [...w.requests.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -93,4 +102,12 @@ function summary(w: Window) {
         runsPerTick: Math.round(((w.kindRuns.get(kind) ?? 0) / w.ticks) * 10) / 10,
       })),
   };
+}
+
+// the event loop delay since the last window (ms, beyond the histogram's own resolution), reset after
+function loopDelayWindow() {
+  const ms = (ns: number) => Math.round((ns / 1e6) * 10) / 10;
+  const out = { p50: ms(loopDelay.percentile(50)), p99: ms(loopDelay.percentile(99)), max: ms(loopDelay.max) };
+  loopDelay.reset();
+  return out;
 }
