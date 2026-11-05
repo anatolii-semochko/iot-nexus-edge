@@ -48,7 +48,7 @@ export const config = {
   // a small server couldn't absorb; the same list read by several processes
   // in one tick is one request (shared.ts, `tickShared`); reference reads
   // are kept until their table changes, this long at most (`cachedRead`).
-  tickConcurrency: Math.max(1, Number(process.env.ORCHESTRATOR_TICK_CONCURRENCY ?? 4)),
+  tickConcurrency: Math.max(1, Number(process.env.ORCHESTRATOR_TICK_CONCURRENCY ?? 8)),
   tickShareMs: Number(process.env.ORCHESTRATOR_TICK_SHARE_MS ?? 900),
   referenceCacheMs: Number(process.env.ORCHESTRATOR_REFERENCE_CACHE_MS ?? 300000),
   // device value reads arriving within this window go as one POST /devices/values (valueBatcher.ts); 0 - off

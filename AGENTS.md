@@ -9577,9 +9577,12 @@ the same on a Raspberry Pi. Rules since then:
   already has (`tickProcesses()`), batches its device reads
   (`getDeviceValues`), caches reference data by change events
   (`changeEvents.ts`) - never a request per tick that returns the same thing.
-- **The tick runs at most `ORCHESTRATOR_TICK_CONCURRENCY` (4) process
+- **The tick runs at most `ORCHESTRATOR_TICK_CONCURRENCY` (8) process
   runners at once** (`runLimited.ts`) - all of them together made bursts
-  (a run queue of 14-33 on 4 cores) that slowed every one.
+  (a run queue of 14-33 on 4 cores) that slowed every one. 4 was too few on
+  the demo's server: each run got 2-3x faster, but ~24 runs of ~200 ms in
+  four lanes still took ~1.2 s - the tick's length is about
+  (runs x run time) / the limit.
 - **`apiClient.listProcesses()` / `listNodes()` are shared within a tick**
   (`shared.ts`, `tickShared` - one request, reused for
   `ORCHESTRATOR_TICK_SHARE_MS`); the tick's own read is `fetchProcesses()`.
