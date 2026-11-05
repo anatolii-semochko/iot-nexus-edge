@@ -120,6 +120,25 @@ export async function publishReading(deviceId: number, value: unknown, source: s
 }
 
 /**
+ * publishReading for many devices at once (PUT /devices/simulate-auto): the
+ * cache in one Redis pipeline, not a SET each - a simulation publishes
+ * hundreds of readings at a time (iot PERF_PROD_2026-11-05.md); the bus
+ * events as before.
+ */
+export async function publishReadings(items: { deviceId: number; value: unknown }[], source: string): Promise<void> {
+  if (items.length === 0) return;
+  const timestamp = new Date().toISOString();
+  try {
+    const pipe = redis.pipeline();
+    for (const { deviceId, value } of items) pipe.set(`state:${deviceId}`, encode({ value, updatedAt: timestamp, source }));
+    await pipe.exec();
+  } catch (err) {
+    logger.warn({ err, devices: items.length }, "failed to refresh state cache");
+  }
+  await Promise.all(items.map(({ deviceId, value }) => publishDeviceEvent({ domain: "device", entityId: deviceId, value, timestamp, source })));
+}
+
+/**
  * Reads back what publishReading() above last wrote into the `state:*`
  * cache - the only way to get a value for a Device with no EdgeX/hardware
  * backend at all (e.g. `light-level`, AGENTS.md section 66), since

@@ -218,7 +218,7 @@ export default function registerEnergyField(register: any, { apiClient, logger }
 
     // --- the items' devices ------------------------------------------------
     if (!st.devices || now - st.devices.at >= DEVICES_TTL_MS) {
-      const all = await apiClient.request("/devices");
+      const all = await apiClient.request("/devices?live=false"); // the registry only - no EdgeX status
       const byNode = new Map<number, Map<string, number>>();
       for (const d of all as { id: number; type: string; node_id: number | null }[]) {
         if (d.node_id === null) continue;

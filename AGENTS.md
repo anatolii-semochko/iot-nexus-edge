@@ -9622,3 +9622,9 @@ the same on a Raspberry Pi. Rules since then:
   live field goes into these batch readers, never as a call per row.
 - **A device's AUTO / MANUAL state** (`dualDevicesModel.getState`) is one
   MGET, `setActive` - the write and the read back in one pipeline.
+- **`simulate-auto` publishes its readings together** (`publishReadings` -
+  the cache in one Redis pipeline); **`GET /devices?live=false`** - the
+  registry only, without EdgeX's device list and the overdue snapshots (a
+  process mapping devices by node and type - energy-field). Found with the
+  tick stats' `slowestTick` / per-kind `maxMs`: energy-field's 30 s
+  simulation step was the rare 1.5-2 s run.
