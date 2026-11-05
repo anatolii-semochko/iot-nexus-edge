@@ -9620,3 +9620,5 @@ the same on a Raspberry Pi. Rules since then:
   `GET /data-logger-controls` - one MGET for every sensor's last-logged time
   (it was a GET per sensor, ~500 on the demo, every tick). A new per-row
   live field goes into these batch readers, never as a call per row.
+- **A device's AUTO / MANUAL state** (`dualDevicesModel.getState`) is one
+  MGET, `setActive` - the write and the read back in one pipeline.
