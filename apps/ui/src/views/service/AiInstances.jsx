@@ -114,6 +114,9 @@ const AiInstances = ({ connections }) => {
                   <div className="fw-semibold">
                     {i.name}
                     {system && (
+                      <span className="fw-normal text-body-secondary"> ({t('the whole system')})</span>
+                    )}
+                    {system && (
                       <CBadge color="primary" className="ms-2">
                         {t('Built in')}
                       </CBadge>

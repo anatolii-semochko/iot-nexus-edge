@@ -103,7 +103,12 @@ const AiMcpAccess = () => {
       .deleteMcpToken(t.id)
       .then(load)
       .catch((err) => setError(err.message))
-  const nameOf = (key) => instances.find((i) => i.key === key)?.name ?? key
+  // the whole system's instance named as such - its own name alone reads like any other
+  const labelOf = (i) => (i.processId === null ? `${i.name} (${tr('the whole system')})` : i.name)
+  const nameOf = (key) => {
+    const i = instances.find((x) => x.key === key)
+    return i ? labelOf(i) : key
+  }
 
   if (!tokens) return error ? <CAlert color="danger">{error}</CAlert> : <CSpinner size="sm" />
   return (
@@ -195,7 +200,7 @@ const AiMcpAccess = () => {
             >
               {instances.map((i) => (
                 <option key={i.key} value={i.key}>
-                  {i.name}
+                  {labelOf(i)}
                 </option>
               ))}
             </CFormSelect>
