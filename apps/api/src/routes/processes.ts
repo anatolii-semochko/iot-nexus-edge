@@ -108,7 +108,7 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     const result = await pool.query<ProcessRow>(`${PROCESS_SELECT} ORDER BY g.name, p.name`);
     // a person limited to some DNP instances sees only theirs (access/scope.ts)
     const scope = await scopeFilter(request, "processes.view");
-    return Promise.all(result.rows.filter((p) => !scope || scope.process(p.id)).map(withLiveState));
+    return withLiveStateMany(result.rows.filter((p) => !scope || scope.process(p.id)));
   });
 
   // AGENTS_TO_DO.md, 2026-08-14 process management - live create/delete
@@ -624,6 +624,38 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
 async function findProcess(id: string): Promise<ProcessRow | undefined> {
   const result = await pool.query<ProcessRow>(`${PROCESS_SELECT} WHERE p.id = $1`, [id]);
   return result.rows[0];
+}
+
+// withLiveState for a whole list - the same fields, in a fixed number of
+// round trips (one SQL for the messages, one Redis pipeline, one MGET)
+// instead of ~10 per process: GET /processes is read every orchestrator
+// tick (iot PERF_PROD_2026-11-05.md).
+async function withLiveStateMany(processes: ProcessRow[]) {
+  const ids = processes.map((p) => p.id);
+  const [pub, msgs, beats, simulated] = await Promise.all([
+    processRegistry.getPublicMany(ids),
+    processMessages.activeMessagesOf(ids),
+    heartbeatControl.processHeartbeatMany(ids),
+    Promise.all(processes.map((p) => (p.type === "simulation" ? isSimulationTargetSimulated(p) : Promise.resolve(undefined)))),
+  ]);
+  return processes.map((process, i) => {
+    const live = pub.get(process.id)!;
+    const m = msgs.get(process.id)!;
+    const beat = beats.get(process.id)!;
+    return {
+      ...process,
+      status: process.type === "controllable" || process.type === "simulation" ? live.status : undefined,
+      critical: live.critical,
+      warning: live.warning,
+      metrics: live.metrics,
+      messages: m.messages,
+      hasActiveWem: m.hasActive,
+      heartbeatStopped: beat.stopped,
+      heartbeatTestSimulateFailure: beat.testSimulateFailure,
+      heartbeatLastSeenAt: beat.lastSeenAt,
+      simulationTargetSimulated: simulated[i],
+    };
+  });
 }
 
 async function withLiveState(process: ProcessRow) {

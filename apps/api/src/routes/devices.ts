@@ -320,8 +320,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
         const resolved = resolveEdgexName(row);
         const cached = readings[i];
         const cachedAt = cached ? Date.parse(cached.updatedAt) : null;
-        const cacheIsSource =
-          !resolved || resolved === row.edgex_device_name_simulated || row.backend === "virtual";
+        const cacheIsSource = cacheIsSourceFor(row, resolved);
         if (cached && (cacheIsSource || (cachedAt !== null && now - cachedAt <= maxAgeMs))) {
           values[row.id] = { value: cached.value, at: cachedAt, source: "cache" };
           return;
@@ -334,7 +333,11 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
           const reading = await readValue(resolved, caps.edgexResource);
           const at = Math.floor(reading.origin / 1e6);
           values[row.id] = { value: reading.value, at, source: "edgex" };
-          if (caps.readOnly) await dualDevicesModel.cacheReading(row.id, reading.value, at, "batch-read");
+          // a sensor's reading is cached for the next caller; so is any device whose cache is the source
+          // (a virtual / simulated one: its EdgeX value changes only through this API's own writes) - an
+          // actuator never given an AUTO value was otherwise read from EdgeX on every call, each tick
+          // (iot PERF_PROD_2026-11-05.md: 32 demo devices, ~40 EdgeX reads / s)
+          if (caps.readOnly || cacheIsSource) await dualDevicesModel.cacheReading(row.id, reading.value, at, "batch-read");
         } catch (err) {
           app.log.warn({ err, device: row.name }, "batch read: EdgeX read failed");
           values[row.id] = { value: null, at: null, source: "error" };
@@ -397,6 +400,16 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         app.log.warn({ err, device: device.name }, "failed to read device value");
         readFailed = true;
+      }
+      // a virtual / simulated device: EdgeX gives the type and the units, the value is the cache's (its
+      // EdgeX twin is synced only every SIMULATED_EDGEX_SYNC_MS - simulate-auto)
+      if (cacheIsSourceFor(device, resolvedEdgexName)) {
+        const cached = await dualDevicesModel.getReading(device.id);
+        if (cached) {
+          value = cached.value;
+          readingOrigin = Date.parse(cached.updatedAt);
+          readFailed = false;
+        }
       }
       // A pure sensor (readOnly) has no AUTO/MANUAL mode at all - no
       // dualState, rather than defaulting to a misleading "AUTO".
@@ -533,7 +546,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
           .send({ error: `device '${device.name}' is not read-only`, hint: "use PUT /devices/:id/auto instead" });
       }
 
-      if (!(await writeOrReject(reply, device.resolvedEdgexName, device.capabilities.edgexResource, value))) return;
+      if (edgexSyncDue(device.id) && !(await writeOrReject(reply, device.resolvedEdgexName, device.capabilities.edgexResource, value))) return;
       await dualDevicesModel.publishReading(device.id, value, "process");
       return { status: "ok" };
     },
@@ -547,16 +560,21 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
   app.put<{ Body: { values: { id: number; value: unknown }[] } }>("/devices/simulate-auto", async (request, reply) => {
     const values = request.body?.values;
     if (!Array.isArray(values)) return reply.code(400).send({ error: "request body must include 'values' - [{id, value}]" });
+    // the devices in one query, not one per value (iot PERF_PROD_2026-11-05.md)
+    const ids = values.map((v) => Number(v?.id)).filter(Number.isFinite);
+    const byId = new Map(
+      (await pool.query<DeviceRowWithNode>(`${SELECT_DEVICE_WITH_NODE} WHERE d.id = ANY($1::int[])`, [ids])).rows.map((r) => [r.id, r]),
+    );
     const results = await Promise.all(
       values.map(async ({ id, value }) => {
         try {
           if (value === undefined) return { id, ok: false, error: "no value" };
-          const device = await findDevice(String(id));
+          const device = byId.get(Number(id));
           if (!device) return { id, ok: false, error: "device not found" };
           const edgexName = resolveEdgexName(device);
           if (!edgexName || !device.capabilities.edgexResource) return { id, ok: false, error: "device is not backed by EdgeX" };
           if (!device.capabilities.readOnly) return { id, ok: false, error: "device is not read-only" };
-          await writeValue(edgexName, device.capabilities.edgexResource, value);
+          if (edgexSyncDue(device.id)) await writeValue(edgexName, device.capabilities.edgexResource, value);
           await dualDevicesModel.publishReading(device.id, value, "process");
           return { id, ok: true };
         } catch (err) {
@@ -701,7 +719,11 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: `device '${device.name}' has no EdgeX resource to read` });
     }
 
-    const reading = await readValue(resolvedEdgexName, device.capabilities.edgexResource);
+    // a virtual / simulated device - its cached reading (as the detail view above), no EdgeX round trip
+    const cached = cacheIsSourceFor(device, resolvedEdgexName) ? await dualDevicesModel.getReading(device.id) : null;
+    const reading = cached
+      ? { value: cached.value, origin: Date.parse(cached.updatedAt) * 1e6 }
+      : await readValue(resolvedEdgexName, device.capabilities.edgexResource);
     await logReading({ deviceId: device.id, value: reading.value, source: "data-logger" });
     await dataLoggerControl.touchLastLoggedAt(device.id);
     // AGENTS.md section 62 - this is the orchestrator's own periodic
@@ -937,6 +959,31 @@ function auditable(policy: string, previous: unknown, value: unknown): boolean {
   return JSON.stringify(previous) !== JSON.stringify(value);
 }
 
+// The device's value lives in this API's cache, not behind EdgeX: a virtual
+// device or a node's simulated twin - every write to it goes through this
+// API (the batch read's rule above, the detail view, the Data Logger).
+function cacheIsSourceFor(row: { backend?: string | null; edgex_device_name_simulated: string | null }, resolved: string | null): boolean {
+  return !resolved || resolved === row.edgex_device_name_simulated || row.backend === "virtual";
+}
+
+// A simulated reading's EdgeX write is due (config.simulatedEdgexSyncMs) -
+// the reading itself is published every time (simulate-auto above).
+// A device seen for the first time gets a random place in the period, so
+// the hundreds of simulated devices don't all come due in the same second.
+const lastEdgexSync = new Map<number, number>();
+function edgexSyncDue(deviceId: number): boolean {
+  const now = Date.now();
+  const period = config.simulatedEdgexSyncMs;
+  const last = lastEdgexSync.get(deviceId);
+  if (last === undefined) {
+    lastEdgexSync.set(deviceId, now - Math.random() * period);
+    return period <= 0;
+  }
+  if (now - last < period) return false;
+  lastEdgexSync.set(deviceId, now);
+  return true;
+}
+
 export async function findDevice(id: string): Promise<DeviceRowWithNode | undefined> {
   const result = await pool.query<DeviceRowWithNode>(`${SELECT_DEVICE_WITH_NODE} WHERE d.id = $1`, [id]);
   return result.rows[0];
@@ -1050,6 +1097,11 @@ async function checkForbidden(
       const otherEdgexResource = other.capabilities.edgexResource;
       currentValues[name] = await dualDevicesModel.resolveActiveValue(other.id, async () => {
         try {
+          // a virtual / simulated device - its cached reading, as every other reader of it
+          if (cacheIsSourceFor(other, otherResolvedName)) {
+            const cached = await dualDevicesModel.getReading(other.id);
+            if (cached) return cached.value;
+          }
           return (await readValue(otherEdgexDeviceName, otherEdgexResource)).value;
         } catch (err) {
           log.warn({ err, device: name }, "Model State Validator: failed to read current value");

@@ -184,6 +184,11 @@ services:
     environment:
       EDGEX_SECURITY_SECRET_STORE: "false"
       SERVICE_HOST: edgex-core-data
+      # Nexus Edge keeps its own history and reads values live (core-command) or from its cache - EdgeX's
+      # stored events are never read; storing every one cost ~40 % of a core on a small server
+      # (iot PERF_PROD_2026-11-05.md). Applied by the bootstrap on a fresh stack only - on a running
+      # one: keeper key edgex/v4/core-data/Writable/PersistData = false.
+      WRITABLE_PERSISTDATA: "false"
     ports:
       - "127.0.0.1:59880:59880"
     networks:

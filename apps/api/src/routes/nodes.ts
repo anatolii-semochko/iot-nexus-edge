@@ -55,6 +55,10 @@ async function withLiveHeartbeat(node: NodeRow) {
     heartbeatControl.getNodeHeartbeatStopped(node.id),
     heartbeatControl.getNodeLastSeenAt(node.id),
   ]);
+  return withHeartbeat(node, heartbeatStopped, heartbeatLastSeenAt);
+}
+
+function withHeartbeat(node: NodeRow, heartbeatStopped: boolean, heartbeatLastSeenAt: string | null) {
   // AGENTS_TO_DO.md, 2026-08-15 - `heartbeatStopped` above is the "monitoring
   // paused" toggle, not a staleness result (see heartbeatControl.ts's own
   // doc comment) - it never flips on a real disconnect. `heartbeatStale` is
@@ -130,7 +134,10 @@ export async function nodeRoutes(app: FastifyInstance): Promise<void> {
     const result = await pool.query<NodeRow>(`${SELECT_NODE} ORDER BY n.name`);
     // a person limited to some DNP instances sees only theirs (access/scope.ts)
     const scope = await scopeFilter(request, "nodes.view");
-    return Promise.all(result.rows.filter((n) => !scope || scope.node(n.id)).map(withLiveHeartbeat));
+    // the heartbeat state of all of them in one MGET - read every orchestrator tick
+    const nodes = result.rows.filter((n) => !scope || scope.node(n.id));
+    const beats = await heartbeatControl.nodeHeartbeatMany(nodes.map((n) => n.id));
+    return nodes.map((node) => withHeartbeat(node, beats.get(node.id)!.stopped, beats.get(node.id)!.lastSeenAt));
   });
 
   app.get<{ Params: { id: string } }>("/nodes/:id", async (request, reply) => {

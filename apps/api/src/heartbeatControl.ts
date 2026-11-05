@@ -160,6 +160,25 @@ export async function getProcessLastSeenAt(processId: number): Promise<string | 
   return getLastSeenAt("process", processId);
 }
 
+/** The heartbeat state of many processes in one Redis round trip (GET /processes). */
+export async function processHeartbeatMany(
+  processIds: number[],
+): Promise<Map<number, { stopped: boolean; lastSeenAt: string | null; testSimulateFailure: boolean }>> {
+  const out = new Map<number, { stopped: boolean; lastSeenAt: string | null; testSimulateFailure: boolean }>();
+  if (processIds.length === 0) return out;
+  const keys = processIds.flatMap((id) => [stoppedKey("process", id), lastSeenKey("process", id), testSimulateFailureKey(id)]);
+  const raw = await redis.mget(...keys);
+  processIds.forEach((id, i) => {
+    const [stopped, lastSeen, test] = raw.slice(i * 3, i * 3 + 3);
+    out.set(id, {
+      stopped: stopped === "true",
+      lastSeenAt: lastSeen ? new Date(Number(lastSeen)).toISOString() : null,
+      testSimulateFailure: test === "true",
+    });
+  });
+  return out;
+}
+
 export async function getProcessHeartbeatStopped(processId: number): Promise<boolean> {
   return isMonitoringStopped("process", processId);
 }
@@ -197,6 +216,18 @@ export async function touchNodeHeartbeats(nodeIds: number[]): Promise<void> {
 
 export async function getNodeLastSeenAt(nodeId: number): Promise<string | null> {
   return getLastSeenAt("node", nodeId);
+}
+
+/** stopped / last seen of many nodes in one MGET (GET /nodes, every orchestrator tick). */
+export async function nodeHeartbeatMany(nodeIds: number[]): Promise<Map<number, { stopped: boolean; lastSeenAt: string | null }>> {
+  const out = new Map<number, { stopped: boolean; lastSeenAt: string | null }>();
+  if (nodeIds.length === 0) return out;
+  const raw = await redis.mget(...nodeIds.flatMap((id) => [stoppedKey("node", id), lastSeenKey("node", id)]));
+  nodeIds.forEach((id, i) => {
+    const [stopped, lastSeen] = raw.slice(i * 2, i * 2 + 2);
+    out.set(id, { stopped: stopped === "true", lastSeenAt: lastSeen ? new Date(Number(lastSeen)).toISOString() : null });
+  });
+  return out;
 }
 
 export async function getNodeHeartbeatStopped(nodeId: number): Promise<boolean> {
