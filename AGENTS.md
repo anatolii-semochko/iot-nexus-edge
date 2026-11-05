@@ -9593,7 +9593,13 @@ the same on a Raspberry Pi. Rules since then:
 - **Device value reads are coalesced** (`valueBatcher.ts`): the asks of
   processes running together within `ORCHESTRATOR_VALUE_BATCH_WINDOW_MS`
   (15 ms) go as one `POST /devices/values`.
-- **`PUT /devices/simulate-auto`** looks its devices up in one query.
+- **`PUT /devices/simulate-auto`** looks its devices up in one query, and
+  writes a device's EdgeX twin at most every `SIMULATED_EDGEX_SYNC_MS`
+  (10 s) - the reading itself (the cache, the bus) every time. The
+  simulations write every value each tick, each EdgeX write two HTTP hops;
+  on the demo's server this route took most of the API's time (p90 4.6 s).
+  Only the device's detail view and the Data Logger read EdgeX live - they
+  may lag a simulated value by up to that long.
 - **EdgeX core-data does not store events** (`WRITABLE_PERSISTDATA=false`;
   on a running stack the keeper key `edgex/v4/core-data/Writable/PersistData`)
   - Nexus Edge never reads them; storing cost ~40 % of a core.

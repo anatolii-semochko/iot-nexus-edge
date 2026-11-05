@@ -533,7 +533,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
           .send({ error: `device '${device.name}' is not read-only`, hint: "use PUT /devices/:id/auto instead" });
       }
 
-      if (!(await writeOrReject(reply, device.resolvedEdgexName, device.capabilities.edgexResource, value))) return;
+      if (edgexSyncDue(device.id) && !(await writeOrReject(reply, device.resolvedEdgexName, device.capabilities.edgexResource, value))) return;
       await dualDevicesModel.publishReading(device.id, value, "process");
       return { status: "ok" };
     },
@@ -561,7 +561,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
           const edgexName = resolveEdgexName(device);
           if (!edgexName || !device.capabilities.edgexResource) return { id, ok: false, error: "device is not backed by EdgeX" };
           if (!device.capabilities.readOnly) return { id, ok: false, error: "device is not read-only" };
-          await writeValue(edgexName, device.capabilities.edgexResource, value);
+          if (edgexSyncDue(device.id)) await writeValue(edgexName, device.capabilities.edgexResource, value);
           await dualDevicesModel.publishReading(device.id, value, "process");
           return { id, ok: true };
         } catch (err) {
@@ -940,6 +940,16 @@ function auditable(policy: string, previous: unknown, value: unknown): boolean {
   if (policy === "never") return false;
   if (policy === "transition") return isOn(previous) !== isOn(value);
   return JSON.stringify(previous) !== JSON.stringify(value);
+}
+
+// A simulated reading's EdgeX write is due (config.simulatedEdgexSyncMs) -
+// the reading itself is published every time (simulate-auto above).
+const lastEdgexSync = new Map<number, number>();
+function edgexSyncDue(deviceId: number): boolean {
+  const now = Date.now();
+  if (now - (lastEdgexSync.get(deviceId) ?? 0) < config.simulatedEdgexSyncMs) return false;
+  lastEdgexSync.set(deviceId, now);
+  return true;
 }
 
 export async function findDevice(id: string): Promise<DeviceRowWithNode | undefined> {

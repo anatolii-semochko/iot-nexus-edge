@@ -34,6 +34,13 @@ export const config = {
   // sensor's cached reading may be before the batch read goes to EdgeX
   // for a fresh one.
   deviceValuesMaxAgeMs: Number(process.env.DEVICE_VALUES_MAX_AGE_MS ?? 5000),
+  // PUT /devices/simulate-auto (iot PERF_PROD_2026-11-05.md): a simulation
+  // publishes its readings every tick (the cache, the bus - what the
+  // processes and the UI read), but writes a device's EdgeX twin at most
+  // this often - each write is two HTTP hops (core-command, device-service)
+  // and only the device's detail view and the Data Logger read EdgeX live.
+  // 0 - every time.
+  simulatedEdgexSyncMs: Number(process.env.SIMULATED_EDGEX_SYNC_MS ?? 10000),
   postgres: {
     host: required("POSTGRES_HOST"),
     port: Number(process.env.POSTGRES_PORT ?? 5432),
