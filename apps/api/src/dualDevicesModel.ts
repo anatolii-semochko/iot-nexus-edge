@@ -140,12 +140,12 @@ export async function getReading(
 
 export async function getState(deviceId: number): Promise<DeviceState> {
   const k = keysFor(deviceId);
-  const [mode, rawAuto, rawManual] = await Promise.all([
-    redis.get(k.mode),
-    redis.get(k.valueAuto),
-    redis.get(k.valueManual),
-  ]);
+  // one MGET, not three GETs (iot PERF_PROD_2026-11-05.md - every round trip counts)
+  const [mode, rawAuto, rawManual] = await redis.mget(k.mode, k.valueAuto, k.valueManual);
+  return stateOf(mode, rawAuto, rawManual);
+}
 
+function stateOf(mode: string | null, rawAuto: string | null, rawManual: string | null): DeviceState {
   const resolvedMode: Mode = mode === "MANUAL" ? "MANUAL" : "AUTO";
   const valueAuto = decode(rawAuto);
   const valueManual = decode(rawManual);
@@ -164,8 +164,12 @@ export async function getState(deviceId: number): Promise<DeviceState> {
  * computing what it would set automatically, so that value can take over
  * immediately once the device is released back to AUTO. */
 export async function setActive(deviceId: number, value: unknown): Promise<DeviceState> {
-  await redis.set(keysFor(deviceId).valueAuto, encode(value));
-  const state = await getState(deviceId);
+  // the write and the state read back in one round trip (a pipeline)
+  const k = keysFor(deviceId);
+  const results = (await redis.pipeline().set(k.valueAuto, encode(value)).mget(k.mode, k.valueAuto, k.valueManual).exec()) ?? [];
+  for (const [err] of results) if (err) throw err;
+  const [mode, rawAuto, rawManual] = (results[1]?.[1] as (string | null)[] | undefined) ?? [null, null, null];
+  const state = stateOf(mode, rawAuto, rawManual);
   await publishState(deviceId, state, "api");
   return state;
 }

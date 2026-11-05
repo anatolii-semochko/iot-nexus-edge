@@ -11,6 +11,8 @@ import { runHeartbeatControl } from "./processes/heartbeatControl.js";
 import { runHeartbeatControlTest } from "./processes/heartbeatControlTest.js";
 import { runResourceMonitor } from "./processes/resourceMonitor.js";
 import { dispatchDeviceEvent, processLockedRun } from "./processDispatch.js";
+import { runLimited } from "./runLimited.js";
+import { setTickShared } from "./shared.js";
 import { setTickProcesses } from "./tickProcesses.js";
 import { processRegistry } from "./processRegistry.js";
 import { TICK_INTERVAL_MS } from "./tickInterval.js";
@@ -74,7 +76,9 @@ async function tickBody(): Promise<void> {
 
   let processes: ProcessRecord[];
   try {
-    processes = await apiClient.listProcesses();
+    const fresh = apiClient.fetchProcesses();
+    setTickShared("processes", fresh);
+    processes = await fresh;
   } catch (err) {
     logger.warn({ err }, "failed to list processes");
     return;
@@ -90,8 +94,11 @@ async function tickBody(): Promise<void> {
   // per process per second.
   const alive: number[] = [];
 
-  await Promise.all(
-    processes.map(async (process) => {
+  // at most config.tickConcurrency runners at once (iot PERF_PROD_2026-11-05.md)
+  await runLimited(
+    processes,
+    config.tickConcurrency,
+    async (process) => {
       const runner = processRegistry.get(process.kind);
       if (!runner) return;
       // a kind with its own interval runs only when due (half a tick of slack)
@@ -110,7 +117,7 @@ async function tickBody(): Promise<void> {
       } catch (err) {
         logger.warn({ err, processId: process.id, kind: process.kind }, "process tick failed");
       }
-    }),
+    },
   );
 
   if (alive.length > 0) {

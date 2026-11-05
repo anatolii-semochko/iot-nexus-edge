@@ -9563,3 +9563,62 @@ $uri =404` (a hashed file cached for good - immutable) and `index.html` with
   shows the theme's one (style.scss `.ne-shot`); a folder starting with `_`
   is never a section.
 
+
+## The tick's load on a small server (2026-11-05)
+
+Measured on the demo's 4-vCPU VPS (iot `PERF_PROD_2026-11-05.md`): ticks of
+1-2 s (most skipped), the API at 20 requests / s with p99 2 s - while the
+CPU was half idle. The cause: a system call there costs ~6x a laptop's
+(Spectre / Retbleed mitigations in a VM), so what is expensive is the
+number of small exchanges between containers, not the work behind them -
+the same on a Raspberry Pi. Rules since then:
+
+- **Fewer round trips, not faster code.** A new process reads what the tick
+  already has (`tickProcesses()`), batches its device reads
+  (`getDeviceValues`), caches reference data by change events
+  (`changeEvents.ts`) - never a request per tick that returns the same thing.
+- **The tick runs at most `ORCHESTRATOR_TICK_CONCURRENCY` (8) process
+  runners at once** (`runLimited.ts`) - all of them together made bursts
+  (a run queue of 14-33 on 4 cores) that slowed every one. 4 was too few on
+  the demo's server: each run got 2-3x faster, but ~24 runs of ~200 ms in
+  four lanes still took ~1.2 s - the tick's length is about
+  (runs x run time) / the limit.
+- **`apiClient.listProcesses()` / `listNodes()` are shared within a tick**
+  (`shared.ts`, `tickShared` - one request, reused for
+  `ORCHESTRATOR_TICK_SHARE_MS`); the tick's own read is `fetchProcesses()`.
+- **`getMessageLevels()` is kept until `message_levels` changes**
+  (`cachedRead`; migration 104 adds the table's change trigger - no `id`, so
+  the event is `message_levels.all.changed`), `ORCHESTRATOR_REFERENCE_CACHE_MS`
+  at most.
+- **Device value reads are coalesced** (`valueBatcher.ts`): the asks of
+  processes running together within `ORCHESTRATOR_VALUE_BATCH_WINDOW_MS`
+  (15 ms) go as one `POST /devices/values`.
+- **A virtual / simulated device's value is the API's cache**
+  (`cacheIsSourceFor` in routes/devices.ts): the batch read, the detail view
+  (EdgeX only for the type and units), the Data Logger and the
+  forbidden-state check all read it there. The batch read caches an EdgeX
+  read for such a device too - an actuator never given an AUTO value was
+  read from EdgeX on every call before.
+- **`PUT /devices/simulate-auto`** looks its devices up in one query and
+  publishes the reading (the cache, the bus) every time; the EdgeX twin is
+  a background sync every `SIMULATED_EDGEX_SYNC_MS` (5 min), each device at
+  a random place in the period. The simulations write hundreds of devices
+  every tick, each EdgeX write two HTTP hops (core-command, then
+  device-service) - on the demo they were ~36 EdgeX commands / s and most of
+  the API's time (p90 4.6 s).
+- **EdgeX core-data does not store events** (`WRITABLE_PERSISTDATA=false`;
+  on a running stack the keeper key `edgex/v4/core-data/Writable/PersistData`)
+  - Nexus Edge never reads them; storing cost ~40 % of a core.
+- The aquarium's light control keeps its templates and the day's plan
+  (DMCTW) until they change (nexus-edge-aquarium).
+- **The lists the tick reads are built in a fixed number of round trips,
+  not N+1** (2026-11-05): `GET /processes` - one SQL for every process's
+  active messages (`processMessages.activeMessagesOf`), one Redis pipeline
+  for status / flags / metrics (`processRegistry.getPublicMany`), one MGET
+  for the heartbeats (`heartbeatControl.processHeartbeatMany`) - it was ~10
+  per process; `GET /nodes` - one MGET (`nodeHeartbeatMany`);
+  `GET /data-logger-controls` - one MGET for every sensor's last-logged time
+  (it was a GET per sensor, ~500 on the demo, every tick). A new per-row
+  live field goes into these batch readers, never as a call per row.
+- **A device's AUTO / MANUAL state** (`dualDevicesModel.getState`) is one
+  MGET, `setActive` - the write and the read back in one pipeline.
