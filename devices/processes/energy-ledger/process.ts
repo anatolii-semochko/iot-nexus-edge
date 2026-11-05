@@ -100,7 +100,7 @@ const r = (x: number, d = 3) => Math.round(x * 10 ** d) / 10 ** d;
 const roundDay = (d: LedgerDay) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, typeof v === "number" ? r(v) : v])) as LedgerDay;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a Library package is loaded at run time by the orchestrator and imports nothing from it
-export default function registerEnergyLedger(register: any, { apiClient, logger }: any): void {
+export default function registerEnergyLedger(register: any, { apiClient, logger, stepDue }: any): void {
   const systemTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const states = new Map<
     number,
@@ -399,7 +399,8 @@ export default function registerEnergyLedger(register: any, { apiClient, logger 
     }
     const intervalMs = (config.intervalSeconds ?? DEFAULT_INTERVAL_S) * 1000;
     let st = states.get(process.id);
-    if (st && now - st.lastRun < intervalMs && !(process.commands ?? []).length) return;
+    // once per interval, at this process's own place in it (the platform's schedule - ctx.stepDue)
+    if (st && !stepDue(process.id, intervalMs, st.lastRun, now) && !(process.commands ?? []).length) return;
     const timeZone = config.timeZone || systemTimeZone;
     const date = localDate(now, timeZone);
     if (!st) {

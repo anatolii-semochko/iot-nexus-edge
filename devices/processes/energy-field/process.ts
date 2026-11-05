@@ -93,7 +93,7 @@ const DEFAULT_STRATEGY: Strategy = {
 const r = (x: number, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a Library package is loaded at run time by the orchestrator and imports nothing from it
-export default function registerEnergyField(register: any, { apiClient, logger }: any): void {
+export default function registerEnergyField(register: any, { apiClient, logger, stepDue }: any): void {
   const systemTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   // per process: when it last ran, caches, the turbines' gusts, today's sums
   const states = new Map<
@@ -194,10 +194,9 @@ export default function registerEnergyField(register: any, { apiClient, logger }
       logger.info({ processId: process.id, reverted: due.map((r) => r.ops) }, "energy-field: temporary changes put back");
     }
     const intervalMs = (config.simulation?.intervalSeconds ?? DEFAULT_INTERVAL_S) * 1000;
-    // each process's step at its own place in the interval (by its id) - the heating and energy
-    // simulations no longer all run in the same tick (nexus-edge iot PERF_PROD_2026-11-05.md)
-    const slotOf = (t: number) => Math.floor((t + ((process.id * 7919) % intervalMs)) / intervalMs);
-    if (st && slotOf(now) === slotOf(st.lastRun) && !(process.commands ?? []).length) return;
+    // the simulation's step - once per interval, at this process's own place in it (the platform's
+    // schedule - ctx.stepDue); a command runs it at once
+    if (st && !stepDue(process.id, intervalMs, st.lastRun, now) && !(process.commands ?? []).length) return;
     const timeZone = config.timeZone || systemTimeZone;
     const local = localParts(now, timeZone);
     if (!st) {

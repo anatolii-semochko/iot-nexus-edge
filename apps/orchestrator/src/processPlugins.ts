@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { apiClient } from "./apiClient.js";
 import { determineAlarmPlan } from "./alarmPolicy.js";
 import { onEntityChange } from "./changeEvents.js";
+import { stepDue } from "./schedule.js";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { processRegistry, type ProcessHooks, type ProcessRunner } from "./processRegistry.js";
@@ -58,6 +59,9 @@ interface ProcessPluginContext {
   // this tick's process list, with live metrics (tickProcesses.ts) - not a
   // second GET /processes
   tickProcesses: typeof tickProcesses;
+  // a periodic part of a runner (a simulation's step): whether it is due -
+  // once per interval, at the process's own place in it (schedule.ts)
+  stepDue: typeof stepDue;
 }
 
 // `hooks` (AGENTS.md section 80) is optional - a plugin that only has a
@@ -126,6 +130,7 @@ export async function loadProcessPlugins(): Promise<void> {
           silenceSoundOutput,
           onEntityChange,
           tickProcesses,
+          stepDue,
         },
       );
     }
