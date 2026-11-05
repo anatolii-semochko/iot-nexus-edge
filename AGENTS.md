@@ -9593,13 +9593,19 @@ the same on a Raspberry Pi. Rules since then:
 - **Device value reads are coalesced** (`valueBatcher.ts`): the asks of
   processes running together within `ORCHESTRATOR_VALUE_BATCH_WINDOW_MS`
   (15 ms) go as one `POST /devices/values`.
-- **`PUT /devices/simulate-auto`** looks its devices up in one query, and
-  writes a device's EdgeX twin at most every `SIMULATED_EDGEX_SYNC_MS`
-  (10 s) - the reading itself (the cache, the bus) every time. The
-  simulations write every value each tick, each EdgeX write two HTTP hops;
-  on the demo's server this route took most of the API's time (p90 4.6 s).
-  Only the device's detail view and the Data Logger read EdgeX live - they
-  may lag a simulated value by up to that long.
+- **A virtual / simulated device's value is the API's cache**
+  (`cacheIsSourceFor` in routes/devices.ts): the batch read, the detail view
+  (EdgeX only for the type and units), the Data Logger and the
+  forbidden-state check all read it there. The batch read caches an EdgeX
+  read for such a device too - an actuator never given an AUTO value was
+  read from EdgeX on every call before.
+- **`PUT /devices/simulate-auto`** looks its devices up in one query and
+  publishes the reading (the cache, the bus) every time; the EdgeX twin is
+  a background sync every `SIMULATED_EDGEX_SYNC_MS` (5 min), each device at
+  a random place in the period. The simulations write hundreds of devices
+  every tick, each EdgeX write two HTTP hops (core-command, then
+  device-service) - on the demo they were ~36 EdgeX commands / s and most of
+  the API's time (p90 4.6 s).
 - **EdgeX core-data does not store events** (`WRITABLE_PERSISTDATA=false`;
   on a running stack the keeper key `edgex/v4/core-data/Writable/PersistData`)
   - Nexus Edge never reads them; storing cost ~40 % of a core.

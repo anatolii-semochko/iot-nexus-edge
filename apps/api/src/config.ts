@@ -37,10 +37,12 @@ export const config = {
   // PUT /devices/simulate-auto (iot PERF_PROD_2026-11-05.md): a simulation
   // publishes its readings every tick (the cache, the bus - what the
   // processes and the UI read), but writes a device's EdgeX twin at most
-  // this often - each write is two HTTP hops (core-command, device-service)
-  // and only the device's detail view and the Data Logger read EdgeX live.
-  // 0 - every time.
-  simulatedEdgexSyncMs: Number(process.env.SIMULATED_EDGEX_SYNC_MS ?? 10000),
+  // this often - each write is two HTTP hops (core-command, device-service);
+  // the simulations keep hundreds of devices, so even 10 s made ~30 writes / s.
+  // Every reader of such a device (the batch read, the detail view, the Data
+  // Logger, the forbidden-state check) reads its cache - the EdgeX twin is
+  // only a background sync, spread over the period. 0 - every time.
+  simulatedEdgexSyncMs: Number(process.env.SIMULATED_EDGEX_SYNC_MS ?? 300000),
   postgres: {
     host: required("POSTGRES_HOST"),
     port: Number(process.env.POSTGRES_PORT ?? 5432),
