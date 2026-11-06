@@ -5,7 +5,9 @@ import { pathToFileURL } from "node:url";
 import { apiClient } from "./apiClient.js";
 import { determineAlarmPlan } from "./alarmPolicy.js";
 import { onEntityChange } from "./changeEvents.js";
+import { compute } from "./compute.js";
 import { stepDue } from "./schedule.js";
+import { cachedRead } from "./shared.js";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { processRegistry, type ProcessHooks, type ProcessRunner } from "./processRegistry.js";
@@ -62,6 +64,12 @@ interface ProcessPluginContext {
   // a periodic part of a runner (a simulation's step): whether it is due -
   // once per interval, at the process's own place in it (schedule.ts)
   stepDue: typeof stepDue;
+  // a pure CPU-heavy computation off the main thread (compute.ts):
+  // compute(new URL("./module.ts", import.meta.url).href, "export", [args])
+  compute: typeof compute;
+  // a reference read kept until one of its tables changes (shared.ts):
+  // cachedRead(key, ["table", ...], () => apiClient.request(...))
+  cachedRead: typeof cachedRead;
 }
 
 // `hooks` (AGENTS.md section 80) is optional - a plugin that only has a
@@ -131,6 +139,8 @@ export async function loadProcessPlugins(): Promise<void> {
           onEntityChange,
           tickProcesses,
           stepDue,
+          compute,
+          cachedRead,
         },
       );
     }

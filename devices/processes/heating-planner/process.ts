@@ -116,7 +116,12 @@ function autoSummary(key: string, horizonH: number, totals: { savingEur: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a Library package is loaded at run time by the orchestrator and imports nothing from it
-export default function registerHeatingPlanner(register: any, { apiClient, logger, stepDue }: any): void {
+// the strategies are planned in the platform's compute worker (ctx.compute) - planning every strategy
+// for every system took up to ~2 s of the orchestrator's main thread, every process waiting
+// (nexus-edge iot PERF_PROD_2026-11-05.md)
+const STRATEGIES_URL = new URL("./strategies.ts", import.meta.url).href;
+
+export default function registerHeatingPlanner(register: any, { apiClient, logger, stepDue, compute }: any): void {
   const systemTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const states = new Map<
     number,
@@ -285,7 +290,7 @@ export default function registerHeatingPlanner(register: any, { apiClient, logge
         const tankPerK = live.reduce((a, t) => a + t.volumeL * WATER_KWH_PER_L_K, 0);
         const tankAvgC = tankPerK > 0 ? live.reduce((a, t) => a + avgByNode.get(t.nodeId)! * t.volumeL * WATER_KWH_PER_L_K, 0) / tankPerK : DEFAULTS.store[mode].minC;
         const store = { ...DEFAULTS.store[mode], ...(config.store?.[mode] ?? {}) };
-        const { key: strategyKey, plan, results } = planAll(
+        const { key: strategyKey, plan, results }: ReturnType<typeof planAll> = await compute(STRATEGIES_URL, "planAll", [
           strategyChosen,
           {
             mode,
@@ -304,7 +309,7 @@ export default function registerHeatingPlanner(register: any, { apiClient, logge
           },
           slots,
           selection === "cheapest",
-        );
+        ]);
         plan.slots.forEach((p, i) => (cheap[i] = Math.max(0, cheap[i] - p.electricKw)));
         for (const x of results) {
           const sum = totals.get(x.key) ?? { ...x, energyEur: 0, baselineEur: 0, savingEur: 0, starts: 0, unitHours: 0, comfortKh: 0, maxOffsetK: 0, sunKwh: 0 };

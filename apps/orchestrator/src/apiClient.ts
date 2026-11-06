@@ -42,15 +42,22 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // override gets its AUTO value from the API itself).
 const lastSent = new Map<string, { body: string; at: number }>();
 
-function sendChanged(key: string, path: string, body: string, method = "POST", resendMs = config.reportResendMs): Promise<unknown> {
+// `body` - what is compared with the last one sent; `send` - how it goes out (a request, or an item of a
+// batch - batcher.ts)
+function sendChanged(key: string, body: string, send: () => Promise<unknown>, resendMs = config.reportResendMs): Promise<unknown> {
   const now = Date.now();
   const prev = lastSent.get(key);
   if (prev && prev.body === body && now - prev.at < resendMs) return Promise.resolve({ status: "unchanged" });
-  return request(path, { method, body }).then((result) => {
+  return send().then((result) => {
     lastSent.set(key, { body, at: now });
     return result;
   });
 }
+
+// A device's AUTO value - one request per device, NOT batched: each write goes on to EdgeX (core-command,
+// device-service), and in a batch every process waited for the slowest one - the demo's ticks got worse
+// (iot PERF_PROD_2026-11-05.md, 2026-11-06); a process's sequential writes keep their order.
+const autoWrite = (deviceId: number, value: unknown) => request(`/devices/${deviceId}/auto`, { method: "PUT", body: JSON.stringify({ value }) });
 
 export interface SeriesRecord {
   id: number;
@@ -368,8 +375,8 @@ export const apiClient = {
     request(`/processes/${processId}/commands/${commandId}/done`, { method: "POST", body: JSON.stringify({ result }) }),
   setDeviceAuto: (deviceId: number, value: unknown, options: { always?: boolean } = {}) =>
     options.always
-      ? request(`/devices/${deviceId}/auto`, { method: "PUT", body: JSON.stringify({ value }) })
-      : sendChanged(`device:${deviceId}:auto`, `/devices/${deviceId}/auto`, JSON.stringify({ value }), "PUT", config.autoReassertMs),
+      ? autoWrite(deviceId, value)
+      : sendChanged(`device:${deviceId}:auto`, JSON.stringify({ value }), () => autoWrite(deviceId, value), config.autoReassertMs),
   // For a readOnly device with no EdgeX backend at all - e.g. the
   // `weather-control` process's own computed `light-level` device
   // (devices/standalone/sensor/light-level). setDeviceAuto above would
@@ -408,12 +415,20 @@ export const apiClient = {
       body: JSON.stringify({ values }),
     }),
   // the state reports - sent only on a change (sendChanged above)
-  setCritical: (processId: number, critical: boolean) =>
-    sendChanged(`${processId}:critical`, `/processes/${processId}/critical`, JSON.stringify({ critical })),
-  setMetrics: (processId: number, metrics: ProcessMetrics) =>
-    sendChanged(`${processId}:metrics`, `/processes/${processId}/metrics`, JSON.stringify(metrics)),
-  setWarning: (processId: number, warning: boolean) =>
-    sendChanged(`${processId}:warning`, `/processes/${processId}/warning`, JSON.stringify({ warning })),
+  // the state reports - sent only on a change, each its own request (not batched: in a batch every process
+  // waited for the slowest part of all of them - iot PERF_PROD_2026-11-05.md, 2026-11-06)
+  setCritical: (processId: number, critical: boolean) => {
+    const body = JSON.stringify({ critical });
+    return sendChanged(`${processId}:critical`, body, () => request(`/processes/${processId}/critical`, { method: "POST", body }));
+  },
+  setMetrics: (processId: number, metrics: ProcessMetrics) => {
+    const body = JSON.stringify(metrics);
+    return sendChanged(`${processId}:metrics`, body, () => request(`/processes/${processId}/metrics`, { method: "POST", body }));
+  },
+  setWarning: (processId: number, warning: boolean) => {
+    const body = JSON.stringify({ warning });
+    return sendChanged(`${processId}:warning`, body, () => request(`/processes/${processId}/warning`, { method: "POST", body }));
+  },
   // WEM (AGENTS.md section 22) - `entries` must be the *complete current
   // set* of codes this process considers active for `type`, not just new
   // ones; the API reconciles that against what's already active (dedup,
@@ -424,7 +439,9 @@ export const apiClient = {
   // would (see processMessages.syncActiveMessages's own doc comment for
   // what each mode does), not for a genuine one-shot notification.
   syncMessages: (processId: number, type: MessageType, entries: MessageInput[], autoResolve?: AutoResolveMode) =>
-    sendChanged(`${processId}:messages:${type}`, `/processes/${processId}/messages`, JSON.stringify({ type, entries, autoResolve })),
+    sendChanged(`${processId}:messages:${type}`, JSON.stringify({ type, entries, autoResolve }), () =>
+      request(`/processes/${processId}/messages`, { method: "POST", body: JSON.stringify({ type, entries, autoResolve }) }),
+    ),
   // Events - one-shot reports for the log only, never in the process's
   // active WEM list (api processMessages.logEvents).
   logEvents: (processId: number, entries: MessageInput[]) =>

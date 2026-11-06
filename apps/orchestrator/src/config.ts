@@ -46,13 +46,14 @@ export const config = {
   // The tick's load (iot PERF_PROD_2026-11-05.md): at most this many
   // process runners at once (server.ts) - all of them together made bursts
   // a small server couldn't absorb; the same list read by several processes
-  // in one tick is one request (shared.ts, `tickShared`); reference reads
+  // in one tick is one request (shared.ts, `tickShared` - per tick); reference reads
   // are kept until their table changes, this long at most (`cachedRead`).
   tickConcurrency: Math.max(1, Number(process.env.ORCHESTRATOR_TICK_CONCURRENCY ?? 8)),
-  tickShareMs: Number(process.env.ORCHESTRATOR_TICK_SHARE_MS ?? 900),
   referenceCacheMs: Number(process.env.ORCHESTRATOR_REFERENCE_CACHE_MS ?? 300000),
-  // device value reads arriving within this window go as one POST /devices/values (valueBatcher.ts); 0 - off
-  valueBatchWindowMs: Number(process.env.ORCHESTRATOR_VALUE_BATCH_WINDOW_MS ?? 15),
+  // the device value reads of processes arriving within this window go as one POST /devices/values
+  // (valueBatcher.ts - cheap and uniform per item; the state reports and the AUTO writes are not batched -
+  // AGENTS.md "The tick's load on a small server"); 0 - each alone
+  batchWindowMs: Number(process.env.ORCHESTRATOR_BATCH_WINDOW_MS ?? 15),
   // Extension points (AGENTS_TO_DO.md 2026-07-29) - a target project's own
   // process kinds (e.g. nexus-edge-smart-house's temperature-control),
   // scanned by processPlugins.ts. Unset for this repo's own docker-compose
