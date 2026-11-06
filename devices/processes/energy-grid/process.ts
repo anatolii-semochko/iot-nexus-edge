@@ -25,6 +25,8 @@
  *    values (`metrics.values` - the time series).
  */
 
+import { localDate } from "../../lib/localTime.ts";
+
 const PRICE_REFRESH_MS = 5 * 60_000;
 const DEFAULT_SIM_SECONDS = 60;
 // market prices older than this (or a failing fetch) - a warning
@@ -49,8 +51,6 @@ interface State {
   declared: boolean;
 }
 
-const localDate = (ms: number, timeZone: string) =>
-  new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a Library package is loaded at run time by the orchestrator and imports nothing from it
 export default function registerEnergyGrid(register: any, { apiClient, logger }: any): void {

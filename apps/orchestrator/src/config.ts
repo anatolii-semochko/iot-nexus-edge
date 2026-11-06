@@ -49,6 +49,10 @@ export const config = {
   // in one tick is one request (shared.ts, `tickShared` - per tick); reference reads
   // are kept until their table changes, this long at most (`cachedRead`).
   tickConcurrency: Math.max(1, Number(process.env.ORCHESTRATOR_TICK_CONCURRENCY ?? 8)),
+  // how long a tick waits for its runners (server.ts, turns.ts): a run still going then finishes in the
+  // background - the next tick skips only that process; the processes not started by then go next tick
+  // counted from the tick's start, a little under the tick's interval
+  tickBudgetMs: Number(process.env.ORCHESTRATOR_TICK_BUDGET_MS ?? 850),
   referenceCacheMs: Number(process.env.ORCHESTRATOR_REFERENCE_CACHE_MS ?? 300000),
   // the device value reads of processes arriving within this window go as one POST /devices/values
   // (valueBatcher.ts - cheap and uniform per item; the state reports and the AUTO writes are not batched -

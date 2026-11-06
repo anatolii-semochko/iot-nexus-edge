@@ -27,6 +27,7 @@ import { autoSummary, dayTypeOf, NOTE_KINDS, noteEffects, noteOf, type DayNote }
 import { dayPrices, reviewDay } from "./review.ts";
 import { analogChoice, featuresOfForecast, similarDays, type AnalogChoice, type DayFeatures, type RecordedDay, type SimilarDay } from "./similar.ts";
 import { heatingSignals, planAll, STRATEGIES, STRATEGY_DEFAULTS, type StrategyKey, type StrategyParams, type StrategyResult } from "./strategies.ts";
+import { dateFormat, localDate } from "../../lib/localTime.ts";
 
 const DEFAULT_INTERVAL_S = 60;
 const DEFAULT_SAVE_MIN = 5;
@@ -131,8 +132,6 @@ export default function registerEnergyLedger(register: any, { apiClient, logger,
     }
   >();
 
-  const localDate = (ms: number, timeZone: string) =>
-    new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
 
   const save = async (processId: number, date: string, day: LedgerDay, partial: boolean, final: boolean) => {
     try {
@@ -199,7 +198,7 @@ export default function registerEnergyLedger(register: any, { apiClient, logger,
         apiClient.request(`/energy-ledger/${processId}/days?from=${new Date(now - HISTORY_DAYS * 86_400_000).toISOString().slice(0, 10)}&to=${new Date(now).toISOString().slice(0, 10)}`),
         apiClient.request(`/energy-ledger/${processId}/samples?from=${now - LEARNING_DAYS * 86_400_000}&to=${now}`),
       ]);
-      const month = Number(new Intl.DateTimeFormat("en-GB", { timeZone, month: "numeric" }).format(new Date(now)));
+      const month = Number(dateFormat("en-GB", { timeZone, month: "numeric" }).format(new Date(now)));
       st.sources = {
         at: now,
         prices: prices.slots ?? [],
@@ -435,7 +434,7 @@ export default function registerEnergyLedger(register: any, { apiClient, logger,
     const processes = await apiClient.listProcesses();
     const byId = (id?: number) => (id ? processes.find((p: any) => p.id === id) : undefined);
     const localOf = (ms: number) => {
-      const parts = new Intl.DateTimeFormat("en-GB", { timeZone, month: "numeric", hour: "2-digit", weekday: "short", hourCycle: "h23" }).formatToParts(new Date(ms));
+      const parts = dateFormat("en-GB", { timeZone, month: "numeric", hour: "2-digit", weekday: "short", hourCycle: "h23" }).formatToParts(new Date(ms));
       const get = (t: string) => parts.find((x) => x.type === t)?.value ?? "";
       return { month: Number(get("month")), hour: Number(get("hour")), weekday: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday")) };
     };

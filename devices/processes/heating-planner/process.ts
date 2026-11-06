@@ -19,6 +19,7 @@
 import type { Mode } from "../heating-control/model.ts";
 import { WATER_KWH_PER_L_K, type PlannerRoom, type PlannerSlot } from "./model.ts";
 import { HEAT_STRATEGIES, planAll, type HeatStrategyKey, type HeatStrategyResult } from "./strategies.ts";
+import { localParts } from "../../lib/localTime.ts";
 
 const DEFAULT_INTERVAL_S = 60;
 const DEFAULT_REPLAN_MIN = 15;
@@ -73,16 +74,6 @@ const valueAt = (rows: Record<string, number | null>[], at: number, key: string)
   const y = b[key];
   if (x === null || x === undefined || y === null || y === undefined) return x ?? y ?? null;
   return x + ((y - x) * (at - (a.t as number))) / ((b.t as number) - (a.t as number));
-};
-
-const localParts = (ms: number, timeZone: string) => {
-  const parts = new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", weekday: "short", hourCycle: "h23" }).formatToParts(new Date(ms));
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  return {
-    date: `${get("year")}-${get("month")}-${get("day")}`,
-    minute: Number(get("hour")) * 60 + Number(get("minute")),
-    weekday: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday")),
-  };
 };
 
 // a day note (the core's day_notes - GET /processes/:id/day-notes)
