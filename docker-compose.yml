@@ -69,6 +69,10 @@ services:
       # month/year) is computed in it; without it the container runs
       # in UTC and light output shifts by the host's UTC offset.
       TZ: ${TZ:?set TZ in .env to the host timezone}
+      # Node's own flags for this server (.env ORCHESTRATOR_NODE_OPTIONS) - the garbage collector's young generation
+      # (--max-semi-space-size, MB): a service that makes and drops many objects every tick pauses less
+      # with a larger one (iot PERF_PROD_2026-11-05.md)
+      NODE_OPTIONS: ${ORCHESTRATOR_NODE_OPTIONS:-}
     depends_on:
       - postgres
       - redis
@@ -114,6 +118,10 @@ services:
       # month/year) is computed in it; without it the container runs
       # in UTC and light output shifts by the host's UTC offset.
       TZ: ${TZ:?set TZ in .env to the host timezone}
+      # Node's own flags for this server (.env API_NODE_OPTIONS) - the garbage collector's young generation
+      # (--max-semi-space-size, MB): a service that makes and drops many objects every tick pauses less
+      # with a larger one (iot PERF_PROD_2026-11-05.md)
+      NODE_OPTIONS: ${API_NODE_OPTIONS:-}
       UV_THREADPOOL_SIZE: "64"
     depends_on:
       - postgres
