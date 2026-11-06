@@ -626,10 +626,11 @@ async function findProcess(id: string): Promise<ProcessRow | undefined> {
   return result.rows[0];
 }
 
-// withLiveState for a whole list - the same fields, in a fixed number of
-// round trips (one SQL for the messages, one Redis pipeline, one MGET)
-// instead of ~10 per process: GET /processes is read every orchestrator
-// tick (iot PERF_PROD_2026-11-05.md).
+// The processes' live state (status, flags, metrics, messages, heartbeat) -
+// the one builder, for a list and for one process (withLiveState): a fixed
+// number of round trips (one SQL for the messages, one Redis pipeline, one
+// MGET) instead of ~10 per process - GET /processes is read every
+// orchestrator tick (iot PERF_PROD_2026-11-05.md).
 async function withLiveStateMany(processes: ProcessRow[]) {
   const ids = processes.map((p) => p.id);
   const [pub, msgs, beats, simulated] = await Promise.all([
@@ -658,67 +659,7 @@ async function withLiveStateMany(processes: ProcessRow[]) {
   });
 }
 
+// one process - the same shape, built the same way as the list's
 async function withLiveState(process: ProcessRow) {
-  const [
-    status,
-    critical,
-    warning,
-    metrics,
-    messages,
-    hasActiveWem,
-    heartbeatStopped,
-    heartbeatLastSeenAt,
-    heartbeatTestSimulateFailure,
-    simulationTargetSimulated,
-  ] = await Promise.all([
-    // "simulation" (AGENTS_TO_DO.md, 2026-08-29) reuses the exact same
-    // on/off `status` a controllable process already has - "sleeps
-    // until turned on" is just status === "off", no new field. Read
-    // here so apps/orchestrator's simulation process kinds get it from
-    // the one `GET /processes` call the tick loop already makes every
-    // tick, same reasoning as heartbeatStopped/heartbeatLastSeenAt
-    // below.
-    process.type === "controllable" || process.type === "simulation"
-      ? processRegistry.getStatus(process.id)
-      : Promise.resolve(undefined),
-    processRegistry.getCritical(process.id),
-    processRegistry.getWarning(process.id),
-    processRegistry.getMetrics(process.id),
-    processMessages.listActiveMessages(process.id),
-    // Deliberately not derived from `messages` above - listActiveMessages
-    // excludes hidden entries, but the Dashboard flag/unflag rule
-    // (AGENTS.md section 22) is symmetric on resolved_at regardless of
-    // hidden, so the UI's "can this be removed from Dashboard" check needs
-    // this separate, unfiltered signal.
-    processMessages.hasActiveEntries(process.id),
-    // Heartbeating Control (AGENTS.md) - live Redis state alongside the
-    // Postgres `heartbeat_control` config already on `process` itself.
-    // Read here so apps/orchestrator's heartbeat-control process kind
-    // gets everything it needs from the one `GET /processes` call it
-    // already makes every tick, no separate endpoint required.
-    heartbeatControl.getProcessHeartbeatStopped(process.id),
-    heartbeatControl.getProcessLastSeenAt(process.id),
-    // "heartbeat-control-test" kind only - fetched unconditionally for
-    // every process anyway (same as hasActiveWem above), simpler than
-    // branching on kind here.
-    heartbeatControl.isTestSimulateFailure(process.id),
-    // Second of the two independent gates a simulation process needs
-    // (AGENTS_TO_DO.md, 2026-08-29) - see simulationTarget.ts's own doc
-    // comment. Only meaningful for type: "simulation", same conditional
-    // pattern `status` above already uses.
-    process.type === "simulation" ? isSimulationTargetSimulated(process) : Promise.resolve(undefined),
-  ]);
-  return {
-    ...process,
-    status,
-    critical,
-    warning,
-    metrics,
-    messages,
-    hasActiveWem,
-    heartbeatStopped,
-    heartbeatTestSimulateFailure,
-    heartbeatLastSeenAt,
-    simulationTargetSimulated,
-  };
+  return (await withLiveStateMany([process]))[0];
 }
