@@ -15,6 +15,7 @@ import { loadAt, pvPower, turbinePower, windAtHub, type LoadProfile, type PvBloc
 import { NO_CORRECTIONS, type Corrections } from "./learning.ts";
 import { NO_EFFECTS, type NoteEffects } from "./notes.ts";
 import type { PlanSlot } from "./plan.ts";
+import { localParts } from "../../lib/localTime.ts";
 
 export interface FieldForPlan {
   pvBlocks: (PvBlockSpec & { nodeId: number })[];
@@ -45,12 +46,6 @@ const valueAt = (rows: Record<string, number | null>[], at: number, key: string)
   const y = b[key];
   if (x === null || x === undefined || y === null || y === undefined) return x ?? y ?? null;
   return x + ((y - x) * (at - (a.t as number))) / ((b.t as number) - (a.t as number));
-};
-
-const localParts = (ms: number, timeZone: string) => {
-  const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", weekday: "short", hourCycle: "h23" }).formatToParts(new Date(ms));
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  return { hour: Number(get("hour")), minute: Number(get("hour")) * 60 + Number(get("minute")), weekday: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday")) };
 };
 
 /**

@@ -30,8 +30,9 @@ export async function dataLoggerControlRoutes(app: FastifyInstance): Promise<voi
     return dataLoggerControl.updateSettings(request.body);
   });
 
-  app.get("/data-logger-controls", async () => {
-    return dataLoggerControl.listDataLoggerControls();
+  // `?configured=true` - only the devices with a period set (the orchestrator's Data Logger, every tick)
+  app.get<{ Querystring: { configured?: string } }>("/data-logger-controls", async (request) => {
+    return dataLoggerControl.listDataLoggerControls(request.query.configured === "true");
   });
 
   app.patch<{
