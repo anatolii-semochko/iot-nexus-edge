@@ -16,6 +16,8 @@
  */
 
 // (a heating's room-closed - for its own logic later; the plan reads it as other)
+
+import { dateFormat, localDate } from "../../lib/localTime.ts";
 export const NOTE_KINDS = ["outage", "holiday", "day-off", "workday", "maintenance", "room-closed", "other"] as const;
 export type NoteKind = (typeof NOTE_KINDS)[number];
 
@@ -53,8 +55,6 @@ export function dayTypeOf(day: string, notes: DayNote[]): DayType {
   return { weekday, working: weekday >= 1 && weekday <= 5, reason: null };
 }
 
-const localDate = (ms: number, timeZone: string) =>
-  new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
 
 /** Whether a note covers a moment (its window, else its whole local day). */
 export function covers(n: DayNote, ms: number, timeZone: string): boolean {
@@ -174,7 +174,7 @@ export function autoSummary(input: {
   savingEur: number | null;
   timeZone: string;
 }): string {
-  const time = (ms: number) => new Intl.DateTimeFormat("en-GB", { timeZone: input.timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(ms));
+  const time = (ms: number) => dateFormat("en-GB", { timeZone: input.timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(ms));
   const parts = [`${input.strategyName}${input.why ? ` - ${input.why}` : ""}.`];
   for (const n of input.notes)
     parts.push(`${KIND_WORDS[n.kind]}${n.startsAt || n.endsAt ? ` ${n.startsAt ? time(n.startsAt) : ""}-${n.endsAt ? time(n.endsAt) : ""}` : ""}${n.text ? `: ${n.text}` : ""}.`);

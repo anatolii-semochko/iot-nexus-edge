@@ -5,7 +5,7 @@
 // a summary in the log once per window. Every optimisation step is
 // measured with it before / after.
 
-import { monitorEventLoopDelay } from "node:perf_hooks";
+import { monitorEventLoopDelay, PerformanceObserver } from "node:perf_hooks";
 
 const WINDOW = 60;
 
@@ -15,6 +15,32 @@ const WINDOW = 60;
 const loopDelay = monitorEventLoopDelay({ resolution: 20 });
 loopDelay.enable();
 
+// What stops the event loop (iot PERF_PROD_2026-11-05.md): the garbage collector's pauses, and a watchdog -
+// a timer that should fire every STALL_TICK_MS; a gap over STALL_MS is a stall, and the process kinds
+// running at that moment are its suspects (the one that computes is among them every time).
+const STALL_TICK_MS = 50;
+const STALL_MS = 300;
+const running = new Map<number, string>(); // process id -> kind, while its runner runs
+let gc = { pauses: 0, totalMs: 0, maxMs: 0 };
+let stalls = { count: 0, maxMs: 0, suspects: new Map<string, number>() };
+new PerformanceObserver((list) => {
+  for (const e of list.getEntries()) {
+    gc.pauses += 1;
+    gc.totalMs += e.duration;
+    gc.maxMs = Math.max(gc.maxMs, e.duration);
+  }
+}).observe({ entryTypes: ["gc"] });
+let lastBeat = performance.now();
+setInterval(() => {
+  const now = performance.now();
+  const gap = now - lastBeat - STALL_TICK_MS;
+  lastBeat = now;
+  if (gap < STALL_MS) return;
+  stalls.count += 1;
+  stalls.maxMs = Math.max(stalls.maxMs, gap);
+  for (const kind of new Set(running.values())) stalls.suspects.set(kind, (stalls.suspects.get(kind) ?? 0) + 1);
+}, STALL_TICK_MS).unref();
+
 interface Window {
   ticks: number;
   skipped: number;
@@ -23,6 +49,11 @@ interface Window {
   kindMs: Map<string, number>; // process kind -> summed run time
   kindRuns: Map<string, number>;
   kindMax: Map<string, number>; // process kind -> its longest run
+  // the turns (server.ts): a run past the tick's budget (finished in the background), a turn skipped while
+  // the previous one still runs, a turn put off to the next tick (the budget spent before it started)
+  overran: Map<string, number>;
+  busy: Map<string, number>;
+  deferred: Map<string, number>;
   // the window's longest tick and its longest runner (iot PERF_PROD_2026-11-05.md - which one
   // makes the rare 1.5-6 s ticks)
   slowest: { ms: number; kind: string | null; kindMs: number };
@@ -36,6 +67,9 @@ const fresh = (): Window => ({
   kindMs: new Map(),
   kindRuns: new Map(),
   kindMax: new Map(),
+  overran: new Map(),
+  busy: new Map(),
+  deferred: new Map(),
   slowest: { ms: 0, kind: null, kindMs: 0 },
 });
 // the longest runner of the tick in progress
@@ -47,6 +81,13 @@ let last: ReturnType<typeof summary> | null = null;
 const routeOf = (method: string, path: string) => `${method} ${path.split("?")[0].replace(/\/\d+(?=\/|$)/g, "/:id")}`;
 
 export const tickStats = {
+  /** A process's runner started / ended (server.ts) - the stall watchdog's suspects. */
+  runStarted(processId: number, kind: string): void {
+    running.set(processId, kind);
+  },
+  runEnded(processId: number): void {
+    running.delete(processId);
+  },
   request(method: string, path: string): void {
     const key = routeOf(method, path);
     current.requests.set(key, (current.requests.get(key) ?? 0) + 1);
@@ -59,6 +100,11 @@ export const tickStats = {
   },
   skipped(): void {
     current.skipped += 1;
+  },
+  /** A process's turn: "overran" - past the budget, "busy" - skipped (still running), "deferred" - next tick. */
+  turn(kind: string, what: "overran" | "busy" | "deferred"): void {
+    const m = current[what];
+    m.set(kind, (m.get(kind) ?? 0) + 1);
   },
   /** A tick ended; returns the window's summary when the window is full (else null). */
   tick(durationMs: number): ReturnType<typeof summary> | null {
@@ -87,7 +133,13 @@ function summary(w: Window) {
       max: Math.round(sorted[sorted.length - 1] ?? 0),
     },
     slowestTick: { ms: Math.round(w.slowest.ms), longestKind: w.slowest.kind, longestKindMs: Math.round(w.slowest.kindMs) },
+    turns: {
+      overran: Object.fromEntries(w.overran),
+      busy: Object.fromEntries(w.busy),
+      deferred: Object.fromEntries(w.deferred),
+    },
     eventLoopDelayMs: loopDelayWindow(),
+    ...blockersWindow(),
     requestsPerTick: Math.round((totalRequests / w.ticks) * 10) / 10,
     topRoutes: [...w.requests.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -109,5 +161,20 @@ function loopDelayWindow() {
   const ms = (ns: number) => Math.round((ns / 1e6) * 10) / 10;
   const out = { p50: ms(loopDelay.percentile(50)), p99: ms(loopDelay.percentile(99)), max: ms(loopDelay.max) };
   loopDelay.reset();
+  return out;
+}
+
+// the window's GC pauses and stalls (with their suspects), reset after
+function blockersWindow() {
+  const out = {
+    gc: { pauses: gc.pauses, totalMs: Math.round(gc.totalMs), maxMs: Math.round(gc.maxMs) },
+    stalls: {
+      count: stalls.count,
+      maxMs: Math.round(stalls.maxMs),
+      suspects: Object.fromEntries([...stalls.suspects.entries()].sort((a, b) => b[1] - a[1])),
+    },
+  };
+  gc = { pauses: 0, totalMs: 0, maxMs: 0 };
+  stalls = { count: 0, maxMs: 0, suspects: new Map() };
   return out;
 }

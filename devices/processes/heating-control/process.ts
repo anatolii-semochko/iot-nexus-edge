@@ -55,6 +55,7 @@ import {
   type RoomSpec,
   type TankSpec,
 } from "./model.ts";
+import { localParts } from "../../lib/localTime.ts";
 
 const DEFAULT_INTERVAL_S = 30;
 const WEATHER_TTL_MS = 10 * 60_000;
@@ -218,16 +219,6 @@ export default function registerHeatingControl(register: any, { apiClient, logge
       logger.warn({ processId, nodeId: next.nodeId, err }, "heating-control: the heat pump's switch didn't take");
     }
   }
-
-  const localParts = (ms: number, timeZone: string) => {
-    const parts = new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", weekday: "short", hourCycle: "h23" }).formatToParts(new Date(ms));
-    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-    return {
-      date: `${get("year")}-${get("month")}-${get("day")}`,
-      minute: Number(get("hour")) * 60 + Number(get("minute")),
-      weekday: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday")),
-    };
-  };
 
   const valueAt = (rows: Record<string, number | null>[], at: number, key: string): number | null => {
     const after = rows.findIndex((x) => (x.t as number) > at);

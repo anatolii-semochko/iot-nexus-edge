@@ -493,7 +493,8 @@ export const apiClient = {
     }),
   // Data Logger (AGENTS.md) - the combined Devices-only list + the
   // process's own two global switches; see apps/api/src/dataLoggerControl.ts.
-  listDataLoggerControls: () => request<DataLoggerControlEntry[]>("/data-logger-controls"),
+  // the configured devices only - the rest have nothing to log (read every tick)
+  listDataLoggerControls: () => request<DataLoggerControlEntry[]>("/data-logger-controls?configured=true"),
   getDataLoggerSettings: () => request<DataLoggerSettings>("/data-logger-controls/settings"),
   // Reads the device's own current live value server-side and writes it
   // to log_device in one call - see routes/devices.ts's POST

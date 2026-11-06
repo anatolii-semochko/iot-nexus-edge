@@ -9672,3 +9672,35 @@ the same on a Raspberry Pi. Rules since then:
   resolution while ticks are long - the time is waiting on the API; well
   above it - a process computes on the main thread (then a worker thread is
   the tool). On 2026-11-06: p99 ~30 ms, max ~40 ms - waiting, not computing.
+- **The tick stats name what stops the event loop** (2026-11-06): `gc`
+  (the garbage collector's pauses - count, total, max) and `stalls` (a
+  watchdog timer: a gap over 300 ms is a stall; `suspects` - the process kinds
+  whose runners were running at that moment, counted per stall - the one that
+  computes is among them every time). Locally: GC ~35-80 ms a minute, max
+  5-11 ms, no stalls; on the demo's server stalls of 0.5-2.1 s came with the
+  heating planner and the Energy Ledger running - the energy plan's
+  `planAll` itself takes 13-51 ms (148 slots, 5 strategies), the
+  `/processes` list 115 KB parses in ~1 ms, so the culprit is still to be
+  named by these fields on the server.
+- **Less garbage each tick** (2026-11-06 - on the demo's server the GC took
+  ~0.5 s a minute and paused up to 0.43 s, ~10x the laptop): the Data
+  Logger reads `GET /data-logger-controls?configured=true` (only the
+  devices with a period set - it was all 505 sensors every second); the core
+  packages' local time - `devices/lib/localTime.ts` (`localParts`,
+  `localDate`, `dateFormat` - one Intl.DateTimeFormat per options, kept: a
+  new formatter costs ~9x formatting, and the planners call it for every slot
+  of a two-day plan; it was a copy in four packages, a new formatter every
+  call). A package never creates an Intl.DateTimeFormat in a loop - it uses
+  `dateFormat`. Node's GC flags per server: `API_NODE_OPTIONS` /
+  `ORCHESTRATOR_NODE_OPTIONS` in `.env` (the young generation,
+  `--max-semi-space-size=32`).
+- **A tick waits for its runners within its budget** (2026-11-06,
+  `ORCHESTRATOR_TICK_BUDGET_MS`, 850 ms from the tick's start; `turns.ts`):
+  a run still going then finishes in the background, and the next ticks skip
+  only that process (`inFlight`) - not every process, as the whole-tick skip
+  did before (one slow step cost all of them a turn). It is touched alive
+  when it finishes (`lateAlive`). A process not started before the budget
+  ran out gets its turn next tick; the start order rotates each tick
+  (`rotate`), so it is never the same ones. The tick stats count it per kind
+  - `turns.overran` (past the budget), `turns.busy` (a turn skipped, still
+  running), `turns.deferred` (put off to the next tick).

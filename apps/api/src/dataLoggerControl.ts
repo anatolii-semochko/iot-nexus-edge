@@ -154,10 +154,13 @@ interface DeviceRow {
  * a sensor does - its value is a command this platform issued, not a
  * measurement - so it's excluded from this list entirely, not merely
  * left disabled). */
-export async function listDataLoggerControls(): Promise<DataLoggerControlEntry[]> {
+export async function listDataLoggerControls(configuredOnly = false): Promise<DataLoggerControlEntry[]> {
+  // `configuredOnly` - the devices with a period set only: the Data Logger process reads this every tick and
+  // skips the rest anyway (most of them - iot PERF_PROD_2026-11-05.md); the UI's list keeps all
   const { rows } = await pool.query<DeviceRow>(
     `SELECT id, name, data_logger_control FROM devices
      WHERE (capabilities->>'readOnly')::boolean IS TRUE
+       ${configuredOnly ? "AND data_logger_control->>'periodSeconds' IS NOT NULL" : ""}
      ORDER BY name`,
   );
   // every device's last-logged time in one MGET, not a GET each (read every
