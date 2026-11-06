@@ -51,7 +51,7 @@ export const config = {
   tickConcurrency: Math.max(1, Number(process.env.ORCHESTRATOR_TICK_CONCURRENCY ?? 8)),
   referenceCacheMs: Number(process.env.ORCHESTRATOR_REFERENCE_CACHE_MS ?? 300000),
   // the processes' requests arriving within this window go as one: the device value reads (valueBatcher.ts),
-  // the state reports and the AUTO writes (batcher.ts); 0 - each alone
+  // the state reports (batcher.ts); 0 - each alone
   batchWindowMs: Number(process.env.ORCHESTRATOR_BATCH_WINDOW_MS ?? 15),
   // Extension points (AGENTS_TO_DO.md 2026-07-29) - a target project's own
   // process kinds (e.g. nexus-edge-smart-house's temperature-control),

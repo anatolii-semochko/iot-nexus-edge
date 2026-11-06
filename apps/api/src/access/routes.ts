@@ -44,7 +44,6 @@ const EXACT: Record<string, RoutePermission> = {
   "POST /nodes/heartbeat": "service",
   "POST /nodes/state/broadcast": "service",
   "PUT /devices/:id/auto": "service",
-  "PUT /devices/auto": "service",
   "PUT /devices/:id/reading": "service",
   "PUT /devices/:id/simulate-auto": "service",
   "PUT /devices/simulate-auto": "service",

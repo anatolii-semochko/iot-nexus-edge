@@ -55,6 +55,11 @@ function sendChanged(key: string, body: string, send: () => Promise<unknown>, re
   });
 }
 
+// A device's AUTO value - one request per device, NOT batched: each write goes on to EdgeX (core-command,
+// device-service), and in a batch every process waited for the slowest one - the demo's ticks got worse
+// (iot PERF_PROD_2026-11-05.md, 2026-11-06); a process's sequential writes keep their order.
+const autoWrite = (deviceId: number, value: unknown) => request(`/devices/${deviceId}/auto`, { method: "PUT", body: JSON.stringify({ value }) });
+
 // The state reports (critical / warning / metrics / messages) of all the processes running together go as
 // one POST /processes/report (iot PERF_PROD_2026-11-05.md - up to four requests per process a tick before).
 type ReportPart =
@@ -82,18 +87,6 @@ const report = createBatcher<{ processId: number; part: ReportPart }, unknown>(a
   });
 });
 
-// The AUTO values the processes write together go as one PUT /devices/auto.
-const autoWrite = createBatcher<{ deviceId: number; value: unknown }, unknown>(async (items) => {
-  const { results } = await request<{ results: ({ id: number; ok: boolean; status: number; error?: string; reason?: string } & Record<string, unknown>)[] }>(
-    "/devices/auto",
-    { method: "PUT", body: JSON.stringify({ values: items.map((x) => ({ id: x.deviceId, value: x.value })) }) },
-  );
-  return items.map((_, i) => {
-    const x = results[i];
-    if (x?.ok) return { ok: true as const, value: x };
-    return { ok: false as const, error: new Error(`Devices API PUT /devices/${items[i].deviceId}/auto failed: ${x?.status ?? "-"} ${x?.error ?? "no answer"}${x?.reason ? ` - ${x.reason}` : ""}`) };
-  });
-});
 
 export interface SeriesRecord {
   id: number;
@@ -411,8 +404,8 @@ export const apiClient = {
     request(`/processes/${processId}/commands/${commandId}/done`, { method: "POST", body: JSON.stringify({ result }) }),
   setDeviceAuto: (deviceId: number, value: unknown, options: { always?: boolean } = {}) =>
     options.always
-      ? autoWrite({ deviceId, value })
-      : sendChanged(`device:${deviceId}:auto`, JSON.stringify({ value }), () => autoWrite({ deviceId, value }), config.autoReassertMs),
+      ? autoWrite(deviceId, value)
+      : sendChanged(`device:${deviceId}:auto`, JSON.stringify({ value }), () => autoWrite(deviceId, value), config.autoReassertMs),
   // For a readOnly device with no EdgeX backend at all - e.g. the
   // `weather-control` process's own computed `light-level` device
   // (devices/standalone/sensor/light-level). setDeviceAuto above would

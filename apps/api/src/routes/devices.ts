@@ -602,22 +602,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(code).send(body);
   });
 
-  // The same for several devices in ONE request (iot PERF_PROD_2026-11-05.md - the orchestrator
-  // coalesces its processes' AUTO writes): each item answers for itself ({id, ok, status, ...}), one
-  // failing item doesn't fail the others.
-  app.put<{ Body: { values: { id: number; value: unknown }[] } }>("/devices/auto", async (request, reply) => {
-    const values = request.body?.values;
-    if (!Array.isArray(values)) return reply.code(400).send({ error: "request body must include 'values' - [{id, value}]" });
-    const results = await Promise.all(
-      values.map(async ({ id, value }) => {
-        const { code, body } = await applyAuto(String(id), value, app.log);
-        return { id, ok: code === 200, status: code, ...(body as Record<string, unknown>) };
-      }),
-    );
-    return { results };
-  });
-
-  // Orchestrator-driven: a device's AUTO value - one or a batch (above) - recorded, and written to EdgeX
+  // Orchestrator-driven: a device's AUTO value recorded, and written to EdgeX
   // while the device is in AUTO (a manual override keeps winning until released).
   async function applyAuto(id: string, value: unknown, log: FastifyBaseLogger): Promise<{ code: number; body: unknown }> {
     const reply = replyCapture();
