@@ -904,5 +904,7 @@
   "Cards": "Картки",
   "Components - at the full width under the cards": "Компоненти - на всю ширину під картками",
   "{{length}} inside, {{v1}}": "всередині {{length}}, {{v1}}",
-  "full width": "на всю ширину"
+  "full width": "на всю ширину",
+  "No one - the process acts as itself": "Нікого - процес діє від себе",
+  "What it does on a person's behalf - with that person's rights, recorded as theirs.": "Що процес робить від імені людини - з її правами, записується як її дії."
 }

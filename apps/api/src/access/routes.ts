@@ -75,6 +75,8 @@ const EXACT: Record<string, RoutePermission> = {
   "DELETE /processes/:id/dashboard-flag": "processes.control",
   "PATCH /log-messages/:messageId": "processes.control",
   "PATCH /processes/:id/config": "processes.config",
+  // whom a process acts for (its requests "as the person" - guard.ts): the people's administrator only
+  "PUT /processes/:id/acts-as": "users.manage",
 
   // logs: what is logged
   "PATCH /series/:id": "logs.configure",

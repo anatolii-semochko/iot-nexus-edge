@@ -160,6 +160,28 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     return { status: "ok" };
   });
 
+  // Whom the process acts for (iot AGENTS_TO_DO.md 2026-11-06; access/guard.ts `X-Acting-Process`): a
+  // person (an active account, not an internal service's or the guest) - its requests made "as the person"
+  // get that person's rights and author what it records; null - none. The people's administrator only.
+  app.put<{ Params: { id: string }; Body: { userId?: number | null } }>("/processes/:id/acts-as", async (request, reply) => {
+    const process = await findProcess(request.params.id);
+    if (!process) return reply.code(404).send({ error: "process not found" });
+    const userId = request.body?.userId ?? null;
+    if (userId !== null) {
+      const person = (
+        await pool.query(
+          `SELECT 1 FROM users u WHERE u.id = $1 AND u.active AND u.username <> 'guest'
+             AND NOT EXISTS (SELECT 1 FROM role_members m WHERE m.user_id = u.id AND m.role_key = 'system')`,
+          [userId],
+        )
+      ).rows[0];
+      if (!person) return reply.code(400).send({ error: "a person's active account expected" });
+    }
+    await pool.query("UPDATE processes SET acts_as_user_id = $2, updated_at = now() WHERE id = $1", [process.id, userId]);
+    await logCommand({ processId: process.id, action: "config", value: { actsAsUserId: userId }, source: "api", actorUserId: request.user.sub });
+    return { status: "ok", actsAsUserId: userId };
+  });
+
   // Which `kind`s the running orchestrator actually has plugin code
   // loaded for right now (proxies apps/orchestrator's own GET
   // /process-kinds, config.orchestratorUrl) - the UI's "pending restart"

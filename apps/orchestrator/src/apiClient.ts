@@ -7,7 +7,9 @@ import { cachedRead, tickShared } from "./shared.js";
 import { createValueBatcher } from "./valueBatcher.js";
 import { tickStats } from "./tickStats.js";
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// `actingProcess` - the request made for the person that process acts for (the API's guard -
+// `X-Acting-Process`: that person's rights, that person the author)
+async function request<T>(path: string, options: RequestInit = {}, actingProcess?: number): Promise<T> {
   tickStats.request(options.method ?? "GET", path);
   // AGENTS_TO_DO.md, 2026-08-29 - server.ts's own tick() re-entrancy guard
   // (added the same day, to stop unbounded overlapping ticks) means a
@@ -16,9 +18,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // nothing here had a timeout at all. AbortSignal.timeout() is the
   // built-in fetch mechanism for this, no extra dependency.
   const res = await fetch(`${config.apiUrl}${path}`, {
-    headers: { "X-Service-Token": config.serviceApiToken, ...(options.body ? { "Content-Type": "application/json" } : {}) },
     signal: AbortSignal.timeout(config.apiRequestTimeoutMs),
     ...options,
+    headers: {
+      "X-Service-Token": config.serviceApiToken,
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(actingProcess !== undefined ? { "X-Acting-Process": String(actingProcess) } : {}),
+    },
   });
   if (!res.ok) {
     const text = await res.text();
@@ -509,4 +515,10 @@ export const apiClient = {
   // `request()` every typed method above already uses, without needing
   // those routes added to this shared object.
   request: <T = unknown>(path: string, options?: RequestInit) => request<T>(path, options),
+  // The same, made for the person the process acts for (its "Acts as" - set by an administrator, iot
+  // AGENTS_TO_DO.md 2026-11-06): that person's rights, that person the author of what it records (a
+  // maintenance process doing a technician's work). None set - the API refuses (403).
+  asPerson: (processId: number) => ({
+    request: <T = unknown>(path: string, options?: RequestInit) => request<T>(path, options, processId),
+  }),
 };
