@@ -4,7 +4,6 @@
 
 import { config } from "./config.js";
 import { cachedRead, tickShared } from "./shared.js";
-import { createBatcher } from "./batcher.js";
 import { createValueBatcher } from "./valueBatcher.js";
 import { tickStats } from "./tickStats.js";
 
@@ -59,34 +58,6 @@ function sendChanged(key: string, body: string, send: () => Promise<unknown>, re
 // device-service), and in a batch every process waited for the slowest one - the demo's ticks got worse
 // (iot PERF_PROD_2026-11-05.md, 2026-11-06); a process's sequential writes keep their order.
 const autoWrite = (deviceId: number, value: unknown) => request(`/devices/${deviceId}/auto`, { method: "PUT", body: JSON.stringify({ value }) });
-
-// The state reports (critical / warning / metrics / messages) of all the processes running together go as
-// one POST /processes/report (iot PERF_PROD_2026-11-05.md - up to four requests per process a tick before).
-type ReportPart =
-  | { critical: boolean }
-  | { warning: boolean }
-  | { metrics: ProcessMetrics }
-  | { message: { type: MessageType; entries: MessageInput[]; autoResolve?: AutoResolveMode } };
-
-const report = createBatcher<{ processId: number; part: ReportPart }, unknown>(async (items) => {
-  const byProcess = new Map<number, Record<string, unknown> & { messages: unknown[] }>();
-  for (const { processId, part } of items) {
-    const r = byProcess.get(processId) ?? { processId, messages: [] };
-    if ("message" in part) r.messages.push(part.message);
-    else Object.assign(r, part);
-    byProcess.set(processId, r);
-  }
-  const { results } = await request<{ results: { processId: number; ok: boolean; error?: string }[] }>("/processes/report", {
-    method: "POST",
-    body: JSON.stringify({ reports: [...byProcess.values()] }),
-  });
-  const outcome = new Map(results.map((x) => [x.processId, x]));
-  return items.map(({ processId }) => {
-    const x = outcome.get(processId);
-    return x?.ok ? { ok: true as const, value: { status: "ok" } } : { ok: false as const, error: new Error(`process report ${processId} failed: ${x?.error ?? "no answer"}`) };
-  });
-});
-
 
 export interface SeriesRecord {
   id: number;
@@ -444,13 +415,20 @@ export const apiClient = {
       body: JSON.stringify({ values }),
     }),
   // the state reports - sent only on a change (sendChanged above)
-  // the state reports - sent only on a change, together with the other processes' (report above)
-  setCritical: (processId: number, critical: boolean) =>
-    sendChanged(`${processId}:critical`, JSON.stringify({ critical }), () => report({ processId, part: { critical } })),
-  setMetrics: (processId: number, metrics: ProcessMetrics) =>
-    sendChanged(`${processId}:metrics`, JSON.stringify(metrics), () => report({ processId, part: { metrics } })),
-  setWarning: (processId: number, warning: boolean) =>
-    sendChanged(`${processId}:warning`, JSON.stringify({ warning }), () => report({ processId, part: { warning } })),
+  // the state reports - sent only on a change, each its own request (not batched: in a batch every process
+  // waited for the slowest part of all of them - iot PERF_PROD_2026-11-05.md, 2026-11-06)
+  setCritical: (processId: number, critical: boolean) => {
+    const body = JSON.stringify({ critical });
+    return sendChanged(`${processId}:critical`, body, () => request(`/processes/${processId}/critical`, { method: "POST", body }));
+  },
+  setMetrics: (processId: number, metrics: ProcessMetrics) => {
+    const body = JSON.stringify(metrics);
+    return sendChanged(`${processId}:metrics`, body, () => request(`/processes/${processId}/metrics`, { method: "POST", body }));
+  },
+  setWarning: (processId: number, warning: boolean) => {
+    const body = JSON.stringify({ warning });
+    return sendChanged(`${processId}:warning`, body, () => request(`/processes/${processId}/warning`, { method: "POST", body }));
+  },
   // WEM (AGENTS.md section 22) - `entries` must be the *complete current
   // set* of codes this process considers active for `type`, not just new
   // ones; the API reconciles that against what's already active (dedup,
@@ -462,7 +440,7 @@ export const apiClient = {
   // what each mode does), not for a genuine one-shot notification.
   syncMessages: (processId: number, type: MessageType, entries: MessageInput[], autoResolve?: AutoResolveMode) =>
     sendChanged(`${processId}:messages:${type}`, JSON.stringify({ type, entries, autoResolve }), () =>
-      report({ processId, part: { message: { type, entries, autoResolve } } }),
+      request(`/processes/${processId}/messages`, { method: "POST", body: JSON.stringify({ type, entries, autoResolve }) }),
     ),
   // Events - one-shot reports for the log only, never in the process's
   // active WEM list (api processMessages.logEvents).

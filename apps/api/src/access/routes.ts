@@ -35,7 +35,6 @@ const EXACT: Record<string, RoutePermission> = {
   "POST /processes/heartbeat": "service",
   "POST /processes/state/broadcast": "service",
   "POST /processes/:id/critical": "service",
-  "POST /processes/report": "service",
   "POST /processes/:id/warning": "service",
   "POST /processes/:id/metrics": "service",
   "POST /processes/:id/messages": "service",

@@ -9652,19 +9652,13 @@ the same on a Raspberry Pi. Rules since then:
   ~2 s, every process waiting). Plain data in and out (structured clone).
 - **`tickShared` is one read per tick** (`beginTick` in server.ts), not a
   time window.
-- **The state reports are batched too** (2026-11-06, `batcher.ts` -
-  `createBatcher(send)`): `setCritical` / `setWarning` / `setMetrics` /
-  `syncMessages` of all the processes running together within
-  `ORCHESTRATOR_BATCH_WINDOW_MS` go as one `POST /processes/report`
-  (`{reports: [{processId, critical?, warning?, metrics?, messages?: [...]}]}`
-  - each part applied as its single route does); each item answers for
-  itself, one failing fails only its caller. Unchanged reports are still not
-  sent at all (`sendChanged`). The plugins' API is unchanged.
-- **The AUTO writes are NOT batched** (tried 2026-11-06, reverted): each
-  goes on to EdgeX (two HTTP hops) - in a batch every process waited for the
-  slowest write of all of them; on the demo's server the ticks got worse
-  (16-29 skipped / min against 0-1). Batch only what is cheap and uniform
-  per item; a write with a slow, variable tail stays per caller.
+- **The state reports and the AUTO writes are NOT batched** (both tried
+  2026-11-06, reverted): an AUTO write goes on to EdgeX (two HTTP hops), a
+  message sync is a database transaction - in a batch every process waited
+  for the slowest part of all of them, and on the demo's server the ticks got
+  worse (6-29 skipped / min against 0-1). Batch only what is cheap and
+  uniform per item (the value reads); a request with a slow, variable tail
+  stays per caller - fewer requests is not always faster.
 - **`ORCHESTRATOR_TICK_CONCURRENCY` is set per server in `.env`** (a 4-vCPU
   VPS - 8, a Raspberry Pi 4 - 4-6, an 8-core server - 12-16); the demo's
   `deploy/scripts/make-env.sh` appends a setting `.env.example` gained to the

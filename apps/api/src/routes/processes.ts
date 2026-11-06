@@ -390,47 +390,6 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     return { status: "ok" };
   });
 
-  // Orchestrator-driven only - the state reports of many processes in ONE
-  // request (iot PERF_PROD_2026-11-05.md: /critical, /warning, /metrics and
-  // /messages were up to four requests per process each tick): each item -
-  // one process's parts, applied as the single routes above do; each item
-  // answers for itself ({processId, ok, error?}), one failing doesn't fail
-  // the others.
-  app.post<{
-    Body: {
-      reports: {
-        processId: number;
-        critical?: boolean;
-        warning?: boolean;
-        metrics?: Record<string, number>;
-        messages?: { type: processMessages.MessageType; entries: processMessages.MessageInput[]; autoResolve?: processMessages.AutoResolveMode }[];
-      }[];
-    };
-  }>("/processes/report", async (request, reply) => {
-    const reports = request.body?.reports;
-    if (!Array.isArray(reports)) return reply.code(400).send({ error: "request body must include 'reports' - [{processId, ...}]" });
-    const ids = [...new Set(reports.map((r) => Number(r?.processId)).filter(Number.isFinite))];
-    const known = new Set((await pool.query<{ id: number }>("SELECT id FROM processes WHERE id = ANY($1::int[])", [ids])).rows.map((r) => r.id));
-    const results = await Promise.all(
-      reports.map(async (r) => {
-        const processId = Number(r?.processId);
-        if (!known.has(processId)) return { processId, ok: false, error: "process not found" };
-        try {
-          await Promise.all([
-            r.critical !== undefined ? processRegistry.setCritical(processId, r.critical, "orchestrator") : null,
-            r.warning !== undefined ? processRegistry.setWarning(processId, r.warning, "orchestrator") : null,
-            r.metrics !== undefined ? processRegistry.setMetrics(processId, r.metrics, "orchestrator") : null,
-            ...(r.messages ?? []).map((m) => processMessages.syncActiveMessages(processId, m.type, m.entries, "orchestrator", m.autoResolve)),
-          ]);
-          return { processId, ok: true };
-        } catch (err) {
-          return { processId, ok: false, error: err instanceof Error ? err.message : String(err) };
-        }
-      }),
-    );
-    return { results };
-  });
-
   // Orchestrator-driven only - a process's events: one-shot reports for
   // the log only, never active (processMessages.logEvents).
   app.post<{ Params: { id: string }; Body: { entries: processMessages.MessageInput[] } }>(

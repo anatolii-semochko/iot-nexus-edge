@@ -50,8 +50,9 @@ export const config = {
   // are kept until their table changes, this long at most (`cachedRead`).
   tickConcurrency: Math.max(1, Number(process.env.ORCHESTRATOR_TICK_CONCURRENCY ?? 8)),
   referenceCacheMs: Number(process.env.ORCHESTRATOR_REFERENCE_CACHE_MS ?? 300000),
-  // the processes' requests arriving within this window go as one: the device value reads (valueBatcher.ts),
-  // the state reports (batcher.ts); 0 - each alone
+  // the device value reads of processes arriving within this window go as one POST /devices/values
+  // (valueBatcher.ts - cheap and uniform per item; the state reports and the AUTO writes are not batched -
+  // AGENTS.md "The tick's load on a small server"); 0 - each alone
   batchWindowMs: Number(process.env.ORCHESTRATOR_BATCH_WINDOW_MS ?? 15),
   // Extension points (AGENTS_TO_DO.md 2026-07-29) - a target project's own
   // process kinds (e.g. nexus-edge-smart-house's temperature-control),
