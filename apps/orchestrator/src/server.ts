@@ -111,7 +111,14 @@ async function tickBody(): Promise<void> {
       lastRunAt.set(process.id, now);
       try {
         const runStarted = performance.now();
-        await processLockedRun(process.id, () => runner(process));
+        await processLockedRun(process.id, async () => {
+          tickStats.runStarted(process.id, process.kind);
+          try {
+            await runner(process);
+          } finally {
+            tickStats.runEnded(process.id);
+          }
+        });
         tickStats.kind(process.kind, performance.now() - runStarted);
         alive.push(process.id);
       } catch (err) {

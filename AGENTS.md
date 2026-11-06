@@ -9672,3 +9672,13 @@ the same on a Raspberry Pi. Rules since then:
   resolution while ticks are long - the time is waiting on the API; well
   above it - a process computes on the main thread (then a worker thread is
   the tool). On 2026-11-06: p99 ~30 ms, max ~40 ms - waiting, not computing.
+- **The tick stats name what stops the event loop** (2026-11-06): `gc`
+  (the garbage collector's pauses - count, total, max) and `stalls` (a
+  watchdog timer: a gap over 300 ms is a stall; `suspects` - the process kinds
+  whose runners were running at that moment, counted per stall - the one that
+  computes is among them every time). Locally: GC ~35-80 ms a minute, max
+  5-11 ms, no stalls; on the demo's server stalls of 0.5-2.1 s came with the
+  heating planner and the Energy Ledger running - the energy plan's
+  `planAll` itself takes 13-51 ms (148 slots, 5 strategies), the
+  `/processes` list 115 KB parses in ~1 ms, so the culprit is still to be
+  named by these fields on the server.
