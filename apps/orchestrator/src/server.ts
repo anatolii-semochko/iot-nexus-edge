@@ -13,7 +13,7 @@ import { runResourceMonitor } from "./processes/resourceMonitor.js";
 import { dispatchDeviceEvent, processLockedRun } from "./processDispatch.js";
 import { runLimited } from "./runLimited.js";
 import { stepDue } from "./schedule.js";
-import { setTickShared } from "./shared.js";
+import { beginTick, setTickShared } from "./shared.js";
 import { setTickProcesses } from "./tickProcesses.js";
 import { processRegistry } from "./processRegistry.js";
 import { TICK_INTERVAL_MS } from "./tickInterval.js";
@@ -77,9 +77,8 @@ async function tickBody(): Promise<void> {
 
   let processes: ProcessRecord[];
   try {
-    const fresh = apiClient.fetchProcesses();
-    setTickShared("processes", fresh);
-    processes = await fresh;
+    beginTick();
+    processes = await setTickShared("processes", apiClient.fetchProcesses());
   } catch (err) {
     logger.warn({ err }, "failed to list processes");
     return;

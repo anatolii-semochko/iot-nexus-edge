@@ -496,8 +496,12 @@ a Postgres seed migration).
 `apps/api` exposes this over HTTP: `GET /nodes`, `GET /nodes/:id` (registry
 only), `GET /devices` (registry rows plus, for any with an
 `edgex_device_name`, that device's live `operatingState`/`adminState` from
-one core-metadata call), `GET /devices/:id` (registry row plus the device's
-live `value`/`valueType`/`units`, read from EdgeX core-command, and - for a
+one core-metadata call; `?live=false` - the registry rows only, without the
+EdgeX call and the overdue snapshots, for a process mapping its devices -
+2026-11-06), `GET /devices/:id` (registry row plus the device's
+live `value`/`valueType`/`units`, read from EdgeX core-command - for a
+virtual / simulated device the value is the API's cache, EdgeX gives the type
+and the units (2026-11-05) - and - for a
 *controllable* device only - its Dual Devices Model `dualState` - see the
 read-only-devices note in section 6), `PUT /devices/:id` (Model State
 Validator, then proxies the write to EdgeX core-command; used by the UI's
@@ -9584,14 +9588,14 @@ the same on a Raspberry Pi. Rules since then:
   four lanes still took ~1.2 s - the tick's length is about
   (runs x run time) / the limit.
 - **`apiClient.listProcesses()` / `listNodes()` are shared within a tick**
-  (`shared.ts`, `tickShared` - one request, reused for
-  `ORCHESTRATOR_TICK_SHARE_MS`); the tick's own read is `fetchProcesses()`.
+  (`shared.ts`, `tickShared` - one request per tick); the tick's own read is
+  `fetchProcesses()`.
 - **`getMessageLevels()` is kept until `message_levels` changes**
   (`cachedRead`; migration 104 adds the table's change trigger - no `id`, so
   the event is `message_levels.all.changed`), `ORCHESTRATOR_REFERENCE_CACHE_MS`
   at most.
 - **Device value reads are coalesced** (`valueBatcher.ts`): the asks of
-  processes running together within `ORCHESTRATOR_VALUE_BATCH_WINDOW_MS`
+  processes running together within `ORCHESTRATOR_BATCH_WINDOW_MS`
   (15 ms) go as one `POST /devices/values`.
 - **A virtual / simulated device's value is the API's cache**
   (`cacheIsSourceFor` in routes/devices.ts): the batch read, the detail view
@@ -9610,7 +9614,7 @@ the same on a Raspberry Pi. Rules since then:
   on a running stack the keeper key `edgex/v4/core-data/Writable/PersistData`)
   - Nexus Edge never reads them; storing cost ~40 % of a core.
 - The aquarium's light control keeps its templates and the day's plan
-  (DMCTW) until they change (nexus-edge-aquarium).
+  (DMCTW) until they change (nexus-edge-aquarium, `ctx.cachedRead`).
 - **The lists the tick reads are built in a fixed number of round trips,
   not N+1** (2026-11-05): `GET /processes` - one SQL for every process's
   active messages (`processMessages.activeMessagesOf`), one Redis pipeline
@@ -9637,6 +9641,29 @@ the same on a Raspberry Pi. Rules since then:
   runner - `ctx.stepDue(processId, intervalMs, lastAt, now)` in the plugin
   context (energy-field, heating-control, heating-planner, energy-ledger use
   it). A process never counts its own interval.
+- **The plugin context** (processPlugins.ts) gives a process the platform's
+  tools instead of its own copies: `apiClient`, `logger`, `onEntityChange`,
+  `tickProcesses()`, `stepDue` (the schedule), `cachedRead(key, tables, fn)`
+  (a reference read kept until a table changes - the aquarium's light keeps
+  its templates and day plan with it; expired keys swept), and
+  `compute(moduleUrl, exportName, args)` - a pure CPU-heavy computation in
+  the platform's worker thread (compute.ts, computeWorker.ts; the heating
+  planner's strategies - they stopped the orchestrator's event loop for up to
+  ~2 s, every process waiting). Plain data in and out (structured clone).
+- **`tickShared` is one read per tick** (`beginTick` in server.ts), not a
+  time window.
+- **The state reports and the AUTO writes are NOT batched** (both tried
+  2026-11-06, reverted): an AUTO write goes on to EdgeX (two HTTP hops), a
+  message sync is a database transaction - in a batch every process waited
+  for the slowest part of all of them, and on the demo's server the ticks got
+  worse (6-29 skipped / min against 0-1). Batch only what is cheap and
+  uniform per item (the value reads); a request with a slow, variable tail
+  stays per caller - fewer requests is not always faster.
+- **`ORCHESTRATOR_TICK_CONCURRENCY` is set per server in `.env`** (a 4-vCPU
+  VPS - 8, a Raspberry Pi 4 - 4-6, an 8-core server - 12-16); the demo's
+  `deploy/scripts/make-env.sh` appends a setting `.env.example` gained to the
+  server's existing `.env` (the existing values never touched), and
+  `deploy.sh` runs again as its new version when syncing changed it.
 - **A step sends its independent requests together** (the readings with the
   switches, the valves at once, the state reports at once - the heat pumps
   keep their deliberate staggered queue).
