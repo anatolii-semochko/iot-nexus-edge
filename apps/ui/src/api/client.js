@@ -201,6 +201,9 @@ export const api = {
   listProcesses: () => request('/processes'),
   setProcessConfig: (id, config) =>
     request(`/processes/${id}/config`, { method: 'PATCH', body: JSON.stringify(config) }),
+  // whom the process acts for (null - none; the people's administrator only)
+  setProcessActsAs: (id, userId) =>
+    request(`/processes/${id}/acts-as`, { method: 'PUT', body: JSON.stringify({ userId }) }),
   // AI connections (api routes/ai.ts, admin) - no keys come back (`hasKey`);
   // `apiKey` sent only when changed (null - remove it).
   listAiConnections: () => request('/ai/connections'),

@@ -51,10 +51,17 @@ interface UserRow {
   updated_at: string;
 }
 
-function publicUser(user: UserRow) {
+// The guest is the public (a role of it may view Users - a demo shows the function): people's
+// e-mails are never sent to it.
+function isGuest(request: FastifyRequest): boolean {
+  return Boolean(request.principal?.guest || request.session?.guest);
+}
+
+function publicUser(user: UserRow, forGuest = false) {
   const { password_hash: _passwordHash, ...rest } = user;
   return {
     ...rest,
+    email: forGuest ? null : rest.email,
     deletable: !PROTECTED_USERNAMES.has(user.username),
     deactivatable: !NON_DEACTIVATABLE_USERNAMES.has(user.username),
     // an internal service's account (the role `system`) or the guest - no password, no sign-in
@@ -141,17 +148,18 @@ export async function userDirectoryRoutes(app: FastifyInstance): Promise<void> {
 export async function userRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireAdmin);
 
-  app.get("/users", async () => {
+  app.get("/users", async (request) => {
     const result = await pool.query<UserRow>("SELECT * FROM users ORDER BY username");
     // each person's roles (the Users list's Access column - 2026-10-27)
     const members = (await pool.query<{ user_id: number; role_key: string }>("SELECT user_id, role_key FROM role_members ORDER BY role_key")).rows;
-    return result.rows.map((u) => ({ ...publicUser(u), roleKeys: members.filter((m) => m.user_id === u.id).map((m) => m.role_key) }));
+    const guest = isGuest(request);
+    return result.rows.map((u) => ({ ...publicUser(u, guest), roleKeys: members.filter((m) => m.user_id === u.id).map((m) => m.role_key) }));
   });
 
   app.get<{ Params: { id: string } }>("/users/:id", async (request, reply) => {
     const user = await findUser(request.params.id);
     if (!user) return reply.code(404).send({ error: "user not found" });
-    return publicUser(user);
+    return publicUser(user, isGuest(request));
   });
 
   app.post<{

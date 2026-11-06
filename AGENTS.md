@@ -8437,6 +8437,19 @@ plan and the decisions - iot `AGENTS_TO_DO.md` (B1).
   checks it on that entity's unit: not even visible -> 404, visible but not
   allowed -> 403 (the guest's refusal - "sign in to change this", `guest: true`). `requireAuth` /
   `requireAdmin` remain only as "known person" checks - the guard decides.
+- A process acting for a person (2026-11-06; migration 105): an
+  administrator sets a process's "Acts as" (`processes.acts_as_user_id`,
+  `PUT /processes/:id/acts-as` - `users.manage`; a person's active account,
+  not a service's or the guest; Processes -> the process's settings ->
+  System, admins only). Its plugin's requests through
+  `apiClient.asPerson(processId).request(...)` carry `X-Acting-Process`
+  with the service token: the guard takes that person's principal (all
+  their roles) and checks the route as for their session; the person is
+  `request.user` - the author of what it records; the command log's "As" -
+  their roles ", via <the process>". None set (or the person inactive) -
+  403 "the process acts for no one". Plain `apiClient` requests stay the
+  orchestrator's. Use: a maintenance process doing a technician's work, a
+  scheduled job on the duty person's behalf (the demo's `demo-maintenance`).
 - Limited people (a role with objects' rows) don't see other instances at all:
   the lists filter (`access/scope.ts` - `/processes`, `/nodes`, `/devices`,
   `/dashboard-cards` with the role's cards, `/logs/commands`,
@@ -8642,7 +8655,9 @@ plan and the decisions - iot `AGENTS_TO_DO.md` (B1).
   Dashboard as the guest (AuthGate checks again whenever the person is
   gone). A new visitor starts in the guest's `defaultRole` (the guest's
   settings; none - its most allowing role; a link wins). A change - 403
-  "sign in to change this". The
+  "sign in to change this". A guest's role may view Users (a demo shows
+  the function): `GET /users`, `/users/:id` send it no e-mails (2026-11-06,
+  `routes/users.ts` `isGuest`). The
   guest's settings (`system_settings` 'guest', `access/guestSettings.ts`,
   `GET/PUT /access/guest`): its conversations private (each browser its
   own) or public (every guest reads all, continues only their own); kept N
@@ -9650,6 +9665,8 @@ the same on a Raspberry Pi. Rules since then:
   the platform's worker thread (compute.ts, computeWorker.ts; the heating
   planner's strategies - they stopped the orchestrator's event loop for up to
   ~2 s, every process waiting). Plain data in and out (structured clone).
+  `apiClient.asPerson(processId).request(...)` (2026-11-06) - a request made
+  for the person the process acts for (its "Acts as" - see the guard above).
 - **`tickShared` is one read per tick** (`beginTick` in server.ts), not a
   time window.
 - **The state reports and the AUTO writes are NOT batched** (both tried

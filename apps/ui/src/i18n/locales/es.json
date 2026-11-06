@@ -904,5 +904,7 @@
   "Cards": "Tarjetas",
   "Components - at the full width under the cards": "Componentes: a todo el ancho bajo las tarjetas",
   "{{length}} inside, {{v1}}": "{{length}} dentro, {{v1}}",
-  "full width": "todo el ancho"
+  "full width": "todo el ancho",
+  "No one - the process acts as itself": "Nadie - el proceso actúa por sí mismo",
+  "What it does on a person's behalf - with that person's rights, recorded as theirs.": "Lo que hace en nombre de una persona - con sus permisos, registrado como suyo."
 }

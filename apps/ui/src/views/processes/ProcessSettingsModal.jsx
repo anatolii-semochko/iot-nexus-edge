@@ -17,6 +17,7 @@ import {
   CTabs,
 } from '@coreui/react'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
 import { processSettingsSections, processSettingsConfigFields } from '../../processTypeRegistry'
 import { t } from 'src/i18n'
 
@@ -27,6 +28,42 @@ import { t } from 'src/i18n'
 // sections at once (AGENTS.md section 22 - Tab Groups and Message
 // Casting Groups are independent entities, but both edited from the
 // same popup).
+/**
+ * Whom the process acts for (iot AGENTS_TO_DO.md 2026-11-06): its requests made "as the person" get
+ * that person's rights and author what it records (e.g. a maintenance process doing a technician's
+ * work). The people's administrator only; the people - active accounts, not the services' or the guest.
+ */
+const ActsAsSection = ({ value, onChange, busy }) => {
+  const [people, setPeople] = useState(null)
+  useEffect(() => {
+    api
+      .listUsers()
+      .then((users) => setPeople(users.filter((u) => u.active && !u.service && !u.guest)))
+      .catch(() => setPeople([]))
+  }, [])
+  return (
+    <div className="mb-3">
+      <div className="fw-semibold mb-1">{t('Acts as')}</div>
+      <CFormSelect
+        size="sm"
+        disabled={busy || !people}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+      >
+        <option value="">{t('No one - the process acts as itself')}</option>
+        {(people ?? []).map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.display_name || u.username} ({u.username})
+          </option>
+        ))}
+      </CFormSelect>
+      <div className="small text-body-secondary mt-1">
+        {t("What it does on a person's behalf - with that person's rights, recorded as theirs.")}
+      </div>
+    </div>
+  )
+}
+
 const GroupCheckboxSection = ({ title, items, fetchSelected, selectedIds, onChange, busy }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -159,9 +196,15 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
   // stays for every process type - it's how a simulation process's own
   // error casting (setCritical/syncMessages) actually gets routed.
   const isSimulation = process?.type === 'simulation'
+  const can = useCan()
+  const canActsAs = !isSimulation && can('users.manage')
+  // undefined - not edited (the process's own value)
+  const [actsAsEdit, setActsAs] = useState(undefined)
+  const actsAs = actsAsEdit === undefined ? (process?.acts_as_user_id ?? null) : actsAsEdit
 
   const handleClose = () => {
     extraConfigRef.current = null
+    setActsAs(undefined)
     setActiveSettingsTab('system')
     onClose()
   }
@@ -177,6 +220,9 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
       // existing membership on every save.
       if (!isSimulation) {
         writes.push(api.setProcessTabGroups(process.id, [...selectedTabGroupIds]))
+      }
+      if (canActsAs && actsAs !== (process.acts_as_user_id ?? null)) {
+        writes.push(api.setProcessActsAs(process.id, actsAs))
       }
       if (ExtraSection && extraConfigField === '*') {
         writes.push(api.setProcessConfig(process.id, extraConfigRef.current ?? {}))
@@ -199,6 +245,7 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
 
   const groupSections = (
     <>
+      {canActsAs && <ActsAsSection value={actsAs} onChange={setActsAs} busy={busy} />}
       {!isSimulation && (
         <GroupCheckboxSection
           title={t('Tabs')}
