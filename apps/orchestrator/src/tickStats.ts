@@ -49,6 +49,11 @@ interface Window {
   kindMs: Map<string, number>; // process kind -> summed run time
   kindRuns: Map<string, number>;
   kindMax: Map<string, number>; // process kind -> its longest run
+  // the turns (server.ts): a run past the tick's budget (finished in the background), a turn skipped while
+  // the previous one still runs, a turn put off to the next tick (the budget spent before it started)
+  overran: Map<string, number>;
+  busy: Map<string, number>;
+  deferred: Map<string, number>;
   // the window's longest tick and its longest runner (iot PERF_PROD_2026-11-05.md - which one
   // makes the rare 1.5-6 s ticks)
   slowest: { ms: number; kind: string | null; kindMs: number };
@@ -62,6 +67,9 @@ const fresh = (): Window => ({
   kindMs: new Map(),
   kindRuns: new Map(),
   kindMax: new Map(),
+  overran: new Map(),
+  busy: new Map(),
+  deferred: new Map(),
   slowest: { ms: 0, kind: null, kindMs: 0 },
 });
 // the longest runner of the tick in progress
@@ -93,6 +101,11 @@ export const tickStats = {
   skipped(): void {
     current.skipped += 1;
   },
+  /** A process's turn: "overran" - past the budget, "busy" - skipped (still running), "deferred" - next tick. */
+  turn(kind: string, what: "overran" | "busy" | "deferred"): void {
+    const m = current[what];
+    m.set(kind, (m.get(kind) ?? 0) + 1);
+  },
   /** A tick ended; returns the window's summary when the window is full (else null). */
   tick(durationMs: number): ReturnType<typeof summary> | null {
     current.ticks += 1;
@@ -120,6 +133,11 @@ function summary(w: Window) {
       max: Math.round(sorted[sorted.length - 1] ?? 0),
     },
     slowestTick: { ms: Math.round(w.slowest.ms), longestKind: w.slowest.kind, longestKindMs: Math.round(w.slowest.kindMs) },
+    turns: {
+      overran: Object.fromEntries(w.overran),
+      busy: Object.fromEntries(w.busy),
+      deferred: Object.fromEntries(w.deferred),
+    },
     eventLoopDelayMs: loopDelayWindow(),
     ...blockersWindow(),
     requestsPerTick: Math.round((totalRequests / w.ticks) * 10) / 10,

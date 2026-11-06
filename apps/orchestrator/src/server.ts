@@ -12,6 +12,7 @@ import { runHeartbeatControlTest } from "./processes/heartbeatControlTest.js";
 import { runResourceMonitor } from "./processes/resourceMonitor.js";
 import { dispatchDeviceEvent, processLockedRun } from "./processDispatch.js";
 import { runLimited } from "./runLimited.js";
+import { awaitWithin, rotate } from "./turns.js";
 import { stepDue } from "./schedule.js";
 import { beginTick, setTickShared } from "./shared.js";
 import { setTickProcesses } from "./tickProcesses.js";
@@ -51,6 +52,14 @@ function registerBuiltinProcessKinds(): void {
 let tickInProgress = false;
 // when each process's runner last ran (its kind's `intervalMs`)
 const lastRunAt = new Map<number, number>();
+// a process's tick run still going (it overran an earlier tick's budget) - it skips its turns until done
+const inFlight = new Set<number>();
+// the processes whose run finished after its tick ended - touched alive with the next tick's heartbeats
+const lateAlive: number[] = [];
+// the ticks' count - the start order rotates by it (turns.ts)
+let turnCount = 0;
+// when the tick in progress started (performance.now) - its budget counts from it
+let tickStartedAt = 0;
 
 async function tick(): Promise<void> {
   if (tickInProgress) {
@@ -60,6 +69,7 @@ async function tick(): Promise<void> {
   }
   tickInProgress = true;
   const started = performance.now();
+  tickStartedAt = started;
   try {
     await tickBody();
   } finally {
@@ -94,13 +104,24 @@ async function tickBody(): Promise<void> {
   // per process per second.
   const alive: number[] = [];
 
-  // at most config.tickConcurrency runners at once (iot PERF_PROD_2026-11-05.md)
+  // the runs that finished after an earlier tick's budget - alive too
+  alive.push(...lateAlive.splice(0));
+  // at most config.tickConcurrency runners at once (iot PERF_PROD_2026-11-05.md); the tick waits for them
+  // within its budget only (turns.ts) - the start order rotating each tick
+  // counted from the tick's start - the list read and the heartbeats' touch fit in the interval too
+  const deadline = tickStartedAt + config.tickBudgetMs;
+  turnCount += 1;
   await runLimited(
-    processes,
+    rotate(processes, turnCount),
     config.tickConcurrency,
     async (process) => {
       const runner = processRegistry.get(process.kind);
       if (!runner) return;
+      // its previous turn still runs - only this process waits, not the tick
+      if (inFlight.has(process.id)) {
+        tickStats.turn(process.kind, "busy");
+        return;
+      }
       // a kind with its own interval runs once per interval, at the process's own place in it (schedule.ts)
       const intervalMs = processRegistry.hooks(process.kind)?.intervalMs ?? 0;
       const now = Date.now();
@@ -108,22 +129,44 @@ async function tickBody(): Promise<void> {
         alive.push(process.id); // not run this tick by design - still alive
         return;
       }
-      lastRunAt.set(process.id, now);
-      try {
-        const runStarted = performance.now();
-        await processLockedRun(process.id, async () => {
-          tickStats.runStarted(process.id, process.kind);
-          try {
-            await runner(process);
-          } finally {
-            tickStats.runEnded(process.id);
-          }
-        });
-        tickStats.kind(process.kind, performance.now() - runStarted);
-        alive.push(process.id);
-      } catch (err) {
-        logger.warn({ err, processId: process.id, kind: process.kind }, "process tick failed");
+      // the budget spent before its start - its turn is next tick (the rotation keeps it fair)
+      const left = deadline - performance.now();
+      if (left <= 0) {
+        tickStats.turn(process.kind, "deferred");
+        return;
       }
+      lastRunAt.set(process.id, now);
+      inFlight.add(process.id);
+      const runStarted = performance.now();
+      const run = processLockedRun(process.id, async () => {
+        tickStats.runStarted(process.id, process.kind);
+        try {
+          await runner(process);
+        } finally {
+          tickStats.runEnded(process.id);
+        }
+      })
+        .then(
+          () => {
+            tickStats.kind(process.kind, performance.now() - runStarted);
+            return true;
+          },
+          (err) => {
+            logger.warn({ err, processId: process.id, kind: process.kind }, "process tick failed");
+            return false;
+          },
+        )
+        .finally(() => inFlight.delete(process.id));
+      const within = await awaitWithin(run, left);
+      if (within.done) {
+        if (within.value) alive.push(process.id);
+        return;
+      }
+      // past the budget - it finishes in the background; alive with the next tick's heartbeats
+      tickStats.turn(process.kind, "overran");
+      void run.then((ok) => {
+        if (ok) lateAlive.push(process.id);
+      });
     },
   );
 

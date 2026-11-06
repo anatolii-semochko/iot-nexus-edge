@@ -9694,3 +9694,13 @@ the same on a Raspberry Pi. Rules since then:
   `dateFormat`. Node's GC flags per server: `API_NODE_OPTIONS` /
   `ORCHESTRATOR_NODE_OPTIONS` in `.env` (the young generation,
   `--max-semi-space-size=32`).
+- **A tick waits for its runners within its budget** (2026-11-06,
+  `ORCHESTRATOR_TICK_BUDGET_MS`, 850 ms from the tick's start; `turns.ts`):
+  a run still going then finishes in the background, and the next ticks skip
+  only that process (`inFlight`) - not every process, as the whole-tick skip
+  did before (one slow step cost all of them a turn). It is touched alive
+  when it finishes (`lateAlive`). A process not started before the budget
+  ran out gets its turn next tick; the start order rotates each tick
+  (`rotate`), so it is never the same ones. The tick stats count it per kind
+  - `turns.overran` (past the budget), `turns.busy` (a turn skipped, still
+  running), `turns.deferred` (put off to the next tick).
