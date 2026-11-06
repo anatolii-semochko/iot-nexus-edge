@@ -9595,7 +9595,7 @@ the same on a Raspberry Pi. Rules since then:
   the event is `message_levels.all.changed`), `ORCHESTRATOR_REFERENCE_CACHE_MS`
   at most.
 - **Device value reads are coalesced** (`valueBatcher.ts`): the asks of
-  processes running together within `ORCHESTRATOR_VALUE_BATCH_WINDOW_MS`
+  processes running together within `ORCHESTRATOR_BATCH_WINDOW_MS`
   (15 ms) go as one `POST /devices/values`.
 - **A virtual / simulated device's value is the API's cache**
   (`cacheIsSourceFor` in routes/devices.ts): the batch read, the detail view
@@ -9652,6 +9652,16 @@ the same on a Raspberry Pi. Rules since then:
   ~2 s, every process waiting). Plain data in and out (structured clone).
 - **`tickShared` is one read per tick** (`beginTick` in server.ts), not a
   time window.
+- **The state reports and the AUTO writes are batched too** (2026-11-06,
+  `batcher.ts` - `createBatcher(send)`): `setCritical` / `setWarning` /
+  `setMetrics` / `syncMessages` of all the processes running together within
+  `ORCHESTRATOR_BATCH_WINDOW_MS` go as one `POST /processes/report`
+  (`{reports: [{processId, critical?, warning?, metrics?, messages?: [...]}]}`
+  - each part applied as its single route does), `setDeviceAuto` as one
+  `PUT /devices/auto` (`{values: [{id, value}]}` - `applyAuto`, the single
+  route's own logic); each item answers for itself, one failing fails only
+  its caller. Unchanged reports are still not sent at all (`sendChanged`).
+  The plugins' API is unchanged.
 - **`ORCHESTRATOR_TICK_CONCURRENCY` is set per server in `.env`** (a 4-vCPU
   VPS - 8, a Raspberry Pi 4 - 4-6, an 8-core server - 12-16); the demo's
   `deploy/scripts/make-env.sh` appends a setting `.env.example` gained to the

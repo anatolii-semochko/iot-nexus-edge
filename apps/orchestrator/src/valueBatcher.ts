@@ -1,6 +1,6 @@
 // Coalesced device value reads (iot PERF_PROD_2026-11-05.md): processes of
 // one tick each ask POST /devices/values for their own devices - the asks
-// that arrive within config.valueBatchWindowMs (and the same maxAgeMs) go
+// that arrive within config.batchWindowMs (and the same maxAgeMs) go
 // to the API as one request; each caller gets back only its own ids.
 
 import { config } from "./config.js";
@@ -13,7 +13,7 @@ interface Pending {
   waiters: { ids: number[]; resolve: (v: { values: DeviceValues }) => void; reject: (e: unknown) => void }[];
 }
 
-export function createValueBatcher(fetch: Fetch, windowMs = config.valueBatchWindowMs) {
+export function createValueBatcher(fetch: Fetch, windowMs = config.batchWindowMs) {
   const pending = new Map<string, Pending>();
   return (ids: number[], maxAgeMs?: number): Promise<{ values: DeviceValues }> => {
     if (windowMs <= 0) return fetch(ids, maxAgeMs);

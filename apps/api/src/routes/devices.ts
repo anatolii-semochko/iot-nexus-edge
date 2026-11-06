@@ -598,16 +598,34 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
   // a target project's own temperature-control - the base platform's own
   // copy was removed in the 2026-07-29 "chistiy proekt" decision).
   app.put<{ Params: { id: string }; Body: { value: unknown } }>("/devices/:id/auto", async (request, reply) => {
-    const { value } = request.body;
-    if (value === undefined) {
-      return reply.code(400).send({ error: "request body must include a 'value'" });
-    }
+    const { code, body } = await applyAuto(request.params.id, request.body?.value, app.log);
+    return reply.code(code).send(body);
+  });
 
-    const device = await requireEdgeXDevice(request.params.id, reply);
-    if (!device) return;
+  // The same for several devices in ONE request (iot PERF_PROD_2026-11-05.md - the orchestrator
+  // coalesces its processes' AUTO writes): each item answers for itself ({id, ok, status, ...}), one
+  // failing item doesn't fail the others.
+  app.put<{ Body: { values: { id: number; value: unknown }[] } }>("/devices/auto", async (request, reply) => {
+    const values = request.body?.values;
+    if (!Array.isArray(values)) return reply.code(400).send({ error: "request body must include 'values' - [{id, value}]" });
+    const results = await Promise.all(
+      values.map(async ({ id, value }) => {
+        const { code, body } = await applyAuto(String(id), value, app.log);
+        return { id, ok: code === 200, status: code, ...(body as Record<string, unknown>) };
+      }),
+    );
+    return { results };
+  });
 
+  // Orchestrator-driven: a device's AUTO value - one or a batch (above) - recorded, and written to EdgeX
+  // while the device is in AUTO (a manual override keeps winning until released).
+  async function applyAuto(id: string, value: unknown, log: FastifyBaseLogger): Promise<{ code: number; body: unknown }> {
+    const reply = replyCapture();
+    if (value === undefined) return { code: 400, body: { error: "request body must include a 'value'" } };
+    const device = await requireEdgeXDevice(id, reply);
+    if (!device) return reply.result();
     if (device.capabilities.readOnly) {
-      return reply.code(400).send({ error: `device '${device.name}' is read-only - it has no AUTO/MANUAL mode` });
+      return { code: 400, body: { error: `device '${device.name}' is read-only - it has no AUTO/MANUAL mode` } };
     }
 
     // A control-loop process re-asserts its computed output every tick by
@@ -626,17 +644,15 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
       await logCommand({ deviceId: device.id, action: "auto", value, source: "api", actorUserId: await getSystemActorUserId() });
     }
 
-    const forbidden = await checkForbidden(device, value, app.log);
-    if (!forbidden.ok) {
-      return reply.code(409).send({ error: "forbidden state", reason: forbidden.reason });
-    }
+    const forbidden = await checkForbidden(device, value, log);
+    if (!forbidden.ok) return { code: 409, body: { error: "forbidden state", reason: forbidden.reason } };
 
     const state = await dualDevicesModel.setActive(device.id, value);
-    if (state.mode === "AUTO") {
-      if (!(await writeOrReject(reply, device.resolvedEdgexName, device.capabilities.edgexResource, value))) return;
+    if (state.mode === "AUTO" && !(await writeOrReject(reply, device.resolvedEdgexName, device.capabilities.edgexResource, value))) {
+      return reply.result();
     }
-    return { status: "ok", state };
-  });
+    return { code: 200, body: { status: "ok", state } };
+  }
 
   // Orchestrator-driven write for a readOnly device with no EdgeX backend
   // at all - e.g. `light-level` (devices/standalone/sensor/light-level),
@@ -1028,6 +1044,22 @@ async function findNode(id: number): Promise<NodeRow | undefined> {
  * request, not a Devices API failure. Returns false (having already sent
  * the reply) on rejection, true on success.
  */
+// A reply stand-in for the helpers that answer through `reply.code(...).send(...)` (requireEdgeXDevice,
+// writeOrReject) when the caller collects the answer itself (applyAuto - one item of a batch).
+function replyCapture() {
+  let result: { code: number; body: unknown } = { code: 200, body: undefined };
+  return {
+    code(statusCode: number) {
+      return {
+        send(payload: unknown) {
+          result = { code: statusCode, body: payload };
+        },
+      };
+    },
+    result: () => result,
+  };
+}
+
 async function writeOrReject(
   reply: { code: (statusCode: number) => { send: (payload: unknown) => void } },
   edgexDeviceName: string,
