@@ -8642,7 +8642,9 @@ plan and the decisions - iot `AGENTS_TO_DO.md` (B1).
   Dashboard as the guest (AuthGate checks again whenever the person is
   gone). A new visitor starts in the guest's `defaultRole` (the guest's
   settings; none - its most allowing role; a link wins). A change - 403
-  "sign in to change this". The
+  "sign in to change this". A guest's role may view Users (a demo shows
+  the function): `GET /users`, `/users/:id` send it no e-mails (2026-11-06,
+  `routes/users.ts` `isGuest`). The
   guest's settings (`system_settings` 'guest', `access/guestSettings.ts`,
   `GET/PUT /access/guest`): its conversations private (each browser its
   own) or public (every guest reads all, continues only their own); kept N
