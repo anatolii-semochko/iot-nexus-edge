@@ -18,4 +18,4 @@ Users -> Roles: a role is a table of what it may do:
 A person with several roles acts in one at a time - **Act as** in the user
 menu; the header shows the role now. A link with `?account=<role link name>`
 opens the application in that role. Add `lang=<en|uk|de|es>` for
-the interface's language on that visit (e.g. `?account=owner&lang=uk#/dashboard/16`).
+the interface's language on that visit (e.g. `?account=owner&lang=uk#/dashboard?at=Energy`). A card by its titles' path holds in every installation (the ids are each one's own): `#/dashboard?at=Energy/Energy Ledger`.

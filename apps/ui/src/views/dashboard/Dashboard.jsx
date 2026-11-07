@@ -526,7 +526,7 @@ const FitHeight = ({ children }) => {
 
 const Dashboard = () => {
   const { cardId } = useParams()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const navigate = useNavigate()
   // the viewer's own fit of an opened avatar (its card's "Viewer can switch the fit"): {cardId: view}
   const [viewed, setViewed] = usePersistedState('nexusedge.dashboard', { fit: {} })
@@ -567,6 +567,27 @@ const Dashboard = () => {
     )
   }
 
+  // a card by its titles' path (`#/dashboard?at=Energy/Energy Ledger`, the user's 2026-11-07 bug): a
+  // link that holds in every installation - the ids are each database's own (the site's demo links led to
+  // the wrong card on the server); case-insensitive; not found - the warning below
+  const at = new URLSearchParams(search).get('at')
+  if (!cardId && at) {
+    const found = at
+      .split('/')
+      .map((x) => x.trim().toLowerCase())
+      .filter(Boolean)
+      .reduce(
+        (parent, title) =>
+          parent === undefined
+            ? undefined
+            : cards.find(
+                (c) => (c.parentId ?? null) === parent && (c.title ?? '').toLowerCase() === title,
+              )?.id,
+        null,
+      )
+    if (found) return <Navigate to={`/dashboard/${found}`} replace />
+    return <CAlert color="warning">{t('This card is not there (removed, or not visible to you).')}</CAlert>
+  }
   const card = cardId ? cards.find((c) => c.id === Number(cardId)) : null
   if (cardId && !card)
     // right after a role switch - a folder the new role doesn't see: the Dashboard's top (roleSwitch.js)

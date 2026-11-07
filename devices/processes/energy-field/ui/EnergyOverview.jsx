@@ -1,7 +1,10 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { CSpinner } from '@coreui/react'
+import { api } from 'src/api/client'
+import { useCan } from 'src/access'
 import KeyValue from 'src/components/KeyValue'
 import LedgerBlock from './LedgerBlock'
+import { DevicePopup } from './EnergyFieldScene'
 import { BatteryIcon, ConsumerIcon, Flow, GenerationIcon, GridIcon, SCENE_CSS } from './fieldIcons'
 import { fmt, useFieldData } from './useFieldData'
 import { packageT } from 'src/i18n'
@@ -17,6 +20,10 @@ const tr = packageT('energy-field')
 // three colours (green - for us, orange - against us, grey - none) and directions (the grid's export and
 // the batteries' discharge point back), a margin each side (2026-10-30). Narrow - one column, the flows
 // turned down.
+// A narrow overview (the user, 2026-11-07 - as the Energy scene's): the generation with its flow at the
+// bottom of its block, the grid with its flow on its right, the Ledger, the consumption with its flow on
+// its left, the batteries with their flow on top of their block; the wide one unchanged. Each block opens
+// the scene's own popup of the whole (the summed figures, the big charts - the scene's DevicePopup).
 
 const FLOW_SIZE = 56
 const ICON_HEIGHT = 72
@@ -29,34 +36,45 @@ const CSS = `
 .eo-grid { display: grid; grid-template-columns: minmax(0, 1fr) max-content minmax(${MID_MIN_PX}px, 2fr) max-content minmax(0, 1fr); gap: 10px; align-items: stretch }
 .eo-side { display: grid; grid-template-rows: 1fr 1fr; gap: 10px }
 .eo-flows { display: grid; grid-template-rows: 1fr 1fr; gap: 10px; align-items: center; justify-items: center }
-.eo-block { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border: 1px solid var(--ef-line); border-radius: 12px; background: var(--ef-card) }
+.eo-block { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border: 1px solid var(--ef-line); border-radius: 12px; background: var(--ef-card); color: inherit; text-align: start; cursor: pointer; width: 100% }
+.eo-block:hover, .eo-block:focus-visible { border-color: var(--cui-primary) }
 .eo-block .kv.eo-main { font-size: 1.35rem }
 .eo-flow { display: flex; flex-direction: column; align-items: center; line-height: 1.1 }
 .eo-flow .kv { font-size: 1.05rem }
+.eo-narrow-only { display: none }
 @container (max-width: ${STACK_PX}px) {
-  .eo-grid { grid-template-columns: minmax(0, 1fr) }
-  .eo-flows { grid-template-rows: none; grid-template-columns: 1fr 1fr }
-  .eo-flows svg { transform: rotate(90deg) }
+  .eo-grid { grid-template-columns: max-content minmax(0, 1fr) max-content; grid-template-areas: "gen gen gen" "grid grid gridflow" "ledger ledger ledger" "loadflow load load" "batt batt batt" }
+  .eo-side, .eo-flows { display: contents }
+  .eo-wide-only { display: none }
+  .eo-block { flex-wrap: wrap }
+  .eo-narrow-only { display: flex; flex-basis: 100%; justify-content: center }
+  .eo-gen { grid-area: gen } .eo-gridb { grid-area: grid } .eo-f-grid { grid-area: gridflow; align-self: center }
+  .eo-ledger { grid-area: ledger } .eo-f-load { grid-area: loadflow; align-self: center } .eo-load { grid-area: load }
+  .eo-batt { grid-area: batt }
+  .eo-flow svg { transform: rotate(90deg) }
+  .eo-flow.mx-3 { margin-inline: 4px !important }
 }
 `
 
 const kwText = (kw) => (Math.abs(kw) >= 100 ? fmt(Math.abs(kw), 0) : fmt(Math.abs(kw), 1))
 
 /** A block: its icon, the key figure and the words under it. */
-const Block = ({ icon, title, value, unit = 'kW', color, children }) => (
-  <div className="eo-block">
+const Block = ({ icon, title, value, unit = 'kW', color, className, onOpen, top, bottom, children }) => (
+  <button type="button" className={`eo-block ${className}`} onClick={onOpen}>
+    {top && <div className="eo-narrow-only">{top}</div>}
     <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{icon}</div>
-    <div style={{ minWidth: 0 }}>
+    <div style={{ minWidth: 0, flex: '1 1 0' }}>
       <div className="fw-semibold">{title}</div>
       <KeyValue value={value} unit={unit} color={color} className="eo-main" />
       <div className="small ef-muted">{children}</div>
     </div>
-  </div>
+    {bottom && <div className="eo-narrow-only">{bottom}</div>}
+  </button>
 )
 
 /** A flow between two columns - its chevrons, its power under them. */
-const FlowCell = ({ dir, kw, color, scaleKw, label }) => (
-  <div className="eo-flow mx-3">
+const FlowCell = ({ dir, kw, color, scaleKw, label, className = '' }) => (
+  <div className={`eo-flow mx-3 ${className}`}>
     <Flow
       dir={dir}
       kw={Math.abs(kw)}
@@ -75,9 +93,14 @@ const FlowCell = ({ dir, kw, color, scaleKw, label }) => (
 
 const EnergyOverview = ({ process }) => {
   const data = useFieldData(process)
-  const { m, gridMetrics } = data
+  const { m, grid, gridMetrics } = data
+  const can = useCan()
+  const [popup, setPopup] = useState(null)
   const t = m.totals
   if (!t) return <CSpinner size="sm" />
+  const control = can('processes.control', { process: process.id })
+  const send = (action, params) => api.sendProcessCommand(process.id, action, params).catch(() => {})
+  const seriesKey = (k) => `process:${process.id}:field.${k}`
   const generation = (t.pvKw ?? 0) + (t.windKw ?? 0)
   const gridFlow = t.gridKw > 0.05 ? 'import' : t.gridKw < -0.05 ? 'export' : 'none'
   const batteryDir = t.batteryKw < -0.05 ? 'charge' : t.batteryKw > 0.05 ? 'discharge' : 'none'
@@ -90,12 +113,75 @@ const EnergyOverview = ({ process }) => {
   const gridColor = gridFlow === 'export' ? gain : gridFlow === 'import' ? cost : off
   const batteryColor = batteryDir === 'charge' ? gain : batteryDir === 'discharge' ? cost : off
   const loadColor = (t.loadKw ?? 0) > 0.05 ? cost : off
+  const genFlow = (
+    <FlowCell
+      dir="right"
+      kw={generation}
+      color={generation > 0.05 ? gain : off}
+      scaleKw={scaleKw}
+      label={tr('Generation {{kwText}} kW', { kwText: kwText(generation) })}
+    />
+  )
+  const gridFlowCell = (
+    <FlowCell
+      className="eo-f-grid"
+      dir={gridFlow === 'export' ? 'left' : 'right'}
+      kw={t.gridKw}
+      color={gridColor}
+      scaleKw={scaleKw}
+      label={tr('Grid {{gridFlow}} {{kwText}} kW', { gridFlow, kwText: kwText(t.gridKw) })}
+    />
+  )
+  const battFlow = (
+    <FlowCell
+      dir={batteryDir === 'discharge' ? 'left' : 'right'}
+      kw={t.batteryKw}
+      color={batteryColor}
+      scaleKw={scaleKw}
+      label={tr('Batteries {{batteryDir}} {{kwText}} kW', { batteryDir, kwText: kwText(t.batteryKw) })}
+    />
+  )
+  const loadFlowCell = (
+    <FlowCell
+      className="eo-f-load"
+      dir="right"
+      kw={t.loadKw ?? 0}
+      color={loadColor}
+      scaleKw={scaleKw}
+      label={tr('Consumption {{kwText}} kW', { kwText: kwText(t.loadKw ?? 0) })}
+    />
+  )
+  const gridIcon = (h) => (
+    <GridIcon
+      height={h}
+      flow={gridFlow}
+      voltage={gridMetrics?.outage ? 'none' : 'ok'}
+      outage={gridMetrics?.outage}
+    />
+  )
+  const consumerState = t.shedKw > 0.05 ? 'bad' : t.loadKw > 0.05 ? 'on' : 'idle'
+  // the popup's big picture - the block's own icon, larger
+  const pictureOf = (kind) =>
+    kind === 'generation' ? (
+      <GenerationIcon height={170} on={generation > 0.05} rpm={meanRpm} />
+    ) : kind === 'grid' ? (
+      gridIcon(180)
+    ) : kind === 'batteries' ? (
+      <BatteryIcon width={200} level={t.socPct ?? null} charging={batteryDir === 'charge'} />
+    ) : (
+      <ConsumerIcon height={180} state={consumerState} />
+    )
+  const nodeIdOf = (kind) =>
+    kind === 'consumer' ? (m.consumer?.nodeId ?? null) : kind === 'grid' ? (grid?.node_id ?? null) : null
   return (
     <div className="ef-scene eo">
       <style>{SCENE_CSS + CSS}</style>
       <div className="eo-grid">
         <div className="eo-side">
           <Block
+            className="eo-gen"
+            onOpen={() => setPopup({ kind: 'generation' })}
+            bottom={genFlow}
             icon={<GenerationIcon height={ICON_HEIGHT} on={generation > 0.05} rpm={meanRpm} />}
             title={tr('Generation')}
             value={kwText(generation)}
@@ -105,14 +191,9 @@ const EnergyOverview = ({ process }) => {
             <KeyValue value={kwText(t.windKw ?? 0)} unit="kW" />
           </Block>
           <Block
-            icon={
-              <GridIcon
-                height={ICON_HEIGHT}
-                flow={gridFlow}
-                voltage={gridMetrics?.outage ? 'none' : 'ok'}
-                outage={gridMetrics?.outage}
-              />
-            }
+            className="eo-gridb"
+            onOpen={() => setPopup({ kind: 'grid' })}
+            icon={gridIcon(ICON_HEIGHT)}
             title={tr('Grid')}
             value={gridMetrics?.outage ? 'outage' : kwText(t.gridKw)}
             unit={gridMetrics?.outage ? '' : 'kW'}
@@ -130,50 +211,21 @@ const EnergyOverview = ({ process }) => {
           </Block>
         </div>
         <div className="eo-flows">
-          <FlowCell
-            dir="right"
-            kw={generation}
-            color={generation > 0.05 ? gain : off}
-            scaleKw={scaleKw}
-            label={tr('Generation {{kwText}} kW', {
-              kwText: kwText(generation),
-            })}
-          />
-          <FlowCell
-            dir={gridFlow === 'export' ? 'left' : 'right'}
-            kw={t.gridKw}
-            color={gridColor}
-            scaleKw={scaleKw}
-            label={tr('Grid {{gridFlow}} {{kwText}} kW', {
-              gridFlow,
-              kwText: kwText(t.gridKw),
-            })}
-          />
+          <div className="eo-wide-only">{genFlow}</div>
+          {gridFlowCell}
         </div>
-        <LedgerBlock process={process} data={data} />
+        <div className="eo-ledger">
+          <LedgerBlock process={process} data={data} />
+        </div>
         <div className="eo-flows">
-          <FlowCell
-            dir={batteryDir === 'discharge' ? 'left' : 'right'}
-            kw={t.batteryKw}
-            color={batteryColor}
-            scaleKw={scaleKw}
-            label={tr('Batteries {{batteryDir}} {{kwText}} kW', {
-              batteryDir,
-              kwText: kwText(t.batteryKw),
-            })}
-          />
-          <FlowCell
-            dir="right"
-            kw={t.loadKw ?? 0}
-            color={loadColor}
-            scaleKw={scaleKw}
-            label={tr('Consumption {{kwText}} kW', {
-              kwText: kwText(t.loadKw ?? 0),
-            })}
-          />
+          <div className="eo-wide-only">{battFlow}</div>
+          {loadFlowCell}
         </div>
         <div className="eo-side">
           <Block
+            className="eo-batt"
+            onOpen={() => setPopup({ kind: 'batteries' })}
+            top={battFlow}
             icon={
               <BatteryIcon
                 width={ICON_HEIGHT * 1.2}
@@ -199,12 +251,9 @@ const EnergyOverview = ({ process }) => {
             )}
           </Block>
           <Block
-            icon={
-              <ConsumerIcon
-                height={ICON_HEIGHT}
-                state={t.shedKw > 0.05 ? 'bad' : t.loadKw > 0.05 ? 'on' : 'idle'}
-              />
-            }
+            className="eo-load"
+            onOpen={() => setPopup({ kind: 'consumer' })}
+            icon={<ConsumerIcon height={ICON_HEIGHT} state={consumerState} />}
             title={tr('Consumption')}
             value={kwText(t.loadKw ?? 0)}
             color={t.shedKw > 0.05 ? 'var(--ef-bad)' : 'var(--ef-cons)'}
@@ -219,6 +268,22 @@ const EnergyOverview = ({ process }) => {
           </Block>
         </div>
       </div>
+      {popup && (
+        <DevicePopup
+          popup={popup}
+          process={process}
+          m={m}
+          gridMetrics={gridMetrics}
+          grid={grid}
+          control={control}
+          send={send}
+          seriesKey={seriesKey}
+          gridSeries={grid ? `process:${grid.id}:grid.powerKw` : null}
+          picture={pictureOf(popup.kind)}
+          nodeId={nodeIdOf(popup.kind)}
+          onClose={() => setPopup(null)}
+        />
+      )}
     </div>
   )
 }

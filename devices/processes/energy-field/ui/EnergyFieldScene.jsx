@@ -854,7 +854,7 @@ const EnergyFieldScene = ({ process }) => {
   )
 }
 
-const DevicePopup = ({
+export const DevicePopup = ({
   popup,
   process,
   m,

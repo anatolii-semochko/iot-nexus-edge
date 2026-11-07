@@ -19,4 +19,4 @@ Benutzer -> Rollen: eine Rolle ist eine Tabelle dessen, was sie darf:
 Eine Person mit mehreren Rollen handelt jeweils in einer - **Handeln als** im
 Benutzermenü; die Kopfzeile zeigt die aktuelle Rolle. Ein Link mit
 `?account=<Linkname der Rolle>` öffnet die Anwendung in dieser Rolle. Mit `lang=<en|uk|de|es>` -
-die Sprache der Oberfläche für diesen Besuch (z. B. `?account=owner&lang=de#/dashboard/16`).
+die Sprache der Oberfläche für diesen Besuch (z. B. `?account=owner&lang=de#/dashboard?at=Energy`). Eine Karte über den Pfad ihrer Titel (`#/dashboard?at=Energy/Energy Ledger`) findet der Link in jeder Installation - die Nummern der Karten hat jede für sich.

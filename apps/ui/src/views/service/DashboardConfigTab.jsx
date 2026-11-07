@@ -921,7 +921,7 @@ const DashboardConfigTab = () => {
         }}
       />
       {error && <CAlert color="danger">{error}</CAlert>}
-      <div className="d-flex align-items-center gap-2 mb-2">
+      <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
         <div className="me-auto">
           <UpBreadcrumb trail={trail} onNavigate={setFolderId} rootLabel={t('Dashboard')} />
         </div>

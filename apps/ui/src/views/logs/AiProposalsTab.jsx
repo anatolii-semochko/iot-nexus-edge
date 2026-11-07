@@ -30,7 +30,7 @@ const AiProposalsTab = () => {
   if (error) return <CAlert color="danger">{error}</CAlert>
   return (
     <>
-      <div className="d-flex align-items-center gap-2 mb-2">
+      <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
         <CFormSelect
           size="sm"
           style={{ width: 'auto' }}

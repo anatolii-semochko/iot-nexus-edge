@@ -19,7 +19,7 @@
  * <Route path="*" element={<DefaultLayout />} />
  */
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { matchPath, useLocation } from 'react-router-dom'
 import { AppContent, AppSidebar, AppFooter, AppHeader } from '../components/index'
 import { AiPanelProvider } from '../components/ai/AiPanel'
@@ -43,6 +43,26 @@ import { routes } from '../routes'
 const DefaultLayout = () => {
   const { pathname } = useLocation()
   const bleed = routes.some((r) => r.bleed && matchPath({ path: r.path, end: true }, pathname))
+  // while anything scrolls, the endless animations pause (style.scss `ne-scrolling`) - a phone's raster
+  // could not keep up with both and parts of the page blinked out; back on 200 ms after the last scroll
+  useEffect(() => {
+    const root = document.documentElement
+    let timer = 0
+    const onScroll = () => {
+      if (!timer) root.classList.add('ne-scrolling')
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        timer = 0
+        root.classList.remove('ne-scrolling')
+      }, 200)
+    }
+    window.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll, { capture: true })
+      clearTimeout(timer)
+      root.classList.remove('ne-scrolling')
+    }
+  }, [])
   return (
     <AiPanelProvider>
       <AppSidebar />

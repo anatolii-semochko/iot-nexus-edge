@@ -479,3 +479,53 @@ body {
     display: inline;
   }
 }
+
+// a phone (the first user's Samsung, 2026-11-07):
+// - a card's header with a row of controls wraps instead of widening the page (Live Events' "Clear" pushed
+//   the whole page to 470px - the header and the content then scrolled sideways)
+@media (max-width: 575.98px) {
+  .card-header.d-flex,
+  .card-header > .d-flex {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+}
+
+// - the user's menu scrolls inside itself to its last item (it is taller than a phone's screen)
+.header .dropdown-menu {
+  max-height: calc(100dvh - 4.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+// - the side menu over the page: its scroll stops at its ends (it used to carry on into the page behind -
+//   the page moved, the browser's toolbar hid and the menu jumped), the page under it does not scroll
+.sidebar,
+.sidebar .simplebar-content-wrapper {
+  overscroll-behavior: contain;
+}
+html:has(.sidebar-backdrop.show),
+html:has(.sidebar-backdrop.show) body {
+  overflow: hidden;
+}
+
+// - while the page scrolls, the endless animations pause (layout/DefaultLayout.jsx sets the class): a
+//   phone's raster could not keep up with them and the scroll - parts of the cards and the header blinked
+//   out; they go on a moment after the scroll stops
+html.ne-scrolling *,
+html.ne-scrolling *::before,
+html.ne-scrolling *::after {
+  animation-play-state: paused !important;
+}
+
+// - a wide table not wrapped in .table-responsive scrolls inside its own box on a phone, never the page
+@media (max-width: 767.98px) {
+  .table:not(.table-responsive .table) {
+    display: block;
+    overflow-x: auto;
+  }
+  // a row of buttons wider than the phone breaks into two
+  .btn-group {
+    flex-wrap: wrap;
+  }
+}
