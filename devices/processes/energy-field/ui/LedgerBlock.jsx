@@ -19,6 +19,7 @@ import StatTile from 'src/components/StatTile'
 import { fmt } from './useFieldData'
 import { LEVEL_COLOR, priceHoursOf, priceLevel, quartersOf } from './priceLevels'
 import { packageT } from 'src/i18n'
+import { decisionText } from './decisionText'
 // the package's words (its own locales/, then the core's)
 const t = packageT('energy-field')
 
@@ -318,7 +319,7 @@ const LedgerBlock = ({ process, data }) => {
         </span>
       </div>
       {error && <div className="small text-danger mb-1">{error}</div>}
-      <div className="fw-semibold mb-2">{m.decision}</div>
+      <div className="fw-semibold mb-2">{decisionText(t, m.decision)}</div>
       {hours.length > 0 && buyQ && (
         <div className="mb-2">
           <div className="d-flex justify-content-between small ef-muted">

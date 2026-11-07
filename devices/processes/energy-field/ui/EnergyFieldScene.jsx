@@ -685,7 +685,7 @@ const EnergyFieldScene = ({ process }) => {
                   })}
                 />
                 <span className="text-nowrap">
-                  {word}{' '}
+                  {tr(word)}{' '}
                   <KeyValue
                     value={fmt(ct, 1)}
                     className={level ? `text-${LEVEL_COLOR[level.level]}` : undefined}
@@ -721,7 +721,7 @@ const EnergyFieldScene = ({ process }) => {
             <FlowFigure kw={Math.abs(t.gridKw)} color="var(--ef-gain)" />
           ) : (
             <span className="ef-flow-word" style={{ color: gridColor }} title={flowTitles.grid}>
-              {gridFlow}
+              {tr(gridFlow)}
             </span>
           )}
         </div>
