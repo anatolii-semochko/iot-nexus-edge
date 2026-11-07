@@ -9185,6 +9185,14 @@ cold's when cooling).
   (`minmax(max-content, 1fr)`), the centre at least `MID_MIN_PX` (440), the
   row stacked under `MID_STACK_PX` (1080 px of scene) - nothing overlaps
   between (`images/bug-electricity-blocks.png`); the wide layout as before.
+  The narrow scene (2026-11-07, the user's phone layout): two columns -
+  the grid and its flow on the right, the ledger across, the supply flow
+  and the consumer on its right (grid areas); the generation's flow at the
+  bottom of its block, the batteries' on top of theirs (`generationFlow` /
+  `batteryFlow` - one element in two places, `.ef-wide-only` /
+  `.ef-narrow-only`); the flows' figures and words smaller
+  (`FLOW_VALUE_NARROW_REM`, `FLOW_WORD_NARROW_REM`), their side slots
+  shared equally; the gaps - the scene's 14px.
 
 **The heating's scene**
 - No own padding; the heat pumps' head: the summary line and the mode on
