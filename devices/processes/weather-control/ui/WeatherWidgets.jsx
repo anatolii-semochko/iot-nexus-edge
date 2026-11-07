@@ -25,6 +25,8 @@ const NARROW_PX = 440
 // the widget's height - its picture's: a heat pump's in the heating scene less 20 % (the user,
 // 2026-10-24 - lower widgets); the texts' line on top, the curve in the rest
 const WIDGET_PX = 112
+// the icon's height - a neighbour block's picture as tall (the heating's grid, 2026-11-07)
+export const WEATHER_ICON_PX = WIDGET_PX
 // the picture's width at most this share of the widget (side by side) - else a wide picture
 // would narrow the texts, they would wrap, grow taller and widen the picture again
 const ICON_MAX_SHARE = 0.4
@@ -56,6 +58,9 @@ const WIDGET_CSS = `
 /* the texts - one line, only the main ones; what does not fit is cut, never wrapped */
 .wx-line { display: flex; align-items: baseline; column-gap: 12px; white-space: nowrap; overflow: hidden; flex: none; flex-wrap: nowrap }
 .wx-line .sum-figures { flex-wrap: nowrap }
+/* a narrow widget - the line's parts wrap whole (a scene's extra - the heating's "from outdoors" - was cut) */
+.wx-narrow .wx-line { flex-wrap: wrap; white-space: normal; overflow: visible; row-gap: 2px }
+.wx-narrow .wx-line > * { white-space: nowrap }
 .wx-curve { cursor: pointer; margin-top: 2px; border-radius: 2px; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
 .wx-curve:focus-visible { outline: 2px solid var(--cui-primary); outline-offset: 2px }
 .wx-curve-body { position: relative; flex: 1 1 auto; min-height: 24px; background: var(--wx-chart-bg);
@@ -730,7 +735,8 @@ const STEADY_C = 0.5
  * one in 3 hours, the next hours' curve (the humidity - in the popup). `outdoor` - the
  * heating's own reading ({ temperatureC, in3hC, humidityPct }), else the forecast's hour.
  */
-export const TemperatureWidget = ({ forecast, outdoor, weatherId, cardClass }) => {
+// `extra` - a scene's own figure on the summary line (the heating's heat from outdoors)
+export const TemperatureWidget = ({ forecast, outdoor, weatherId, cardClass, extra }) => {
   const [open, setOpen] = useState(false)
   const now = useNow(60_000)
   const hourNow = currentHour(forecast, now)
@@ -766,6 +772,7 @@ export const TemperatureWidget = ({ forecast, outdoor, weatherId, cardClass }) =
               {tr('in 3 h')} {fmt(outdoor.in3hC, 1)} °C
             </span>
           )}
+          {extra}
         </SummaryLine>
         <HourCurve
           hours={hours}

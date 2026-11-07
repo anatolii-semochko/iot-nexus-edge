@@ -9195,6 +9195,13 @@ cold's when cooling).
   shared equally; the gaps - the scene's 14px.
 
 **The heating's scene**
+- The supply row (2026-11-07): the electricity from the grid (a grid tower as tall as the weather's
+  icon - `WEATHER_ICON_PX`; the heat pumps' and the fans' kW) on the left, the weather on the right with
+  the heat taken from the outdoor air (heating: the heat less the pumps' electricity; cooling - given off:
+  the cold and the electricity; `TemperatureWidget`'s `extra`); one column when narrow. A narrow
+  weather widget's line wraps its parts whole (`.wx-narrow .wx-line`).
+- The water lines' picture (the gauges and the pipes) - its own width at most, narrower with its block
+  (`width: W, maxWidth: 100%`, the svg scaled; a phone cut the right gauge).
 - No own padding; the heat pumps' head: the summary line and the mode on
   the left, the state and today's figures on the right (stacked on the left
   under `HEAD_STACK_PX` 720, a container query).

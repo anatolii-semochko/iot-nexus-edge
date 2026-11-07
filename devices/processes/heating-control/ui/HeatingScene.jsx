@@ -5,7 +5,8 @@ import { useCan } from 'src/access'
 import RoundGauge from 'src/components/indicators/RoundGauge'
 import KeyValue from 'src/components/KeyValue'
 import SummaryLine from 'src/components/SummaryLine'
-import { TemperatureWidget } from '../../weather-control/ui/WeatherWidgets'
+import { TemperatureWidget, WEATHER_ICON_PX } from '../../weather-control/ui/WeatherWidgets'
+import { GridIcon, SCENE_CSS as ENERGY_CSS } from '../../energy-field/ui/fieldIcons'
 import DayNotes from 'src/components/dayNotes/DayNotes'
 import AiButton from 'src/components/ai/AiButton'
 import {
@@ -57,9 +58,15 @@ const SCENE_CSS = `
 .ht-head > div > .btn-group { align-self: flex-start; }
 .ht-head-right { align-items: flex-end; text-align: right; }
 .ht-head-right > .d-flex { justify-content: flex-end; }
+/* the supply row (the user, 2026-11-07): the electricity from the grid on the left, the weather - the
+   heat from outdoors - on the right; one column when narrow */
+.ht-supply { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 14px; }
+.ht-supply .wx-widget { margin: 0; }
+.ht-grid-in { display: flex; align-items: center; gap: 16px; }
 @container (max-width: ${HEAD_STACK_PX}px) {
   .ht-head-right { align-items: flex-start; text-align: left; }
   .ht-head-right > .d-flex { justify-content: flex-start; }
+  .ht-supply { grid-template-columns: minmax(0, 1fr); }
 }
 /* a tank's gauges close to it (images/fix-water-tank-scales-distance.png); the next tank as far
    as before */
@@ -68,9 +75,9 @@ const SCENE_CSS = `
    stretched to the right (images/fix-heat-streams.png, 2026-10-24); the chart under them when narrow */
 .ht-stream { display: flex; align-items: stretch; gap: 16px; flex-wrap: wrap; }
 /* the line's gauges open its popup (the power today, big - 2026-10-29) */
-.ht-stream > .ht-lines-open { flex: none; display: flex; border: 0; padding: 0; background: transparent; cursor: pointer; border-radius: 8px; }
+.ht-stream > .ht-lines-open { flex: 0 1 auto; min-width: 0; max-width: 100%; display: flex; border: 0; padding: 0; background: transparent; cursor: pointer; border-radius: 8px; }
 .ht-stream > .ht-lines-open:focus-visible { outline: 2px solid var(--cui-primary); outline-offset: 2px; }
-.ht-lines-open > .ht-lines { flex: none; display: flex; }
+.ht-lines-open > .ht-lines { flex: 0 1 auto; min-width: 0; display: flex; }
 .ht-stream > .ht-trend { flex: 1 1 240px; padding: 10px 0 6px; }
 .ht-tank-unit { margin-right: ${16 - TANK_GAUGE_GAP}px; }
 .ht-caption { font-size: .8rem; color: var(--ht-muted); }
@@ -125,10 +132,15 @@ const Lines = ({ line, mode, maxKw, title }) => {
   const up = `M0 ${H} V0`
   return (
     // the left gauge's rim (r + 4 % - RoundGauge) on the cards' left border line
-    <div className="ht-lines" title={title} style={{ marginLeft: -(left.cx - R * 1.04) }}>
+    // its own width at most, narrower with its block (a phone cut the right gauge - 2026-11-07)
+    <div
+      className="ht-lines"
+      title={title}
+      style={{ marginLeft: -(left.cx - R * 1.04), width: W, maxWidth: '100%' }}
+    >
       <svg
-        width={W}
-        height={H}
+        width="100%"
+        style={{ display: 'block', height: 'auto' }}
         viewBox={`0 0 ${W} ${H}`}
         role="img"
         aria-label={tr('The water lines between the blocks')}
@@ -292,6 +304,17 @@ const HeatingScene = ({ process, params }) => {
       : `${cooling ? tr('Cooling') : tr('Heating')} · ${m.control === 'auto' ? 'auto' : tr('set by hand')}`
   const saving =
     today.directEur != null && today.costEur != null ? today.directEur - today.costEur : null
+  // the supply row: the heating's electricity from the grid (the heat pumps and the fans); the heat the
+  // heat pumps take from the outdoor air (heating - their heat less their electricity) or give off to it
+  // (cooling - the cold and their electricity); nothing while they stand
+  const gridKw = (t.electricKw ?? 0) + (t.fansKw ?? 0)
+  const pumpsHeat = Math.abs(t.heatKw ?? 0)
+  const outdoorKw =
+    pumpsHeat < 0.05
+      ? null
+      : cooling
+        ? pumpsHeat + (t.electricKw ?? 0)
+        : Math.max(0, pumpsHeat - (t.electricKw ?? 0))
 
   return (
     <div className="ht-scene d-flex flex-column gap-0">
@@ -322,12 +345,44 @@ const HeatingScene = ({ process, params }) => {
           ].map((u) => ({ nodeId: u.nodeId, name: u.name }))}
         />
       </div>
-      <div className="mb-3">
+      <div className="ht-supply mb-3">
+        <style>{ENERGY_CSS}</style>
+        <section
+          className="ht-block ht-grid-in ef-colors"
+          aria-label={tr('Electricity from the grid')}
+          title={tr(
+            "The heating's electricity from the grid now - the heat pumps and the fan coils' fans",
+          )}
+        >
+          <GridIcon height={WEATHER_ICON_PX} flow={gridKw > 0.05 ? 'import' : 'none'} />
+          <div className="d-flex flex-column gap-1">
+            <SummaryLine
+              title={tr('Grid')}
+              color={gridKw > 0.05 ? 'var(--ef-cost)' : 'var(--ef-off)'}
+              items={[{ v: fmt(gridKw) }, tr('kW')]}
+            />
+            <span className="ht-caption">{tr('the heat pumps and the fans')}</span>
+          </div>
+        </section>
         <TemperatureWidget
           cardClass="ht-block"
           forecast={forecast}
           outdoor={m.outdoor}
           weatherId={process.config?.weatherProcessId ?? null}
+          extra={
+            outdoorKw !== null && (
+              <span
+                title={tr(
+                  cooling
+                    ? 'The heat the heat pumps give off outdoors now - the cold made and their electricity'
+                    : 'The heat the heat pumps take from the outdoor air now - their heat less their electricity',
+                )}
+              >
+                {cooling ? tr('to outdoors') : tr('from outdoors')}{' '}
+                <KeyValue value={fmt(outdoorKw)} unit="kW" color={tone} />
+              </span>
+            )
+          }
         />
       </div>
       <section className="ht-block" aria-label={tr('The heat pumps')}>
