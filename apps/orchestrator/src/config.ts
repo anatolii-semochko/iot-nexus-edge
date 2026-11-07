@@ -40,6 +40,9 @@ export const config = {
   // device that drifted gets corrected).
   reportResendMs: Number(process.env.ORCHESTRATOR_REPORT_RESEND_MS ?? 60000),
   autoReassertMs: Number(process.env.ORCHESTRATOR_AUTO_REASSERT_MS ?? 60000),
+  // A warning / error gone from a process's report stays active this long more (apiClient.ts settle) -
+  // a condition at its edge isn't logged anew each time it comes back.
+  messageClearAfterMs: Number(process.env.ORCHESTRATOR_MESSAGE_CLEAR_AFTER_MS ?? 30000),
   // How often the "ai-assistant" process asks the API to start the due
   // scheduled AI runs (processes/aiAssistant.ts) - the calendar's resolution.
   aiCalendarIntervalMs: Number(process.env.AI_CALENDAR_INTERVAL_MS ?? 60000),

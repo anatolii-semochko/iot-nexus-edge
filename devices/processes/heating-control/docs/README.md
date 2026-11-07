@@ -91,7 +91,8 @@ planner / band, `why`).
    pumps without tanks (the delivered heat at the COP of the moment it's
    needed; its electricity `noStorageKwh` too) - what the system saves.
 5. WEM: errors - frost in a room or a tank (< 5 C); warnings - a tank over its
-   `tMaxC`, a COP / EER under 2, the tanks nearly empty while heating, no
+   `tMaxC`, a COP / EER under 2, the tanks nearly empty while heating (under 10 %
+   with a room already 0.5 K under its setpoint; cleared over 15 %), no
    forecast.
 6. Metrics: `mode`, `control`, `charging`, `electricKw` (the Energy Field's
    `loadProcessIds` add it to the site's consumption), `outdoor` (now, in 3

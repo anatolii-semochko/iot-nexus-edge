@@ -191,6 +191,23 @@ const ResourceMonitorPanel = ({ process, onConfigChange }) => {
               onCommit={(v) => handleCommit('holdSeconds', v)}
             />
           </CCol>
+          <CCol xs="auto">
+            <div
+              className="text-body-secondary small"
+              title={t(
+                'A warning / error is raised only once its metric has been over the threshold this long - a short spike (a build, a nightly job) raises nothing',
+              )}
+            >
+              {t('Raise after, s')}
+            </div>
+            <NumericStepper
+              value={process.config.raiseSeconds ?? 30}
+              step={10}
+              min={0}
+              max={600}
+              onCommit={(v) => handleCommit('raiseSeconds', v)}
+            />
+          </CCol>
         </CRow>
       </div>
       <div className="flex-grow-1 d-flex flex-column mb-2">

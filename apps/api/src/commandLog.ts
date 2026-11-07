@@ -167,7 +167,7 @@ export interface ListCommandLogsParams {
   page: number;
   pageSize: number;
   // a person limited to some DNP instances (access/scope.ts): only these processes' / devices' rows
-  visible?: { processIds: number[]; deviceIds: number[] };
+  visible?: { processIds: number[]; deviceIds: number[]; quietIds?: number[] };
 }
 
 /**
@@ -183,6 +183,10 @@ export async function listCommandLogs(params: ListCommandLogsParams): Promise<{ 
   if (visible) {
     values.push(visible.processIds, visible.deviceIds);
     conditions.push(`(l.process_id = ANY($${values.length - 1}) OR l.device_id = ANY($${values.length}))`);
+    if (visible.quietIds?.length) {
+      values.push(visible.quietIds);
+      conditions.push(`(l.process_id IS NULL OR NOT l.process_id = ANY($${values.length}))`);
+    }
   }
   if (processIds !== undefined) {
     values.push(processIds);

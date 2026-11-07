@@ -43,9 +43,15 @@ import { tickProcesses } from "../tickProcesses.js";
 // `null` - never seen a heartbeat yet (a fresh deploy, or a process kind
 // with no runner) - deliberately not treated as "infinitely stale", same
 // defensive stance as resourceMonitor.ts's own "no CPU sample yet" skip.
+// Its first run (after the orchestrator's start, once the API answers): the silence is counted from it at
+// the latest - a restart (a deploy) found every process and node "silent" for the minutes it was down,
+// Heartbeating Control itself too, and raised warnings / errors that cleared a tick later (iot
+// AGENTS_TO_DO.md 2026-11-07, the messages audit)
+let watchingSince: number | null = null;
+
 function skippedTicks(lastSeenAt: string | null): number | null {
   if (!lastSeenAt) return null;
-  const elapsedMs = Date.now() - new Date(lastSeenAt).getTime();
+  const elapsedMs = Date.now() - Math.max(new Date(lastSeenAt).getTime(), watchingSince ?? Date.now());
   return Math.floor(elapsedMs / TICK_INTERVAL_MS);
 }
 
@@ -141,6 +147,7 @@ export async function runHeartbeatControl(process: ProcessRecord): Promise<void>
     return;
   }
 
+  watchingSince ??= Date.now();
   const errorEntries: MessageInput[] = [];
   const warningEntries: MessageInput[] = [];
 

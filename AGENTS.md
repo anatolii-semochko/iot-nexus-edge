@@ -1488,6 +1488,12 @@ continuously. The flags (critical / warning) and the messages use the same
 rule. Per process, in the orchestrator's memory (a restart starts from the
 plain thresholds). The panel: "Hysteresis", "Hold, s".
 
+**Raise after (2026-11-07)**: a level is raised only once its metric has
+been over the threshold `raiseSeconds` (config, default 30) continuously -
+the demo server's CPU over 70 % for seconds (a build, the nightly jobs)
+raised a warning up to 17 times an hour. The panel: "Raise after, s". Its
+messages go without the platform's settling (section 22) - its own hold.
+
 ## 22. Logging + WEM (Warnings/Errors/Messages)
 
 > A one-shot report that should only be logged (never active) is an event -
@@ -1573,6 +1579,31 @@ actually changed - same no-redundant-publish principle as
 boolean, since a boolean only has two states to compare and this has to
 diff two code sets. `setHidden` (UI-driven dismiss) publishes the same
 event after toggling, so every viewer's row updates immediately.
+
+**Settling (2026-11-07, `apps/orchestrator/src/messageSettle.ts`)**:
+`apiClient.syncMessages` holds a warning / error gone from a process's
+report `ORCHESTRATOR_MESSAGE_CLEAR_AFTER_MS` (30 s) more, with its last
+text - back within it, it is the same message, not a new row; the
+process's `setCritical` / `setWarning` hold with it (a held error wins).
+Every producer has it (the plugins' ctx is the same `apiClient`); a
+producer with its own hold passes `{ clearAfterMs: 0 }` (resource-monitor).
+After an orchestrator restart the hold starts from what the API has active
+(`GET /processes` `messages`): a process's first tick, before its state is
+loaded, reported nothing - each deploy resolved every aquarium warning and
+raised it again seconds later as a new row.
+Why: conditions at their edge - a simulation's writes failing every other
+tick while EdgeX restarts on a deploy, a tank charge around a threshold -
+logged a new row each time they came back: 3 265 unread errors and 1 769
+warnings on the demo in three days, the header at 99+ for everyone.
+
+**Simulations' messages are quiet** for a person without
+`simulation.view` on their unit (2026-11-07, `access/scope.ts`
+`quietSimulations`): the stream scope's `quiet` ids - the gateway sends
+those processes without their flags / active messages and leaves them out
+of the unread counters; `GET /log-messages` and `/logs/commands`
+(`scopeIds(..., { quiet: true })`) leave their rows out. `GET /processes`
+still lists them (the aquarium's calibration wizard and dosing read their
+simulation's state for a person without simulation.view).
 
 **Real producer**: `resourceMonitor.ts` (section 21) now calls
 `apiClient.syncMessages` twice per tick - once for `"error"`, once for
@@ -2661,6 +2692,11 @@ Batched heartbeat touch, not one HTTP call per process per second:
 `apiClient.touchHeartbeats(ids)` once at the end - a single
 `POST /processes/heartbeat`, pipelined into Redis server-side
 (`heartbeatControl.touchHeartbeats`), not N round trips.
+
+The silence is counted from Heartbeating Control's first run at the
+latest (2026-11-07): after a restart (a deploy) the last-seen marks in Redis were
+minutes old, and the first tick raised "hasn't sent a heartbeat in 82
+ticks" for every process, Heartbeating Control itself included.
 
 ### "Heartbeating control test" process
 
@@ -8464,7 +8500,9 @@ plan and the decisions - iot `AGENTS_TO_DO.md` (B1).
   the fleet snapshot carries `unreadByProcess`, the gateway sums a limited
   person's and drops it before sending - `scopedProcessSnapshot`). A
   message's hide (`PATCH /log-messages/:messageId`) needs Control on its
-  process; `GET /log-messages?processId=` - one of theirs only.
+  process; `GET /log-messages?processId=` - one of theirs only. The
+  simulations' messages - only for one with `simulation.view` (section 22,
+  "quiet").
 - **Acting in one role** (G1, 2026-10-26 - groups then, roles since
   2026-10-27; migration 093): a person with several roles chooses one at a
   time in the header's avatar menu ("Act as"; the menu: the name, the

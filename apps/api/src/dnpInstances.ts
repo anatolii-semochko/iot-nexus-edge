@@ -13,6 +13,8 @@ export interface UnitMap {
   processUnit: Map<number, string>;
   deviceUnit: Map<number, string>;
   nodeUnit: Map<number, string>;
+  // the simulation processes (type 'simulation') - their messages are quiet for one without simulation.view
+  simulations: Set<number>;
 }
 
 const CACHE_MS = 5000;
@@ -27,7 +29,7 @@ async function load(): Promise<UnitMap> {
          SELECT n.id, t.root, t.root_name FROM nodes n JOIN tree t ON n.parent_id = t.id)
        SELECT id, root, root_name FROM tree`,
     ),
-    pool.query<{ id: number; name: string; kind: string; node_id: number | null }>("SELECT id, name, kind, node_id FROM processes ORDER BY id"),
+    pool.query<{ id: number; name: string; kind: string; type: string; node_id: number | null }>("SELECT id, name, kind, type, node_id FROM processes ORDER BY id"),
     pool.query<{ id: number; node_id: number | null }>("SELECT id, node_id FROM devices"),
   ]);
   const rootOf = new Map(nodes.rows.map((n) => [n.id, n]));
@@ -53,7 +55,8 @@ async function load(): Promise<UnitMap> {
     processUnit.set(p.id, key);
   }
   for (const d of devices.rows) deviceUnit.set(d.id, unitOfNode(d.node_id) ?? "system");
-  return { units, processUnit, deviceUnit, nodeUnit };
+  const simulations = new Set(processes.rows.filter((p) => p.type === "simulation").map((p) => p.id));
+  return { units, processUnit, deviceUnit, nodeUnit, simulations };
 }
 
 /** Every process, device and node -> its unit (cached for a few seconds). */
