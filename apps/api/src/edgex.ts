@@ -137,7 +137,11 @@ export async function writeValue(deviceName: string, commandName: string, value:
   const res = await fetch(url, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ [commandName]: value }),
+    // A number goes as a string, the form EdgeX itself uses for readings: a JSON
+    // number reaches core-command as a Go float64 and is printed back as text in
+    // the shortest form, so every whole number from 1e6 up becomes "1.411806e+06"
+    // and an integer valueType (Uint32...) rejects it with a 400.
+    body: JSON.stringify({ [commandName]: typeof value === "number" ? String(value) : value }),
   });
   if (!res.ok) {
     const text = await res.text();

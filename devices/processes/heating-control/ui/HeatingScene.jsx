@@ -5,8 +5,8 @@ import { useCan } from 'src/access'
 import RoundGauge from 'src/components/indicators/RoundGauge'
 import KeyValue from 'src/components/KeyValue'
 import SummaryLine from 'src/components/SummaryLine'
-import { TemperatureWidget, WEATHER_ICON_PX } from '../../weather-control/ui/WeatherWidgets'
-import { GridIcon, SCENE_CSS as ENERGY_CSS } from '../../energy-field/ui/fieldIcons'
+import { TemperatureWidget } from '../../weather-control/ui/WeatherWidgets'
+import GridSupply from './GridSupply'
 import DayNotes from 'src/components/dayNotes/DayNotes'
 import AiButton from 'src/components/ai/AiButton'
 import {
@@ -58,11 +58,10 @@ const SCENE_CSS = `
 .ht-head > div > .btn-group { align-self: flex-start; }
 .ht-head-right { align-items: flex-end; text-align: right; }
 .ht-head-right > .d-flex { justify-content: flex-end; }
-/* the supply row (the user, 2026-11-07): the electricity from the grid on the left, the weather - the
-   heat from outdoors - on the right; one column when narrow */
-.ht-supply { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 14px; }
+/* the supply row (the user, 2026-11-07): the electricity from the grid on the left (GridSupply.jsx), the
+   weather - the heat from outdoors - on the right, as wide; one column when narrow */
+.ht-supply { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .ht-supply .wx-widget { margin: 0; }
-.ht-grid-in { display: flex; align-items: center; gap: 16px; }
 @container (max-width: ${HEAD_STACK_PX}px) {
   .ht-head-right { align-items: flex-start; text-align: left; }
   .ht-head-right > .d-flex { justify-content: flex-start; }
@@ -346,24 +345,7 @@ const HeatingScene = ({ process, params }) => {
         />
       </div>
       <div className="ht-supply mb-3">
-        <style>{ENERGY_CSS}</style>
-        <section
-          className="ht-block ht-grid-in ef-colors"
-          aria-label={tr('Electricity from the grid')}
-          title={tr(
-            "The heating's electricity from the grid now - the heat pumps and the fan coils' fans",
-          )}
-        >
-          <GridIcon height={WEATHER_ICON_PX} flow={gridKw > 0.05 ? 'import' : 'none'} />
-          <div className="d-flex flex-column gap-1">
-            <SummaryLine
-              title={tr('Grid')}
-              color={gridKw > 0.05 ? 'var(--ef-cost)' : 'var(--ef-off)'}
-              items={[{ v: fmt(gridKw) }, tr('kW')]}
-            />
-            <span className="ht-caption">{tr('the heat pumps and the fans')}</span>
-          </div>
-        </section>
+        <GridSupply process={process} kw={gridKw} cardClass="ht-block" />
         <TemperatureWidget
           cardClass="ht-block"
           forecast={forecast}

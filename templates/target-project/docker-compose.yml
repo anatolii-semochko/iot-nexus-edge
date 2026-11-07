@@ -17,8 +17,18 @@
 
 name: __SLUG__
 
+# Container logs (json-file) are capped per service: max-size per file, max-file
+# files kept (.env DOCKER_LOG_MAX_SIZE / DOCKER_LOG_MAX_FILE). Unbounded, the
+# stacks' logs reached 43 GB in two weeks on a dev machine (2026-11-07).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+    max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
 services:
   postgres:
+    logging: *logging
     # TimescaleDB (PostgreSQL 16 + the time-series extension, arm64 too -
     # nexus-edge AGENTS.md "Time series"): the device / value logs as
     # hypertables with continuous aggregates. The library is preloaded
@@ -40,6 +50,7 @@ services:
       - __SLUG__-network
 
   redis:
+    logging: *logging
     image: redis:7-alpine
     container_name: __SLUG__-redis
     restart: unless-stopped
@@ -47,6 +58,7 @@ services:
       - __SLUG__-network
 
   rabbitmq:
+    logging: *logging
     image: rabbitmq:4-management-alpine
     container_name: __SLUG__-rabbitmq
     restart: unless-stopped
@@ -57,6 +69,7 @@ services:
       - __SLUG__-network
 
   orchestrator:
+    logging: *logging
     build:
       context: ${NEXUS_EDGE_SOURCE_PATH}
       dockerfile: apps/orchestrator/Dockerfile
@@ -85,6 +98,7 @@ services:
       - __SLUG__-network
 
   api:
+    logging: *logging
     build:
       context: ${NEXUS_EDGE_SOURCE_PATH}
       dockerfile: apps/api/Dockerfile
@@ -131,6 +145,7 @@ services:
       - __SLUG__-network
 
   messaging-gateway:
+    logging: *logging
     build:
       context: ${NEXUS_EDGE_SOURCE_PATH}
       dockerfile: apps/messaging-gateway/Dockerfile
@@ -151,6 +166,7 @@ services:
   # NEXUS_EDGE_SOURCE_PATH be an arbitrary path, not just a sibling
   # directory.
   ui:
+    logging: *logging
     build:
       context: .
       dockerfile: apps/ui/Dockerfile

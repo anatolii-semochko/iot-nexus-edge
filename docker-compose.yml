@@ -1,7 +1,17 @@
 name: nexus-edge
 
+# Container logs (json-file) are capped per service: max-size per file, max-file
+# files kept (.env DOCKER_LOG_MAX_SIZE / DOCKER_LOG_MAX_FILE). Unbounded, the
+# stacks' logs reached 43 GB in two weeks on a dev machine (2026-11-07).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+    max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
 services:
   postgres:
+    logging: *logging
     # TimescaleDB (PostgreSQL 16 + the time-series extension, arm64 too -
     # nexus-edge AGENTS.md "Time series"): the device / value logs as
     # hypertables with continuous aggregates. The library is preloaded
@@ -23,6 +33,7 @@ services:
       - nexus-edge-network
 
   redis:
+    logging: *logging
     image: redis:7-alpine
     container_name: nexus-edge-redis
     restart: unless-stopped
@@ -40,6 +51,7 @@ services:
       - nexus-edge-network
 
   rabbitmq:
+    logging: *logging
     image: rabbitmq:4-management-alpine
     container_name: nexus-edge-rabbitmq
     restart: unless-stopped
@@ -58,6 +70,7 @@ services:
       - nexus-edge-network
 
   orchestrator:
+    logging: *logging
     build:
       context: .
       dockerfile: apps/orchestrator/Dockerfile
@@ -83,6 +96,7 @@ services:
       - nexus-edge-network
 
   api:
+    logging: *logging
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -146,6 +160,7 @@ services:
       - nexus-edge-network
 
   messaging-gateway:
+    logging: *logging
     build:
       context: .
       dockerfile: apps/messaging-gateway/Dockerfile
@@ -161,6 +176,7 @@ services:
       - nexus-edge-network
 
   ui:
+    logging: *logging
     build:
       context: .
       dockerfile: apps/ui/Dockerfile

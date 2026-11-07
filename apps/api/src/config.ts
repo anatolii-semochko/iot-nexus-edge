@@ -30,6 +30,12 @@ export const config = {
   // in its own .env to drop the per-request noise while keeping real
   // logger.warn()/error() calls elsewhere in the app visible.
   logLevel: process.env.LOG_LEVEL ?? "info",
+  // Which requests Fastify logs (API_REQUEST_LOG): "errors" - only the ones
+  // answered with 5xx (one line each); "all" - every request and response, 2
+  // lines each. The internal traffic (the orchestrator's tick, the device
+  // service) is ~30 req/s on a running instance - logging all of it wrote
+  // ~1.5 GB a day to the container's log (2026-11-07).
+  requestLog: process.env.API_REQUEST_LOG === "all" ? "all" : "errors",
   // POST /devices/values (AGENTS.md section 88): how old a PHYSICAL
   // sensor's cached reading may be before the batch read goes to EdgeX
   // for a fresh one.

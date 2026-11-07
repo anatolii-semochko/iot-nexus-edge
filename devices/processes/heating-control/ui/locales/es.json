@@ -211,5 +211,7 @@
   "The heat the heat pumps take from the outdoor air now - their heat less their electricity": "El calor que las bombas de calor toman del aire exterior ahora - su calor menos su electricidad",
   "to outdoors": "al exterior",
   "from outdoors": "del exterior",
-  "kW": "kW"
+  "kW": "kW",
+  "kW from the grid": "kW de la red",
+  "The electricity from the grid - the last day and the plan for the next, kW": "Electricidad de la red - el último día y el plan para el siguiente, kW"
 }

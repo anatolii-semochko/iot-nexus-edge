@@ -19,8 +19,18 @@
 
 name: nexus-edge
 
+# Container logs (json-file) are capped per service: max-size per file, max-file
+# files kept (.env DOCKER_LOG_MAX_SIZE / DOCKER_LOG_MAX_FILE). Unbounded, the
+# stacks' logs reached 43 GB in two weeks on a dev machine (2026-11-07).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+    max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
 services:
   edgex-postgres:
+    logging: *logging
     container_name: edgex-postgres
     hostname: edgex-postgres
     image: postgres:16.3-alpine
@@ -39,6 +49,7 @@ services:
       - nexus-edge-network
 
   edgex-mqtt-broker:
+    logging: *logging
     container_name: edgex-mqtt-broker
     hostname: edgex-mqtt-broker
     image: eclipse-mosquitto:2.0.22
@@ -60,6 +71,7 @@ services:
   # nodes on the LAN connect to it. Anonymous until the platform-wide
   # authorization task - LAN only.
   device-mqtt-broker:
+    logging: *logging
     container_name: nexus-edge-device-mqtt-broker
     hostname: device-mqtt-broker
     image: eclipse-mosquitto:2.0.22
@@ -78,6 +90,7 @@ services:
       - nexus-edge-network
 
   edgex-core-common-config-bootstrapper:
+    logging: *logging
     container_name: edgex-core-common-config-bootstrapper
     hostname: edgex-core-common-config-bootstrapper
     image: edgexfoundry/core-common-config-bootstrapper:4.0.2
@@ -105,6 +118,7 @@ services:
       - nexus-edge-network
 
   edgex-core-keeper:
+    logging: *logging
     container_name: edgex-core-keeper
     hostname: edgex-core-keeper
     image: edgexfoundry/core-keeper:4.0.2
@@ -118,6 +132,11 @@ services:
         condition: service_started
         required: true
     environment:
+      # EdgeX's own log level (.env EDGEX_LOG_LEVEL): at INFO core-command alone
+      # writes a line per command ("Using registry for URL..."). Applied when the
+      # stack is first created; on a running one - keeper key
+      # edgex/v4/<service>/Writable/LogLevel.
+      WRITABLE_LOGLEVEL: ${EDGEX_LOG_LEVEL:-WARN}
       DATABASE_HOST: edgex-postgres
       EDGEX_SECURITY_SECRET_STORE: "false"
       MESSAGEBUS_AUTHMODE: none
@@ -133,6 +152,7 @@ services:
       - nexus-edge-network
 
   edgex-core-metadata:
+    logging: *logging
     container_name: edgex-core-metadata
     hostname: edgex-core-metadata
     image: edgexfoundry/core-metadata:4.0.2
@@ -152,6 +172,11 @@ services:
         condition: service_started
         required: true
     environment:
+      # EdgeX's own log level (.env EDGEX_LOG_LEVEL): at INFO core-command alone
+      # writes a line per command ("Using registry for URL..."). Applied when the
+      # stack is first created; on a running one - keeper key
+      # edgex/v4/<service>/Writable/LogLevel.
+      WRITABLE_LOGLEVEL: ${EDGEX_LOG_LEVEL:-WARN}
       EDGEX_SECURITY_SECRET_STORE: "false"
       SERVICE_HOST: edgex-core-metadata
     ports:
@@ -160,6 +185,7 @@ services:
       - nexus-edge-network
 
   edgex-core-data:
+    logging: *logging
     container_name: edgex-core-data
     hostname: edgex-core-data
     image: edgexfoundry/core-data:4.0.2
@@ -182,6 +208,11 @@ services:
         condition: service_started
         required: true
     environment:
+      # EdgeX's own log level (.env EDGEX_LOG_LEVEL): at INFO core-command alone
+      # writes a line per command ("Using registry for URL..."). Applied when the
+      # stack is first created; on a running one - keeper key
+      # edgex/v4/<service>/Writable/LogLevel.
+      WRITABLE_LOGLEVEL: ${EDGEX_LOG_LEVEL:-WARN}
       EDGEX_SECURITY_SECRET_STORE: "false"
       SERVICE_HOST: edgex-core-data
       # Nexus Edge keeps its own history and reads values live (core-command) or from its cache - EdgeX's
@@ -195,6 +226,7 @@ services:
       - nexus-edge-network
 
   edgex-core-command:
+    logging: *logging
     container_name: edgex-core-command
     hostname: edgex-core-command
     image: edgexfoundry/core-command:4.0.2
@@ -220,6 +252,11 @@ services:
         condition: service_started
         required: true
     environment:
+      # EdgeX's own log level (.env EDGEX_LOG_LEVEL): at INFO core-command alone
+      # writes a line per command ("Using registry for URL..."). Applied when the
+      # stack is first created; on a running one - keeper key
+      # edgex/v4/<service>/Writable/LogLevel.
+      WRITABLE_LOGLEVEL: ${EDGEX_LOG_LEVEL:-WARN}
       EDGEX_SECURITY_SECRET_STORE: "false"
       EXTERNALMQTT_URL: tcp://edgex-mqtt-broker:1883
       SERVICE_HOST: edgex-core-command
@@ -234,6 +271,7 @@ services:
   # No official EdgeX device service exists for CAN, so this is our own code
   # rather than a vendored image (see AGENTS.md section 5).
   device-service:
+    logging: *logging
     container_name: nexus-edge-device-service
     build:
       context: .

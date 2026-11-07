@@ -1496,6 +1496,15 @@ messages go without the platform's settling (section 22) - its own hold.
 
 ## 22. Logging + WEM (Warnings/Errors/Messages)
 
+**The logs' size (2026-11-07)**: every service's container log capped
+(`x-logging` in the compose files - `DOCKER_LOG_MAX_SIZE` 10m x
+`DOCKER_LOG_MAX_FILE` 3; unbounded, the stacks' logs reached 43 GB in two
+weeks on a dev machine); the api logs only the requests answered with 5xx
+(`API_REQUEST_LOG=errors`; `all` - every request, ~1.5 GB a day - for
+debugging); EdgeX's services at `EDGEX_LOG_LEVEL` (WARN). A number written
+to EdgeX goes as a string (`edgex.ts writeValue`) - a JSON number came back
+from core-command as "1.411806e+06" and an integer resource refused it.
+
 > A one-shot report that should only be logged (never active) is an event -
 > see "Process events - log only, never active (2026-10-15)" at the end.
 
@@ -9195,8 +9204,10 @@ cold's when cooling).
   shared equally; the gaps - the scene's 14px.
 
 **The heating's scene**
-- The supply row (2026-11-07): the electricity from the grid (a grid tower as tall as the weather's
-  icon - `WEATHER_ICON_PX`; the heat pumps' and the fans' kW) on the left, the weather on the right with
+- The supply row (2026-11-07): the electricity from the grid (`GridSupply.jsx` - the weather's own card
+  and curve, `WeatherCard` / `HourCurve` exported: a grid tower, the heat pumps' and the fans' kW, the
+  last day recorded - `heat.electricKw` - and the next by the heating planner's slots' `electricKw`; a
+  curve without `onOpen` is a picture, not a button) on the left, as wide as the weather, the weather on the right with
   the heat taken from the outdoor air (heating: the heat less the pumps' electricity; cooling - given off:
   the cold and the electricity; `TemperatureWidget`'s `extra`); one column when narrow. A narrow
   weather widget's line wraps its parts whole (`.wx-narrow .wx-line`).

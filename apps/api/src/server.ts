@@ -60,7 +60,18 @@ import { profileRoutes, userDirectoryRoutes, userRoutes } from "./routes/users.j
  * unchanged) is now just a one-line caller of this function.
  */
 export async function startApiServer(): Promise<FastifyInstance> {
-  const app = Fastify({ logger: { level: config.logLevel } });
+  const app = Fastify({ logger: { level: config.logLevel }, disableRequestLogging: config.requestLog !== "all" });
+  if (config.requestLog !== "all") {
+    // only the failed requests (config.requestLog)
+    app.addHook("onResponse", async (request, reply) => {
+      if (reply.statusCode >= 500) {
+        request.log.error(
+          { method: request.method, url: request.url, statusCode: reply.statusCode, responseTime: reply.elapsedTime },
+          "request failed",
+        );
+      }
+    });
+  }
 
   app.get("/health", async () => ({ status: "ok", service: "api" }));
 

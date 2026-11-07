@@ -38,7 +38,7 @@ const ANEMOMETER_ASPECT = 270 / 186
 const CHART_TINT_PCT = 3
 const CHART_TINT_HOVER_PCT = 6
 
-const WIDGET_CSS = `
+export const WIDGET_CSS = `
 .wx-widget {
   --wx-line: var(--cui-border-color); --wx-muted: var(--cui-secondary-color);
   --wx-sun-line: #e8590c; --wx-wind-line: #1c7ed6; --wx-temp-line: #e5534b; --wx-humidity-line: #0f9a96;
@@ -61,6 +61,7 @@ const WIDGET_CSS = `
 /* a narrow widget - the line's parts wrap whole (a scene's extra - the heating's "from outdoors" - was cut) */
 .wx-narrow .wx-line { flex-wrap: wrap; white-space: normal; overflow: visible; row-gap: 2px }
 .wx-narrow .wx-line > * { white-space: nowrap }
+.wx-curve[role='img'] { cursor: default }
 .wx-curve { cursor: pointer; margin-top: 2px; border-radius: 2px; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column }
 .wx-curve:focus-visible { outline: 2px solid var(--cui-primary); outline-offset: 2px }
 .wx-curve-body { position: relative; flex: 1 1 auto; min-height: 24px; background: var(--wx-chart-bg);
@@ -123,7 +124,8 @@ export const dayAround = (forecast, now) =>
  * a 1000 x 100 box, the text in HTML - never stretched). `onOpen` - a click / Enter opens the
  * detailed charts.
  */
-const HourCurve = ({ hours, now, value, min, max, color, label, onOpen }) => {
+// `onOpen` absent - a picture only (no button: a scene's curve with no detailed chart - the heating's grid)
+export const HourCurve = ({ hours, now, value, min, max, color, label, onOpen }) => {
   if (hours.length < 2) return null
   const t0 = now - CURVE_HALF_MS
   const t1 = now + CURVE_HALF_MS
@@ -142,17 +144,21 @@ const HourCurve = ({ hours, now, value, min, max, color, label, onOpen }) => {
   return (
     <div
       className="wx-curve"
-      role="button"
-      tabIndex={0}
-      title={tr('{{label}} - open the detailed chart', { label })}
-      aria-label={tr('{{label}} - open the detailed chart', { label })}
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen()
-        }
-      }}
+      {...(onOpen
+        ? {
+            role: 'button',
+            tabIndex: 0,
+            title: tr('{{label}} - open the detailed chart', { label }),
+            'aria-label': tr('{{label}} - open the detailed chart', { label }),
+            onClick: onOpen,
+            onKeyDown: (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onOpen()
+              }
+            },
+          }
+        : { title: label, role: 'img', 'aria-label': label })}
     >
       <div className="wx-curve-body">
         <svg viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
@@ -197,7 +203,7 @@ const HourCurve = ({ hours, now, value, min, max, color, label, onOpen }) => {
  * picture on top when narrow.
  * `cardClass` - the scene's own card frame (its blocks' look), else `wx-card`.
  */
-const WeatherCard = ({ icon, aspect, cardClass = 'wx-card', children }) => {
+export const WeatherCard = ({ icon, aspect, cardClass = 'wx-card', children }) => {
   const cardRef = useRef(null)
   const card = useSize(cardRef)
   const narrow = card.width > 0 && card.width < NARROW_PX

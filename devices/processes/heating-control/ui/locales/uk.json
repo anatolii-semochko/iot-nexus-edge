@@ -211,5 +211,7 @@
   "Water flow": "Витрата води",
   "Week": "Тиждень",
   "What the fan coil gives the room now": "Що фанкойл дає кімнаті зараз",
-  "Working": "Працює"
+  "Working": "Працює",
+  "kW from the grid": "kW з мережі",
+  "The electricity from the grid - the last day and the plan for the next, kW": "Електрика з мережі - остання доба й план на наступну, kW"
 }

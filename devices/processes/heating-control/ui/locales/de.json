@@ -211,5 +211,7 @@
   "The heat the heat pumps take from the outdoor air now - their heat less their electricity": "Die Wärme, die die Wärmepumpen jetzt der Außenluft entnehmen - ihre Wärme abzüglich ihres Stroms",
   "to outdoors": "nach draußen",
   "from outdoors": "von draußen",
-  "kW": "kW"
+  "kW": "kW",
+  "kW from the grid": "kW aus dem Netz",
+  "The electricity from the grid - the last day and the plan for the next, kW": "Strom aus dem Netz - der letzte Tag und der Plan für den nächsten, kW"
 }
