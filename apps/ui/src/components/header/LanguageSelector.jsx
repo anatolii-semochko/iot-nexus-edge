@@ -50,7 +50,8 @@ const LanguageSelector = () => {
     <CDropdown variant="nav-item" placement="bottom-end">
       <CDropdownToggle
         caret={false}
-        className="d-flex align-items-center gap-1"
+        // the flag and the code 8px apart, as the site's switcher
+        className="d-flex align-items-center gap-2"
         aria-label={`${t('Language')}: ${current.name}`}
       >
         <Flag code={current.code} name={current.name} selected />
