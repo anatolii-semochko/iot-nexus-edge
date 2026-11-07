@@ -9063,8 +9063,9 @@ lint` runs both. The rules: the React hooks' (purity - "now" by
   under the form).
 - **A folder's cards' scale** (`cards_scale`, migration 103, 2026-11-01;
   API `cardsScale`, 0.5 - 2, default 1): the cards inside the folder drawn
-  that many times larger - the grid's minimum width (`CARD_MIN_REM` x it)
-  and the picture's block (`--dc-scale` on the grid, `PREVIEW_H` x it), so
+  that many times larger - the grid's minimum width (`CARD_MIN_REM` x it,
+  never over the page's width - `min(100%, ...)`: a scale on a phone pushed
+  the cards past its edge, 2026-11-07) and the picture's block (`--dc-scale` on the grid, `PREVIEW_H` x it), so
   avatars stretched to the block grow too; `dashboardCardWidth(content,
   rem, scale)` - the card form's preview uses the scale of the card's
   folder. The top level - the Dashboard's settings (`system_settings`
