@@ -36,7 +36,8 @@ export async function logRoutes(app: FastifyInstance): Promise<void> {
     };
   }>("/logs/commands", async (request) => {
     // a person limited to some DNP instances sees only their rows (access/scope.ts)
-    const visible = (await scopeIds(request, "logs.view")) ?? undefined;
+    // (the simulations' commands - only for one who sees the simulation)
+    const visible = (await scopeIds(request, "logs.view", { quiet: true })) ?? undefined;
     const { search, from, to } = request.query;
     const action = request.query.action ? (request.query.action.split(",").filter(Boolean) as DeviceCommandAction[]) : undefined;
     const deviceId = request.query.deviceId ? Number(request.query.deviceId) : undefined;

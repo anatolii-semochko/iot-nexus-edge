@@ -32,6 +32,8 @@ import { alertsOf, type AlertConfig } from "./alerts.ts";
 import { dispatch, loadAt, nextSoc, pvPower, splitBattery, turbinePower, windAtHub, type BatteryState, type Strategy } from "./model.ts";
 import { localParts } from "../../lib/localTime.ts";
 
+// a charge this far (percentage points) under the outage reserve is a warning
+const RESERVE_MARGIN_PCT = 1;
 const DEFAULT_INTERVAL_S = 30;
 const DEVICES_TTL_MS = 5 * 60_000;
 const WEATHER_TTL_MS = 10 * 60_000;
@@ -426,7 +428,9 @@ export default function registerEnergyField(register: any, { apiClient, logger, 
     const errors: { code: string; level: number; text: string }[] = [];
     const warnings: { code: string; level: number; text: string }[] = [];
     if (d.shedKw > 0.01) errors.push({ code: "load_shed", level: 1, text: `Island: ${d.shedKw.toFixed(1)} kW of consumption not covered` });
-    if (socPct !== null && socPct < strategy.reservePct && strategy.mode !== "island")
+    // the control holds the batteries at the reserve - a charge a hair under it ("at 20.0 % - below the 20 %")
+    // is the control at work, not a warning (2026-11-07)
+    if (socPct !== null && socPct < strategy.reservePct - RESERVE_MARGIN_PCT && strategy.mode !== "island")
       warnings.push({ code: "below_reserve", level: 1, text: `Batteries at ${socPct.toFixed(1)} % - below the ${strategy.reservePct} % outage reserve` });
     for (const x of wind) if (x.state === "storm") warnings.push({ code: `storm_${x.item.nodeId}`, level: 1, text: `${x.item.name}: braked - the wind is over its cut-out speed` });
     if (d.curtailedKw > 0.01) warnings.push({ code: "curtailed", level: 1, text: `${d.curtailedKw.toFixed(1)} kW of generation held back - no room in the batteries${strategy.exportAllowed ? " and the export at its limit" : ", export not allowed"}` });

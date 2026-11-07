@@ -906,5 +906,7 @@
   "{{length}} inside, {{v1}}": "всередині {{length}}, {{v1}}",
   "full width": "на всю ширину",
   "No one - the process acts as itself": "Нікого - процес діє від себе",
-  "What it does on a person's behalf - with that person's rights, recorded as theirs.": "Що процес робить від імені людини - з її правами, записується як її дії."
+  "What it does on a person's behalf - with that person's rights, recorded as theirs.": "Що процес робить від імені людини - з її правами, записується як її дії.",
+  "Raise after, s": "Підняти після, с",
+  "A warning / error is raised only once its metric has been over the threshold this long - a short spike (a build, a nightly job) raises nothing": "Попередження / помилка з'являється, лише коли показник перевищує поріг стільки часу поспіль - короткий сплеск (збірка, нічне завдання) нічого не піднімає"
 }

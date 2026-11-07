@@ -61,7 +61,7 @@ distribution over buildings is a later package's.
    grid meter's power device; energy-grid integrates its registers and
    prices it.
 4. The items' switches (`relay`, AUTO) follow `disabled`.
-5. WEM: load shed (island) - error, critical; batteries below the reserve,
+5. WEM: load shed (island) - error, critical; batteries more than 1 point below the reserve,
    a turbine braked by a storm, generation held back, no forecast -
    warnings.
 6. Metrics: `mode`, `decision` (why - for people and the AI), `strategy`,

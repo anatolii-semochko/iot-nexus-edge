@@ -906,5 +906,7 @@
   "{{length}} inside, {{v1}}": "{{length}} dentro, {{v1}}",
   "full width": "todo el ancho",
   "No one - the process acts as itself": "Nadie - el proceso actúa por sí mismo",
-  "What it does on a person's behalf - with that person's rights, recorded as theirs.": "Lo que hace en nombre de una persona - con sus permisos, registrado como suyo."
+  "What it does on a person's behalf - with that person's rights, recorded as theirs.": "Lo que hace en nombre de una persona - con sus permisos, registrado como suyo.",
+  "Raise after, s": "Activar tras, s",
+  "A warning / error is raised only once its metric has been over the threshold this long - a short spike (a build, a nightly job) raises nothing": "Una advertencia / un error se activa solo cuando la métrica supera el umbral durante este tiempo seguido - un pico breve (una compilación, una tarea nocturna) no activa nada"
 }

@@ -61,6 +61,11 @@ const DEFAULT_INTERVAL_S = 30;
 const WEATHER_TTL_MS = 10 * 60_000;
 const PRICES_TTL_MS = 10 * 60_000;
 const DAY_AHEAD_MS = 24 * 3_600_000;
+// "the tanks are nearly empty": raised under this share of the full charge, cleared over the second; a room counts
+// as cooling down this much under its setpoint
+const TANKS_LOW = 0.1;
+const TANKS_LOW_CLEAR = 0.15;
+const ROOM_BELOW_K = 0.5;
 const COIL_FLOW_LPM = 6; // a fan coil's water flow - for the consumers' return temperature
 
 interface Item {
@@ -203,6 +208,8 @@ export default function registerHeatingControl(register: any, { apiClient, logge
       relays: { written: Map<number, boolean>; queue: { relay: number; on: boolean; nodeId: number }[]; lastAt: number; staggerMs: number };
       // the units that ran last round - kept first in the order
       runningIds: Set<number>;
+      // "the tanks are nearly empty" raised - held until the charge is back over the clear level
+      tanksLow: boolean;
     }
   >();
 
@@ -285,6 +292,7 @@ export default function registerHeatingControl(register: any, { apiClient, logge
         notes: null,
         relays: { written: new Map(), queue: [], lastAt: 0, staggerMs: 0 },
         runningIds: new Set((process.metrics?.pumps ?? []).filter((x: any) => x.running).map((x: any) => x.nodeId)),
+        tanksLow: false,
         roomKwh: {
           date: local.date,
           kwh: new Map(saved?.date === local.date ? (process.metrics?.consumers ?? []).map((x: any) => [x.nodeId, Number(x.todayKwh) || 0]) : []),
@@ -629,7 +637,13 @@ export default function registerHeatingControl(register: any, { apiClient, logge
       if (x.top !== null && x.top > x.item.tMaxC) warnings.push({ code: `tank_hot_${x.item.nodeId}`, level: 1, text: `${x.item.name}: ${x.top.toFixed(1)} C at the top - over its ${x.item.tMaxC} C` });
     }
     for (const x of pumpView) if (x.running && x.cop !== null && x.cop < 2) warnings.push({ code: `low_cop_${x.item.nodeId}`, level: 1, text: `${x.item.name}: ${mode === "cooling" ? "EER" : "COP"} ${x.cop.toFixed(1)} - inefficient at this weather` });
-    if (mode === "heating" && fullKwh > 0 && storedKwh / fullKwh < 0.1 && coilsHeatKw > 0) warnings.push({ code: "tanks_low", level: 1, text: "The tanks are nearly empty - the rooms may cool down" });
+    // the tanks nearly empty while a room is already below its setpoint (the planner empties them before
+    // cheap hours on purpose - that alone is no warning); raised under TANKS_LOW, cleared over TANKS_LOW_CLEAR
+    // (a charge at the edge raised it again and again - 2026-11-07)
+    const charge = fullKwh > 0 ? storedKwh / fullKwh : null;
+    const roomsBelow = coilView.some((x) => x.on && x.roomC !== null && x.setpointC !== null && x.roomC < x.setpointC - ROOM_BELOW_K);
+    st.tanksLow = mode === "heating" && charge !== null && (st.tanksLow ? charge < TANKS_LOW_CLEAR : charge < TANKS_LOW && roomsBelow);
+    if (st.tanksLow) warnings.push({ code: "tanks_low", level: 1, text: "The tanks are nearly empty - the rooms may cool down" });
     if (config.weatherProcessId && outdoorC === null) warnings.push({ code: "no_forecast", level: 1, text: "No weather forecast - the outdoor temperature is unknown" });
     // the state reports together - independent of each other
     await Promise.all([

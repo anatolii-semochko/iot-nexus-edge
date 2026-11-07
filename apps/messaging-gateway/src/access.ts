@@ -10,6 +10,9 @@ export interface StreamScope {
   processes: number[] | null;
   devices: number[] | null;
   nodes: number[] | null;
+  // processes seen, whose warnings / errors don't reach the person (the simulations for one without
+  // simulation.view - 2026-11-07); absent from an older API
+  quiet?: number[];
 }
 
 /** The person's scope (null - not signed in / the session is over). */
@@ -25,7 +28,7 @@ export async function fetchScope(cookie: string | undefined): Promise<StreamScop
 }
 
 const allowed = (ids: number[] | null, id: number) => ids === null || ids.includes(id);
-const DOMAIN: Record<string, keyof StreamScope> = { device: "devices", devices: "devices", node: "nodes", nodes: "nodes", process: "processes", processes: "processes" };
+const DOMAIN: Record<string, "processes" | "devices" | "nodes"> = { device: "devices", devices: "devices", node: "nodes", nodes: "nodes", process: "processes", processes: "processes" };
 
 /** Whether an event about an entity ("device.12.updated", "processes.25.changed") is in the scope. */
 export function eventAllowed(scope: StreamScope, routingKey: string): boolean {
@@ -38,18 +41,23 @@ export function eventAllowed(scope: StreamScope, routingKey: string): boolean {
 
 /**
  * The fleet's process-state snapshot for a person: limited - only their processes, and the unread
- * counters summed over those (`unreadByProcess`, 2026-10-28); the per-process counts never go out.
+ * counters summed over those (`unreadByProcess`, 2026-10-28); the per-process counts never go out. The
+ * quiet processes (StreamScope) - without their flags and messages, out of the counters.
  */
 export function scopedProcessSnapshot(scope: StreamScope, event: unknown): unknown {
   if (typeof event !== "object" || event === null) return event;
   const { unreadByProcess, ...snapshot } = event as { processes?: { id: number }[]; unreadByProcess?: Record<string, number[]> };
-  if (scope.processes === null) return snapshot;
+  const quiet = new Set(scope.quiet ?? []);
+  if (scope.processes === null && quiet.size === 0) return snapshot;
+  const counted = (id: number) => allowed(scope.processes, id) && !quiet.has(id);
   const sum = [0, 0, 0];
   for (const [id, counts] of Object.entries(unreadByProcess ?? {}))
-    if (allowed(scope.processes, Number(id))) counts.forEach((n, i) => (sum[i] += Number(n) || 0));
+    if (counted(Number(id))) counts.forEach((n, i) => (sum[i] += Number(n) || 0));
   return {
     ...snapshot,
-    processes: (snapshot.processes ?? []).filter((p) => allowed(scope.processes, p.id)),
+    processes: (snapshot.processes ?? [])
+      .filter((p) => allowed(scope.processes, p.id))
+      .map((p) => (quiet.has(p.id) ? { ...p, critical: false, warning: false, messages: [], hasActiveWem: false } : p)),
     unreadCounts: { message: sum[0], warning: sum[1], error: sum[2] },
   };
 }

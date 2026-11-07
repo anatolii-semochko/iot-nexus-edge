@@ -144,13 +144,21 @@ function describeLevel(label: string, unit: string, value: number, kind: string,
 }
 
 const raisedAt = new Map<number, Map<string, number>>();
+// Raise after (2026-11-07): a level is raised only once its metric has been over the threshold
+// `raiseSeconds` (config) continuously - the server's CPU over 70 % for a few seconds (a build, the nightly
+// jobs) raised a warning up to 17 times an hour. Each level's first moment over, not raised yet.
+const overSince = new Map<number, Map<string, number>>();
+const DEFAULT_RAISE_S = 30;
 
 export async function runResourceMonitor(process: ProcessRecord): Promise<void> {
   const { cpuMax, ramMax, diskMax, tempMax, cpuWarnMax, ramWarnMax, diskWarnMax, tempWarnMax } = process.config;
   const hysteresis = Math.max(0, process.config.hysteresis ?? 0);
   const holdMs = Math.max(0, process.config.holdSeconds ?? 0) * 1000;
+  const raiseMs = Math.max(0, process.config.raiseSeconds ?? DEFAULT_RAISE_S) * 1000;
   const before = raisedAt.get(process.id) ?? new Map<string, number>();
   const now = new Map<string, number>();
+  const pendingBefore = overSince.get(process.id) ?? new Map<string, number>();
+  const pending = new Map<string, number>();
   const tick = Date.now();
   // over a threshold - or, raised before, not yet below it by `hysteresis`
   // for `holdSeconds`
@@ -158,6 +166,13 @@ export async function runResourceMonitor(process: ProcessRecord): Promise<void> 
     if (threshold === undefined || threshold === 0) return false;
     const last = before.get(code);
     if (value > (last !== undefined ? threshold - hysteresis : threshold)) {
+      if (last === undefined) {
+        const since = pendingBefore.get(code) ?? tick;
+        if (tick - since < raiseMs) {
+          pending.set(code, since);
+          return false;
+        }
+      }
       now.set(code, tick);
       return true;
     }
@@ -224,8 +239,9 @@ export async function runResourceMonitor(process: ProcessRecord): Promise<void> 
       warningEntries.push({ code: `${key}_warning`, level: 1, text: describeLevel(label, unit, value, "warning", warnMaxByKey[key]) });
     }
   }
-  await apiClient.syncMessages(process.id, "error", errorEntries);
-  await apiClient.syncMessages(process.id, "warning", warningEntries);
+  // its own hysteresis and hold - no settling on top (apiClient.ts)
+  await apiClient.syncMessages(process.id, "error", errorEntries, undefined, { clearAfterMs: 0 });
+  await apiClient.syncMessages(process.id, "warning", warningEntries, undefined, { clearAfterMs: 0 });
 
   // Disk-only addition on top of the generic error/warning above: a
   // `message` notice (AGENTS.md section 22 - dismissible via the UI's X,
@@ -259,4 +275,5 @@ export async function runResourceMonitor(process: ProcessRecord): Promise<void> 
   }
   await apiClient.syncMessages(process.id, "message", messageEntries, "when-hidden");
   raisedAt.set(process.id, now);
+  overSince.set(process.id, pending);
 }

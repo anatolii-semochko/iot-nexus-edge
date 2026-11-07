@@ -3,6 +3,7 @@
 // SDK, just the handful of calls the process tick loop needs.
 
 import { config } from "./config.js";
+import { holds, settle } from "./messageSettle.js";
 import { cachedRead, tickShared } from "./shared.js";
 import { createValueBatcher } from "./valueBatcher.js";
 import { tickStats } from "./tickStats.js";
@@ -162,6 +163,8 @@ export interface ProcessRecord {
     hysteresis?: number;
     // ...and holds this long (s) after it fell below - resourceMonitor.ts
     holdSeconds?: number;
+    // a level is raised only after its metric has been over this long (s) - resourceMonitor.ts; 30 by default
+    raiseSeconds?: number;
     // temperature-control/temperature-monitor role -> deviceId mapping
     // (AGENTS_TO_DO.md's 2026-07-27 Device/Node refactor, roadmap Phase 4.1) - a
     // single `device_id` above no longer says enough once the sensor and
@@ -216,6 +219,8 @@ export interface ProcessRecord {
   // still-active physical alarm).
   critical: boolean;
   warning: boolean;
+  // the active (not hidden) messages - messageSettle.ts seeds its hold from them after a restart
+  messages?: { type: MessageType; level: number; code: string; text: string }[];
   // Heartbeating Control (AGENTS.md) - `heartbeat_control` is this
   // process's own design-time config (Postgres); `heartbeatStopped`/
   // `heartbeatLastSeenAt` are its live Redis counterparts, both already
@@ -424,7 +429,7 @@ export const apiClient = {
   // the state reports - sent only on a change, each its own request (not batched: in a batch every process
   // waited for the slowest part of all of them - iot PERF_PROD_2026-11-05.md, 2026-11-06)
   setCritical: (processId: number, critical: boolean) => {
-    const body = JSON.stringify({ critical });
+    const body = JSON.stringify({ critical: critical || holds(processId, "error", config.messageClearAfterMs) });
     return sendChanged(`${processId}:critical`, body, () => request(`/processes/${processId}/critical`, { method: "POST", body }));
   },
   setMetrics: (processId: number, metrics: ProcessMetrics) => {
@@ -432,7 +437,8 @@ export const apiClient = {
     return sendChanged(`${processId}:metrics`, body, () => request(`/processes/${processId}/metrics`, { method: "POST", body }));
   },
   setWarning: (processId: number, warning: boolean) => {
-    const body = JSON.stringify({ warning });
+    // an error held (settle above) wins over a warning, as a reported one does
+    const body = JSON.stringify({ warning: (warning || holds(processId, "warning", config.messageClearAfterMs)) && !holds(processId, "error", config.messageClearAfterMs) });
     return sendChanged(`${processId}:warning`, body, () => request(`/processes/${processId}/warning`, { method: "POST", body }));
   },
   // WEM (AGENTS.md section 22) - `entries` must be the *complete current
@@ -444,10 +450,19 @@ export const apiClient = {
   // whose producer re-asserts its code every tick like a warning/error
   // would (see processMessages.syncActiveMessages's own doc comment for
   // what each mode does), not for a genuine one-shot notification.
-  syncMessages: (processId: number, type: MessageType, entries: MessageInput[], autoResolve?: AutoResolveMode) =>
-    sendChanged(`${processId}:messages:${type}`, JSON.stringify({ type, entries, autoResolve }), () =>
+  // Warnings and errors settle (settle above): gone from `entries`, one stays active `clearAfterMs` more.
+  syncMessages: (
+    processId: number,
+    type: MessageType,
+    reported: MessageInput[],
+    autoResolve?: AutoResolveMode,
+    { clearAfterMs = config.messageClearAfterMs }: { clearAfterMs?: number } = {},
+  ) => {
+    const entries = settle(processId, type, reported, clearAfterMs);
+    return sendChanged(`${processId}:messages:${type}`, JSON.stringify({ type, entries, autoResolve }), () =>
       request(`/processes/${processId}/messages`, { method: "POST", body: JSON.stringify({ type, entries, autoResolve }) }),
-    ),
+    );
+  },
   // Events - one-shot reports for the log only, never in the process's
   // active WEM list (api processMessages.logEvents).
   logEvents: (processId: number, entries: MessageInput[]) =>

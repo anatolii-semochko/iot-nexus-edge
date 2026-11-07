@@ -508,7 +508,8 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       ? request.query.processIds.split(",").map(Number).filter(Number.isFinite)
       : undefined;
     // a person limited to some DNP instances sees only their processes' messages (access/scope.ts)
-    const visible = await scopeIds(request, "processes.view");
+    // (and the simulations' - only for one who sees the simulation)
+    const visible = await scopeIds(request, "processes.view", { quiet: true });
     // (the one `processId` too - one of theirs only, else nothing)
     const processIds = visible
       ? (asked ?? (processId !== undefined ? [processId] : visible.processIds)).filter((id) => visible.processIds.includes(id))
