@@ -87,7 +87,7 @@ const AppHeader = ({ bleed = false }) => {
 
   return (
     <CHeader position="sticky" className={`${bleed ? '' : 'mb-4 '}p-0`} ref={headerRef}>
-      <CContainer className="border-bottom px-3 px-md-4" fluid>
+      <CContainer className="border-bottom px-2 px-sm-3 px-md-4 app-header-row" fluid>
         {noMenu &&
           // no menu - the brand (else in the sidebar)
           // the project's website when it has one (homeSite.js), else the app's start
@@ -131,13 +131,14 @@ const AppHeader = ({ bleed = false }) => {
                 role="status"
                 title={t('At least one node is in simulation mode')}
               >
-                {/* a phone's header has no room for the word */}
+                {/* a phone's header has no room for a word - a dot (its title and the hidden text say it) */}
                 <span className="d-none d-sm-inline">{t('Simulation')}</span>
-                <span className="d-sm-none">{t('Sim')}</span>
+                <span className="d-sm-none visually-hidden">{t('Simulation')}</span>
               </CBadge>
             </li>
           )}
-          <li className="nav-item d-flex align-items-center py-1 me-2 me-sm-3">
+          {/* a phone - left out: the header fits one row with the menu button (2026-11-07) */}
+          <li className="nav-item d-none d-sm-flex align-items-center py-1 me-2 me-sm-3">
             <SystemTickIndicator />
           </li>
           {showMessages && (
@@ -149,7 +150,8 @@ const AppHeader = ({ bleed = false }) => {
             <div className="vr h-100 mx-2 text-body text-opacity-75"></div>
           </li>
           <LanguageSelector />
-          <CDropdown variant="nav-item" placement="bottom-end">
+          {/* a phone - in the user's menu (AppHeaderDropdown.jsx) */}
+          <CDropdown variant="nav-item" placement="bottom-end" className="d-none d-sm-block">
             <CDropdownToggle caret={false}>
               {colorMode === 'dark' ? (
                 <CIcon icon={cilMoon} size="lg" />

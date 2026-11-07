@@ -9,14 +9,25 @@ import {
   CDropdownItem,
   CDropdownMenu,
   CDropdownToggle,
+  useColorModes,
 } from '@coreui/react'
-import { cilAccountLogout, cilCheckAlt, cilGlobeAlt, cilLockLocked, cilUser } from '@coreui/icons'
+import {
+  cilAccountLogout,
+  cilCheckAlt,
+  cilContrast,
+  cilGlobeAlt,
+  cilLockLocked,
+  cilMoon,
+  cilSun,
+  cilUser,
+} from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
 import { userInitials, userTitle } from '../../utils/format'
 import { api } from '../../api/client'
 import { markRoleSwitch } from '../../roleSwitch'
 import { HOME_HOST, homeUrl } from '../../homeSite'
 import ProfileForm from './ProfileForm'
+import { Flag, useLanguageChoice } from './LanguageSelector'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -38,6 +49,10 @@ const AppHeaderDropdown = () => {
   const contextName = useSelector((state) => state.accessContextName)
   const { t, i18n } = useTranslation()
   const dispatch = useDispatch()
+  // the language and the theme - here on a phone (their own buttons in the header from sm up; the theme's
+  // storage key - AppHeader.jsx's)
+  const { colorMode, setColorMode } = useColorModes('coreui-free-react-admin-template-theme')
+  const { languages, current: currentLanguage, choose: chooseLanguage } = useLanguageChoice()
   const navigate = useNavigate()
   // the person's own profile (2026-10-28) - not the guest's
   const [profileOpen, setProfileOpen] = useState(false)
@@ -146,6 +161,46 @@ const AppHeaderDropdown = () => {
               <CDropdownDivider />
             </>
           )}
+          <div className="d-sm-none">
+            {languages.length > 1 && (
+              <>
+                <div className="px-3 pb-1 small text-body-secondary">{t('Language')}</div>
+                {languages.map((l) => (
+                  <CDropdownItem
+                    key={l.code}
+                    as="button"
+                    type="button"
+                    lang={l.code}
+                    active={l.code === currentLanguage.code}
+                    className="d-flex align-items-center gap-2"
+                    onClick={() => chooseLanguage(l.code)}
+                  >
+                    <Flag code={l.code} name={l.name} selected /> {l.name}
+                  </CDropdownItem>
+                ))}
+                <CDropdownDivider />
+              </>
+            )}
+            <div className="px-3 pb-1 small text-body-secondary">{t('Theme')}</div>
+            {[
+              ['light', cilSun, 'Light'],
+              ['dark', cilMoon, 'Dark'],
+              ['auto', cilContrast, 'Auto'],
+            ].map(([mode, icon, label]) => (
+              <CDropdownItem
+                key={mode}
+                as="button"
+                type="button"
+                active={colorMode === mode}
+                className="d-flex align-items-center"
+                onClick={() => setColorMode(mode)}
+              >
+                <CIcon icon={icon} className="me-2" />
+                {t(label)}
+              </CDropdownItem>
+            ))}
+            <CDropdownDivider />
+          </div>
           <CDropdownItem onClick={handleLogout} style={{ cursor: 'pointer' }}>
             <CIcon icon={guest ? cilAccountLogout : cilLockLocked} className="me-2" />
             {guest ? t('Sign in') : t('Logout')}

@@ -9546,6 +9546,12 @@ Energy Ledger's README has the details.
   language. `UI_LANGUAGES` (env) - the offered ones (`/auth/me`
   `languages`). The header also shows the role acted in beside the avatar
   (`/auth/me` `contextName` - the context's name, with one role - that role).
+  A phone (below `sm`, 2026-11-07): the header in one row with the menu
+  button - the language and the theme in the user's menu
+  (`AppHeaderDropdown.jsx`; `useLanguageChoice` shared with the selector),
+  the system tick left out, the simulation badge a dot (its title / hidden
+  text), the notification icons 2rem (`.wem-icon`), tighter nav links
+  (`.app-header-row`, scss/style.scss).
 - **The tools** (`scripts/`):
   - `i18n-wrap.mjs [--dry] [--loose] <dirs>` - the codemod: wraps visible
     texts in `t(...)` by position (the formatting kept - no prettier

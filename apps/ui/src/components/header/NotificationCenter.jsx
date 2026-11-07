@@ -50,13 +50,12 @@ const NotificationCenter = () => {
           <button
             key={type}
             type="button"
-            className="btn position-relative p-0 mx-2 border-0 bg-transparent"
+            className="btn position-relative p-0 mx-1 mx-sm-2 border-0 bg-transparent"
             aria-label={meta.label}
             onClick={() => setOpenType(type)}
           >
             <span
-              className={`d-inline-flex align-items-center justify-content-center rounded-circle ${blink ? `bg-${meta.color} wem-blink-ring` : ''}`}
-              style={{ width: '2.25rem', height: '2.25rem' }}
+              className={`wem-icon d-inline-flex align-items-center justify-content-center rounded-circle ${blink ? `bg-${meta.color} wem-blink-ring` : ''}`}
             >
               <CIcon icon={meta.icon} size="lg" className={iconColorClass} />
             </span>

@@ -66,6 +66,28 @@ body {
   }
 }
 
+// the header's notification icons (components/header/NotificationCenter.jsx)
+.wem-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+// a phone: the header in one row with the menu button - no wrap, tighter (2026-11-07)
+@include media-breakpoint-down(sm) {
+  .app-header-row {
+    flex-wrap: nowrap;
+  }
+
+  .app-header-row .header-nav .nav-link {
+    padding-inline: .25rem;
+  }
+
+  .wem-icon {
+    width: 2rem;
+    height: 2rem;
+  }
+}
+
 .header > .container-fluid + .container-fluid {
   min-height: 3rem;
 }
