@@ -50,7 +50,7 @@ const NotificationCenter = () => {
           <button
             key={type}
             type="button"
-            className="btn position-relative p-0 mx-1 mx-sm-2 border-0 bg-transparent"
+            className="btn position-relative p-0 mx-2 border-0 bg-transparent"
             aria-label={meta.label}
             onClick={() => setOpenType(type)}
           >

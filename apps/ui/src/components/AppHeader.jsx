@@ -112,14 +112,15 @@ const AppHeader = ({ bleed = false }) => {
         {!noMenu && (
           <CHeaderToggler
             onClick={() => dispatch({ type: 'set', sidebarShow: !sidebarShow })}
-            style={{ marginInlineStart: '-14px' }}
+            className="app-header-toggler"
           >
             <CIcon icon={cilMenu} size="lg" />
           </CHeaderToggler>
         )}
         <CHeaderNav className="ms-auto">
           {anyNodeSimulated && !hideSimulation && (
-            <li className="nav-item d-flex align-items-center py-1 me-1 me-sm-3">
+            // a phone - left out (the pulse instead; 2026-11-07)
+            <li className="nav-item d-none d-sm-flex align-items-center py-1 me-1 me-sm-3">
               {/* Blinks only in production, where a node left in
                   simulation is an operational problem worth attention;
                   in development simulation is the normal working state,
@@ -127,18 +128,15 @@ const AppHeader = ({ bleed = false }) => {
                   2026-09-25). */}
               <CBadge
                 color="primary"
-                className={`${IS_PRODUCTION ? 'wem-blink-ring ' : ''}rounded-pill px-2 px-sm-3 py-2 me-sm-2`}
+                className={`${IS_PRODUCTION ? 'wem-blink-ring ' : ''}rounded-pill px-3 py-2 me-2`}
                 role="status"
                 title={t('At least one node is in simulation mode')}
               >
-                {/* a phone's header has no room for a word - a dot (its title and the hidden text say it) */}
-                <span className="d-none d-sm-inline">{t('Simulation')}</span>
-                <span className="d-sm-none visually-hidden">{t('Simulation')}</span>
+                {t('Simulation')}
               </CBadge>
             </li>
           )}
-          {/* a phone - left out: the header fits one row with the menu button (2026-11-07) */}
-          <li className="nav-item d-none d-sm-flex align-items-center py-1 me-2 me-sm-3">
+          <li className="nav-item d-flex align-items-center py-1 me-3">
             <SystemTickIndicator />
           </li>
           {showMessages && (
