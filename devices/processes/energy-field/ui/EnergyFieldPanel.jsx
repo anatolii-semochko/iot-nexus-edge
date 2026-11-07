@@ -19,6 +19,7 @@ import { api } from 'src/api/client'
 import { useProcessLiveState } from 'src/api/useLiveProcess'
 import { useCan } from 'src/access'
 import { packageT } from 'src/i18n'
+import { decisionText } from './decisionText'
 // the package's words (its own locales/, then the core's)
 const tr = packageT('energy-field')
 
@@ -86,7 +87,7 @@ const EnergyFieldPanel = ({ process }) => {
             </CButton>
           ))}
         </CButtonGroup>
-        <span>{m.decision}</span>
+        <span>{decisionText(tr, m.decision)}</span>
         {m.mode === 'manual' && control && (
           <span className="d-flex align-items-center gap-2">
             <CFormInput

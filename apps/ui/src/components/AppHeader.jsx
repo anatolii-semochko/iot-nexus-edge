@@ -87,7 +87,7 @@ const AppHeader = ({ bleed = false }) => {
 
   return (
     <CHeader position="sticky" className={`${bleed ? '' : 'mb-4 '}p-0`} ref={headerRef}>
-      <CContainer className="border-bottom px-3 px-md-4" fluid>
+      <CContainer className="border-bottom px-2 px-sm-3 px-md-4 app-header-row" fluid>
         {noMenu &&
           // no menu - the brand (else in the sidebar)
           // the project's website when it has one (homeSite.js), else the app's start
@@ -112,14 +112,15 @@ const AppHeader = ({ bleed = false }) => {
         {!noMenu && (
           <CHeaderToggler
             onClick={() => dispatch({ type: 'set', sidebarShow: !sidebarShow })}
-            style={{ marginInlineStart: '-14px' }}
+            className="app-header-toggler"
           >
             <CIcon icon={cilMenu} size="lg" />
           </CHeaderToggler>
         )}
         <CHeaderNav className="ms-auto">
           {anyNodeSimulated && !hideSimulation && (
-            <li className="nav-item d-flex align-items-center py-1 me-1 me-sm-3">
+            // a phone - left out (the pulse instead; 2026-11-07)
+            <li className="nav-item d-none d-sm-flex align-items-center py-1 me-1 me-sm-3">
               {/* Blinks only in production, where a node left in
                   simulation is an operational problem worth attention;
                   in development simulation is the normal working state,
@@ -127,17 +128,15 @@ const AppHeader = ({ bleed = false }) => {
                   2026-09-25). */}
               <CBadge
                 color="primary"
-                className={`${IS_PRODUCTION ? 'wem-blink-ring ' : ''}rounded-pill px-2 px-sm-3 py-2 me-sm-2`}
+                className={`${IS_PRODUCTION ? 'wem-blink-ring ' : ''}rounded-pill px-3 py-2 me-2`}
                 role="status"
                 title={t('At least one node is in simulation mode')}
               >
-                {/* a phone's header has no room for the word */}
-                <span className="d-none d-sm-inline">{t('Simulation')}</span>
-                <span className="d-sm-none">{t('Sim')}</span>
+                {t('Simulation')}
               </CBadge>
             </li>
           )}
-          <li className="nav-item d-flex align-items-center py-1 me-2 me-sm-3">
+          <li className="nav-item d-flex align-items-center py-1 me-3">
             <SystemTickIndicator />
           </li>
           {showMessages && (
@@ -149,7 +148,8 @@ const AppHeader = ({ bleed = false }) => {
             <div className="vr h-100 mx-2 text-body text-opacity-75"></div>
           </li>
           <LanguageSelector />
-          <CDropdown variant="nav-item" placement="bottom-end">
+          {/* a phone - in the user's menu (AppHeaderDropdown.jsx) */}
+          <CDropdown variant="nav-item" placement="bottom-end" className="d-none d-sm-block">
             <CDropdownToggle caret={false}>
               {colorMode === 'dark' ? (
                 <CIcon icon={cilMoon} size="lg" />

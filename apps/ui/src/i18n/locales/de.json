@@ -621,7 +621,6 @@
   "Sign in": "Anmelden",
   "Sign in to": "Anmelden bei",
   "Sign in to change this.": "Melden Sie sich an, um dies zu ändern.",
-  "Sim": "Sim",
   "Simulate": "Simulieren",
   "Simulate heartbeat failure": "Heartbeat-Ausfall simulieren",
   "Simulated": "Simuliert",
@@ -908,5 +907,6 @@
   "No one - the process acts as itself": "Niemand - der Prozess handelt selbst",
   "What it does on a person's behalf - with that person's rights, recorded as theirs.": "Was er im Namen einer Person tut - mit deren Rechten, als ihre Handlung erfasst.",
   "Raise after, s": "Auslösen nach, s",
-  "A warning / error is raised only once its metric has been over the threshold this long - a short spike (a build, a nightly job) raises nothing": "Eine Warnung / ein Fehler wird erst ausgelöst, wenn der Wert so lange ununterbrochen über der Schwelle liegt - eine kurze Spitze (ein Build, ein nächtlicher Job) löst nichts aus"
+  "A warning / error is raised only once its metric has been over the threshold this long - a short spike (a build, a nightly job) raises nothing": "Eine Warnung / ein Fehler wird erst ausgelöst, wenn der Wert so lange ununterbrochen über der Schwelle liegt - eine kurze Spitze (ein Build, ein nächtlicher Job) löst nichts aus",
+  "Theme": "Design"
 }

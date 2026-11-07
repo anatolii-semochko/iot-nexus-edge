@@ -45,11 +45,17 @@ const tr = packageT('energy-field')
 // export, charge)
 const FLOW_VALUE_REM = 2.4
 const FLOW_WORD_REM = 1.25
+// on a narrow scene (the flows inside the blocks)
+const FLOW_VALUE_NARROW_REM = 1.8
+const FLOW_WORD_NARROW_REM = 1.05
 
 // the middle row: the centre's least width (its five day figures side by side), the scene's
 // width under which the row stacks (the side blocks, the flows' figures and the centre no longer fit)
 const MID_MIN_PX = 440
 const MID_STACK_PX = 1080
+// the top / bottom flows' side slots - the big figures beside the chevrons (a wide scene; a narrow one -
+// shared equally)
+const FLOW_SIDE = 200
 
 const LAYOUT_CSS = `
 .ef-scene { container-type: inline-size; display: flex; flex-direction: column; gap: 14px; color: var(--ef-ink) }
@@ -81,8 +87,27 @@ const LAYOUT_CSS = `
 @container (max-width: 760px) {
   .ef-row2 { grid-template-columns: minmax(0, 1fr) }
 }
+/* the generation's and the batteries' flows: the figure, the chevrons, the word */
+.ef-flowrow { display: flex; justify-content: center; align-items: center; gap: 1rem }
+.ef-flowrow-side { display: flex; width: ${FLOW_SIDE}px }
+.ef-narrow-only { display: none }
+/* a narrow scene (the user, 2026-11-07): the generation's flow at the bottom of its block, the batteries'
+   on top of theirs; the grid with its flow on the right, the ledger, the consumption with its flow on the
+   left - two columns; the gaps as the scene's */
 @container (max-width: ${MID_STACK_PX}px) {
-  .ef-mid { grid-template-columns: minmax(0, 1fr) }
+  .ef-wide-only { display: none }
+  .ef-narrow-only { display: block }
+  .ef-flowrow { gap: 0.5rem }
+  .ef-flowrow-side { width: auto; flex: 1 1 0; min-width: 0 }
+  /* the figures and the words smaller - a block's width holds the figure, the chevrons and the word */
+  .ef-flow-value { font-size: ${FLOW_VALUE_NARROW_REM / 1.2}rem }
+  .ef-flow-word { font-size: ${FLOW_WORD_NARROW_REM}rem }
+  .ef-mid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "grid gridflow" "ledger ledger" "supply consumer"; gap: 14px }
+  .ef-mid > :nth-child(1) { grid-area: grid }
+  .ef-mid > :nth-child(2) { grid-area: gridflow }
+  .ef-mid > :nth-child(3) { grid-area: ledger }
+  .ef-mid > :nth-child(4) { grid-area: supply }
+  .ef-mid > :nth-child(5) { grid-area: consumer }
   .ef-hflow { transform: rotate(90deg) }
 }
 `
@@ -92,8 +117,6 @@ const LAYOUT_CSS = `
 // the energy flows between the blocks (the user's mockup images/energy-streams.png - larger;
 // the side ones centred between their neighbours by the grid's flexible columns)
 const FLOW_SIZE = 84
-// the top / bottom flows' side slots - the big figures beside the chevrons
-const FLOW_SIDE = 200
 // the grid's two price gauges (buy, sell) under its title
 const GAUGE_PX = 64
 // a battery tile's chevrons (the user's mockup images/fix-accum-ui.png): larger - their strokes
@@ -409,6 +432,70 @@ const EnergyFieldScene = ({ process }) => {
     )
   }
 
+  // the generation's and the batteries' flows - between the blocks on a wide scene, inside their blocks
+  // on a narrow one (the generation's at its bottom, the batteries' on top; the user, 2026-11-07)
+  const generationFlow = (
+    <div className="ef-flowrow">
+      <span className="ef-flowrow-side justify-content-end">
+        <FlowFigure
+          kw={generation}
+          color={generation > 0.05 ? 'var(--ef-gain)' : 'var(--ef-off)'}
+        />
+      </span>
+      <Flow
+        dir="down"
+        kw={generation}
+        scaleKw={scaleKw}
+        color={genAlerts.length ? 'var(--ef-bad)' : 'var(--ef-gain)'}
+        size={FLOW_SIZE}
+        label={tr('Generation {{kwText}} kW', { kwText: kwText(generation) })}
+        title={flowTitles.generation}
+        onClick={() => setPopup({ kind: 'generation' })}
+      />
+      <span
+        className="ef-flowrow-side"
+        style={{ color: generation > 0.05 ? 'var(--ef-gain)' : 'var(--ef-off)' }}
+      >
+        <span className="ef-flow-word" title={flowTitles.generation}>
+          {tr('generation')}
+        </span>
+      </span>
+    </div>
+  )
+  const batteryFlow = (
+    <div className="ef-flowrow">
+      <span className="ef-flowrow-side justify-content-end" style={{ color: batteryColor }}>
+        {batteryDir === 'discharge' ? (
+          <span className="ef-flow-word">{tr('discharging')}</span>
+        ) : (
+          <FlowFigure kw={Math.abs(t.batteryKw)} color={batteryColor} />
+        )}
+      </span>
+      <Flow
+        dir={batteryDir === 'discharge' ? 'up' : 'down'}
+        kw={Math.abs(t.batteryKw)}
+        scaleKw={scaleKw}
+        color={batAlerts.length ? 'var(--ef-bad)' : batteryColor}
+        size={FLOW_SIZE}
+        label={tr('Batteries {{batteryDir}} {{kwText}} kW', {
+          batteryDir,
+          kwText: kwText(Math.abs(t.batteryKw)),
+        })}
+        title={flowTitles.batteries}
+        onClick={() => setPopup({ kind: 'batteries' })}
+      />
+      <span className="ef-flowrow-side" style={{ color: batteryColor }}>
+        {batteryDir === 'discharge' ? (
+          <FlowFigure kw={Math.abs(t.batteryKw)} color={batteryColor} />
+        ) : (
+          <span className="ef-flow-word">
+            {batteryDir === 'charge' ? tr('charging') : tr('idle')}
+          </span>
+        )}
+      </span>
+    </div>
+  )
+
   return (
     <div className="ef-scene">
       <style>{SCENE_CSS + LAYOUT_CSS}</style>
@@ -561,37 +648,10 @@ const EnergyFieldScene = ({ process }) => {
             </div>
           </div>
         ))}
+        <div className="ef-narrow-only">{generationFlow}</div>
       </section>
 
-      <div className="d-flex justify-content-center align-items-center gap-3">
-        <span className="d-flex justify-content-end" style={{ width: FLOW_SIDE }}>
-          <FlowFigure
-            kw={generation}
-            color={generation > 0.05 ? 'var(--ef-gain)' : 'var(--ef-off)'}
-          />
-        </span>
-        <Flow
-          dir="down"
-          kw={generation}
-          scaleKw={scaleKw}
-          color={genAlerts.length ? 'var(--ef-bad)' : 'var(--ef-gain)'}
-          size={FLOW_SIZE}
-          label={tr('Generation {{kwText}} kW', { kwText: kwText(generation) })}
-          title={flowTitles.generation}
-          onClick={() => setPopup({ kind: 'generation' })}
-        />
-        <span
-          className="d-flex"
-          style={{
-            width: FLOW_SIDE,
-            color: generation > 0.05 ? 'var(--ef-gain)' : 'var(--ef-off)',
-          }}
-        >
-          <span className="ef-flow-word" title={flowTitles.generation}>
-            {tr('generation')}
-          </span>
-        </span>
-      </div>
+      <div className="ef-wide-only">{generationFlow}</div>
 
       <div className="ef-mid">
         <button
@@ -625,7 +685,7 @@ const EnergyFieldScene = ({ process }) => {
                   })}
                 />
                 <span className="text-nowrap">
-                  {word}{' '}
+                  {tr(word)}{' '}
                   <KeyValue
                     value={fmt(ct, 1)}
                     className={level ? `text-${LEVEL_COLOR[level.level]}` : undefined}
@@ -661,7 +721,7 @@ const EnergyFieldScene = ({ process }) => {
             <FlowFigure kw={Math.abs(t.gridKw)} color="var(--ef-gain)" />
           ) : (
             <span className="ef-flow-word" style={{ color: gridColor }} title={flowTitles.grid}>
-              {gridFlow}
+              {tr(gridFlow)}
             </span>
           )}
         </div>
@@ -713,42 +773,10 @@ const EnergyFieldScene = ({ process }) => {
         </button>
       </div>
 
-      <div className="d-flex justify-content-center align-items-center gap-3">
-        <span
-          className="d-flex justify-content-end"
-          style={{ width: FLOW_SIDE, color: batteryColor }}
-        >
-          {batteryDir === 'discharge' ? (
-            <span className="ef-flow-word">{tr('discharging')}</span>
-          ) : (
-            <FlowFigure kw={Math.abs(t.batteryKw)} color={batteryColor} />
-          )}
-        </span>
-        <Flow
-          dir={batteryDir === 'discharge' ? 'up' : 'down'}
-          kw={Math.abs(t.batteryKw)}
-          scaleKw={scaleKw}
-          color={batAlerts.length ? 'var(--ef-bad)' : batteryColor}
-          size={FLOW_SIZE}
-          label={tr('Batteries {{batteryDir}} {{kwText}} kW', {
-            batteryDir,
-            kwText: kwText(Math.abs(t.batteryKw)),
-          })}
-          title={flowTitles.batteries}
-          onClick={() => setPopup({ kind: 'batteries' })}
-        />
-        <span className="d-flex" style={{ width: FLOW_SIDE, color: batteryColor }}>
-          {batteryDir === 'discharge' ? (
-            <FlowFigure kw={Math.abs(t.batteryKw)} color={batteryColor} />
-          ) : (
-            <span className="ef-flow-word">
-              {batteryDir === 'charge' ? tr('charging') : tr('idle')}
-            </span>
-          )}
-        </span>
-      </div>
+      <div className="ef-wide-only">{batteryFlow}</div>
 
       <section className="ef-card">
+        <div className="ef-narrow-only mb-2">{batteryFlow}</div>
         <SummaryLine
           className="mb-2"
           title={tr('Batteries')}

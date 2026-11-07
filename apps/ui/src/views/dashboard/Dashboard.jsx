@@ -458,7 +458,8 @@ const Level = ({ cards, items, layout, scale = 1, processes }) => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: `repeat(auto-fill, minmax(${CARD_MIN_REM * scale}rem, 1fr))`,
+          // a column never wider than the page (a scale on a phone pushed the cards past its edge)
+          gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${CARD_MIN_REM * scale}rem), 1fr))`,
           gap: `${CARD_GAP_REM}rem`,
           // the folder's cards larger or smaller - their width and their picture's block
           '--dc-scale': scale,

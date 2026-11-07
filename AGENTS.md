@@ -9063,8 +9063,9 @@ lint` runs both. The rules: the React hooks' (purity - "now" by
   under the form).
 - **A folder's cards' scale** (`cards_scale`, migration 103, 2026-11-01;
   API `cardsScale`, 0.5 - 2, default 1): the cards inside the folder drawn
-  that many times larger - the grid's minimum width (`CARD_MIN_REM` x it)
-  and the picture's block (`--dc-scale` on the grid, `PREVIEW_H` x it), so
+  that many times larger - the grid's minimum width (`CARD_MIN_REM` x it,
+  never over the page's width - `min(100%, ...)`: a scale on a phone pushed
+  the cards past its edge, 2026-11-07) and the picture's block (`--dc-scale` on the grid, `PREVIEW_H` x it), so
   avatars stretched to the block grow too; `dashboardCardWidth(content,
   rem, scale)` - the card form's preview uses the scale of the card's
   folder. The top level - the Dashboard's settings (`system_settings`
@@ -9184,8 +9185,23 @@ cold's when cooling).
   (`minmax(max-content, 1fr)`), the centre at least `MID_MIN_PX` (440), the
   row stacked under `MID_STACK_PX` (1080 px of scene) - nothing overlaps
   between (`images/bug-electricity-blocks.png`); the wide layout as before.
+  The narrow scene (2026-11-07, the user's phone layout): two columns -
+  the grid and its flow on the right, the ledger across, the supply flow
+  and the consumer on its right (grid areas); the generation's flow at the
+  bottom of its block, the batteries' on top of theirs (`generationFlow` /
+  `batteryFlow` - one element in two places, `.ef-wide-only` /
+  `.ef-narrow-only`); the flows' figures and words smaller
+  (`FLOW_VALUE_NARROW_REM`, `FLOW_WORD_NARROW_REM`), their side slots
+  shared equally; the gaps - the scene's 14px.
 
 **The heating's scene**
+- The supply row (2026-11-07): the electricity from the grid (a grid tower as tall as the weather's
+  icon - `WEATHER_ICON_PX`; the heat pumps' and the fans' kW) on the left, the weather on the right with
+  the heat taken from the outdoor air (heating: the heat less the pumps' electricity; cooling - given off:
+  the cold and the electricity; `TemperatureWidget`'s `extra`); one column when narrow. A narrow
+  weather widget's line wraps its parts whole (`.wx-narrow .wx-line`).
+- The water lines' picture (the gauges and the pipes) - its own width at most, narrower with its block
+  (`width: W, maxWidth: 100%`, the svg scaled; a phone cut the right gauge).
 - No own padding; the heat pumps' head: the summary line and the mode on
   the left, the state and today's figures on the right (stacked on the left
   under `HEAD_STACK_PX` 720, a container query).
@@ -9545,6 +9561,13 @@ Energy Ledger's README has the details.
   language. `UI_LANGUAGES` (env) - the offered ones (`/auth/me`
   `languages`). The header also shows the role acted in beside the avatar
   (`/auth/me` `contextName` - the context's name, with one role - that role).
+  A phone (below `sm`, 2026-11-07): the header in one row with the menu
+  button - the language and the theme in the user's menu
+  (`AppHeaderDropdown.jsx`; `useLanguageChoice` shared with the selector),
+  the simulation badge left out (the system tick's pulse stays), the
+  notification icons 2rem (`.wem-icon`), no wrap (`.app-header-row`), the
+  menu button without its negative margin (`.app-header-toggler`,
+  scss/style.scss).
 - **The tools** (`scripts/`):
   - `i18n-wrap.mjs [--dry] [--loose] <dirs>` - the codemod: wraps visible
     texts in `t(...)` by position (the formatting kept - no prettier

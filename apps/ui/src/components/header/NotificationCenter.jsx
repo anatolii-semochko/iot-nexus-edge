@@ -55,8 +55,7 @@ const NotificationCenter = () => {
             onClick={() => setOpenType(type)}
           >
             <span
-              className={`d-inline-flex align-items-center justify-content-center rounded-circle ${blink ? `bg-${meta.color} wem-blink-ring` : ''}`}
-              style={{ width: '2.25rem', height: '2.25rem' }}
+              className={`wem-icon d-inline-flex align-items-center justify-content-center rounded-circle ${blink ? `bg-${meta.color} wem-blink-ring` : ''}`}
             >
               <CIcon icon={meta.icon} size="lg" className={iconColorClass} />
             </span>

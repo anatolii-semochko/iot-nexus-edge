@@ -202,5 +202,14 @@
   "{{what}} to the tanks and the heating's electricity, kW": "{{what}} a los depósitos y la electricidad de la calefacción, kW",
   "· holding off": "· en espera",
   "· storing heat": "· acumulando calor",
-  "The fan coil, the setpoint, the heat now and today": "El fancoil, la consigna, el calor ahora y hoy"
+  "The fan coil, the setpoint, the heat now and today": "El fancoil, la consigna, el calor ahora y hoy",
+  "Electricity from the grid": "Electricidad de la red",
+  "The heating's electricity from the grid now - the heat pumps and the fan coils' fans": "La electricidad de la calefacción desde la red ahora - las bombas de calor y los ventiladores de los fancoils",
+  "Grid": "Red",
+  "the heat pumps and the fans": "bombas de calor y ventiladores",
+  "The heat the heat pumps give off outdoors now - the cold made and their electricity": "El calor que las bombas de calor ceden al exterior ahora - el frío producido y su electricidad",
+  "The heat the heat pumps take from the outdoor air now - their heat less their electricity": "El calor que las bombas de calor toman del aire exterior ahora - su calor menos su electricidad",
+  "to outdoors": "al exterior",
+  "from outdoors": "del exterior",
+  "kW": "kW"
 }

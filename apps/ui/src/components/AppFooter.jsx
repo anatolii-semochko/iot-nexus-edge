@@ -10,7 +10,8 @@ const AppFooter = () => {
         <span>{PROJECT_NAME}</span>
         <span className="ms-1">&copy; {new Date().getFullYear()}</span>
       </div>
-      <div className="ms-auto">
+      {/* a phone - the installation's copyright only (the two texts wrapped on two lines) */}
+      <div className="ms-auto d-none d-sm-block">
         {/* the installation's name on the left (PROJECT_NAME), the product's on the right */}
         <span>{t('Powered by {{product}}', { product: 'Nexus Edge' })}</span>
       </div>

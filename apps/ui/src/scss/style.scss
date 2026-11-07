@@ -66,6 +66,34 @@ body {
   }
 }
 
+// the header's notification icons (components/header/NotificationCenter.jsx)
+.wem-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+// the menu button - at the container's edge (its own padding inside)
+.app-header-toggler {
+  margin-inline-start: -14px;
+}
+
+// a phone: the header in one row with the menu button - no wrap, tighter (2026-11-07)
+@include media-breakpoint-down(sm) {
+  .app-header-row {
+    flex-wrap: nowrap;
+  }
+
+  // the header's left padding is smaller here - the button keeps its own room from the edge
+  .app-header-toggler {
+    margin-inline-start: 0;
+  }
+
+  .wem-icon {
+    width: 2rem;
+    height: 2rem;
+  }
+}
+
 .header > .container-fluid + .container-fluid {
   min-height: 3rem;
 }

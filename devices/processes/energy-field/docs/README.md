@@ -106,8 +106,10 @@ the Ledger (nexus-edge AGENTS.md, "A linked process's commands").
   green where the price is good for us - a purchase cheap on the left, a
   sale dear on the right - the needle at the price now, the figure under it
   in the same colour; the phases and the frequency - its popup) ->
-  the control block -> the consumer (the row stacks on a narrow
-  scene); the battery array (each tile: its power, the current's triple
+  the control block -> the consumer (a narrow scene: the grid with its
+  flow, the control block, the supply flow with the consumer; the
+  generation's flow inside its block at the bottom, the batteries' on top
+  of theirs); the battery array (each tile: its power, the current's triple
   arrows - red over the limit - and the battery with its % and kWh inside,
   the fill green / yellow / red, a small pink bolt while charging). The
   flows: three chevrons running the way the energy goes, faster with more
