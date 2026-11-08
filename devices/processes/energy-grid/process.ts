@@ -26,6 +26,7 @@
  */
 
 import { localDate } from "../../lib/localTime.ts";
+import { wem } from "../../lib/wem.ts";
 
 const PRICE_REFRESH_MS = 5 * 60_000;
 const DEFAULT_SIM_SECONDS = 60;
@@ -148,25 +149,25 @@ export default function registerEnergyGrid(register: any, { apiClient, logger }:
     const tolHz = c.quality?.frequencyToleranceHz ?? 0.2;
     const measured = phases.filter((v): v is number => v !== null);
     const outage = measured.length > 0 && measured.every((v) => v < nominalV / 2);
-    const errors = outage ? [{ code: "grid_outage", level: 1, text: "Grid outage - no voltage on any phase" }] : [];
+    const errors = outage ? [{ code: "grid_outage", level: 1, ...wem("Grid outage - no voltage on any phase") }] : [];
     const warnings: { code: string; level: number; text: string }[] = [];
     if (!outage) {
       phases.forEach((v, i) => {
         if (v !== null && Math.abs(v - nominalV) > tolV)
-          warnings.push({ code: `voltage_l${i + 1}`, level: 1, text: `Phase L${i + 1} at ${v.toFixed(1)} V - outside ${nominalV} V +-${c.quality?.voltageTolerancePct ?? 10} %` });
+          warnings.push({ code: `voltage_l${i + 1}`, level: 1, ...wem("Phase L{{v}} at {{v2}} V - outside {{nominalV}} V +-{{v3}} %", { v: i + 1, v2: v.toFixed(1), nominalV, v3: c.quality?.voltageTolerancePct ?? 10 }) });
       });
       if (frequency !== null && Math.abs(frequency - nominalHz) > tolHz)
-        warnings.push({ code: "frequency", level: 1, text: `Grid frequency ${frequency.toFixed(2)} Hz - outside ${nominalHz} +-${tolHz} Hz` });
+        warnings.push({ code: "frequency", level: 1, ...wem("Grid frequency {{frequency}} Hz - outside {{nominalHz}} +-{{tolHz}} Hz", { frequency: frequency.toFixed(2), nominalHz, tolHz }) });
     }
     if (power !== null && c.limits?.maxImportKw != null && power > c.limits.maxImportKw)
-      warnings.push({ code: "import_limit", level: 1, text: `Import ${power.toFixed(1)} kW - over the ${c.limits.maxImportKw} kW limit` });
+      warnings.push({ code: "import_limit", level: 1, ...wem("Import {{power}} kW - over the {{maxImportKw}} kW limit", { power: power.toFixed(1), maxImportKw: c.limits.maxImportKw }) });
     if (power !== null && c.limits?.maxExportKw != null && -power > c.limits.maxExportKw)
-      warnings.push({ code: "export_limit", level: 1, text: `Export ${(-power).toFixed(1)} kW - over the ${c.limits.maxExportKw} kW limit` });
-    if (slot && slot.buyCtKwh == null) warnings.push({ code: "no_price", level: 1, text: "No purchase price for now - check the tariff zones or the market data" });
+      warnings.push({ code: "export_limit", level: 1, ...wem("Export {{v}} kW - over the {{maxExportKw}} kW limit", { v: (-power).toFixed(1), maxExportKw: c.limits.maxExportKw }) });
+    if (slot && slot.buyCtKwh == null) warnings.push({ code: "no_price", level: 1, ...wem("No purchase price for now - check the tariff zones or the market data") });
     const usesMarket = c.purchase?.mode === "market" || c.sale?.mode === "market";
     const marketAge = st.price?.fetchedAt ? now - Date.parse(st.price.fetchedAt) : Infinity;
     if (usesMarket && marketAge > MARKET_STALE_MS)
-      warnings.push({ code: "market_stale", level: 1, text: `Market prices not updated${st.price?.error ? ` - ${st.price.error}` : ""}` });
+      warnings.push({ code: "market_stale", level: 1, ...(st.price?.error ? wem("Market prices not updated - {{error}}", { error: st.price.error }) : wem("Market prices not updated")) });
     await apiClient.syncMessages(process.id, "error", errors);
     await apiClient.syncMessages(process.id, "warning", warnings);
     await apiClient.setCritical(process.id, outage);

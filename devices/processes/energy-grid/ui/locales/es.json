@@ -44,5 +44,13 @@
   "tariff zones": "zonas tarifarias",
   "the last market fetch failed:": "la última obtención del mercado falló:",
   "the server's": "del servidor",
-  "{{toLocaleString}}: buy {{buyCtKwh}} ct/kWh{{v2}}{{v3}}": "{{toLocaleString}}: compra {{buyCtKwh}} ct/kWh{{v2}}{{v3}}"
+  "{{toLocaleString}}: buy {{buyCtKwh}} ct/kWh{{v2}}{{v3}}": "{{toLocaleString}}: compra {{buyCtKwh}} ct/kWh{{v2}}{{v3}}",
+  "Grid outage - no voltage on any phase": "Corte de red - sin tensión en ninguna fase",
+  "Phase L{{v}} at {{v2}} V - outside {{nominalV}} V +-{{v3}} %": "Fase L{{v}} a {{v2}} V - fuera de {{nominalV}} V +-{{v3}} %",
+  "Grid frequency {{frequency}} Hz - outside {{nominalHz}} +-{{tolHz}} Hz": "Frecuencia de red {{frequency}} Hz - fuera de {{nominalHz}} +-{{tolHz}} Hz",
+  "Import {{power}} kW - over the {{maxImportKw}} kW limit": "Importación {{power}} kW - por encima del límite de {{maxImportKw}} kW",
+  "Export {{v}} kW - over the {{maxExportKw}} kW limit": "Exportación {{v}} kW - por encima del límite de {{maxExportKw}} kW",
+  "No purchase price for now - check the tariff zones or the market data": "No hay precio de compra para ahora - revise las franjas tarifarias o los datos de mercado",
+  "Market prices not updated - {{error}}": "Precios de mercado no actualizados - {{error}}",
+  "Market prices not updated": "Precios de mercado no actualizados"
 }

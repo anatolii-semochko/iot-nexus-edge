@@ -1,3 +1,4 @@
+import { wem } from "../../lib/wem.ts";
 /**
  * "example-threshold-monitor" - STARTER TEMPLATE, not a real process kind
  * (AGENTS_TO_DO.md, 2026-08-14 process management/Library catalog
@@ -61,10 +62,10 @@ export default function registerExampleThresholdMonitor(register: any, { apiClie
     await apiClient.setCritical(process.id, isError);
     await apiClient.setWarning(process.id, isWarning);
     await apiClient.syncMessages(process.id, "error", isError
-      ? [{ code: "value_error", level: 1, text: `Value ${value} is outside [${min ?? "-inf"}, ${max ?? "+inf"}]` }]
+      ? [{ code: "value_error", level: 1, ...wem("Value {{value}} is outside [{{v}}, {{v2}}]", { value, v: min ?? "-inf", v2: max ?? "+inf" }) }]
       : []);
     await apiClient.syncMessages(process.id, "warning", isWarning
-      ? [{ code: "value_warning", level: 1, text: `Value ${value} is outside [${warnMin ?? "-inf"}, ${warnMax ?? "+inf"}]` }]
+      ? [{ code: "value_warning", level: 1, ...wem("Value {{value}} is outside [{{v}}, {{v2}}]", { value, v: warnMin ?? "-inf", v2: warnMax ?? "+inf" }) }]
       : []);
   });
 }

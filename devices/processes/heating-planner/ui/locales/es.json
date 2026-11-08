@@ -78,5 +78,7 @@
   "{{hhmm}}-{{hhmm2}}: the sun's surplus (the Ledger would export it) - the heat at the sale price": "{{hhmm}}-{{hhmm2}}: excedente solar (el Ledger lo exportaría): el calor al precio de venta",
   "{{hhmm}}: {{v1}} {{fmt}} kW - {{units}} unit(s), the need {{fmt2}} kW, {{fmt22}} ct/kWh": "{{hhmm}}: {{v1}} {{fmt}} kW - {{units}} unidad(es), necesidad {{fmt2}} kW, {{fmt22}} ct/kWh",
   "{{units}} running": "{{units}} en marcha",
-  "{{units}} units running": "{{units}} unidades en marcha"
+  "{{units}} units running": "{{units}} unidades en marcha",
+  "No Energy Ledger linked - nothing to plan on (the heatings keep their own band control)": "No hay Energy Ledger vinculado - nada que planificar (las calefacciones mantienen su propio control por banda)",
+  "The Energy Ledger has no plan ahead - nothing planned (the heatings keep their own band control)": "El Energy Ledger no tiene un plan por delante - nada planificado (las calefacciones mantienen su propio control por banda)"
 }

@@ -20,7 +20,7 @@ function heldEntries(processId: number, type: MessageType, now: number, seedClea
     entries = new Map(
       active
         .filter((m) => m.type === type)
-        .map((m) => [m.code, { entry: { code: m.code, level: m.level, text: m.text }, seenAt: now, clearAfterMs: seedClearAfterMs }]),
+        .map((m) => [m.code, { entry: { code: m.code, level: m.level, text: m.text, ...(m.subject ? { subject: m.subject } : {}), ...(m.i18n ? { i18n: m.i18n } : {}) }, seenAt: now, clearAfterMs: seedClearAfterMs }]),
     );
     held.set(key, entries);
   }

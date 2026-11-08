@@ -31,5 +31,8 @@
   "Targets found": "Знайдено цілей",
   "Tokens": "Токени",
   "Tokens:": "Токени:",
-  "input {{inputTokens}}, output {{outputTokens}}": "вхід {{inputTokens}}, вихід {{outputTokens}}"
+  "input {{inputTokens}}, output {{outputTokens}}": "вхід {{inputTokens}}, вихід {{outputTokens}}",
+  "AI analysis failed: {{lastError}}": "Аналіз ШІ не вдався: {{lastError}}",
+  "{{imageCount}} images stored (limit {{IMAGE_WARN_LIMIT}}) - delete older ones": "Збережено зображень: {{imageCount}} (межа {{IMAGE_WARN_LIMIT}}) - видаліть старіші",
+  "Found: {{names}}": "Знайдено: {{names}}"
 }

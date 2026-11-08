@@ -908,5 +908,10 @@
   "What it does on a person's behalf - with that person's rights, recorded as theirs.": "Що процес робить від імені людини - з її правами, записується як її дії.",
   "Raise after, s": "Підняти після, с",
   "A warning / error is raised only once its metric has been over the threshold this long - a short spike (a build, a nightly job) raises nothing": "Попередження / помилка з'являється, лише коли показник перевищує поріг стільки часу поспіль - короткий сплеск (збірка, нічне завдання) нічого не піднімає",
-  "Theme": "Тема"
+  "Theme": "Тема",
+  "Device '{{name}}' log is {{skipped}} period(s) overdue": "Журнал пристрою '{{name}}' прострочено на {{skipped}} період(и)",
+  "{{label}} '{{name}}' hasn't sent a heartbeat in {{ticks}} ticks": "{{label}} '{{name}}' не надсилав heartbeat {{ticks}} тактів",
+  "Value {{value}} is outside [{{v}}, {{v2}}]": "Значення {{value}} поза межами [{{v}}, {{v2}}]",
+  "Enclosure temperature {{temperature}}C is outside [{{v}}, {{v2}}]": "Температура в корпусі {{temperature}} C поза межами [{{v}}, {{v2}}]",
+  "Enclosure humidity {{humidity}}%RH is outside [{{v}}, {{v2}}]": "Вологість у корпусі {{humidity}} %RH поза межами [{{v}}, {{v2}}]"
 }

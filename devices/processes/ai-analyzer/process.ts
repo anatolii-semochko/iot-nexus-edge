@@ -1,3 +1,4 @@
+import { wem } from "../../lib/wem.ts";
 /**
  * "ai-analyzer" process kind - orchestrator side (AGENTS.md section 82,
  * AI Analyzing Camera stage 4). CORE Library kind, loaded by
@@ -94,14 +95,14 @@ export default function registerAiAnalyzer(register: any, { apiClient, logger }:
   // WEM state that must persist between events - re-asserted every tick
   // (syncMessages takes the complete active set).
   const syncState = async (process: any, s: State) => {
-    const errors = s.lastError ? [{ code: "ai_analysis_failed", level: 1, text: `AI analysis failed: ${s.lastError}` }] : [];
+    const errors = s.lastError ? [{ code: "ai_analysis_failed", level: 1, ...wem("AI analysis failed: {{lastError}}", { lastError: s.lastError }) }] : [];
     const warnings =
       s.imageCount !== null && s.imageCount > IMAGE_WARN_LIMIT
         ? [
             {
               code: "image_limit",
               level: 1,
-              text: `${s.imageCount} images stored (limit ${IMAGE_WARN_LIMIT}) - delete older ones`,
+              ...wem("{{imageCount}} images stored (limit {{IMAGE_WARN_LIMIT}}) - delete older ones", { imageCount: s.imageCount, IMAGE_WARN_LIMIT }),
             },
           ]
         : [];
@@ -127,7 +128,7 @@ export default function registerAiAnalyzer(register: any, { apiClient, logger }:
       if (result.status === "ok" && result.found.length > 0) {
         const names = foundSummary(result.found);
         // One-shot notification: a unique code per image, never auto-resolved.
-        await apiClient.syncMessages(process.id, "message", [{ code: `found_${mediaId}`, level: 1, text: `Found: ${names}` }], "never");
+        await apiClient.syncMessages(process.id, "message", [{ code: `found_${mediaId}`, level: 1, ...wem("Found: {{names}}", { names }) }], "never");
       }
     } catch (err: any) {
       // The API couldn't even produce an error result (down, timed out) -

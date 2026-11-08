@@ -1589,6 +1589,21 @@ boolean, since a boolean only has two states to compare and this has to
 diff two code sets. `setHidden` (UI-driven dismiss) publishes the same
 event after toggling, so every viewer's row updates immediately.
 
+**In the interface's language (2026-11-08, migration 106)**: a message
+carries `i18n` - `{ ns, template, params }`: the producer's English template
+with its `{{placeholders}}` and their values; `text` stays the English filled
+in (the logs, the search, the AI, the rows from before). A producer builds
+both with `wem(template, params)` - `{ code, level, ...wem("{{name}}: frost
+risk", { name }) }` (`devices/lib/wem.ts`; `ctx.wem` in a plugin's context;
+the built-ins - `apps/orchestrator/src/messageText.ts`); it never names its
+package: the orchestrator adds `ns` from the process's kind - the plugin
+file's folder (`kindPackages.ts`, `apiClient.withPackage`; a built-in kind -
+`core`). The UI's `messageText(m)` (`src/i18n`) translates the template in
+that package's `ui/locales` (then the core's) - the header's notifications,
+Logs -> Messages, the processes' WEM rows, the aquarium's Control / Logs
+tabs. A text with a nested template literal, or one made whole elsewhere
+(`{{v}}` alone), is still plain English - convert it when touched.
+
 **Settling (2026-11-07, `apps/orchestrator/src/messageSettle.ts`)**:
 `apiClient.syncMessages` holds a warning / error gone from a process's
 report `ORCHESTRATOR_MESSAGE_CLEAR_AFTER_MS` (30 s) more, with its last
@@ -2706,6 +2721,13 @@ The silence is counted from Heartbeating Control's first run at the
 latest (2026-11-07): after a restart (a deploy) the last-seen marks in Redis were
 minutes old, and the first tick raised "hasn't sent a heartbeat in 82
 ticks" for every process, Heartbeating Control itself included.
+And for `ORCHESTRATOR_HEARTBEAT_STARTUP_GRACE_MS` (60 s, 2026-11-08) after
+that first run no one's silence is judged at all: while the stack starts,
+every process's first run comes late (each deploy still raised "Resource
+Monitor: no heartbeat in 3 ticks" for half a minute).
+The grace starts again whenever the watcher itself missed more than 3 ticks
+(the API unreachable while a deploy restarts it - no heartbeat could get
+through, so no one's silence is theirs).
 
 ### "Heartbeating control test" process
 

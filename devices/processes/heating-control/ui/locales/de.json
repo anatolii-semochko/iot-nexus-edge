@@ -213,5 +213,11 @@
   "from outdoors": "von draußen",
   "kW": "kW",
   "kW from the grid": "kW aus dem Netz",
-  "The electricity from the grid - the last day and the plan for the next, kW": "Strom aus dem Netz - der letzte Tag und der Plan für den nächsten, kW"
+  "The electricity from the grid - the last day and the plan for the next, kW": "Strom aus dem Netz - der letzte Tag und der Plan für den nächsten, kW",
+  "{{name}}: {{roomC}} C - frost risk": "{{name}}: {{roomC}} C - Frostgefahr",
+  "{{name}}: {{avg}} C - frost risk": "{{name}}: {{avg}} C - Frostgefahr",
+  "{{name}}: {{top}} C at the top - over its {{tMaxC}} C": "{{name}}: {{top}} C oben - über seinen {{tMaxC}} C",
+  "{{name}}: {{v}} {{cop}} - inefficient at this weather": "{{name}}: {{v}} {{cop}} - bei diesem Wetter ineffizient",
+  "The tanks are nearly empty - the rooms may cool down": "Die Speicher sind fast leer - die Räume können auskühlen",
+  "No weather forecast - the outdoor temperature is unknown": "Keine Wettervorhersage - die Außentemperatur ist unbekannt"
 }

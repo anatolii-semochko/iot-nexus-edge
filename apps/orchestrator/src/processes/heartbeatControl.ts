@@ -36,9 +36,11 @@
 // inside the orchestrator - a true external watchdog would be needed for
 // that case, out of scope here.
 
+import { config } from "../config.js";
 import { apiClient, type MessageInput, type NodeRecord, type ProcessRecord } from "../apiClient.js";
 import { TICK_INTERVAL_MS } from "../tickInterval.js";
 import { tickProcesses } from "../tickProcesses.js";
+import { wem } from "../messageText.js";
 
 // `null` - never seen a heartbeat yet (a fresh deploy, or a process kind
 // with no runner) - deliberately not treated as "infinitely stale", same
@@ -48,9 +50,14 @@ import { tickProcesses } from "../tickProcesses.js";
 // Heartbeating Control itself too, and raised warnings / errors that cleared a tick later (iot
 // AGENTS_TO_DO.md 2026-11-07, the messages audit)
 let watchingSince: number | null = null;
+// this watcher's last full run, and how many missed ticks of its own restart the grace
+let lastRunAt: number | null = null;
+const WATCHER_GAP_TICKS = 3;
 
 function skippedTicks(lastSeenAt: string | null): number | null {
   if (!lastSeenAt) return null;
+  // the stack still starting - no one's silence judged yet (config.heartbeatStartupGraceMs)
+  if (watchingSince !== null && Date.now() - watchingSince < config.heartbeatStartupGraceMs) return null;
   const elapsedMs = Date.now() - Math.max(new Date(lastSeenAt).getTime(), watchingSince ?? Date.now());
   return Math.floor(elapsedMs / TICK_INTERVAL_MS);
 }
@@ -95,13 +102,13 @@ function evaluate(
       errorEntries.push({
         code: `stale_${kind}_${monitored.id}`,
         level: error.level,
-        text: `${label} '${monitored.name}' hasn't sent a heartbeat in ${ticks} ticks`,
+        ...wem("{{label}} '{{name}}' hasn't sent a heartbeat in {{ticks}} ticks", { label, name: monitored.name, ticks }),
       });
     } else if (warning && ticks >= warning.numberSkippedTicks) {
       warningEntries.push({
         code: `stale_${kind}_${monitored.id}`,
         level: warning.level,
-        text: `${label} '${monitored.name}' hasn't sent a heartbeat in ${ticks} ticks`,
+        ...wem("{{label}} '{{name}}' hasn't sent a heartbeat in {{ticks}} ticks", { label, name: monitored.name, ticks }),
       });
     }
   }
@@ -147,7 +154,11 @@ export async function runHeartbeatControl(process: ProcessRecord): Promise<void>
     return;
   }
 
-  watchingSince ??= Date.now();
+  // the watcher itself silent a while (the API unreachable - a deploy restarting it): no one's heartbeat
+  // could get through either - the grace starts again (no "silent" process for the API's own gap)
+  const now = Date.now();
+  if (watchingSince === null || (lastRunAt !== null && now - lastRunAt > WATCHER_GAP_TICKS * TICK_INTERVAL_MS)) watchingSince = now;
+  lastRunAt = now;
   const errorEntries: MessageInput[] = [];
   const warningEntries: MessageInput[] = [];
 

@@ -213,5 +213,11 @@
   "What the fan coil gives the room now": "Що фанкойл дає кімнаті зараз",
   "Working": "Працює",
   "kW from the grid": "kW з мережі",
-  "The electricity from the grid - the last day and the plan for the next, kW": "Електрика з мережі - остання доба й план на наступну, kW"
+  "The electricity from the grid - the last day and the plan for the next, kW": "Електрика з мережі - остання доба й план на наступну, kW",
+  "{{name}}: {{roomC}} C - frost risk": "{{name}}: {{roomC}} C - ризик замерзання",
+  "{{name}}: {{avg}} C - frost risk": "{{name}}: {{avg}} C - ризик замерзання",
+  "{{name}}: {{top}} C at the top - over its {{tMaxC}} C": "{{name}}: {{top}} C угорі - понад його {{tMaxC}} C",
+  "{{name}}: {{v}} {{cop}} - inefficient at this weather": "{{name}}: {{v}} {{cop}} - неефективний за такої погоди",
+  "The tanks are nearly empty - the rooms may cool down": "Баки майже порожні - кімнати можуть охолонути",
+  "No weather forecast - the outdoor temperature is unknown": "Немає прогнозу погоди - температура надворі невідома"
 }

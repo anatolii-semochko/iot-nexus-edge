@@ -20,6 +20,7 @@ import type { Mode } from "../heating-control/model.ts";
 import { WATER_KWH_PER_L_K, type PlannerRoom, type PlannerSlot } from "./model.ts";
 import { HEAT_STRATEGIES, planAll, type HeatStrategyKey, type HeatStrategyResult } from "./strategies.ts";
 import { localParts } from "../../lib/localTime.ts";
+import { wem } from "../../lib/wem.ts";
 
 const DEFAULT_INTERVAL_S = 60;
 const DEFAULT_REPLAN_MIN = 15;
@@ -187,8 +188,8 @@ export default function registerHeatingPlanner(register: any, { apiClient, logge
       }
     }
     const ledgerSlots: any[] = (ledgerPlan?.slots ?? []).filter((s: any) => s.end > now);
-    if (!config.ledgerProcessId) warnings.push({ code: "no_ledger", level: 1, text: "No Energy Ledger linked - nothing to plan on (the heatings keep their own band control)" });
-    else if (!ledgerSlots.length) warnings.push({ code: "no_ledger_plan", level: 1, text: "The Energy Ledger has no plan ahead - nothing planned (the heatings keep their own band control)" });
+    if (!config.ledgerProcessId) warnings.push({ code: "no_ledger", level: 1, ...wem("No Energy Ledger linked - nothing to plan on (the heatings keep their own band control)") });
+    else if (!ledgerSlots.length) warnings.push({ code: "no_ledger_plan", level: 1, ...wem("The Energy Ledger has no plan ahead - nothing planned (the heatings keep their own band control)") });
 
     const configKey = JSON.stringify(config);
     const due =

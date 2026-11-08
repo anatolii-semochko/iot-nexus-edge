@@ -8,6 +8,8 @@ import { onEntityChange } from "./changeEvents.js";
 import { compute } from "./compute.js";
 import { stepDue } from "./schedule.js";
 import { cachedRead } from "./shared.js";
+import { wem, type MessageParams } from "./messageText.js";
+import { setKindPackage } from "./kindPackages.js";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { processRegistry, type ProcessHooks, type ProcessRunner } from "./processRegistry.js";
@@ -70,6 +72,9 @@ interface ProcessPluginContext {
   // a reference read kept until one of its tables changes (shared.ts):
   // cachedRead(key, ["table", ...], () => apiClient.request(...))
   cachedRead: typeof cachedRead;
+  // a message's English text and its template for the UI's language (messageText.ts) - the package's
+  // translations by its folder: { code, level, ...wem("{{name}}: frost risk", { name }) }
+  wem: (template: string, params?: MessageParams) => ReturnType<typeof wem>;
 }
 
 // `hooks` (AGENTS.md section 80) is optional - a plugin that only has a
@@ -129,6 +134,7 @@ export async function loadProcessPlugins(): Promise<void> {
           }
           processRegistry.register(kind, runner, hooks);
           registeredBy.set(kind, source.label);
+          setKindPackage(kind, path.basename(path.dirname(file)));
         },
         {
           apiClient,
@@ -141,6 +147,8 @@ export async function loadProcessPlugins(): Promise<void> {
           stepDue,
           compute,
           cachedRead,
+          // the package's i18next namespace - its folder (devices/processes/<pkg>/process.ts, plugins/<pkg>/...)
+          wem: (template: string, params?: MessageParams) => wem(template, params, path.basename(path.dirname(file))),
         },
       );
     }

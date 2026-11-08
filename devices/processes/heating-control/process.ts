@@ -56,6 +56,7 @@ import {
   type TankSpec,
 } from "./model.ts";
 import { localParts } from "../../lib/localTime.ts";
+import { wem } from "../../lib/wem.ts";
 
 const DEFAULT_INTERVAL_S = 30;
 const WEATHER_TTL_MS = 10 * 60_000;
@@ -631,20 +632,20 @@ export default function registerHeatingControl(register: any, { apiClient, logge
     // --- WEM ---------------------------------------------------------------------
     const errors: { code: string; level: number; text: string }[] = [];
     const warnings: { code: string; level: number; text: string }[] = [];
-    for (const x of coilView) if (x.roomC !== null && x.roomC < 5) errors.push({ code: `frost_${x.item.nodeId}`, level: 1, text: `${x.item.name}: ${x.roomC.toFixed(1)} C - frost risk` });
+    for (const x of coilView) if (x.roomC !== null && x.roomC < 5) errors.push({ code: `frost_${x.item.nodeId}`, level: 1, ...wem("{{name}}: {{roomC}} C - frost risk", { name: x.item.name, roomC: x.roomC.toFixed(1) }) });
     for (const x of tankView) {
-      if (x.avg !== null && x.avg < 5) errors.push({ code: `tank_frost_${x.item.nodeId}`, level: 1, text: `${x.item.name}: ${x.avg.toFixed(1)} C - frost risk` });
-      if (x.top !== null && x.top > x.item.tMaxC) warnings.push({ code: `tank_hot_${x.item.nodeId}`, level: 1, text: `${x.item.name}: ${x.top.toFixed(1)} C at the top - over its ${x.item.tMaxC} C` });
+      if (x.avg !== null && x.avg < 5) errors.push({ code: `tank_frost_${x.item.nodeId}`, level: 1, ...wem("{{name}}: {{avg}} C - frost risk", { name: x.item.name, avg: x.avg.toFixed(1) }) });
+      if (x.top !== null && x.top > x.item.tMaxC) warnings.push({ code: `tank_hot_${x.item.nodeId}`, level: 1, ...wem("{{name}}: {{top}} C at the top - over its {{tMaxC}} C", { name: x.item.name, top: x.top.toFixed(1), tMaxC: x.item.tMaxC }) });
     }
-    for (const x of pumpView) if (x.running && x.cop !== null && x.cop < 2) warnings.push({ code: `low_cop_${x.item.nodeId}`, level: 1, text: `${x.item.name}: ${mode === "cooling" ? "EER" : "COP"} ${x.cop.toFixed(1)} - inefficient at this weather` });
+    for (const x of pumpView) if (x.running && x.cop !== null && x.cop < 2) warnings.push({ code: `low_cop_${x.item.nodeId}`, level: 1, ...wem("{{name}}: {{v}} {{cop}} - inefficient at this weather", { name: x.item.name, v: mode === "cooling" ? "EER" : "COP", cop: x.cop.toFixed(1) }) });
     // the tanks nearly empty while a room is already below its setpoint (the planner empties them before
     // cheap hours on purpose - that alone is no warning); raised under TANKS_LOW, cleared over TANKS_LOW_CLEAR
     // (a charge at the edge raised it again and again - 2026-11-07)
     const charge = fullKwh > 0 ? storedKwh / fullKwh : null;
     const roomsBelow = coilView.some((x) => x.on && x.roomC !== null && x.setpointC !== null && x.roomC < x.setpointC - ROOM_BELOW_K);
     st.tanksLow = mode === "heating" && charge !== null && (st.tanksLow ? charge < TANKS_LOW_CLEAR : charge < TANKS_LOW && roomsBelow);
-    if (st.tanksLow) warnings.push({ code: "tanks_low", level: 1, text: "The tanks are nearly empty - the rooms may cool down" });
-    if (config.weatherProcessId && outdoorC === null) warnings.push({ code: "no_forecast", level: 1, text: "No weather forecast - the outdoor temperature is unknown" });
+    if (st.tanksLow) warnings.push({ code: "tanks_low", level: 1, ...wem("The tanks are nearly empty - the rooms may cool down") });
+    if (config.weatherProcessId && outdoorC === null) warnings.push({ code: "no_forecast", level: 1, ...wem("No weather forecast - the outdoor temperature is unknown") });
     // the state reports together - independent of each other
     await Promise.all([
       apiClient.syncMessages(process.id, "error", errors),

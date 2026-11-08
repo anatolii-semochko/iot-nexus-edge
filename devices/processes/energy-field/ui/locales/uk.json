@@ -245,5 +245,10 @@
   "Dear hour - covering the site from the batteries and selling the rest": "Дорога година - об'єкт від батарей, решту продаємо",
   "Covering the site from the batteries": "Об'єкт живиться від батарей",
   "Batteries at the reserve - buying from the grid": "Батареї на резерві - купуємо з мережі",
-  "sell": "продаж"
+  "sell": "продаж",
+  "Island: {{shedKw}} kW of consumption not covered": "Острів: {{shedKw}} kW споживання не покрито",
+  "Batteries at {{socPct}} % - below the {{reservePct}} % outage reserve": "Батареї на {{socPct}} % - нижче резерву на відключення {{reservePct}} %",
+  "{{name}}: braked - the wind is over its cut-out speed": "{{name}}: загальмовано - вітер понад швидкість вимкнення",
+  "{{curtailedKw}} kW of generation held back - no room in the batteries{{v}}": "Стримано {{curtailedKw}} kW генерації - у батареях немає місця{{v}}",
+  "No weather forecast - the simulated generation is 0": "Немає прогнозу погоди - симульована генерація 0"
 }

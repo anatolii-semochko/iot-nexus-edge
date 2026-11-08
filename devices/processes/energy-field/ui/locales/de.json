@@ -245,5 +245,10 @@
   "Dear hour - covering the site from the batteries and selling the rest": "Teure Stunde - Anlage aus den Batterien, Rest verkaufen",
   "Covering the site from the batteries": "Anlage aus den Batterien versorgt",
   "Batteries at the reserve - buying from the grid": "Batterien an der Reserve - Bezug aus dem Netz",
-  "sell": "Verkauf"
+  "sell": "Verkauf",
+  "Island: {{shedKw}} kW of consumption not covered": "Insel: {{shedKw}} kW Verbrauch nicht gedeckt",
+  "Batteries at {{socPct}} % - below the {{reservePct}} % outage reserve": "Batterien bei {{socPct}} % - unter der Ausfallreserve von {{reservePct}} %",
+  "{{name}}: braked - the wind is over its cut-out speed": "{{name}}: gebremst - der Wind liegt über seiner Abschaltgeschwindigkeit",
+  "{{curtailedKw}} kW of generation held back - no room in the batteries{{v}}": "{{curtailedKw}} kW Erzeugung zurückgehalten - kein Platz in den Batterien{{v}}",
+  "No weather forecast - the simulated generation is 0": "Keine Wettervorhersage - die simulierte Erzeugung ist 0"
 }

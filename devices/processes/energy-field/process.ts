@@ -31,6 +31,7 @@
 import { alertsOf, type AlertConfig } from "./alerts.ts";
 import { dispatch, loadAt, nextSoc, pvPower, splitBattery, turbinePower, windAtHub, type BatteryState, type Strategy } from "./model.ts";
 import { localParts } from "../../lib/localTime.ts";
+import { wem } from "../../lib/wem.ts";
 
 // a charge this far (percentage points) under the outage reserve is a warning
 const RESERVE_MARGIN_PCT = 1;
@@ -427,14 +428,14 @@ export default function registerEnergyField(register: any, { apiClient, logger, 
     const socPct = capacity > 0 ? batteryView.reduce((a, b, i) => a + (batteries[i].enabled ? b.soc * batteries[i].capacityKwh : 0), 0) / capacity : null;
     const errors: { code: string; level: number; text: string }[] = [];
     const warnings: { code: string; level: number; text: string }[] = [];
-    if (d.shedKw > 0.01) errors.push({ code: "load_shed", level: 1, text: `Island: ${d.shedKw.toFixed(1)} kW of consumption not covered` });
+    if (d.shedKw > 0.01) errors.push({ code: "load_shed", level: 1, ...wem("Island: {{shedKw}} kW of consumption not covered", { shedKw: d.shedKw.toFixed(1) }) });
     // the control holds the batteries at the reserve - a charge a hair under it ("at 20.0 % - below the 20 %")
     // is the control at work, not a warning (2026-11-07)
     if (socPct !== null && socPct < strategy.reservePct - RESERVE_MARGIN_PCT && strategy.mode !== "island")
-      warnings.push({ code: "below_reserve", level: 1, text: `Batteries at ${socPct.toFixed(1)} % - below the ${strategy.reservePct} % outage reserve` });
-    for (const x of wind) if (x.state === "storm") warnings.push({ code: `storm_${x.item.nodeId}`, level: 1, text: `${x.item.name}: braked - the wind is over its cut-out speed` });
-    if (d.curtailedKw > 0.01) warnings.push({ code: "curtailed", level: 1, text: `${d.curtailedKw.toFixed(1)} kW of generation held back - no room in the batteries${strategy.exportAllowed ? " and the export at its limit" : ", export not allowed"}` });
-    if (config.weatherProcessId && !weather) warnings.push({ code: "no_forecast", level: 1, text: "No weather forecast - the simulated generation is 0" });
+      warnings.push({ code: "below_reserve", level: 1, ...wem("Batteries at {{socPct}} % - below the {{reservePct}} % outage reserve", { socPct: socPct.toFixed(1), reservePct: strategy.reservePct }) });
+    for (const x of wind) if (x.state === "storm") warnings.push({ code: `storm_${x.item.nodeId}`, level: 1, ...wem("{{name}}: braked - the wind is over its cut-out speed", { name: x.item.name }) });
+    if (d.curtailedKw > 0.01) warnings.push({ code: "curtailed", level: 1, ...wem("{{curtailedKw}} kW of generation held back - no room in the batteries{{v}}", { curtailedKw: d.curtailedKw.toFixed(1), v: strategy.exportAllowed ? " and the export at its limit" : ", export not allowed" }) });
+    if (config.weatherProcessId && !weather) warnings.push({ code: "no_forecast", level: 1, ...wem("No weather forecast - the simulated generation is 0") });
     // the state reports together - independent of each other
     await Promise.all([
       apiClient.syncMessages(process.id, "error", errors),

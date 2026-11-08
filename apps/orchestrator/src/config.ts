@@ -43,6 +43,9 @@ export const config = {
   // A warning / error gone from a process's report stays active this long more (apiClient.ts settle) -
   // a condition at its edge isn't logged anew each time it comes back.
   messageClearAfterMs: Number(process.env.ORCHESTRATOR_MESSAGE_CLEAR_AFTER_MS ?? 30000),
+  // After the orchestrator starts, Heartbeating judges no one's silence this long - every process's first
+  // run comes late while the stack starts (a deploy raised "Resource Monitor: no heartbeat" each time).
+  heartbeatStartupGraceMs: Number(process.env.ORCHESTRATOR_HEARTBEAT_STARTUP_GRACE_MS ?? 60000),
   // How often the "ai-assistant" process asks the API to start the due
   // scheduled AI runs (processes/aiAssistant.ts) - the calendar's resolution.
   aiCalendarIntervalMs: Number(process.env.AI_CALENDAR_INTERVAL_MS ?? 60000),

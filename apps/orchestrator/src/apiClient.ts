@@ -2,6 +2,9 @@
 // Postgres/Redis/EdgeX-backed state (AGENTS.md section 4/10). Not a general
 // SDK, just the handful of calls the process tick loop needs.
 
+import type { MessageI18n } from "./messageText.js";
+import { packageOfKind } from "./kindPackages.js";
+import { tickProcesses } from "./tickProcesses.js";
 import { config } from "./config.js";
 import { holds, settle } from "./messageSettle.js";
 import { cachedRead, tickShared } from "./shared.js";
@@ -220,7 +223,7 @@ export interface ProcessRecord {
   critical: boolean;
   warning: boolean;
   // the active (not hidden) messages - messageSettle.ts seeds its hold from them after a restart
-  messages?: { type: MessageType; level: number; code: string; text: string }[];
+  messages?: { type: MessageType; level: number; code: string; text: string; subject?: string | null; i18n?: MessageI18n | null }[];
   // Heartbeating Control (AGENTS.md) - `heartbeat_control` is this
   // process's own design-time config (Postgres); `heartbeatStopped`/
   // `heartbeatLastSeenAt` are its live Redis counterparts, both already
@@ -271,6 +274,8 @@ export interface MessageInput {
   text: string;
   // what part of the process's domain it is about (an aquarium's service) - absent: the process as a whole
   subject?: string | null;
+  // the text in the interface's language - the English template and its values (messageText.ts)
+  i18n?: MessageI18n | null;
 }
 
 // Mirrors processMessages.AutoResolveMode (apps/api) - see
@@ -339,6 +344,17 @@ const batchedValues = createValueBatcher((ids, maxAgeMs) =>
     body: JSON.stringify({ ids, maxAgeMs }),
   }),
 );
+
+// a message's template with no package named - its process's (kindPackages.ts): the UI translates it in
+// that package's words
+const withPackage = (processId: number, entries: MessageInput[]): MessageInput[] =>
+  entries.some((e) => e.i18n && !e.i18n.ns)
+    ? entries.map((e) =>
+        e.i18n && !e.i18n.ns
+          ? { ...e, i18n: { ...e.i18n, ns: packageOfKind(tickProcesses().find((p) => p.id === processId)?.kind) } }
+          : e,
+      )
+    : entries;
 
 export const apiClient = {
   // the lists are read once per tick and shared by its processes (shared.ts);
@@ -458,7 +474,7 @@ export const apiClient = {
     autoResolve?: AutoResolveMode,
     { clearAfterMs = config.messageClearAfterMs }: { clearAfterMs?: number } = {},
   ) => {
-    const entries = settle(processId, type, reported, clearAfterMs);
+    const entries = settle(processId, type, withPackage(processId, reported), clearAfterMs);
     return sendChanged(`${processId}:messages:${type}`, JSON.stringify({ type, entries, autoResolve }), () =>
       request(`/processes/${processId}/messages`, { method: "POST", body: JSON.stringify({ type, entries, autoResolve }) }),
     );
@@ -468,7 +484,7 @@ export const apiClient = {
   logEvents: (processId: number, entries: MessageInput[]) =>
     request(`/processes/${processId}/events`, {
       method: "POST",
-      body: JSON.stringify({ entries }),
+      body: JSON.stringify({ entries: withPackage(processId, entries) }),
     }),
   // Forces an immediate fleet-wide public-state broadcast (AGENTS.md
   // section 24), outside the automatic critical/warning/new-message

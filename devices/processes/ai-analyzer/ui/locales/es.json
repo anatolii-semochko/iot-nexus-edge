@@ -31,5 +31,8 @@
   "Targets found": "Objetivos encontrados",
   "Tokens": "Tokens",
   "Tokens:": "Tokens:",
-  "input {{inputTokens}}, output {{outputTokens}}": "entrada {{inputTokens}}, salida {{outputTokens}}"
+  "input {{inputTokens}}, output {{outputTokens}}": "entrada {{inputTokens}}, salida {{outputTokens}}",
+  "AI analysis failed: {{lastError}}": "El análisis de IA falló: {{lastError}}",
+  "{{imageCount}} images stored (limit {{IMAGE_WARN_LIMIT}}) - delete older ones": "{{imageCount}} imágenes guardadas (límite {{IMAGE_WARN_LIMIT}}) - borre las más antiguas",
+  "Found: {{names}}": "Encontrado: {{names}}"
 }

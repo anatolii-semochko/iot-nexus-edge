@@ -78,5 +78,7 @@
   "{{hhmm}}-{{hhmm2}}: the sun's surplus (the Ledger would export it) - the heat at the sale price": "{{hhmm}}-{{hhmm2}}: надлишок сонця (Ledger експортував би його) - тепло за ціною продажу",
   "{{hhmm}}: {{v1}} {{fmt}} kW - {{units}} unit(s), the need {{fmt2}} kW, {{fmt22}} ct/kWh": "{{hhmm}}: {{v1}} {{fmt}} kW - агрегатів {{units}}, потреба {{fmt2}} kW, {{fmt22}} ct/kWh",
   "{{units}} running": "працює {{units}}",
-  "{{units}} units running": "працює агрегатів: {{units}}"
+  "{{units}} units running": "працює агрегатів: {{units}}",
+  "No Energy Ledger linked - nothing to plan on (the heatings keep their own band control)": "Не під'єднано Energy Ledger - нема на чому планувати (опалення тримають власне керування в межах)",
+  "The Energy Ledger has no plan ahead - nothing planned (the heatings keep their own band control)": "Energy Ledger не має плану наперед - нічого не сплановано (опалення тримають власне керування в межах)"
 }

@@ -34,7 +34,7 @@ import TablePagination from '../table/TablePagination'
 import TableSearchInput from '../table/TableSearchInput'
 import { WEM_TYPE_META } from './wemTypeMeta'
 import AiButton from '../ai/AiButton'
-import { t as tr } from 'src/i18n'
+import { t as tr, messageText } from 'src/i18n'
 
 // The modal's own type selector, not the header icons' (NotificationCenter.
 // jsx) - "All" only makes sense as something to *view*, it has no unread
@@ -134,7 +134,7 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
     return flattened
       .filter((m) => type === 'all' || m.type === type)
       .filter((m) => !processFilter || m.process_id === Number(processFilter))
-      .filter((m) => !search || m.text.toLowerCase().includes(search.toLowerCase()))
+      .filter((m) => !search || messageText(m).toLowerCase().includes(search.toLowerCase()))
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   }, [live, processNameById, type, processFilter, search])
 
@@ -428,7 +428,7 @@ const NotificationCenterModal = ({ type, onTypeChange, onClose }) => {
                         </CTableDataCell>
                         <CTableDataCell>{item.process_name}</CTableDataCell>
                         <CTableDataCell className={`text-${WEM_TYPE_META[item.type].color}`}>
-                          {item.text}
+                          {messageText(item)}
                           <MessageLink link={item.link} onClick={onClose} />
                         </CTableDataCell>
                         <CTableDataCell className="text-end text-nowrap">

@@ -908,5 +908,10 @@
   "What it does on a person's behalf - with that person's rights, recorded as theirs.": "Was er im Namen einer Person tut - mit deren Rechten, als ihre Handlung erfasst.",
   "Raise after, s": "Auslösen nach, s",
   "A warning / error is raised only once its metric has been over the threshold this long - a short spike (a build, a nightly job) raises nothing": "Eine Warnung / ein Fehler wird erst ausgelöst, wenn der Wert so lange ununterbrochen über der Schwelle liegt - eine kurze Spitze (ein Build, ein nächtlicher Job) löst nichts aus",
-  "Theme": "Design"
+  "Theme": "Design",
+  "Device '{{name}}' log is {{skipped}} period(s) overdue": "Das Protokoll des Geräts '{{name}}' ist {{skipped}} Periode(n) überfällig",
+  "{{label}} '{{name}}' hasn't sent a heartbeat in {{ticks}} ticks": "{{label}} '{{name}}' hat seit {{ticks}} Takten keinen Heartbeat gesendet",
+  "Value {{value}} is outside [{{v}}, {{v2}}]": "Wert {{value}} liegt außerhalb von [{{v}}, {{v2}}]",
+  "Enclosure temperature {{temperature}}C is outside [{{v}}, {{v2}}]": "Gehäusetemperatur {{temperature}} C liegt außerhalb von [{{v}}, {{v2}}]",
+  "Enclosure humidity {{humidity}}%RH is outside [{{v}}, {{v2}}]": "Gehäusefeuchte {{humidity}} %rF liegt außerhalb von [{{v}}, {{v2}}]"
 }

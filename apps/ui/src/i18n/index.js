@@ -133,3 +133,15 @@ export const packageT = (ns) => (key, options) => i18n.t(key, { ns: [ns, 'core']
 export const tKey = (text) => text
 
 export default i18n
+
+/**
+ * A process message's text in the interface's language (iot AGENTS_TO_DO.md, "WEM translation",
+ * 2026-11-07): its `i18n` - the producer's English template, its values and its package's namespace
+ * (orchestrator messageText.ts) - translated by the package's words; none (an older row, a message
+ * without a template) - the English `text` as stored.
+ */
+export const messageText = (m) => {
+  const tpl = m?.i18n?.template
+  if (!tpl) return m?.text ?? ''
+  return i18n.t(tpl, { ...(m.i18n.params ?? {}), ns: [m.i18n.ns ?? 'core', 'core'], defaultValue: m.text })
+}

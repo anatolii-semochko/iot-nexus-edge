@@ -19,6 +19,7 @@ export interface ProcessMessage {
   text: string;
   subject: string | null;
   link: string | null;
+  i18n: MessageI18n | null;
   hidden: boolean;
   hidden_by: number | null;
   hidden_at: string | null;
@@ -35,7 +36,19 @@ export interface MessageInput {
   subject?: string | null;
   // an in-app path the message points to (migrations/1690000000072 - a scheduled AI run's conversation) - null / absent: none
   link?: string | null;
+  // the text in the interface's language (migrations/1690000000106): the English template and its values
+  i18n?: MessageI18n | null;
 }
+
+/** A message's text for the UI to translate: `template` - the English with {{placeholders}}, `ns` - the
+ * translations' package (absent - the platform's, "core"). */
+export interface MessageI18n {
+  ns?: string;
+  template: string;
+  params?: Record<string, string | number | null>;
+}
+
+const i18nJson = (entry: MessageInput): string | null => (entry.i18n?.template ? JSON.stringify(entry.i18n) : null);
 
 // See `syncActiveMessages`'s `autoResolve` param below.
 export type AutoResolveMode = "always" | "when-hidden" | "never";
@@ -125,9 +138,10 @@ export async function syncActiveMessages(
       text: string;
       subject: string | null;
       link: string | null;
+      i18n: MessageI18n | null;
       hidden: boolean;
     }>(
-      `SELECT id, code, level, text, subject, link, hidden FROM log_messages WHERE process_id = $1 AND type = $2 AND resolved_at IS NULL`,
+      `SELECT id, code, level, text, subject, link, i18n, hidden FROM log_messages WHERE process_id = $1 AND type = $2 AND resolved_at IS NULL`,
       [processId, type],
     );
     const activeByCode = new Map(active.map((row) => [row.code, row]));
@@ -138,21 +152,29 @@ export async function syncActiveMessages(
       if (existing) {
         const subject = entry.subject ?? null;
         const link = entry.link ?? null;
-        if (existing.level !== entry.level || existing.text !== entry.text || existing.subject !== subject || existing.link !== link) {
-          await client.query(`UPDATE log_messages SET level = $1, text = $2, subject = $3, link = $4, updated_at = now() WHERE id = $5`, [
+        const i18n = i18nJson(entry);
+        if (
+          existing.level !== entry.level ||
+          existing.text !== entry.text ||
+          existing.subject !== subject ||
+          existing.link !== link ||
+          (existing.i18n ? JSON.stringify(existing.i18n) : null) !== i18n
+        ) {
+          await client.query(`UPDATE log_messages SET level = $1, text = $2, subject = $3, link = $4, i18n = $5, updated_at = now() WHERE id = $6`, [
             entry.level,
             entry.text,
             subject,
             link,
+            i18n,
             existing.id,
           ]);
           changed = true;
         }
       } else {
         await client.query(
-          `INSERT INTO log_messages (process_id, type, level, code, text, subject, link)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [processId, type, entry.level, entry.code, entry.text, entry.subject ?? null, entry.link ?? null],
+          `INSERT INTO log_messages (process_id, type, level, code, text, subject, link, i18n)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [processId, type, entry.level, entry.code, entry.text, entry.subject ?? null, entry.link ?? null, i18nJson(entry)],
         );
         changed = true;
         newEntryCount += 1;
@@ -207,10 +229,10 @@ export async function logEvents(processId: number, entries: MessageInput[]): Pro
   let inserted = 0;
   for (const entry of entries) {
     const result = await pool.query(
-      `INSERT INTO log_messages (process_id, type, level, code, text, subject, link, resolved_at)
-       SELECT $1, 'message', $2, $3, $4, $5, $6, now()
+      `INSERT INTO log_messages (process_id, type, level, code, text, subject, link, i18n, resolved_at)
+       SELECT $1, 'message', $2, $3, $4, $5, $6, $7, now()
        WHERE NOT EXISTS (SELECT 1 FROM log_messages WHERE process_id = $1 AND type = 'message' AND code = $3)`,
-      [processId, entry.level, entry.code, entry.text, entry.subject ?? null, entry.link ?? null],
+      [processId, entry.level, entry.code, entry.text, entry.subject ?? null, entry.link ?? null, i18nJson(entry)],
     );
     inserted += result.rowCount ?? 0;
   }
@@ -302,7 +324,7 @@ export async function activeMessagesOf(processIds: number[]): Promise<Map<number
 // this list is nested under) and `resolved_at` is always null for an
 // active list by construction, so neither belongs on the wire.
 function toPublicMessages(messages: ProcessMessage[]): ProcessPublicMessage[] {
-  return messages.map(({ id, type, level, code, text, subject, link, hidden, created_at, updated_at }) => ({
+  return messages.map(({ id, type, level, code, text, subject, link, i18n, hidden, created_at, updated_at }) => ({
     id,
     type,
     level,
@@ -310,6 +332,7 @@ function toPublicMessages(messages: ProcessMessage[]): ProcessPublicMessage[] {
     text,
     subject,
     link,
+    i18n,
     hidden,
     created_at,
     updated_at,

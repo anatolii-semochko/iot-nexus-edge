@@ -31,5 +31,8 @@
   "Targets found": "Gefundene Ziele",
   "Tokens": "Tokens",
   "Tokens:": "Tokens:",
-  "input {{inputTokens}}, output {{outputTokens}}": "Eingabe {{inputTokens}}, Ausgabe {{outputTokens}}"
+  "input {{inputTokens}}, output {{outputTokens}}": "Eingabe {{inputTokens}}, Ausgabe {{outputTokens}}",
+  "AI analysis failed: {{lastError}}": "KI-Analyse fehlgeschlagen: {{lastError}}",
+  "{{imageCount}} images stored (limit {{IMAGE_WARN_LIMIT}}) - delete older ones": "{{imageCount}} Bilder gespeichert (Grenze {{IMAGE_WARN_LIMIT}}) - ältere löschen",
+  "Found: {{names}}": "Gefunden: {{names}}"
 }

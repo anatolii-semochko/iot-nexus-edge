@@ -44,5 +44,13 @@
   "tariff zones": "тарифні зони",
   "the last market fetch failed:": "останнє отримання ринкових даних не вдалося:",
   "the server's": "сервера",
-  "{{toLocaleString}}: buy {{buyCtKwh}} ct/kWh{{v2}}{{v3}}": "{{toLocaleString}}: купівля {{buyCtKwh}} ct/kWh{{v2}}{{v3}}"
+  "{{toLocaleString}}: buy {{buyCtKwh}} ct/kWh{{v2}}{{v3}}": "{{toLocaleString}}: купівля {{buyCtKwh}} ct/kWh{{v2}}{{v3}}",
+  "Grid outage - no voltage on any phase": "Відключення мережі - немає напруги на жодній фазі",
+  "Phase L{{v}} at {{v2}} V - outside {{nominalV}} V +-{{v3}} %": "Фаза L{{v}}: {{v2}} V - поза {{nominalV}} V +-{{v3}} %",
+  "Grid frequency {{frequency}} Hz - outside {{nominalHz}} +-{{tolHz}} Hz": "Частота мережі {{frequency}} Hz - поза {{nominalHz}} +-{{tolHz}} Hz",
+  "Import {{power}} kW - over the {{maxImportKw}} kW limit": "Імпорт {{power}} kW - понад межу {{maxImportKw}} kW",
+  "Export {{v}} kW - over the {{maxExportKw}} kW limit": "Експорт {{v}} kW - понад межу {{maxExportKw}} kW",
+  "No purchase price for now - check the tariff zones or the market data": "Немає ціни купівлі на зараз - перевірте тарифні зони чи ринкові дані",
+  "Market prices not updated - {{error}}": "Ринкові ціни не оновлено - {{error}}",
+  "Market prices not updated": "Ринкові ціни не оновлено"
 }

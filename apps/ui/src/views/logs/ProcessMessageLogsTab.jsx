@@ -31,7 +31,7 @@ import {
   userTitle,
 } from '../../utils/format'
 import AiButton from '../../components/ai/AiButton'
-import { t } from 'src/i18n'
+import { t, messageText } from 'src/i18n'
 
 const TYPE_OPTIONS = [
   { key: 'all', label: t('All types') },
@@ -159,7 +159,7 @@ const ProcessMessageLogsTab = ({
                   <CTableDataCell>{item.group_name}</CTableDataCell>
                   <CTableDataCell>{item.process_name}</CTableDataCell>
                   <CTableDataCell className={`text-${WEM_TYPE_META[item.type].color}`}>
-                    {item.text}
+                    {messageText(item)}
                     <MessageLink link={item.link} />
                   </CTableDataCell>
                   <CTableDataCell className="text-end text-nowrap">

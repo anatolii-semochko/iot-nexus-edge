@@ -39,6 +39,8 @@ export interface ProcessPublicMessage {
   text: string;
   subject: string | null;
   link: string | null;
+  // the text in the interface's language (processMessages.MessageI18n)
+  i18n: { ns?: string; template: string; params?: Record<string, string | number | null> } | null;
   hidden: boolean;
   created_at: string;
   updated_at: string;
