@@ -1,4 +1,4 @@
-import React, { useId } from 'react'
+import React from 'react'
 import {
   PV_PANEL,
   PV_VIEW,
@@ -37,12 +37,17 @@ export const SCENE_CSS = `
   --ef-cost: var(--ef-cons); --ef-gain: var(--ef-gen);
   /* a battery's figures over its charge - dark in both themes */
   --ef-charge-ink: #212631;
+  /* the ink made opaque - the body colour (translucent) over the card, the same look: a turbine's tower and
+     rotor overlap without showing through and need no mask (an animated mask re-laid the SVG out every
+     frame - the whole page repainted ~60 times a second and blinked on a phone, 2026-11-09) */
+  --ef-ink-solid: #30363f;
 }
 [data-coreui-theme='dark'] .ef-scene, [data-coreui-theme='dark'] .ef-colors {
   --ef-gen: #4cc38a; --ef-grid: #5aa2ff; --ef-batt: #2fc4c0; --ef-cons: #ff9a3c;
   --ef-off: #55606d; --ef-bad: #ff6b6b; --ef-volt: #ff8fd0; --ef-panel: #22364f; --ef-panel-grid: #7da7da;
   --ef-cloud: #c9d3de; --ef-cloud-edge: #8c99a8;
   --ef-sun-line: #ffb347; --ef-wind-line: #74c0fc;
+  --ef-ink-solid: #e2e3e4;
 }
 @keyframes ef-chev { 0% { opacity: .15 } 35% { opacity: 1 } 70%, 100% { opacity: .15 } }
 @keyframes ef-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .7 } }
@@ -51,8 +56,8 @@ export const SCENE_CSS = `
 .ef-flow { animation: ef-pulse 3s ease-in-out infinite }
 .ef-flow polyline { animation-name: ef-chev; animation-iteration-count: infinite; animation-timing-function: linear }
 .ef-flow.ef-idle, .ef-flow.ef-idle polyline { animation: none; opacity: 1 }
-/* a rotor turns about its hub - the hub's point in the icon's viewBox (ROTOR_HUB), never its blades' bounding box */
-.ef-rotor { transform-box: view-box; animation: ef-spin linear infinite }
+/* a rotor turns about its hub - its own <svg> element turning, the origin at the hub in px (TurbineIcon) */
+.ef-rotor { animation: ef-spin linear infinite; will-change: transform }
 .ef-blink { animation: ef-blink 1s ease-in-out infinite }
 @media (prefers-reduced-motion: reduce) { .ef-flow, .ef-flow polyline, .ef-rotor, .ef-blink { animation: none } }
 `
@@ -60,10 +65,6 @@ export const SCENE_CSS = `
 // how a rotor turns on the screen: the real rpm slowed (a 200 rpm rotor
 // would only blur) - one turn per `ROTOR_SLOWDOWN` x the real period
 const ROTOR_SLOWDOWN = 6
-// the hubs the rotors turn about, in their icons' viewBox units
-const ROTOR_HUB = {
-  turbine: `${TURBINE_HUB.x}px ${TURBINE_HUB.y}px`,
-}
 export const rotorPeriod = (rpm) =>
   rpm > 0 ? `${((60 / rpm) * ROTOR_SLOWDOWN).toFixed(2)}s` : null
 
@@ -85,11 +86,9 @@ export const PvIcon = ({ height = GEN_ICON_HEIGHT, on = true }) => (
   </svg>
 )
 
-// rotates about its hub (ROTOR_HUB.turbine), its speed - the real rpm slowed down;
-// the tower is masked out under the blades - the ink colour is translucent
-// (CoreUI's body colour), so where both were drawn the tower showed through
+// rotates about its hub (TURBINE_HUB), its speed - the real rpm slowed down; one opaque colour
+// (--ef-ink-solid) for the tower and the rotor - no mask under the blades (see the variable)
 export const TurbineIcon = ({ height = GEN_ICON_HEIGHT, rpm = 0, state = 'running' }) => {
-  const mask = `ef-rotor-${useId().replace(/:/g, '')}`
   const color =
     state === 'off'
       ? 'var(--ef-off)'
@@ -97,41 +96,49 @@ export const TurbineIcon = ({ height = GEN_ICON_HEIGHT, rpm = 0, state = 'runnin
         ? 'var(--ef-warn)'
         : state === 'fault'
           ? 'var(--ef-bad)'
-          : 'var(--ef-ink)'
+          : 'var(--ef-ink-solid, var(--ef-ink))'
   const period = state === 'running' || state === 'idle' ? rotorPeriod(rpm) : null
-  const rotor = (fill) => (
-    <g
-      className={period ? 'ef-rotor' : undefined}
-      style={period ? { animationDuration: period, transformOrigin: ROTOR_HUB.turbine } : undefined}
-    >
-      <path transform={TURBINE_ROTOR.transform} d={TURBINE_ROTOR.d} fill={fill} />
-    </g>
-  )
+  const width = (height * TURBINE_VIEW.w) / TURBINE_VIEW.h
+  const box = {
+    width,
+    height,
+    viewBox: `0 0 ${TURBINE_VIEW.w} ${TURBINE_VIEW.h}`,
+    'aria-hidden': true,
+  }
+  // the rotor - its own <svg> over the tower's, the element itself turning (about the hub, in px): a
+  // turning group inside an SVG was re-laid out and repainted every frame with the whole page (it blinked
+  // on a phone while scrolling, 2026-11-09); an element's transform stays on the compositor
+  const hub = `${(TURBINE_HUB.x / TURBINE_VIEW.w) * width}px ${(TURBINE_HUB.y / TURBINE_VIEW.h) * height}px`
   return (
-    <svg
-      width={(height * TURBINE_VIEW.w) / TURBINE_VIEW.h}
-      height={height}
-      viewBox={`0 0 ${TURBINE_VIEW.w} ${TURBINE_VIEW.h}`}
+    <span
+      // clipped to its box as the one <svg> was: the turning rotor's corners would otherwise count as
+      // the page's scrollable overflow - a scroll bar blinking with the turns (2026-11-09)
+      style={{
+        position: 'relative',
+        display: 'inline-block',
+        width,
+        height,
+        color,
+        lineHeight: 0,
+        overflow: 'clip',
+      }}
       aria-hidden="true"
-      style={{ color }}
     >
-      <mask
-        id={mask}
-        maskUnits="userSpaceOnUse"
-        x="0"
-        y="0"
-        width={TURBINE_VIEW.w}
-        height={TURBINE_VIEW.h}
-      >
-        <rect width={TURBINE_VIEW.w} height={TURBINE_VIEW.h} fill="#fff" />
-        {rotor('#000')}
-      </mask>
-      {/* the mask's user space - the viewBox (a group: the path's own transform would scale it) */}
-      <g mask={`url(#${mask})`}>
+      <svg {...box} style={{ display: 'block' }}>
         <path transform={TURBINE_TOWER.transform} d={TURBINE_TOWER.d} fill="currentColor" />
-      </g>
-      {rotor('currentColor')}
-    </svg>
+      </svg>
+      <svg
+        {...box}
+        className={period ? 'ef-rotor' : undefined}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          ...(period ? { animationDuration: period, transformOrigin: hub } : {}),
+        }}
+      >
+        <path transform={TURBINE_ROTOR.transform} d={TURBINE_ROTOR.d} fill="currentColor" />
+      </svg>
+    </span>
   )
 }
 

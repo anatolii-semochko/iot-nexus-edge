@@ -38,7 +38,7 @@ import {
   useColorModes,
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
-import { cilContrast, cilMenu, cilMoon, cilSun } from '@coreui/icons'
+import { cilContrast, cilMoon, cilSun } from '@coreui/icons'
 
 import { useAnyNodeSimulated } from '../api/useLiveNode'
 import { IS_PRODUCTION } from '../appEnv'
@@ -59,7 +59,7 @@ import { useTranslation } from 'react-i18next'
  *
  * @returns {React.ReactElement} Header component with navigation and controls
  */
-const AppHeader = ({ bleed = false }) => {
+const AppHeader = ({ bleed = false, scroller = null }) => {
   const headerRef = useRef()
   const { colorMode, setColorMode } = useColorModes('coreui-free-react-admin-template-theme')
   const { t, i18n } = useTranslation()
@@ -75,18 +75,24 @@ const AppHeader = ({ bleed = false }) => {
     MESSAGES_PAGE,
   )
 
+  // the shadow once the content under it is scrolled (DefaultLayout's scrolling area) - written only
+  // when it changes
   useEffect(() => {
+    if (!scroller) return undefined
+    let shadow = null
     const handleScroll = () => {
-      headerRef.current &&
-        headerRef.current.classList.toggle('shadow-sm', document.documentElement.scrollTop > 0)
+      const next = scroller.scrollTop > 0
+      if (next === shadow || !headerRef.current) return
+      shadow = next
+      headerRef.current.classList.toggle('shadow-sm', next)
     }
-
-    document.addEventListener('scroll', handleScroll)
-    return () => document.removeEventListener('scroll', handleScroll)
-  }, [])
+    handleScroll()
+    scroller.addEventListener('scroll', handleScroll, { passive: true })
+    return () => scroller.removeEventListener('scroll', handleScroll)
+  }, [scroller])
 
   return (
-    <CHeader position="sticky" className={`${bleed ? '' : 'mb-4 '}p-0`} ref={headerRef}>
+    <CHeader className="p-0 flex-shrink-0" ref={headerRef}>
       <CContainer className="border-bottom px-2 px-sm-3 px-md-4 app-header-row" fluid>
         {noMenu &&
           // no menu - the brand (else in the sidebar)
@@ -114,7 +120,13 @@ const AppHeader = ({ bleed = false }) => {
             onClick={() => dispatch({ type: 'set', sidebarShow: !sidebarShow })}
             className="app-header-toggler"
           >
-            <CIcon icon={cilMenu} size="lg" />
+            {/* three whole-pixel bars, not the 512-unit icon scaled to 20 px - its lines fell on fractions
+                of a pixel and shimmered and jumped while the page scrolled (the user's screencast 2026-11-09) */}
+            <span className="app-burger" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
           </CHeaderToggler>
         )}
         <CHeaderNav className="ms-auto">

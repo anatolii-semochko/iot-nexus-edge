@@ -132,6 +132,7 @@ const FitBox = ({ factor = 1, children }) => {
   return (
     <div
       ref={box}
+      className="dc-preview"
       style={{
         position: 'relative',
         height: PREVIEW_H,
@@ -214,6 +215,7 @@ const StretchBox = ({ grow = true, factor = 1, children }) => {
       ref={box}
       // the picture is the card's (a link) - its own titles' tooltips would flicker over it (the user,
       // 2026-10-29), so no pointer events inside, as FitBox
+      className="dc-preview"
       style={{ position: 'relative', height: PREVIEW_H, overflow: 'hidden', pointerEvents: 'none' }}
       aria-hidden="true"
     >
@@ -586,7 +588,11 @@ const Dashboard = () => {
         null,
       )
     if (found) return <Navigate to={`/dashboard/${found}`} replace />
-    return <CAlert color="warning">{t('This card is not there (removed, or not visible to you).')}</CAlert>
+    return (
+      <CAlert color="warning">
+        {t('This card is not there (removed, or not visible to you).')}
+      </CAlert>
+    )
   }
   const card = cardId ? cards.find((c) => c.id === Number(cardId)) : null
   if (cardId && !card)

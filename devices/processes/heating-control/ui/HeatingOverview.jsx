@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import HeatingOverviewPopup from './HeatingOverviewPopup'
 import { CSpinner } from '@coreui/react'
 import { api, request } from 'src/api/client'
 import { useProcessesLiveState } from 'src/api/useLiveProcess'
@@ -6,7 +7,7 @@ import KeyValue from 'src/components/KeyValue'
 import { Flow, GridIcon, SCENE_CSS } from '../../energy-field/ui/fieldIcons'
 import { SkyIcon } from '../../weather-control/ui/SkyIcon'
 import { currentHour } from '../../weather-control/ui/WeatherWidgets'
-import { FanCoilCompactIcon, HeatPumpIcon, TankIcon } from './heatIcons'
+import { FanCoilCompactIcon, FanCoilIcon, HeatPumpIcon, TankIcon } from './heatIcons'
 import { fmt } from './useHeatingData'
 import { packageT } from 'src/i18n'
 // the package's words (its own locales/, then the core's)
@@ -21,7 +22,7 @@ const t = packageT('heating-control')
 // standing for all of them; the heat's flows between them - yellow while heating (to the rooms), blue
 // while cooling (back out), the electricity's - its own colour. Systems in different modes -
 // both flows, each its own systems' sum. Powers and energy - sums; temperatures - averages; the COP - the
-// heat over the electricity (weighted); the modes - counts.
+// heat over the electricity (weighted). Every block opens its popup - HeatingOverviewPopup.jsx.
 
 const STACK_PX = 900
 const FLOW_SIZE = 52
@@ -41,6 +42,10 @@ const CSS = `
 .ho-side-flows { align-items: center; justify-items: center }
 .ho-mini { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--ef-line); border-radius: 12px; background: var(--ef-card) }
 .ho-mini .kv.ho-main { font-size: 1.2rem }
+/* every block opens its popup (the user, 2026-11-09) */
+button.ho-block, button.ho-mini { color: inherit; cursor: pointer; width: 100%; font: inherit }
+button.ho-mini { text-align: start }
+button.ho-block:hover, button.ho-block:focus-visible, button.ho-mini:hover, button.ho-mini:focus-visible { border-color: var(--cui-primary) }
 .ho-icon { height: ${BLOCK_ICON}px; display: flex; align-items: center; justify-content: center }
 .ho-flows { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px }
 .ho-flow { display: flex; flex-direction: column; align-items: center; line-height: 1.1 }
@@ -92,22 +97,22 @@ const Flows = ({ heat, cool }) => (
 )
 
 /** An outdoors' small block: its icon, the info to the right. */
-const MiniBlock = ({ title, icon, children }) => (
-  <div className="ho-mini">
+const MiniBlock = ({ title, icon, onOpen, children }) => (
+  <button type="button" className="ho-mini" onClick={onOpen}>
     <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{icon}</div>
     <div style={{ minWidth: 0 }}>
       <div className="fw-semibold">{title}</div>
       {children}
     </div>
-  </div>
+  </button>
 )
 
-const Block = ({ title, icon, children }) => (
-  <div className="ho-block">
+const Block = ({ title, icon, onOpen, children }) => (
+  <button type="button" className="ho-block" onClick={onOpen}>
     <div className="fw-semibold">{title}</div>
     <div className="ho-icon">{icon}</div>
     <div>{children}</div>
-  </div>
+  </button>
 )
 
 /** Every heating system the person sees, with its live metrics; the first one's weather forecast. */
@@ -144,6 +149,7 @@ const useHeatingSystems = () => {
 
 const HeatingOverview = () => {
   const { loading, systems, forecast } = useHeatingSystems()
+  const [popup, setPopup] = useState(null)
   if (loading) return <CSpinner size="sm" />
   if (systems.length === 0)
     return <div className="small text-body-secondary">{t('No heating system to show.')}</div>
@@ -176,6 +182,8 @@ const HeatingOverview = () => {
     returnC: avgOf(pumps, 'returnC'),
     heatKw,
     electricKw,
+    // the gauge's scale - all the heat pumps' rating together (the heat is their sum)
+    ratedHeatKw: pumps.reduce((a, p) => a + (p.ratedHeatKw ?? 0), 0) || undefined,
   }
   const tank = {
     name: t('The tanks'),
@@ -200,11 +208,6 @@ const HeatingOverview = () => {
   }
   const outdoorC = avg(systems.map((s) => s.m.outdoor?.temperatureC))
   const hour = currentHour(forecast)
-  const modes = [
-    [heating.filter((s) => s.m.mode !== 'off' && s.m.control !== 'off').length, 'heating'],
-    [cooling.length, 'cooling'],
-    [heating.filter((s) => s.m.mode === 'off' || s.m.control === 'off').length, 'off'],
-  ].filter(([n]) => n > 0)
   return (
     <div className="ef-scene ho">
       <style>{SCENE_CSS + CSS}</style>
@@ -212,6 +215,7 @@ const HeatingOverview = () => {
         <div className="ho-side">
           <MiniBlock
             title={t('Outdoors')}
+            onOpen={() => setPopup('outdoors')}
             icon={
               <SkyIcon
                 height={SIDE_ICON}
@@ -228,6 +232,7 @@ const HeatingOverview = () => {
           </MiniBlock>
           <MiniBlock
             title={t('Electricity')}
+            onOpen={() => setPopup('electricity')}
             icon={<GridIcon height={SIDE_ICON} flow={electricKw > 0.05 ? 'import' : 'none'} />}
           >
             <KeyValue value={fmt(electricKw, 1)} unit="kW" className="ho-main" />
@@ -246,6 +251,7 @@ const HeatingOverview = () => {
         </div>
         <Block
           title={t('Heat pumps')}
+          onOpen={() => setPopup('pumps')}
           icon={<HeatPumpIcon pump={pump} mode={mode} height={BLOCK_ICON * 0.8} gauges={false} />}
         >
           <KeyValue value={fmt(heatKw, 1)} unit="kW" className="ho-main" />{' '}
@@ -266,7 +272,11 @@ const HeatingOverview = () => {
           </div>
         </Block>
         <Flows heat={totals(heating, 'heatKw')} cool={totals(cooling, 'heatKw')} />
-        <Block title={t('Heat storage')} icon={<TankIcon tank={tank} height={BLOCK_ICON} />}>
+        <Block
+          title={t('Heat storage')}
+          onOpen={() => setPopup('storage')}
+          icon={<TankIcon tank={tank} height={BLOCK_ICON} />}
+        >
           <KeyValue value={fmt(storedKwh, 0)} unit="kWh" className="ho-main" />{' '}
           <KeyValue value={fmt(tank.pct, 0)} unit="%" />
           <div className="small ef-muted">
@@ -276,6 +286,7 @@ const HeatingOverview = () => {
         <Flows heat={totals(heating, 'consumersKw')} cool={totals(cooling, 'consumersKw')} />
         <Block
           title={t('Rooms')}
+          onOpen={() => setPopup('rooms')}
           icon={<FanCoilCompactIcon coil={coil} mode={mode} width={COIL_WIDTH} />}
         >
           <KeyValue value={coil.roomC ?? '-'} unit="°C" className="ho-main" />
@@ -284,12 +295,48 @@ const HeatingOverview = () => {
           </div>
         </Block>
       </div>
-      <div className="small ef-muted text-center mt-2">
-        {systems.length} {t('heating system')}
-        {systems.length === 1 ? '' : 's'}
-        {modes.length > 0 && ': '}
-        {modes.map(([n, word]) => `${n} ${word}`).join(' · ')}
-      </div>
+      {popup && (
+        <HeatingOverviewPopup
+          kind={popup}
+          systems={systems}
+          view={{
+            cooling: mode === 'cooling',
+            pump,
+            tank,
+            coil,
+            outdoorC,
+            airKw: mode === 'cooling' ? airCool : airHeat,
+            heatKw,
+            electricKw,
+            // into the tanks - the heat pumps' heat, out of them - the fan coils' (process.ts heat.tanks*)
+            tanksInKw: heatKw,
+            tanksOutKw: totals(systems, 'consumersKw'),
+            running: running.length,
+            pumps: pumps.length,
+            working: working.length,
+            coils: coils.length,
+          }}
+          picture={
+            popup === 'outdoors' ? (
+              <SkyIcon
+                height={170}
+                radiation={hour?.radiationWm2 ?? 0}
+                cloudPct={hour?.cloudCoverPct ?? 0}
+                isDay={hour ? hour.isDay !== 0 : true}
+              />
+            ) : popup === 'electricity' ? (
+              <GridIcon height={180} flow={electricKw > 0.05 ? 'import' : 'none'} />
+            ) : popup === 'pumps' ? (
+              <HeatPumpIcon pump={pump} mode={mode} height={200} />
+            ) : popup === 'storage' ? (
+              <TankIcon tank={tank} height={300} />
+            ) : (
+              <FanCoilIcon coil={coil} mode={mode} width={420} />
+            )
+          }
+          onClose={() => setPopup(null)}
+        />
+      )}
     </div>
   )
 }

@@ -43,24 +43,13 @@ const Gradients = ({ id }) => (
   </defs>
 )
 
-/** Three broad swept blades and the hub, turning about (cx, cy) while `rpm` > 0. */
-const Fan = ({ id, cx, cy, r, rpm }) => {
+/** Three broad swept blades and the hub about (cx, cy) - drawn still; FanIcon turns it. */
+const Fan = ({ id, cx, cy, r }) => {
   const k = r / 70
   const p = (v) => (v * k).toFixed(1)
   const blade = `M0 ${p(-12)} C${p(20)} ${p(-22)} ${p(52)} ${p(-40)} ${p(50)} ${p(-60)} C${p(40)} ${p(-72)} ${p(12)} ${p(-70)} ${p(-6)} ${p(-58)} C${p(-16)} ${p(-46)} ${p(-14)} ${p(-26)} ${p(-12)} ${p(-8)} Z`
-  const period = fanPeriod(rpm)
   return (
     <g>
-      {period && (
-        <animateTransform
-          attributeName="transform"
-          type="rotate"
-          from={`0 ${cx} ${cy}`}
-          to={`360 ${cx} ${cy}`}
-          dur={`${period.toFixed(2)}s`}
-          repeatCount="indefinite"
-        />
-      )}
       <g transform={`translate(${cx} ${cy})`}>
         {[0, 120, 240].map((a) => (
           <path
@@ -76,6 +65,86 @@ const Fan = ({ id, cx, cy, r, rpm }) => {
         <circle r={5 * k} fill="#9aa0a6" />
       </g>
     </g>
+  )
+}
+
+// An icon whose fans turn (the user's screencast, 2026-11-09): the fans no longer turn inside the icon's
+// SVG - an <animateTransform> there re-laid the page out and repainted it every frame (the dashboards blinked
+// on a phone while scrolling). The icon - its own <svg> (`children`, without the fans and the grilles over
+// them); each fan - its own <svg> over it, the element itself turning (a transform - on the compositor),
+// clipped round by CSS; its grille - a still <svg> over the fan. All in % of the box - the icon may be
+// scaled down by its container (.ht-unit svg { max-width: 100% }).
+const FAN_SPIN_CSS = '@keyframes ht-fan-spin { to { transform: rotate(360deg) } }'
+const FanIcon = ({ id, view, width, style, label, fans, children }) => {
+  const diag = Math.hypot(view.w, view.h) / Math.SQRT2
+  const pct = (v, of) => `${(v / of) * 100}%`
+  const layer = {
+    position: 'absolute',
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    pointerEvents: 'none',
+  }
+  const box = { viewBox: `0 0 ${view.w} ${view.h}`, 'aria-hidden': true }
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      style={{
+        position: 'relative',
+        display: 'inline-block',
+        width,
+        maxWidth: '100%',
+        aspectRatio: `${view.w} / ${view.h}`,
+        lineHeight: 0,
+        // clipped to its box as the one <svg> was: a turning fan layer's corners would otherwise count
+        // as the page's scrollable overflow - a scroll bar blinking with the turns (2026-11-09)
+        overflow: 'clip',
+        ...style,
+      }}
+    >
+      <style>{FAN_SPIN_CSS}</style>
+      <svg {...box} style={{ display: 'block', width: '100%', height: '100%' }}>
+        {children}
+      </svg>
+      {fans.map((f, k) => {
+        const period = fanPeriod(f.rpm)
+        const fid = `${id}f${k}`
+        return (
+          <React.Fragment key={k}>
+            <span
+              style={{
+                ...layer,
+                display: 'block',
+                clipPath: `circle(${pct(f.clipR, diag)} at ${pct(f.cx, view.w)} ${pct(f.cy, view.h)})`,
+              }}
+            >
+              <svg
+                {...box}
+                style={{
+                  ...layer,
+                  transformOrigin: `${pct(f.cx, view.w)} ${pct(f.cy, view.h)}`,
+                  ...(period
+                    ? {
+                        animation: `ht-fan-spin ${period.toFixed(2)}s linear infinite`,
+                        willChange: 'transform',
+                      }
+                    : {}),
+                }}
+              >
+                <Gradients id={fid} />
+                <Fan id={fid} cx={f.cx} cy={f.cy} r={f.r} />
+              </svg>
+            </span>
+            {f.over && (
+              <svg {...box} style={layer}>
+                {f.over(`${fid}o`)}
+              </svg>
+            )}
+          </React.Fragment>
+        )
+      })}
+    </span>
   )
 }
 
@@ -121,21 +190,37 @@ export const HeatPumpIcon = ({ pump, mode, height = 120, gauges = true }) => {
   const viewW = gauges ? 432 : 310
   const width = (height * viewW) / 214
   return (
-    <svg
+    <FanIcon
+      id={id}
+      view={{ w: viewW, h: 214 }}
       width={width}
-      height={height}
-      viewBox={`0 0 ${viewW} 214`}
-      role="img"
-      aria-label={tr('{{name}} - heat pump', { name: pump.name })}
+      label={tr('{{name}} - heat pump', { name: pump.name })}
       style={pump.on === false ? OFF_STYLE : undefined}
+      fans={[
+        {
+          cx: 105,
+          cy: 104,
+          r: 62,
+          clipR: 76,
+          rpm: running ? pump.fanRpm : 0,
+          over: (oid) => (
+            <>
+              <clipPath id={`${oid}g`}>
+                <circle cx="105" cy="104" r="76" />
+              </clipPath>
+              <g clipPath={`url(#${oid}g)`}>
+                <Grille cx={105} cy={104} r={76} {...PUMP_GRILLE} />
+              </g>
+              <circle cx="105" cy="104" r="77" fill="none" stroke="#4a4f55" strokeWidth="3" />
+            </>
+          ),
+        },
+      ]}
     >
       <title>
         {`${pump.name}${pump.model ? ` (${pump.model})` : ''}: ${!pump.on ? tr('switched off') : running ? tr('running at {{round}} %', { round: Math.round(pump.modulation * 100) }) : 'standby'}`}
       </title>
       <Gradients id={id} />
-      <clipPath id={`${id}grille`}>
-        <circle cx="105" cy="104" r="76" />
-      </clipPath>
       <rect
         x="30"
         y="196"
@@ -189,11 +274,6 @@ export const HeatPumpIcon = ({ pump, mode, height = 120, gauges = true }) => {
       <path d="M12 22 H288" stroke="#a7adb3" strokeWidth="1.5" />
       <circle cx="105" cy="104" r="84" fill="#e3e6e9" stroke="#7d838a" strokeWidth="2" />
       <circle cx="105" cy="104" r="77" fill="#3a3f45" stroke="#5f656c" strokeWidth="2" />
-      <g clipPath={`url(#${id}grille)`}>
-        <Fan id={id} cx={105} cy={104} r={62} rpm={running ? pump.fanRpm : 0} />
-        <Grille cx={105} cy={104} r={76} {...PUMP_GRILLE} />
-      </g>
-      <circle cx="105" cy="104" r="77" fill="none" stroke="#4a4f55" strokeWidth="3" />
       <rect
         x="204"
         y="36"
@@ -296,7 +376,7 @@ export const HeatPumpIcon = ({ pump, mode, height = 120, gauges = true }) => {
           </g>
         </>
       )}
-    </svg>
+    </FanIcon>
   )
 }
 
@@ -616,13 +696,31 @@ export const FanCoilIcon = ({ coil, mode, width = 330 }) => {
   const ratedKw = coil.ratedKw ?? 5
   const heat = Math.abs(coil.heatKw ?? 0)
   return (
-    <svg
+    <FanIcon
+      id={id}
+      view={FAN_COIL_VIEW}
       width={width}
-      height={(width * FAN_COIL_VIEW.h) / FAN_COIL_VIEW.w}
-      viewBox="0 0 440 168"
-      role="img"
-      aria-label={tr('{{name}} - fan coil', { name: coil.name })}
+      label={tr('{{name}} - fan coil', { name: coil.name })}
       style={coil.on ? undefined : OFF_STYLE}
+      fans={[
+        {
+          cx: 306,
+          cy: 52,
+          r: 25,
+          clipR: 31.5,
+          rpm: running ? coil.fanRpm : 0,
+          over: (oid) => (
+            <>
+              <clipPath id={`${oid}g`}>
+                <circle cx="306" cy="52" r={COIL_GRILLE_R} />
+              </clipPath>
+              <g clipPath={`url(#${oid}g)`}>
+                <Grille cx={306} cy={52} r={COIL_GRILLE_R} {...COIL_GRILLE} />
+              </g>
+            </>
+          ),
+        },
+      ]}
     >
       <title>
         {tr('{{name}}: room {{v1}} C, humidity {{v2}} %, setpoint {{v3}} C; {{v4}}', {
@@ -642,12 +740,6 @@ export const FanCoilIcon = ({ coil, mode, width = 330 }) => {
         <stop offset="0.8" stopColor="#c3c8ce" />
         <stop offset="1" stopColor="#a9afb6" />
       </radialGradient>
-      <clipPath id={`${id}hc`}>
-        <circle cx="306" cy="52" r="31.5" />
-      </clipPath>
-      <clipPath id={`${id}hg`}>
-        <circle cx="306" cy="52" r={COIL_GRILLE_R} />
-      </clipPath>
       <rect
         x="4"
         y="4"
@@ -690,12 +782,6 @@ export const FanCoilIcon = ({ coil, mode, width = 330 }) => {
         strokeOpacity="0.4"
         strokeWidth="3"
       />
-      <g clipPath={`url(#${id}hc)`}>
-        <Fan id={id} cx={306} cy={52} r={25} rpm={running ? coil.fanRpm : 0} />
-      </g>
-      <g clipPath={`url(#${id}hg)`}>
-        <Grille cx={306} cy={52} r={COIL_GRILLE_R} {...COIL_GRILLE} />
-      </g>
       <g>
         <title>
           {tr('{{v0}} to the room {{toFixed}} kW (rated {{ratedKw}} kW)', {
@@ -715,7 +801,7 @@ export const FanCoilIcon = ({ coil, mode, width = 330 }) => {
           state={coil.on ? (heat > 0.05 ? 'active' : 'inactive') : 'inactive'}
         />
       </g>
-    </svg>
+    </FanIcon>
   )
 }
 
@@ -740,13 +826,31 @@ export const FanCoilCompactIcon = ({ coil, mode, width = 220 }) => {
   ]
   const textFill = coil.on ? '#1d2430' : '#5d6878'
   return (
-    <svg
+    <FanIcon
+      id={id}
+      view={FAN_COIL_COMPACT_VIEW}
       width={width}
-      height={(width * FAN_COIL_COMPACT_VIEW.h) / FAN_COIL_COMPACT_VIEW.w}
-      viewBox={`0 0 ${FAN_COIL_COMPACT_VIEW.w} ${FAN_COIL_COMPACT_VIEW.h}`}
-      role="img"
-      aria-label={tr('{{name}} - fan coil', { name: coil.name })}
+      label={tr('{{name}} - fan coil', { name: coil.name })}
       style={coil.on === false ? OFF_STYLE : undefined}
+      fans={[
+        {
+          cx: fan.cx,
+          cy: fan.cy,
+          r: fan.r - 10,
+          clipR: fan.r - 2,
+          rpm: running ? coil.fanRpm : 0,
+          over: (oid) => (
+            <>
+              <clipPath id={`${oid}g`}>
+                <circle cx={fan.cx} cy={fan.cy} r={grilleR} />
+              </clipPath>
+              <g clipPath={`url(#${oid}g)`}>
+                <Grille cx={fan.cx} cy={fan.cy} r={grilleR} stepX={26} stepY={7.5} width={1.6} />
+              </g>
+            </>
+          ),
+        },
+      ]}
     >
       <title>
         {tr('{{name}}: room {{v1}} C, humidity {{v2}} %; {{v3}}', {
@@ -763,12 +867,6 @@ export const FanCoilCompactIcon = ({ coil, mode, width = 220 }) => {
         <stop offset="0.8" stopColor="#c3c8ce" />
         <stop offset="1" stopColor="#a9afb6" />
       </radialGradient>
-      <clipPath id={`${id}hc`}>
-        <circle cx={fan.cx} cy={fan.cy} r={fan.r - 2} />
-      </clipPath>
-      <clipPath id={`${id}hg`}>
-        <circle cx={fan.cx} cy={fan.cy} r={grilleR} />
-      </clipPath>
       <rect
         x="4"
         y="4"
@@ -795,12 +893,6 @@ export const FanCoilCompactIcon = ({ coil, mode, width = 220 }) => {
         stroke="#9ea4ab"
         strokeWidth="1.5"
       />
-      <g clipPath={`url(#${id}hc)`}>
-        <Fan id={id} cx={fan.cx} cy={fan.cy} r={fan.r - 10} rpm={running ? coil.fanRpm : 0} />
-      </g>
-      <g clipPath={`url(#${id}hg)`}>
-        <Grille cx={fan.cx} cy={fan.cy} r={grilleR} stepX={26} stepY={7.5} width={1.6} />
-      </g>
       <rect x="36" y="172" width="332" height="50" rx="6" fill="#2b2f34" />
       {louvres.map(([ly, w]) => (
         <line key={ly} x1="42" y1={ly} x2="362" y2={ly} stroke="#c9ced3" strokeWidth={w} />
@@ -838,6 +930,6 @@ export const FanCoilCompactIcon = ({ coil, mode, width = 220 }) => {
           state={coil.on ? (heat > 0.05 ? 'active' : 'inactive') : 'inactive'}
         />
       </g>
-    </svg>
+    </FanIcon>
   )
 }

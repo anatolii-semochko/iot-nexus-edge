@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { CFormCheck, CModal, CModalBody, CModalHeader, CModalTitle } from '@coreui/react'
+import { CFormCheck } from '@coreui/react'
 import { api } from 'src/api/client'
 import { useCan } from 'src/access'
 import { useNow } from 'src/hooks/useNow'
@@ -108,7 +108,11 @@ const LAYOUT_CSS = `
   .ef-mid > :nth-child(3) { grid-area: ledger }
   .ef-mid > :nth-child(4) { grid-area: supply }
   .ef-mid > :nth-child(5) { grid-area: consumer }
-  .ef-hflow { transform: rotate(90deg) }
+  /* the grid's and the supply's flows stay horizontal - the wide scene's directions (the user, 2026-11-09) */
+  /* the grid's two gauges fit its half of the row: the word over the price, smaller gaps */
+  .ef-mid > .ef-side { padding-inline: 4px !important }
+  .ef-gauges { gap: 8px !important }
+  .ef-gauge-label { white-space: normal !important; text-align: center }
 }
 `
 
@@ -148,18 +152,6 @@ const UnitPower = ({ kw, off = false, offText = 'off', color }) =>
     </span>
   )
 const kwText = (kw) => (Math.abs(kw) >= 100 ? fmt(kw, 0) : fmt(kw, 1))
-
-const Popup = ({ title, subtitle, onClose, children }) => (
-  <CModal visible onClose={onClose} size="xl" alignment="center">
-    <CModalHeader>
-      <CModalTitle>
-        {title}
-        {subtitle && <div className="small text-body-secondary fw-normal">{subtitle}</div>}
-      </CModalTitle>
-    </CModalHeader>
-    <CModalBody>{children}</CModalBody>
-  </CModal>
-)
 
 const Stat = StatTile
 
@@ -666,7 +658,7 @@ const EnergyFieldScene = ({ process }) => {
           <span className="fw-semibold">{tr('Grid')}</span>
           {/* the prices now on their gauges (the user's mockup images/fix-icon-energy-tower-1.png): buy -
               red to the right (dear), sell - red to the left (cheap); the phases and the frequency - the popup */}
-          <span className="d-flex gap-3 justify-content-center small ef-muted">
+          <span className="ef-gauges d-flex gap-3 justify-content-center small ef-muted">
             {[
               ['buy', gridMetrics?.buyCtKwh, buyLevel, false],
               ['sell', gridMetrics?.sellCtKwh, sellLevel, true],
@@ -684,7 +676,7 @@ const EnergyFieldScene = ({ process }) => {
                       : 'no prices ahead',
                   })}
                 />
-                <span className="text-nowrap">
+                <span className="ef-gauge-label text-nowrap">
                   {tr(word)}{' '}
                   <KeyValue
                     value={fmt(ct, 1)}

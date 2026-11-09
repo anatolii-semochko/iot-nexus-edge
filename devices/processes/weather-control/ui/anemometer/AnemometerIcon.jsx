@@ -20,9 +20,12 @@ const DEG_PER_S_PER_MS = 60
 const MIN_THIRD_S = 1 / 3
 const MIN_WIND_MS = 0.3
 
+// the strip moves by a transform inside a clipping frame - an animated background position repainted
+// the whole page on every step (a trace, 2026-11-09: the dashboards blinked on a phone while scrolling);
+// a transform stays on the compositor, the steps too
 const KEYFRAMES = `@keyframes ne-anemometer-turn {
-  from { background-position-x: 0 }
-  to { background-position-x: calc(var(--ne-anem-strip) * -1) }
+  from { transform: translateX(0) }
+  to { transform: translateX(calc(var(--ne-anem-strip) * -1)) }
 }`
 
 const AnemometerIcon = ({ windMs = 0, size = FRAME_H / 2, title }) => {
@@ -35,20 +38,23 @@ const AnemometerIcon = ({ windMs = 0, size = FRAME_H / 2, title }) => {
       <div
         role="img"
         aria-label={title ?? t('Anemometer - {{toFixed}} m/s', { toFixed: windMs.toFixed(1) })}
-        style={{
-          '--ne-anem-strip': `${w * FRAMES}px`,
-          width: w,
-          height: size,
-          flex: 'none',
-          backgroundImage: `url(${sprite})`,
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: `${w * FRAMES}px ${size}px`,
-          backgroundPositionX: 0,
-          animation: third
-            ? `ne-anemometer-turn ${third.toFixed(3)}s steps(${FRAMES}) infinite`
-            : 'none',
-        }}
-      />
+        style={{ width: w, height: size, flex: 'none', overflow: 'hidden', position: 'relative' }}
+      >
+        <div
+          style={{
+            '--ne-anem-strip': `${w * FRAMES}px`,
+            width: w * FRAMES,
+            height: size,
+            backgroundImage: `url(${sprite})`,
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: `${w * FRAMES}px ${size}px`,
+            willChange: third ? 'transform' : undefined,
+            animation: third
+              ? `ne-anemometer-turn ${third.toFixed(3)}s steps(${FRAMES}) infinite`
+              : 'none',
+          }}
+        />
+      </div>
     </>
   )
 }

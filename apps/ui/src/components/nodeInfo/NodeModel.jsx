@@ -8,20 +8,29 @@ import { t } from 'src/i18n'
 // else `picture` (the scene's own drawing); the maker and the model, what
 // it is for, the main data, the maker's page. `info` - GET /nodes/:id/info.
 
-const NodeModel = ({ info, picture }) => {
+// `imageHeight` - the room the popup gives the picture (UnitPopup's Model tab fills its height)
+const NodeModel = ({ info, picture, imageHeight = null }) => {
   const model = info.model
   const image = model?.image ? api.apiUrl(model.image) : null
   return (
     <div className="d-flex gap-4 flex-wrap pb-3">
       <div
-        style={{ flex: '0 0 auto', width: 300, maxWidth: '100%' }}
+        style={{
+          flex: imageHeight ? '1 1 360px' : '0 0 auto',
+          width: imageHeight ? undefined : 300,
+          maxWidth: '100%',
+        }}
         className="d-flex align-items-start justify-content-center"
       >
         {image ? (
           <img
             src={image}
             alt={model.name}
-            style={{ maxWidth: '100%', maxHeight: 320, objectFit: 'contain' }}
+            style={{
+              maxWidth: '100%',
+              maxHeight: imageHeight ? Math.max(240, imageHeight - 16) : 320,
+              objectFit: 'contain',
+            }}
           />
         ) : info.type?.iconPath ? (
           <img src={api.apiUrl(info.type.iconPath)} alt="" width="120" height="120" />

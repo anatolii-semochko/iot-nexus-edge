@@ -143,5 +143,9 @@ export default i18n
 export const messageText = (m) => {
   const tpl = m?.i18n?.template
   if (!tpl) return m?.text ?? ''
-  return i18n.t(tpl, { ...(m.i18n.params ?? {}), ns: [m.i18n.ns ?? 'core', 'core'], defaultValue: m.text })
+  return i18n.t(tpl, {
+    ...(m.i18n.params ?? {}),
+    ns: [m.i18n.ns ?? 'core', 'core'],
+    defaultValue: m.text,
+  })
 }

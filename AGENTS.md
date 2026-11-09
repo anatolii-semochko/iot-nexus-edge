@@ -9067,6 +9067,61 @@ lint` runs both. The rules: the React hooks' (purity - "now" by
 `hooks/useNow`, never `Date.now()` in a render) and `react/jsx-no-undef`
 (a missing import - the build doesn't catch it).
 
+## Animations that never repaint the page (2026-11-09)
+
+The Dashboard blinked while scrolling (the header's menu button in Chrome's
+phone emulation, all the content on a Galaxy). A trace (CDP, a touch scroll,
+Paint / Layout events) found the whole document repainted ~20-60 times a
+second by four animations, each forcing the page's own layer:
+- the system tick's pulse animated `box-shadow` - now transform and opacity,
+  its glow a static shadow on `::after` whose opacity animates;
+- a turbine's rotor - a CSS rotation of a group inside the SVG (re-laid out
+  every frame) - now its own `<svg>` over the tower, the element turning
+  (`TurbineIcon`; its colour opaque `--ef-ink-solid`, no mask under the blades);
+- the heat pump's and the fan coils' fans - SMIL `<animateTransform>` - now
+  `FanIcon` (heatIcons.jsx): the fan its own turning `<svg>` clipped round by
+  CSS, the grille a still `<svg>` over it, all in % (the icons scale down);
+- the anemometer's sprite - animated `background-position` - now the strip
+  moved by a transform inside a clipping frame.
+The meter's LED blinks by CSS opacity, not SMIL. In a card's picture
+(`.dc-preview`, the scaled copy of a component) the animations inside its
+SVGs are still. Rule: animate only `transform` / `opacity` of an HTML or a
+root `<svg>` element; never SMIL, a transform of an element inside an SVG,
+`background-position` or `box-shadow`. The header writes its shadow class
+only when it changes; the menu button - three whole-pixel bars
+(`.app-burger`), not the scaled icon; the earlier pause of all animations while scrolling
+(a class on `<html>`) restyled the whole page and is gone. Result (6 touch
+scroll gestures, 390 px): the energy scene 488 -> 10 paints (layout 242 ->
+5), the Heating level 502 -> 13, Aquariums 510 -> 19.
+
+## The application shell (2026-11-09)
+
+`layout/DefaultLayout.jsx`: the wrapper is the window's height (`100dvh`),
+the header an ordinary block at its top, under it the one scrolling area
+(`.app-scroll` - the page and its footer; a `bleed` route - not scrolling, its
+own parts do). The header is never in a scroll: as a sticky one it was put
+back in place a frame after the compositor scrolled the page and shook a pixel
+on a phone (the menu button, the avatar, its height - the user's screencasts);
+fixing it in place with a measured padding was a patch, not the shape. Its
+shadow follows the scrolling area (`AppHeader` `scroller`); another page starts
+at the area's top; the area's overscroll stays in it (the browser's stretch
+moves the content, never the header); the side menu over a phone's page locks
+the area. Code that scrolls the page uses the area (or `scrollIntoView`), not
+`window`.
+
+## The popups' size (2026-11-08, the user's rule)
+
+A popup with tabs, or with charts / a photo / a map, is the window's size
+whatever its tab - switching tabs never moves its box (`.chart-popup`,
+style.scss: the dialog `100dvh` less its margins, the body scrolls). The room
+goes by priority: the charts (Status), then the photo (Model / Photo), then
+the map (Map) - `useRoomBelow(el, reserve)` (nodeInfo/UnitPopup.jsx) gives an
+element the room from its top to the dialog body's bottom; UnitPopup's tabs
+and the weather's history popup (its charts share it) use it. Not covered: a
+small single popup (a confirmation, a short form - "Operational days") and a
+sub-popup, which is smaller. The aquarium's DashboardModal was already the
+window's size.
+
 ## Dashboard cards: frames, the card popup, the viewer's fit (2026-10-22, 2026-10-29)
 
 - **The frame** (`dashboard_cards.frame` jsonb, migrations 085, 100): its

@@ -30,6 +30,8 @@ import { t } from 'src/i18n'
 // real width and together as tall as the window lets them - the dialog fits the window, its charts fill
 // what the rest leaves (ChartSpace); narrow - one column, the charts CHART_H tall, the dialog scrolls.
 
+// the tabs of the node's own information
+const NODE_TABS = ['model', 'photo', 'map']
 const STACK_BELOW_PX = 700 // narrower - the picture above the readings
 const STACKED_PICTURE_PX = 220
 // the charts' height when they don't fill the window (narrow, no room), px
@@ -38,11 +40,44 @@ const CHART_H = 220
 // smaller than the 30 % before), its width not its height (the charts' height never moves it)
 const PICTURE_SHARE = '12%'
 const PICTURE_CSS = `
-.unit-picture { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.unit-picture { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 0; max-width: 100%; }
+/* a picture with its own overlays (heating's FanIcon - an inline-block box of layers, not a root <svg>,
+   2026-11-09): within the frame, never wider than it */
+.unit-picture > [role='img'] { max-width: 100%; max-height: 100%; }
 .unit-picture > svg { height: 100%; width: auto; max-width: 100%; }
 .unit-picture.side { align-self: flex-start; }
 .unit-picture.side > svg { width: 100%; height: auto; }
 `
+
+// The room from an element's top to the dialog body's bottom, `reserve` (an element under it, e.g. the
+// footer) taken off - what a tab's main content fills. The popup rule (iot memory popup-size-rules, the
+// user 2026-11-08): the dialog is the window's size whatever the tab (`.chart-popup`, style.scss); its
+// room goes to the charts (Status), then the photo (Model, Photo), then the map (Map).
+export const useRoomBelow = (el, reserve = null) => {
+  const [room, setRoom] = useState(null)
+  useLayoutEffect(() => {
+    if (!el) return undefined
+    const body = el.closest('.modal-body')
+    if (!body) return undefined
+    const measure = () => {
+      const b = body.getBoundingClientRect()
+      const pad = parseFloat(getComputedStyle(body).paddingBottom) || 0
+      const under = reserve ? reserve.getBoundingClientRect().height + 8 : 0
+      setRoom(Math.max(0, Math.floor(b.bottom - pad - el.getBoundingClientRect().top - under - 2)))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(body)
+    if (el.parentElement) ro.observe(el.parentElement)
+    if (reserve) ro.observe(reserve)
+    window.addEventListener('resize', measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [el, reserve])
+  return room
+}
 
 const UnitPopup = ({
   title,
@@ -53,6 +88,9 @@ const UnitPopup = ({
   charts,
   footer,
   className,
+  // the caller's own tabs after Status (2026-11-09 - an overview's summed popups, no node):
+  // [{ key, label, hint, content }]
+  extraTabs = [],
   onClose,
 }) => {
   const hasStatus = children != null
@@ -63,7 +101,6 @@ const UnitPopup = ({
   const [row, setRow] = useState(null)
   const [rowPx, setRowPx] = useState(null)
   const [chartsBox, setChartsBox] = useState(null)
-  const [space, setSpace] = useState(null)
 
   useEffect(() => {
     if (!nodeId) return undefined
@@ -85,31 +122,17 @@ const UnitPopup = ({
     return () => ro.disconnect()
   }, [row])
 
-  // the charts' room: the window's height less the dialog's margins and everything in it but the charts
-  // (measured with them - their own height taken off, so a new height never moves it); before the paint
-  useLayoutEffect(() => {
-    if (!chartsBox) return undefined
-    const content = chartsBox.closest('.modal-content')
-    const dialog = chartsBox.closest('.modal-dialog')
-    if (!content || !dialog) return undefined
-    const measure = () => {
-      const style = getComputedStyle(dialog)
-      const margins = parseFloat(style.marginTop) + parseFloat(style.marginBottom)
-      const rest = content.getBoundingClientRect().height - chartsBox.getBoundingClientRect().height
-      setSpace(Math.floor(window.innerHeight - margins - rest - 2))
-    }
-    const ro = new ResizeObserver(measure)
-    ro.observe(content)
-    window.addEventListener('resize', measure)
-    measure()
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('resize', measure)
-    }
-  }, [chartsBox])
+  // the room under each tab's main content - the charts, the photo, the map (useRoomBelow)
+  const [footerBox, setFooterBox] = useState(null)
+  const space = useRoomBelow(chartsBox, footerBox)
+  const [photoBox, setPhotoBox] = useState(null)
+  const photoRoom = useRoomBelow(photoBox)
+  const [mapBox, setMapBox] = useState(null)
+  const mapRoom = useRoomBelow(mapBox)
 
   const tabs = [
     ...(hasStatus ? [['status', t('Status'), t('The unit now - its readings and today')]] : []),
+    ...extraTabs.map((x) => [x.key, x.label, x.hint]),
     ...(info ? [['model', t('Model'), t('The model and its main technical data')]] : []),
     ...(info?.photo ? [['photo', t('Photo'), t('A photo of the real unit')]] : []),
     ...(info?.position ? [['map', t('Map'), t('Where the unit stands')]] : []),
@@ -198,19 +221,25 @@ const UnitPopup = ({
                 </ChartSize.Provider>
               </div>
             </div>
-            {footer}
+            {footer && <div ref={setFooterBox}>{footer}</div>}
           </>
         )}
-        {tab !== 'status' && error && <div className="text-danger small">{error}</div>}
-        {tab !== 'status' && !info && !error && <CSpinner size="sm" />}
-        {tab === 'model' && info && <NodeModel info={info} picture={picture} />}
+        {NODE_TABS.includes(tab) && error && <div className="text-danger small">{error}</div>}
+        {NODE_TABS.includes(tab) && !info && !error && <CSpinner size="sm" />}
+        {extraTabs.map((x) => tab === x.key && <div key={x.key}>{x.content}</div>)}
+        {tab === 'model' && info && (
+          <div ref={setPhotoBox}>
+            <NodeModel info={info} picture={picture} imageHeight={photoRoom} />
+          </div>
+        )}
         {tab === 'photo' && info?.photo && (
           <img
+            ref={setPhotoBox}
             src={api.apiUrl(info.photo)}
             alt={t('{{name}} - photo', { name: info.node.name })}
             style={{
               maxWidth: '100%',
-              maxHeight: '60vh',
+              maxHeight: Math.max(240, photoRoom ?? 0) || '60vh',
               display: 'block',
               margin: '0 auto',
               borderRadius: 8,
@@ -218,11 +247,14 @@ const UnitPopup = ({
           />
         )}
         {tab === 'map' && info?.position && (
-          <TileMap
-            latitude={info.position.latitude}
-            longitude={info.position.longitude}
-            label={info.node.name}
-          />
+          <div ref={setMapBox}>
+            <TileMap
+              latitude={info.position.latitude}
+              longitude={info.position.longitude}
+              label={info.node.name}
+              height={Math.max(240, (mapRoom ?? 300) - 30)}
+            />
+          </div>
         )}
       </CModalBody>
     </CModal>

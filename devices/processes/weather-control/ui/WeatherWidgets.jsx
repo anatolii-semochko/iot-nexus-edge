@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { CButton, CModal, CModalBody, CModalHeader, CModalTitle, CSpinner } from '@coreui/react'
 import { request } from 'src/api/client'
 import AiButton from 'src/components/ai/AiButton'
+import { useRoomBelow } from 'src/components/nodeInfo/UnitPopup'
 import SummaryLine from 'src/components/SummaryLine'
 import { useNow } from 'src/hooks/useNow'
 import AnemometerIcon from './anemometer/AnemometerIcon'
@@ -318,7 +319,9 @@ const ticksOf = (t0, t1) => {
  * One detailed chart: `lines` [{ key, label, color, dots? }] over `rows` ({ t, ...values }),
  * `t0` .. `t1`, `now` marked and the forecast after it shaded; `min` / `max` fixed or nice.
  */
-const TimeChart = ({ title, unit, rows, lines, t0, t1, now, min, max }) => {
+// `height` - the popup's share of its room for this chart (the popup fills the window)
+const TimeChart = ({ title, unit, rows, lines, t0, t1, now, min, max, height = CHART_H }) => {
+  const H = height
   const ref = useRef(null)
   const { width } = useSize(ref)
   const W = Math.max(320, width)
@@ -326,7 +329,7 @@ const TimeChart = ({ title, unit, rows, lines, t0, t1, now, min, max }) => {
   const lo = min ?? niceLimit(Math.min(0, ...vs))
   const hi = max ?? (niceLimit(Math.max(0, ...vs)) || 1)
   const x = (t) => PAD.left + ((t - t0) / (t1 - t0)) * (W - PAD.left - PAD.right)
-  const y = (v) => PAD.top + ((hi - v) / (hi - lo || 1)) * (CHART_H - PAD.top - PAD.bottom)
+  const y = (v) => PAD.top + ((hi - v) / (hi - lo || 1)) * (H - PAD.top - PAD.bottom)
   const nowX = x(now)
   return (
     <div>
@@ -342,15 +345,15 @@ const TimeChart = ({ title, unit, rows, lines, t0, t1, now, min, max }) => {
       </div>
       <div ref={ref}>
         {width > 0 && (
-          <svg width={W} height={CHART_H} role="img" aria-label={`${title}, ${unit}`}>
+          <svg width={W} height={H} role="img" aria-label={`${title}, ${unit}`}>
             <rect
               x={nowX}
               y={PAD.top}
               width={Math.max(0, W - PAD.right - nowX)}
-              height={CHART_H - PAD.top - PAD.bottom}
+              height={H - PAD.top - PAD.bottom}
               fill="var(--wx-chart-bg)"
             />
-            {[PAD.top, CHART_H - PAD.bottom].map((ly) => (
+            {[PAD.top, H - PAD.bottom].map((ly) => (
               <line
                 key={ly}
                 x1={PAD.left}
@@ -367,14 +370,14 @@ const TimeChart = ({ title, unit, rows, lines, t0, t1, now, min, max }) => {
                     x1={x(tk.t)}
                     x2={x(tk.t)}
                     y1={PAD.top}
-                    y2={CHART_H - PAD.bottom}
+                    y2={H - PAD.bottom}
                     stroke="var(--wx-line)"
                     strokeDasharray="2 3"
                   />
                 )}
                 <text
                   x={x(tk.t)}
-                  y={CHART_H - 7}
+                  y={H - 7}
                   fontSize="11"
                   textAnchor="middle"
                   fill="var(--wx-muted)"
@@ -410,22 +413,17 @@ const TimeChart = ({ title, unit, rows, lines, t0, t1, now, min, max }) => {
             <text x={4} y={PAD.top + 4} fontSize="11" fill="var(--wx-muted)">
               {+hi.toFixed(1)}
             </text>
-            <text x={4} y={CHART_H - PAD.bottom + 4} fontSize="11" fill="var(--wx-muted)">
+            <text x={4} y={H - PAD.bottom + 4} fontSize="11" fill="var(--wx-muted)">
               {+lo.toFixed(1)}
             </text>
-            <text
-              x={4}
-              y={(PAD.top + CHART_H - PAD.bottom) / 2 + 4}
-              fontSize="11"
-              fill="var(--wx-muted)"
-            >
+            <text x={4} y={(PAD.top + H - PAD.bottom) / 2 + 4} fontSize="11" fill="var(--wx-muted)">
               {unit}
             </text>
             <line
               x1={nowX}
               x2={nowX}
               y1={PAD.top}
-              y2={CHART_H - PAD.bottom}
+              y2={H - PAD.bottom}
               stroke="var(--cui-danger)"
               strokeWidth="1.2"
             />
@@ -572,6 +570,14 @@ const WeatherPopup = ({ kind, weatherId, onClose }) => {
   const t0 = now === null ? 0 : range.from(now)
   const t1 = now === null ? 0 : now + FORECAST_AHEAD_MS
   const rows = (data?.hourly ?? []).filter((r) => r.t >= t0 && r.t <= t1)
+  // the charts share the dialog's room under the scale's buttons (the popup is the window's size - iot
+  // memory popup-size-rules): each its title's line, the gaps and the source's line taken off
+  const [grid, setGrid] = useState(null)
+  const room = useRoomBelow(grid)
+  const n = spec.charts.length
+  const chartH = room
+    ? Math.max(CHART_H * 0.7, Math.floor((room - 36 - 16 * (n - 1)) / n) - 30)
+    : CHART_H
   return (
     <CModal
       visible
@@ -619,16 +625,25 @@ const WeatherPopup = ({ kind, weatherId, onClose }) => {
           </div>
         )}
         {!error && !data && <CSpinner size="sm" />}
-        {data && (
-          <div className="d-grid gap-3">
-            {spec.charts.map((c) => (
-              <TimeChart key={c.title} {...c} rows={rows} t0={t0} t1={t1} now={now} />
+        <div ref={setGrid} className="d-grid gap-3">
+          {data &&
+            spec.charts.map((c) => (
+              <TimeChart
+                key={c.title}
+                {...c}
+                rows={rows}
+                t0={t0}
+                t1={t1}
+                now={now}
+                height={chartH}
+              />
             ))}
+          {data && (
             <div className="small text-body-secondary">
               {data.attribution} - the past hours are the weather model&apos;s, not measured here.
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </CModalBody>
     </CModal>
   )

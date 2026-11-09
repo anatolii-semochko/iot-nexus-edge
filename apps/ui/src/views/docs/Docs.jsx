@@ -183,7 +183,9 @@ const Docs = () => {
               rootLabel={pageOf('', lang)?.title ?? t('Documentation')}
             />
             <PageTitle title={current.title} />
-            {current.description && <p className="text-body-secondary mt-2">{current.description}</p>}
+            {current.description && (
+              <p className="text-body-secondary mt-2">{current.description}</p>
+            )}
             {!PAGES[lang]?.[id] && lang !== 'en' && (
               <p className="small text-body-secondary fst-italic">
                 {t('This page is not translated yet - shown in English.')}

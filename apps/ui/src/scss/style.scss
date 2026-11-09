@@ -148,17 +148,28 @@ body {
   0% {
     transform: scale(1);
     opacity: 1;
-    box-shadow: 0 0 0 0 currentColor;
   }
   60% {
     transform: scale(1.25);
     opacity: 1;
-    box-shadow: 0 0 4px 3px currentColor;
   }
   100% {
     transform: scale(1);
     opacity: 0.35;
-    box-shadow: 0 0 0 0 transparent;
+  }
+}
+// the glow - a static shadow on its own layer, only its opacity animated: an animated box-shadow
+// repainted the whole document ~20 times a second (a trace, 2026-11-09) - the header, its menu button
+// and on a phone all the content blinked while scrolling; transform and opacity stay on the compositor
+@keyframes system-tick-glow {
+  0% {
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 
@@ -170,10 +181,26 @@ body {
   color: var(--cui-success);
   background-color: currentColor;
   opacity: 0.35;
+  position: relative;
+  will-change: transform, opacity;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 4px 3px currentColor;
+    opacity: 0;
+    will-change: opacity;
+  }
 }
 
 .system-tick-pulse {
   animation: system-tick-pulse 0.1s ease-out;
+
+  &::after {
+    animation: system-tick-glow 0.1s ease-out;
+  }
 }
 
 // Channel spectrum regulator (Light Profiles editor, AGENTS_TO_DO.md
@@ -362,9 +389,22 @@ body {
 
 // A popup with charts (the user, 2026-10-29 - "all the popups with charts big"): nearly the window's
 // width - UnitPopup, the weather's chart popup; their charts taller too.
+// The popups with tabs / charts / a photo / a map (iot memory popup-size-rules, the user 2026-11-08): as
+// wide and as tall as the window, whatever the tab - switching tabs never moves the box; the body is what
+// scrolls when a tab holds more; the tabs' main content fills the room (nodeInfo/UnitPopup useRoomBelow)
 .chart-popup .modal-dialog {
-  // as wide as the window lets it - the aquarium's history popup's width (the user, 2026-10-30)
   max-width: calc(100vw - 2 * var(--cui-modal-margin));
+  height: calc(100dvh - 2 * var(--cui-modal-margin));
+  min-height: 0;
+  margin-top: var(--cui-modal-margin);
+  margin-bottom: var(--cui-modal-margin);
+}
+.chart-popup .modal-content {
+  height: 100%;
+}
+.chart-popup .modal-body {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 // The header's dropdowns (the language, the theme, the user) - their toggles centred in the header's
@@ -498,24 +538,57 @@ body {
   overscroll-behavior: contain;
 }
 
-// - the side menu over the page: its scroll stops at its ends (it used to carry on into the page behind -
-//   the page moved, the browser's toolbar hid and the menu jumped), the page under it does not scroll
+// - the side menu over the page: its scroll stops at its ends (it used to carry on into the page behind),
+//   the content area under it does not scroll
 .sidebar,
 .sidebar .simplebar-content-wrapper {
   overscroll-behavior: contain;
 }
-html:has(.sidebar-backdrop.show),
-html:has(.sidebar-backdrop.show) body {
+html:has(.sidebar-backdrop.show) .app-scroll {
   overflow: hidden;
 }
 
-// - while the page scrolls, the endless animations pause (layout/DefaultLayout.jsx sets the class): a
-//   phone's raster could not keep up with them and the scroll - parts of the cards and the header blinked
-//   out; they go on a moment after the scroll stops
-html.ne-scrolling *,
-html.ne-scrolling *::before,
-html.ne-scrolling *::after {
-  animation-play-state: paused !important;
+// - the application shell (layout/DefaultLayout.jsx): the window's height; the header an ordinary block at
+//   its top, never in a scroll (a sticky one shook a pixel on a phone while the page scrolled - the
+//   user's screencasts 2026-11-09); under it the one scrolling area - the page and its footer. Its own
+//   overscroll stays in it (the browser's stretch moves the content, never the header)
+.wrapper.app-shell {
+  height: 100dvh;
+}
+.app-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.app-scroll.is-bleed {
+  overflow: hidden;
+}
+.header {
+  transition: none;
+}
+// the gap under the header (a page, not a bleed one)
+.app-scroll:not(.is-bleed) > .body {
+  padding-top: 1.5rem;
+}
+
+// the menu button's bars (AppHeader.jsx) - whole pixels, the header's text colour
+.app-burger {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 20px;
+  height: 14px;
+  vertical-align: middle;
+
+  > span {
+    display: block;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+  }
 }
 
 // - a wide table not wrapped in .table-responsive scrolls inside its own box on a phone, never the page
@@ -529,3 +602,13 @@ html.ne-scrolling *::after {
     flex-wrap: wrap;
   }
 }
+
+// A Dashboard card's picture (the scaled copy of a component - Dashboard.jsx FitBox / StretchBox): the
+// animations inside its SVGs still - each step of an animation inside an SVG re-laid out and repainted
+// the whole page (three aquariums' pumps, UV lamps and dosers on the Aquariums level: ~500 repaints in a
+// few seconds' scroll, the page blinked on a phone - 2026-11-09). The component on its own page keeps
+// them; what turns as its own element (a turbine's rotor, a fan, the anemometer) turns here too.
+.dc-preview svg * {
+  animation: none !important;
+}
+

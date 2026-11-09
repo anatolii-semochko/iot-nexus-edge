@@ -20,6 +20,10 @@ import { t as tr } from 'src/i18n'
 // out); its label - a string (the chart's) and the legend from `legends[i]`. `colors[i]` - the entry's
 // colour (an array for an array entry). The height - `height`, else the context's (a popup's charts are
 // taller - ChartSize below), else 130.
+// `combine` (2026-11-09, the heating overview's popups - several systems' sums): a virtual key drawn
+// like any other, made of real ones - { [virtualKey]: { op: 'sum' | 'avg' | 'ratio', keys, den?, abs? } };
+// the real series aligned on the day's POINTS buckets, a missing reading carried from the one before it
+// (within GAP_STEPS); `ratio` - the keys' sum over the `den` keys' sum (a COP from heat and electricity).
 const BASE_W = 680
 const DEFAULT_H = 130
 
@@ -60,6 +64,42 @@ const niceLimit = (v) => {
 const LIMIT_COLORS = { warning: 'var(--cui-warning)', critical: 'var(--cui-danger)' }
 const LIMIT_REACH = 2 // a limit within this many times the day's reach widens the axis to show it
 
+/** A `combine` entry's series from the real ones (see the header). */
+const combineSeries = (raw, spec, from, to) => {
+  const step = (to - from) / POINTS
+  const bucket = (t) => Math.round((t - from) / step)
+  const maps = (ks) =>
+    ks.map((k) => {
+      const m = new Map()
+      for (const p of raw[k] ?? []) m.set(bucket(p.t), spec.abs ? Math.abs(p.v) : p.v)
+      return m
+    })
+  const num = maps(spec.keys ?? [])
+  const den = spec.op === 'ratio' ? maps(spec.den ?? []) : []
+  const all = [...num, ...den]
+  const ids = [...new Set(all.flatMap((m) => [...m.keys()]))].sort((a, b) => a - b)
+  const last = all.map(() => null)
+  const out = []
+  for (const b of ids) {
+    const vals = all.map((m, i) => {
+      if (m.has(b)) last[i] = { b, v: m.get(b) }
+      return last[i] && b - last[i].b <= GAP_STEPS ? last[i].v : null
+    })
+    const part = (from0, n) => vals.slice(from0, from0 + n).filter((v) => v !== null)
+    const a = part(0, num.length)
+    if (a.length === 0) continue
+    const total = a.reduce((x, y) => x + y, 0)
+    let v = spec.op === 'avg' ? total / a.length : total
+    if (spec.op === 'ratio') {
+      const d = part(num.length, den.length).reduce((x, y) => x + y, 0)
+      if (!(d > 1e-6)) continue
+      v = total / d
+    }
+    out.push({ t: from + b * step, v })
+  }
+  return out
+}
+
 const SeriesChart = ({
   keys,
   labels = [],
@@ -68,6 +108,7 @@ const SeriesChart = ({
   signed = [],
   limits = {},
   absolute = [],
+  combine = {},
   height,
 }) => {
   const contextH = useContext(ChartSize)
@@ -112,7 +153,17 @@ const SeriesChart = ({
     .map((k) => (Array.isArray(k) ? k.filter(Boolean) : k ? [k] : []))
     .map((ks, i) => ({ ks, i }))
     .filter((e) => e.ks.length)
-  const joined = entries.flatMap((e) => e.ks).join(',')
+  // the real keys asked for - a `combine` key by its parts
+  const joined = [
+    ...new Set(
+      entries
+        .flatMap((e) => e.ks)
+        .flatMap((k) =>
+          combine[k] ? [...(combine[k].keys ?? []), ...(combine[k].den ?? [])] : [k],
+        ),
+    ),
+  ].join(',')
+  const combineSig = JSON.stringify(combine)
   useEffect(() => {
     let cancelled = false
     const start = new Date()
@@ -123,14 +174,18 @@ const SeriesChart = ({
     )
       .then((d) => {
         if (cancelled) return
-        setSeries(d.series ?? {})
+        const raw = d.series ?? {}
+        const spec = JSON.parse(combineSig)
+        for (const [k, c] of Object.entries(spec))
+          raw[k] = combineSeries(raw, c, start.getTime(), start.getTime() + 86_400_000)
+        setSeries(raw)
         setReadAt(now)
       })
       .catch((err) => !cancelled && setError(err.message))
     return () => {
       cancelled = true
     }
-  }, [joined])
+  }, [joined, combineSig])
   if (error)
     return (
       <div className="small text-body-secondary">
