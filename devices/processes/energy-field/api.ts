@@ -48,6 +48,7 @@ const CONFIG_SCHEMA = {
         properties: {
           ...item,
           model: { type: "string" },
+          yieldFactor: { type: "number", minimum: 0, maximum: 1.2 },
           ratedKw: { type: "number", exclusiveMinimum: 0 },
           cutInMs: { type: "number", minimum: 0 },
           ratedMs: { type: "number", exclusiveMinimum: 0 },

@@ -47,7 +47,7 @@ interface Item {
   group?: string;
 }
 interface PvItem extends Item { kWp: number; acKw: number; yieldFactor?: number }
-interface TurbineItem extends Item { model?: string; ratedKw: number; cutInMs: number; ratedMs: number; cutOutMs: number; ratedRpm: number; hubHeightM: number }
+interface TurbineItem extends Item { model?: string; ratedKw: number; cutInMs: number; ratedMs: number; cutOutMs: number; ratedRpm: number; hubHeightM: number; yieldFactor?: number }
 interface BatteryItem extends Item { capacityKwh: number; maxChargeKw: number; maxDischargeKw: number; nominalV?: number }
 interface SubMeterItem extends Item { share?: number; withLoads?: boolean | number[]; of?: number[] }
 interface FieldConfig {

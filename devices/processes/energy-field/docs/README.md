@@ -13,7 +13,7 @@ project seeds its instance (the nodes and one process).
 | Config | Node type (reference model) | Params |
 |---|---|---|
 | `pvBlocks[]` | `pv-inverter` (SMA Sunny Tripower 10.0) | `kWp`, `acKw`, `yieldFactor` (orientation, shading, a roof) |
-| `turbines[]` | `wind-turbine` (Braun ANTARIS 3.5 / 6.5 kW) | `ratedKw`, `cutInMs`, `ratedMs`, `cutOutMs`, `ratedRpm`, `hubHeightM` |
+| `turbines[]` | `wind-turbine` (Braun ANTARIS 3.5 / 6.5 kW, NPS 100C-24) | `ratedKw`, `cutInMs`, `ratedMs`, `cutOutMs`, `ratedRpm`, `hubHeightM`, `yieldFactor` (the spot, neighbours' turbulence, age) |
 | `batteries[]` | `battery-storage` (TESVOLT TS HV 70 + SMA Sunny Tripower Storage 60) | `capacityKwh`, `maxChargeKw`, `maxDischargeKw`, `nominalV` |
 | `consumer` | `power-meter` (Janitza UMG 96-PA) | `profile` - `baseKw`, `weekdayPeakKw`, `weekendPeakKw`, `workFrom`, `workTo` |
 | `loadProcessIds` | - | processes whose electricity is part of the site's consumption - their metrics' `electricKw` added to a simulated consumer's profile (e.g. `heating-control`) |
@@ -35,7 +35,8 @@ distribution over buildings is a later package's.
      air with the sun), x `yieldFactor`, capped by the inverter's AC power;
    - wind: the forecast's 10 m wind at the hub (power law, 0.2), each turbine
      with its own slow gusts (+-25 %), the cubic power curve between cut-in
-     and the rated wind, braked over cut-out ("storm"); rpm with the wind;
+     and the rated wind, x `yieldFactor`, braked over cut-out ("storm"); rpm
+     with the wind; the scene draws a lower hub's turbine smaller;
    - consumption: the profile - base at night and on closed days, the peak
      in working hours (an hour's ramps, a lunch dip on working days), the
      weekend's own peak; +-3 % noise.

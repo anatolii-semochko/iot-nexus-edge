@@ -42,6 +42,9 @@ export interface TurbineSpec {
   cutOutMs: number; // above it - braked (storm protection)
   ratedRpm: number;
   hubHeightM: number;
+  // the unit's own share of its rated curve - the site (turbulence from neighbours, a
+  // sheltered spot), its age; 1 - the maker's curve
+  yieldFactor?: number;
 }
 
 // wind shear - the power law with the open-terrain exponent; the forecast's
@@ -54,7 +57,7 @@ export function turbinePower(spec: TurbineSpec, windMs: number): { kw: number; r
   if (windMs >= spec.cutOutMs) return { kw: 0, rpm: 0, state: "storm" };
   if (windMs < spec.cutInMs) return { kw: 0, rpm: windMs > 0.5 ? (spec.ratedRpm * windMs) / spec.ratedMs / 3 : 0, state: "idle" };
   const share = windMs >= spec.ratedMs ? 1 : (windMs ** 3 - spec.cutInMs ** 3) / (spec.ratedMs ** 3 - spec.cutInMs ** 3);
-  return { kw: spec.ratedKw * share, rpm: spec.ratedRpm * Math.min(1, windMs / spec.ratedMs), state: "running" };
+  return { kw: spec.ratedKw * share * (spec.yieldFactor ?? 1), rpm: spec.ratedRpm * Math.min(1, windMs / spec.ratedMs), state: "running" };
 }
 
 // --- consumption -------------------------------------------------------------

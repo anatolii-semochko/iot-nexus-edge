@@ -141,17 +141,18 @@ const FlowFigure = ({ kw, color }) => (
  * 2026-10-24): the figure bold, its "kW" small and light grey - there to read, not to catch the
  * eye; `color` - the figure's own (the batteries' state colours); "off" for a unit switched off.
  */
-const UnitPower = ({ kw, off = false, offText = 'off', color }) =>
+const UnitPower = ({ kw, off = false, offText = 'off', color, digits = 1 }) =>
   off ? (
     <span className="ef-unit-power fw-semibold" style={{ color: 'var(--ef-off)' }}>
       {offText}
     </span>
   ) : (
     <span className="ef-unit-power">
-      <KeyValue value={kwText(kw)} unit="kW" color={color} />
+      <KeyValue value={kwText(kw, digits)} unit="kW" color={color} />
     </span>
   )
-const kwText = (kw) => (Math.abs(kw) >= 100 ? fmt(kw, 0) : fmt(kw, 1))
+// the generation's units two decimals (the user, 2026-11-10 - 2.21 kW: neighbours differ in them)
+const kwText = (kw, digits = 1) => (Math.abs(kw) >= 100 ? fmt(kw, 0) : fmt(kw, digits))
 
 const Stat = StatTile
 
@@ -181,6 +182,14 @@ const EnergyFieldScene = ({ process }) => {
   const pvItems = m.pv ?? []
   const windItems = m.wind ?? []
   const height = GEN_ICON_HEIGHT
+  // a turbine's icon by its tower against the field's tallest (the root - a small one still reads):
+  // a 12 m mast beside a 37 m tower ~57% (the user, 2026-11-10: the small turbines, livelier)
+  const turbines = process.config?.turbines ?? []
+  const tallest = Math.max(0, ...turbines.map((t) => t.hubHeightM ?? 0))
+  const turbineHeight = (x) => {
+    const hub = turbines.find((t) => t.nodeId === x.nodeId)?.hubHeightM
+    return hub && tallest ? height * Math.max(0.5, Math.sqrt(hub / tallest)) : height
+  }
   // the groups (the engineer's - the process's Settings): none used - all together, no heading; some -
   // by them, the ungrouped ones in "Other" (the generation and the batteries alike)
   const byGroups = (block, lists) => {
@@ -572,15 +581,20 @@ const EnergyFieldScene = ({ process }) => {
               <div className="d-flex align-items-baseline gap-2">
                 <span className="fw-semibold">{g.name}</span>
                 <span className="small ef-muted">
-                  <KeyValue
-                    value={kwText(g.pv.reduce((a, x) => a + x.kw, 0))}
-                    unit="kW"
-                    color="var(--ef-gen)"
-                  />{' '}
-                  PV
+                  {/* each kind only where the group has it (a group of turbines - no "0.0 kW PV") */}
+                  {g.pv.length > 0 && (
+                    <>
+                      <KeyValue
+                        value={kwText(g.pv.reduce((a, x) => a + x.kw, 0))}
+                        unit="kW"
+                        color="var(--ef-gen)"
+                      />{' '}
+                      PV
+                    </>
+                  )}
                   {g.wind.length > 0 && (
                     <>
-                      ,{' '}
+                      {g.pv.length > 0 && ', '}
                       <KeyValue
                         value={kwText(g.wind.reduce((a, x) => a + x.kw, 0))}
                         unit="kW"
@@ -612,6 +626,7 @@ const EnergyFieldScene = ({ process }) => {
                   <UnitPower
                     kw={x.kw}
                     off={!x.on}
+                    digits={2}
                     color={unitAlert(x.nodeId) ? 'var(--ef-bad)' : 'var(--ef-gen)'}
                   />
                   <PvIcon height={height} on={x.on && x.kw > 0} />
@@ -631,10 +646,11 @@ const EnergyFieldScene = ({ process }) => {
                     <UnitPower
                       kw={x.kw}
                       off={x.state === 'off'}
+                      digits={2}
                       color={unitAlert(x.nodeId) ? 'var(--ef-bad)' : 'var(--ef-gen)'}
                     />
                   )}
-                  <TurbineIcon height={height} rpm={x.rpm} state={x.state} />
+                  <TurbineIcon height={turbineHeight(x)} rpm={x.rpm} state={x.state} />
                 </button>
               ))}
             </div>
@@ -990,6 +1006,9 @@ export const DevicePopup = ({
               </Stat>
               <Stat label={tr('Cut-in / out')}>
                 {fmt(spec?.cutInMs, 0)} / {fmt(spec?.cutOutMs, 0)} m/s
+              </Stat>
+              <Stat label={tr('Yield factor')}>
+                <KeyValue value={fmt(spec?.yieldFactor ?? 1, 2)} />
               </Stat>
             </>
           )}
