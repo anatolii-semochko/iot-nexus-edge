@@ -4,7 +4,7 @@ description: "Die Geräte - Werte, Modi, Simulation, Protokollierung und Heartbe
 order: 2
 ---
 
-![Die Seite „Geräte"](screen:devices)
+![Die Seite „Geräte“](screen:devices)
 
 Jedes Gerät mit Knoten, Typ, Wert und Messzeit; überfällige Werte sind
 hervorgehoben.

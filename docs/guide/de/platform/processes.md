@@ -4,7 +4,7 @@ description: "Die Prozesse - starten, stoppen, ihre Panels, Gruppen und Einstell
 order: 3
 ---
 
-![Die Seite „Prozesse"](screen:processes)
+![Die Seite „Prozesse“](screen:processes)
 
 Jeder Prozess mit Art, Zustand und Warnungen. Die Registerkarten: **Alle**,
 **Steuerbar** (von Personen gestartet und gestoppt), **Dauerhaft** (laufen

@@ -11,7 +11,7 @@ und die Prognosen:
 |---|---|
 | Geringste Kosten | Laden, wenn Energie günstig oder gratis ist, abgeben, wenn sie teuer ist |
 | Autarkie | So wenig wie möglich aus dem Netz - kein Laden aus dem Netz |
-| Reserve | Die Batterien hoch gehalten - bereit für einen Ausfall (z. B. vor einem Sturm) |
+| Reserve | Die Batterien hochgehalten - bereit für einen Ausfall (z. B. vor einem Sturm) |
 | Lastspitzenkappung | Der Bezug unter der Spitzengrenze - der Leistungspreis eines Betriebs |
 | Verkauf | Gespeicherte Energie nur über der Preisschwelle verkauft |
 

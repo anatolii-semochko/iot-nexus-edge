@@ -1,7 +1,7 @@
 {
   " · from {{compassOf}}": " · з {{compassOf}}",
   " · the forecast of {{hhmm}}": " · прогноз на {{hhmm}}",
-  "A simulated node follows the forecast": "Симульована нода слідує прогнозу",
+  "A simulated node follows the forecast": "Симульований вузол іде за прогнозом",
   "Accept current value": "Прийняти поточне значення",
   "Anemometer - {{toFixed}} m/s": "Анемометр - {{toFixed}} m/s",
   "Calm": "Штиль",

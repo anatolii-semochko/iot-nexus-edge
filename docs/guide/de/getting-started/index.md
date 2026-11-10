@@ -20,7 +20,7 @@ führt zur Anmeldeseite.
   Protokolle), Einstellungen (Service, Benutzer, Bibliothek, Dokumentation).
   Es zeigt, was Ihre Rolle erlaubt; eine Rolle kann nur das Dashboard zeigen -
   dann gibt es kein Menü.
-- **Die Kopfzeile** - das Abzeichen „Simulation" (ein Knoten ist simuliert),
+- **Die Kopfzeile** - das Abzeichen „Simulation“ (ein Knoten ist simuliert),
   der System-Tick, die Meldungen, Warnungen und Fehler (die
   Benachrichtigungszentrale), die Sprache, das Design, Ihre aktuelle Rolle
   und das Benutzermenü.

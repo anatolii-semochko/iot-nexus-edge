@@ -4,7 +4,7 @@ description: "Simulierte Geräte von Hand steuern - entwickeln und vorführen oh
 order: 3
 ---
 
-![Die Seite „Simulator"](screen:simulator)
+![Die Seite „Simulator“](screen:simulator)
 
 Die Bedienelemente der simulierten Geräte: einen Sensorwert verschieben,
 einen Eingang schalten und zusehen, wie die Prozesse reagieren - entwickeln,

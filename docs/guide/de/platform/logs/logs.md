@@ -4,7 +4,7 @@ description: "Der Verlauf - Befehle, Gerätewerte, Meldungen, KI-Vorschläge und
 order: 2
 ---
 
-![Die Seite „Protokolle"](screen:logs)
+![Die Seite „Protokolle“](screen:logs)
 
 Die Registerkarten:
 

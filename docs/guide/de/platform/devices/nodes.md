@@ -4,7 +4,7 @@ description: "Die Knoten - Status, Heartbeat, Simulation, Einstellungen und Ger�
 order: 1
 ---
 
-![Die Seite „Knoten"](screen:nodes)
+![Die Seite „Knoten“](screen:nodes)
 
 Jeder Knoten der Anlage mit Typ, Status und letztem Heartbeat. Eine Suche,
 ein Statusfilter (alle, Fehler, Simulation) und Gruppen grenzen die Liste ein.

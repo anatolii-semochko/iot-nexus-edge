@@ -17,7 +17,7 @@ Wärmeflüssen dazwischen; ein Block öffnet seine Details und Diagramme.
   (heizen unter der ersten, kühlen über der zweiten; dazwischen bleibt es beim
   Bisherigen); aus.
 - **Gestufte Starts** - es laufen nur so viele Wärmepumpen, wie die Speicher
-  brauchen; als nächstes startet die am wenigsten gelaufene (gleichmäßiger
+  brauchen; als Nächstes startet die am wenigsten gelaufene (gleichmäßiger
   Verschleiß) oder nach Ihrer Priorität; sie starten und stoppen einzeln -
   nie alle Anlaufströme gleichzeitig.
 - **Die Speicher** - zwei Wärmetauscher (ein von den Wärmepumpen, aus zu den

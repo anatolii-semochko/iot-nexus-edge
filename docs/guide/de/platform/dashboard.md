@@ -15,7 +15,7 @@ Das Dashboard ist ein Baum von Karten:
 - eine **Komponente** - in voller Breite der Ebene unter ihren Blöcken (z. B.
   die Energieübersicht).
 
-Was eine Person sieht, folgt ihrer Rolle: eine Karte erscheint nur, wo die
+Was eine Person sieht, folgt ihrer Rolle: Eine Karte erscheint nur, wo die
 Rolle ihr Objekt sieht; ein Ordner - nur, wenn etwas darin ist.
 
 ## Die Karten anordnen

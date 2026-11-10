@@ -30,7 +30,7 @@ bringt jeden Bus in dasselbe Modell, sodass dem Rest des Systems gleich ist,
 Jeder Knoten oder jedes einzelne Gerät ist entweder **physisch** (die echte
 Hardware) oder **simuliert** (ein Modell spielt es). Umgeschaltet wird live -
 entwickeln und testen ohne Hardware, einen Standort betreiben, während ein
-Knoten repariert wird, eine Demo zeigen. Das Abzeichen „Simulation" in der
+Knoten repariert wird, eine Demo zeigen. Das Abzeichen „Simulation“ in der
 Kopfzeile zeigt, dass etwas simuliert ist.
 
 ## Prozesse
@@ -48,7 +48,7 @@ Hardware erreicht - egal, wer sie anfordert.
 
 ## Die Bibliothek
 
-Pakete für Geräte, Knoten und Prozesse - **DNP**. Die Seite „Bibliothek" listet
+Pakete für Geräte, Knoten und Prozesse - **DNP**. Die Seite „Bibliothek“ listet
 die installierten mit ihrer Dokumentation. Ein System wird aus ihnen
 zusammengesetzt; ein Zielprojekt fügt eigene Pakete hinzu, ohne den Kern zu
 ändern.

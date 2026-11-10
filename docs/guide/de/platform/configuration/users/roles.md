@@ -9,7 +9,7 @@ order: 2
 Benutzer -> Rollen: eine Rolle ist eine Tabelle dessen, was sie darf:
 
 - **Objekte** - jede Prozessinstanz (ein Energiefeld, ein Heizungssystem, ein
-  Becken) und „alle anderen Objekte", mit einer Stufe: ansehen, steuern,
+  Becken) und „alle anderen Objekte“, mit einer Stufe: ansehen, steuern,
   konfigurieren (und die Stufen der KI);
 - **Bereiche** - die Bereiche des Systems (Geräte, Protokolle, Benutzer,
   Service, ...);
