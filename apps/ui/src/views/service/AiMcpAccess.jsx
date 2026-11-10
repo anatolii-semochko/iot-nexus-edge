@@ -22,18 +22,54 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilTrash } from '@coreui/icons'
 import { api } from '../../api/client'
+import SearchChecklist from '../../components/SearchChecklist'
 import { formatSmartDateTime } from '../../utils/format'
 import { t as tr } from 'src/i18n'
 
 /**
- * Service -> Config -> AI -> MCP access (Nexus Edge AI Assistant, stage 3;
- * api ai/mcp.ts): the tokens an external MCP client (Claude Code, Claude
- * Desktop, another agent) uses to read this system through the assistant's
- * resource gateway at <this address>/api/mcp. A token acts as one
- * assistant instance - its access levels apply. A new token is shown once
- * (with the command to connect); afterwards only its prefix. No enabled
- * token - the MCP server is closed.
+ * Service -> Config -> AI -> MCP access (api ai/mcp.ts): the tokens an external MCP client (Claude
+ * Code, Claude Desktop, another agent) uses at <this address>/api/mcp. Each token has its own service
+ * account (2026-11-10): its roles - what it may read and change, on which objects (set here when it is
+ * made, then in Users like a person's); the levels - whether a change its roles allow applies at once
+ * (Auto) or waits for a person (Confirm); Install never Auto. No password, no sign-in; never a role with
+ * every right; it can't change anyone's roles. Every call - Logs -> MCP calls. A new token is shown once
+ * (with the command to connect); afterwards only its prefix. No enabled token - the MCP server is closed.
  */
+
+const LEVELS = ['off', 'confirm', 'auto']
+const LEVEL_LABEL = { off: 'Off', confirm: 'Confirm', auto: 'Auto' }
+const AREAS = [
+  { key: 'config', label: 'Config' },
+  { key: 'control', label: 'Control' },
+  { key: 'install', label: 'Install' },
+]
+const DEFAULT_LEVELS = { config: 'confirm', control: 'confirm', install: 'confirm' }
+
+/** The three levels' selects (Install - Off / Confirm); `compact` - small, the area's name over each. */
+const LevelSelects = ({ levels, onChange, disabled, compact }) => (
+  <div className="d-flex flex-wrap gap-2">
+    {AREAS.map((a) => (
+      <div key={a.key} style={{ width: compact ? '7.5rem' : '9rem' }}>
+        <div className={compact ? 'small text-body-secondary' : 'form-label mb-1'}>
+          {tr(a.label)}
+        </div>
+        <CFormSelect
+          size={compact ? 'sm' : undefined}
+          aria-label={tr(a.label)}
+          value={levels[a.key]}
+          disabled={disabled}
+          onChange={(e) => onChange({ ...levels, [a.key]: e.target.value })}
+        >
+          {LEVELS.filter((l) => a.key !== 'install' || l !== 'auto').map((l) => (
+            <option key={l} value={l}>
+              {tr(LEVEL_LABEL[l])}
+            </option>
+          ))}
+        </CFormSelect>
+      </div>
+    ))}
+  </div>
+)
 
 const endpoint = () => `${window.location.origin}/api/mcp`
 
@@ -62,9 +98,9 @@ const CopyField = ({ value, label }) => {
 
 const AiMcpAccess = () => {
   const [tokens, setTokens] = useState(null)
-  const [instances, setInstances] = useState([])
+  const [roles, setRoles] = useState([])
   const [error, setError] = useState(null)
-  const [form, setForm] = useState(null) // {name, instanceKey}
+  const [form, setForm] = useState(null) // {name, roles, levels}
   const [created, setCreated] = useState(null) // {token, record}
   const [busy, setBusy] = useState(false)
   const load = () =>
@@ -75,8 +111,8 @@ const AiMcpAccess = () => {
   useEffect(() => {
     load()
     api
-      .listAiInstances()
-      .then((d) => setInstances(d.instances))
+      .listRoles()
+      .then((d) => setRoles(d.roles.filter((r) => !r.full && !r.service)))
       .catch((err) => setError(err.message))
   }, [])
 
@@ -98,17 +134,16 @@ const AiMcpAccess = () => {
       .updateMcpToken(t.id, { enabled })
       .then(load)
       .catch((err) => setError(err.message))
+  const setLevels = (t, levels) =>
+    api
+      .updateMcpToken(t.id, { levels })
+      .then(load)
+      .catch((err) => setError(err.message))
   const remove = (t) =>
     api
       .deleteMcpToken(t.id)
       .then(load)
       .catch((err) => setError(err.message))
-  // the whole system's instance named as such - its own name alone reads like any other
-  const labelOf = (i) => (i.processId === null ? `${i.name} (${tr('the whole system')})` : i.name)
-  const nameOf = (key) => {
-    const i = instances.find((x) => x.key === key)
-    return i ? labelOf(i) : key
-  }
 
   if (!tokens) return error ? <CAlert color="danger">{error}</CAlert> : <CSpinner size="sm" />
   return (
@@ -126,7 +161,7 @@ const AiMcpAccess = () => {
         <CButton
           color="primary"
           size="sm"
-          onClick={() => setForm({ name: '', instanceKey: 'nexus-edge' })}
+          onClick={() => setForm({ name: '', roles: [], levels: DEFAULT_LEVELS })}
         >
           {tr('+ Token')}
         </CButton>
@@ -141,7 +176,9 @@ const AiMcpAccess = () => {
             <CTableRow>
               <CTableHeaderCell>{tr('Name')}</CTableHeaderCell>
               <CTableHeaderCell>{tr('Token')}</CTableHeaderCell>
-              <CTableHeaderCell>{tr('Acts as')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Account')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Roles')}</CTableHeaderCell>
+              <CTableHeaderCell>{tr('Changes')}</CTableHeaderCell>
               <CTableHeaderCell>{tr('Last used')}</CTableHeaderCell>
               <CTableHeaderCell>{tr('Enabled')}</CTableHeaderCell>
               <CTableHeaderCell />
@@ -152,7 +189,17 @@ const AiMcpAccess = () => {
               <CTableRow key={t.id} className={t.enabled ? '' : 'text-body-secondary'}>
                 <CTableDataCell className="fw-semibold">{t.name}</CTableDataCell>
                 <CTableDataCell className="font-monospace small">{t.prefix}...</CTableDataCell>
-                <CTableDataCell className="small">{nameOf(t.instanceKey)}</CTableDataCell>
+                <CTableDataCell className="small font-monospace">
+                  {t.account?.username ?? '-'}
+                </CTableDataCell>
+                <CTableDataCell className="small">
+                  {t.account?.roles.length
+                    ? t.account.roles.map((r) => r.name).join(', ')
+                    : tr('none - sees nothing')}
+                </CTableDataCell>
+                <CTableDataCell>
+                  <LevelSelects compact levels={t.levels} onChange={(l) => setLevels(t, l)} />
+                </CTableDataCell>
                 <CTableDataCell className="small">
                   {t.lastUsedAt ? formatSmartDateTime(t.lastUsedAt) : tr('never')}
                 </CTableDataCell>
@@ -193,17 +240,39 @@ const AiMcpAccess = () => {
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
-            <CFormSelect
-              label={tr('Acts as (its access levels apply)')}
-              value={form.instanceKey}
-              onChange={(e) => setForm({ ...form, instanceKey: e.target.value })}
-            >
-              {instances.map((i) => (
-                <option key={i.key} value={i.key}>
-                  {labelOf(i)}
-                </option>
-              ))}
-            </CFormSelect>
+            <div>
+              <SearchChecklist
+                id="mcp-roles"
+                label={tr('Roles of its account')}
+                items={roles.map((r) => ({ key: r.key, label: r.name, detail: r.key }))}
+                selected={form.roles}
+                onToggle={(k) =>
+                  setForm({
+                    ...form,
+                    roles: form.roles.includes(k)
+                      ? form.roles.filter((x) => x !== k)
+                      : [...form.roles, k],
+                  })
+                }
+                maxHeight="10rem"
+              />
+              <div className="form-text">
+                {tr(
+                  'What it may read and change, on which objects - later in Users, as a person. Never a role with every right.',
+                )}
+              </div>
+            </div>
+            <div>
+              <LevelSelects
+                levels={form.levels}
+                onChange={(levels) => setForm({ ...form, levels })}
+              />
+              <div className="form-text">
+                {tr(
+                  'A change its roles allow: Auto - applied at once, Confirm - waits for a person (Logs -> AI Proposals). Install - never Auto.',
+                )}
+              </div>
+            </div>
           </CModalBody>
           <CModalFooter>
             <CButton
@@ -214,7 +283,11 @@ const AiMcpAccess = () => {
             >
               {tr('Cancel')}
             </CButton>
-            <CButton color="primary" onClick={create} disabled={busy || !form.name.trim()}>
+            <CButton
+              color="primary"
+              onClick={create}
+              disabled={busy || !form.name.trim() || form.roles.length === 0}
+            >
               {busy ? <CSpinner size="sm" /> : tr('Create')}
             </CButton>
           </CModalFooter>

@@ -8,7 +8,7 @@ import * as processRegistry from "../processRegistry.js";
 import { checkProcessConfig, ProcessWriteError } from "../processWrites.js";
 import { checkDevice, checkNode, nodeTypeOf, RegistryError } from "../registry.js";
 import { isPermission } from "../access/catalog.js";
-import { can, FULL_ROLES, principalOf, resolveContext } from "../access/principal.js";
+import { can, FULL_ROLES, principalOf, resolveContext, visibleUnits } from "../access/principal.js";
 import { computeRights, type Rights } from "../access/rights.js";
 import { processUsage } from "../access/usage.js";
 import { rolesProblem } from "../routes/access.js";
@@ -88,6 +88,11 @@ export async function runTool(name: string, input: unknown, ctx: ToolContext): P
   if (!toolAllowed(entry.tool.access, ctx.instance)) throw new ToolError(`${ctx.instance.name}: access level ${entry.tool.access} is off`);
   const args = structuredClone((input ?? {}) as Record<string, unknown>);
   if (!entry.validate(args)) throw new ToolError(`invalid input: ${inputProblems(entry.validate.errors ?? [], entry.tool.input)}`);
+  // an MCP account reads only the processes its roles show it
+  if (ctx.principal && typeof args.processId === "number") {
+    const scope = await principalScope(ctx);
+    if (scope && !scope.process(args.processId)) throw new ToolError(`process ${args.processId}: not visible to ${ctx.instance.name}`);
+  }
   const result = await entry.tool.run(args, ctx);
   const text = JSON.stringify(result);
   const max = config.ai.toolMaxChars;
@@ -95,6 +100,17 @@ export async function runTool(name: string, input: unknown, ctx: ToolContext): P
 }
 
 // --- helpers ------------------------------------------------------------------
+
+/** What an MCP account sees (null - everything, or the built-in assistant): by process / node id. */
+async function principalScope(ctx: ToolContext): Promise<{ process: (id: number) => boolean; node: (id: number) => boolean } | null> {
+  if (!ctx.principal) return null;
+  const procs = visibleUnits(ctx.principal, "processes.view");
+  const nodes = visibleUnits(ctx.principal, "nodes.view");
+  if (procs === null && nodes === null) return null;
+  const map = await instanceUnits();
+  const inside = (units: Set<string> | null, unit: string | undefined) => units === null || (unit !== undefined && units.has(unit));
+  return { process: (id) => inside(procs, map.processUnit.get(id)), node: (id) => inside(nodes, map.nodeUnit.get(id)) };
+}
 
 const DAY_MS = 86_400_000;
 // a time: ISO text or ms; absent - the fallback
@@ -161,6 +177,11 @@ registerTool({
         pool.query("SELECT id, name, type, parent_id, health, simulated FROM nodes ORDER BY id"),
         pool.query<{ id: number; name: string; kind: string; node_id: number | null }>("SELECT id, name, kind, node_id FROM processes ORDER BY id"),
       ]);
+      const scope = await principalScope(ctx);
+      if (scope) {
+        nodes.rows = nodes.rows.filter((n) => scope.node(n.id));
+        processes.rows = processes.rows.filter((p) => scope.process(p.id));
+      }
       const states = await Promise.all(processes.rows.map((p) => processRegistry.getPublicState(p.id)));
       return {
         nodes: nodes.rows,

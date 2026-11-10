@@ -6,6 +6,7 @@ import AiLogsTab from './AiLogsTab'
 import AiProposalsTab from './AiProposalsTab'
 import AiReportsTab from './AiReportsTab'
 import AiUsageTab from './AiUsageTab'
+import McpCallsTab from './McpCallsTab'
 import CommandLogsTab from './CommandLogsTab'
 import DeviceLogsTab from './DeviceLogsTab'
 import ProcessMessageLogsTab from './ProcessMessageLogsTab'
@@ -23,6 +24,8 @@ const TAB_DEFS = [
   { key: 'aiProposals', label: tr('AI Proposals') },
   // the tokens by day - guests, schedules, people - against the limits (the user, 2026-11-10)
   { key: 'aiUsage', label: tr('AI usage') },
+  // every tool an MCP client called (its service account, the input, an error)
+  { key: 'mcpCalls', label: tr('MCP calls') },
 ]
 
 // Registration for usePersistedState (AGENTS_TO_DO.md, 2026-08-01) -
@@ -188,6 +191,7 @@ const LogsList = () => {
         {activeTab === 'aiReports' && <AiReportsTab />}
         {activeTab === 'aiProposals' && <AiProposalsTab />}
         {activeTab === 'aiUsage' && <AiUsageTab />}
+        {activeTab === 'mcpCalls' && <McpCallsTab />}
       </CCardBody>
     </CCard>
   )

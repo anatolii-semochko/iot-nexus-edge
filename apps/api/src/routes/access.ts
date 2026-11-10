@@ -274,10 +274,12 @@ export async function accessRoutes(app: FastifyInstance): Promise<void> {
   // --- a person's roles, replaced as a whole (Users -> a person)
   app.put<{ Params: { id: string }; Body: { roles?: unknown } }>("/access/users/:id/roles", async (request, reply) => {
     const id = Number(request.params.id);
-    const user = (await pool.query<{ username: string }>("SELECT username FROM users WHERE id = $1", [id])).rows[0];
+    const user = (await pool.query<{ username: string; kind: string }>("SELECT username, kind FROM users WHERE id = $1", [id])).rows[0];
     if (!user) return bad(reply, "no such user", 404);
     const keys = request.body?.roles;
     if (!Array.isArray(keys) || !keys.every((k) => typeof k === "string")) return bad(reply, "roles: a list of role keys");
+    // an MCP client's account never holds every right (it would manage users, decide proposals)
+    if (user.kind === "service" && (keys as string[]).some((k) => FULL_ROLES.has(k))) return bad(reply, "an MCP account can't hold a role with every right (admin, system)");
     const problem = await rolesProblem(user.username, keys as string[]);
     if (problem) return bad(reply, problem);
     await setUserRoles(id, [...new Set(keys as string[])]);

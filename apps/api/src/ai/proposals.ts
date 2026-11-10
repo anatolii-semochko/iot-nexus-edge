@@ -2,7 +2,8 @@ import { pool } from "../db.js";
 import { logger } from "../logger.js";
 import { createProcess, giveProcessCommand, type NewProcess, ProcessWriteError, switchProcess, writeProcessConfig } from "../processWrites.js";
 import { createDevice, createNode, type NewDevice, type NewNode, RegistryError } from "../registry.js";
-import { setUserRoles } from "../access/principal.js";
+import { can, type Principal, setUserRoles } from "../access/principal.js";
+import { instanceUnits } from "../dnpInstances.js";
 import { rolesProblem } from "../routes/access.js";
 import { writeDayNote } from "../dayNotes.js";
 import type { Instance, Level } from "./instances.js";
@@ -56,6 +57,31 @@ export interface ProposalOrigin {
   instance: Instance;
   conversationId?: number | null;
   mcpTokenId?: number | null;
+  // an MCP service account: its roles must allow the change on the object, and it is the author of what
+  // applies on Auto (absent - the built-in assistant: its instance's levels, `ai-agent` the author)
+  principal?: Principal | null;
+  actorUserId?: number | null;
+}
+
+// the permission an operation needs on its process (or anywhere, for a new one)
+const OPERATION_PERMISSION: Record<string, string> = {
+  config: "processes.config",
+  command: "processes.control",
+  switch: "processes.control",
+  "day-note": "processes.control",
+  dnp: "processes.control",
+  "create-process": "processes.manage",
+  "create-node": "nodes.manage",
+  "create-device": "devices.manage",
+};
+
+/** Whether an account's roles allow an operation (on its process's object, when it has one). */
+async function principalAllows(p: Principal, operation: string, processId: number | null): Promise<boolean> {
+  const perm = OPERATION_PERMISSION[operation];
+  if (!perm) return false; // roles and anything new: a person's
+  if (processId === null) return can(p, perm);
+  const unit = (await instanceUnits()).processUnit.get(processId);
+  return can(p, perm, unit ?? undefined);
 }
 
 export interface Proposal {
@@ -191,6 +217,8 @@ export async function proposalOwner(id: number): Promise<number | null> {
 export async function propose(input: ProposalInput, origin: ProposalOrigin): Promise<Proposal> {
   const level: Level = origin.instance.access[input.access];
   if (level === "off") throw new ProcessWriteError(`${origin.instance.name}: ${input.access} is off`, 403);
+  if (origin.principal && !(await principalAllows(origin.principal, input.operation, input.processId)))
+    throw new ProcessWriteError(`${origin.instance.name}: its roles don't allow ${input.operation}${input.processId !== null ? ` on process ${input.processId}` : ""}`, 403);
   const id = (
     await pool.query<{ id: number }>(
       `INSERT INTO ai_proposals (via, conversation_id, mcp_token_id, instance_key, access, operation, process_id, summary, reason, payload, before)
@@ -210,7 +238,7 @@ export async function propose(input: ProposalInput, origin: ProposalOrigin): Pro
       ],
     )
   ).rows[0].id;
-  if (level === "auto" && input.operation !== "roles") return decide(id, await aiAgentUserId(), "accept");
+  if (level === "auto" && input.operation !== "roles") return decide(id, origin.actorUserId ?? (await aiAgentUserId()), "accept");
   return (await getProposal(id))!;
 }
 

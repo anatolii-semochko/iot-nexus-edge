@@ -8269,12 +8269,43 @@ it is used.
   for "."; read tools `readOnlyHint`, proposing ones not; a refusal -
   `isError`. A proposal from MCP waits in Logs -> AI Proposals.
 - Access: `Authorization: Bearer <token>` - `ai_mcp_tokens` (migration
-  069): a token acts as one instance (its levels apply), only its sha-256
-  and a prefix stored, shown once; enable / disable, revoke, last used. No
-  enabled token - 401. Routes (admin): `GET / POST /ai/mcp-tokens`, `PATCH
-  / DELETE /ai/mcp-tokens/:id`. UI: Service -> Config -> AI -> MCP access
-  (`AiMcpAccess.jsx`, with the `claude mcp add --transport http ...`
-  command).
+  069; only its sha-256 and a prefix stored, shown once; enable / disable,
+  revoke, last used). No enabled token - 401.
+- Service accounts (migration 109, 2026-11-10): each token has its own
+  account (`users.kind = 'service'`, `mcp-<name>`, no password - the login
+  refuses it, no sessions) - one per client, not a shared `mcp`. Its roles
+  (`role_members`, set when the token is made, later in Users like a
+  person's) are what it may read and change and on which objects; roles
+  holding everything (admin, system) are refused (token creation and
+  `PUT /access/users/:id/roles`). The token's `levels` (config / control:
+  off / confirm / auto; install: off / confirm) say whether a change the
+  roles allow applies at once or waits for a person. `accessOfToken` builds
+  the whole system's instance with those levels, each cut to off when the
+  roles hold its permission nowhere (`processes.config`,
+  `processes.control`, `processes.manage` / `nodes.manage` /
+  `devices.manage`; read - any `*.view`).
+  - Reading: `runTool` refuses a `processId` the account doesn't see
+    (`processes.view` units); `system.overview` lists only its nodes and
+    processes.
+  - Changing: `propose()` checks the operation's permission on the
+    process's unit (`OPERATION_PERMISSION`; roles - never); on Auto the
+    account itself is the author (`decided_by`, the command log), not
+    `ai-agent`. `access.propose` is not offered over MCP (no raising its
+    own rights); an account can't accept proposals (it never signs in).
+  - Every tool call -> `ai_mcp_calls` (token, account, tool, input cut at
+    4000 chars, error, ms); `GET /ai/mcp-calls` (admin, paged), Logs -> MCP
+    calls (`McpCallsTab.jsx`).
+  - Revoking a token deletes its account (switched off instead when
+    something still references it).
+  - The tokens made before: an account each, role `engineer`, the levels of
+    the instance they acted as (install at most confirm).
+- Routes (admin): `GET / POST /ai/mcp-tokens` (`{name, roles, levels}`),
+  `PATCH / DELETE /ai/mcp-tokens/:id` (`enabled`, `name`, `levels`),
+  `GET /ai/mcp-calls`. UI: Service -> Config -> AI -> MCP access
+  (`AiMcpAccess.jsx`: the account, its roles, the levels inline, the
+  `claude mcp add --transport http ...` command).
+- Still the built-in assistant's way: `ai-agent` is the author of what an
+  instance applies on Auto (next - through a role of its own, as here).
 
 ### The agent, conversations, logs
 

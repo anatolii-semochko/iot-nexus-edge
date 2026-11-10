@@ -439,9 +439,9 @@ const AiConfigTab = () => {
       <AiInstances connections={data.connections} />
       <h5 className="mt-4 mb-2">{tr('MCP access')}</h5>
       <div className="small text-body-secondary mb-2">
-        External AI clients (Claude Code, Claude Desktop, other agents) read this system through the
-        assistant&apos;s tools over the Model Context Protocol - each token with the access levels
-        of the instance it acts as.
+        {tr(
+          "External AI clients (Claude Code, Claude Desktop, other agents) use the assistant's tools over the Model Context Protocol. Each token has its own service account: its roles say what it may read and change, the levels - whether a change applies at once or waits for a person. Every call - Logs -> MCP calls.",
+        )}
       </div>
       <AiMcpAccess />
       <ConnectionModal

@@ -273,6 +273,9 @@ export const api = {
     request(`/ai/proposals/${id}/${decision}`, { method: 'POST' }),
   // MCP access tokens (api ai/mcp.ts) - a new token comes back once, on create
   listMcpTokens: () => request('/ai/mcp-tokens'),
+  // every MCP tool call (Logs -> MCP calls)
+  listMcpCalls: ({ page, pageSize }) =>
+    request(`/ai/mcp-calls?${new URLSearchParams({ page, pageSize })}`),
   createMcpToken: (data) =>
     request('/ai/mcp-tokens', { method: 'POST', body: JSON.stringify(data) }),
   updateMcpToken: (id, data) =>

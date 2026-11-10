@@ -923,5 +923,17 @@
   "AI tokens by day": "Токени ШІ по днях",
   "requests": "запитів",
   "Total": "Разом",
-  "{{n}} days": "{{n}} днів"
+  "{{n}} days": "{{n}} днів",
+  "MCP calls": "Виклики MCP",
+  "No MCP call yet.": "Викликів MCP ще не було.",
+  "Account": "Обліковий запис",
+  "Tool": "Інструмент",
+  "Result": "Результат",
+  "ok": "гаразд",
+  "Changes": "Зміни",
+  "none - sees nothing": "немає - нічого не бачить",
+  "Roles of its account": "Ролі його облікового запису",
+  "What it may read and change, on which objects - later in Users, as a person. Never a role with every right.": "Що він може читати й змінювати і на яких об'єктах - далі в Користувачах, як у людини. Ніколи не роль з усіма правами.",
+  "A change its roles allow: Auto - applied at once, Confirm - waits for a person (Logs -> AI Proposals). Install - never Auto.": "Зміна, яку дозволяють його ролі: Auto - застосовується одразу, Confirm - чекає на людину (Журнали -> Пропозиції ШІ). Install - ніколи не Auto.",
+  "External AI clients (Claude Code, Claude Desktop, other agents) use the assistant's tools over the Model Context Protocol. Each token has its own service account: its roles say what it may read and change, the levels - whether a change applies at once or waits for a person. Every call - Logs -> MCP calls.": "Зовнішні ШІ-клієнти (Claude Code, Claude Desktop, інші агенти) користуються інструментами асистента через Model Context Protocol. У кожного токена свій сервісний обліковий запис: його ролі визначають, що він може читати й змінювати, рівні - чи зміна застосовується одразу, чи чекає на людину. Кожен виклик - у Журнали -> Виклики MCP."
 }

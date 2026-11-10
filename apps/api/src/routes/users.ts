@@ -47,6 +47,8 @@ interface UserRow {
   active: boolean;
   ai_daily_tokens: number | null;
   language: string | null;
+  // 'service' - an MCP client's account (its tokens only, no sign-in - ai/mcp.ts)
+  kind: "person" | "service";
   created_at: string;
   updated_at: string;
 }
@@ -65,7 +67,9 @@ function publicUser(user: UserRow, forGuest = false) {
     deletable: !PROTECTED_USERNAMES.has(user.username),
     deactivatable: !NON_DEACTIVATABLE_USERNAMES.has(user.username),
     // an internal service's account (the role `system`) or the guest - no password, no sign-in
-    service: SERVICE_USERNAMES.has(user.username),
+    service: SERVICE_USERNAMES.has(user.username) || user.kind === "service",
+    // an MCP client's account - its roles here, its token in Service -> Config -> AI -> MCP access
+    mcp: user.kind === "service",
     guest: user.username === "guest",
   };
 }

@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { connectionProblem, deleteConnection, listConnections, saveConnection, clientFor, type ConnectionInput } from "../ai/connections.js";
 import { getInstance, instanceProblem, listInstances, NEXUS_EDGE_KEY, saveInstance, type InstanceInput } from "../ai/instances.js";
 import { manifestForKind } from "../ai/manifests.js";
-import { createMcpToken, deleteMcpToken, handleMcpRequest, listMcpTokens, updateMcpToken } from "../ai/mcp.js";
+import { createMcpToken, deleteMcpToken, handleMcpRequest, listMcpTokens, McpTokenError, type McpLevels, updateMcpToken } from "../ai/mcp.js";
 import { systemPromptFor } from "../ai/prompts.js";
 import { decide, getProposal, listProposals, proposalOwner, type ProposalStatus } from "../ai/proposals.js";
 import { CalendarError, calendarTick, createSchedule, deleteSchedule, listSchedules, runNow, updateSchedule, type ScheduleInput } from "../ai/calendar.js";
@@ -140,17 +140,44 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/ai/mcp-tokens", { preHandler: requireAdmin }, async () => ({ tokens: await listMcpTokens() }));
 
-  app.post<{ Body: { name?: string; instanceKey?: string } }>("/ai/mcp-tokens", { preHandler: requireAdmin }, async (request, reply) => {
+  // a token and its own service account: its roles (what it may read and change), the levels (whether
+  // a change applies at once or waits for a person)
+  app.post<{ Body: { name?: string; roles?: string[]; levels?: Partial<McpLevels> } }>("/ai/mcp-tokens", { preHandler: requireAdmin }, async (request, reply) => {
     const name = request.body?.name?.trim();
     if (!name) return reply.code(400).send({ error: "name is required" });
-    const instanceKey = request.body?.instanceKey ?? "nexus-edge";
-    if (!(await getInstance(instanceKey))) return reply.code(400).send({ error: "no such instance" });
-    return createMcpToken(name, instanceKey, request.user.sub);
+    const roles = Array.isArray(request.body?.roles) ? request.body.roles.filter((r): r is string => typeof r === "string") : [];
+    if (roles.length === 0) return reply.code(400).send({ error: "at least one role is required" });
+    try {
+      return await createMcpToken(name, roles, request.body?.levels ?? {}, request.user.sub);
+    } catch (err) {
+      if (err instanceof McpTokenError) return reply.code(400).send({ error: err.message });
+      throw err;
+    }
   });
 
-  app.patch<{ Params: { id: string }; Body: { enabled?: boolean; name?: string } }>("/ai/mcp-tokens/:id", { preHandler: requireAdmin }, async (request, reply) => {
-    const token = await updateMcpToken(Number(request.params.id), request.body ?? {});
-    return token ?? reply.code(404).send({ error: "token not found" });
+  app.patch<{ Params: { id: string }; Body: { enabled?: boolean; name?: string; levels?: Partial<McpLevels> } }>(
+    "/ai/mcp-tokens/:id",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const token = await updateMcpToken(Number(request.params.id), request.body ?? {});
+      return token ?? reply.code(404).send({ error: "token not found" });
+    },
+  );
+
+  // the MCP calls, newest first: the tool, its input, the account, the time, an error
+  app.get<{ Querystring: { page?: string; pageSize?: string } }>("/ai/mcp-calls", { preHandler: requireAdmin }, async (request) => {
+    const pageSize = Math.min(200, Math.max(1, Number(request.query.pageSize) || 50));
+    const page = Math.max(1, Number(request.query.page) || 1);
+    const [rows, total] = await Promise.all([
+      pool.query(
+        `SELECT c.id, c.tool, c.input, c.is_error AS "isError", c.error, c.ms, c.created_at AS "createdAt", t.name AS "tokenName", u.username
+           FROM ai_mcp_calls c LEFT JOIN ai_mcp_tokens t ON t.id = c.token_id LEFT JOIN users u ON u.id = c.user_id
+          ORDER BY c.id DESC LIMIT $1 OFFSET $2`,
+        [pageSize, (page - 1) * pageSize],
+      ),
+      pool.query<{ n: string }>("SELECT count(*) AS n FROM ai_mcp_calls"),
+    ]);
+    return { items: rows.rows, total: Number(total.rows[0].n), page, pageSize };
   });
 
   app.delete<{ Params: { id: string } }>("/ai/mcp-tokens/:id", { preHandler: requireAdmin }, async (request, reply) =>

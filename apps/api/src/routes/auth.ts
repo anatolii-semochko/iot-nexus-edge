@@ -22,6 +22,8 @@ interface UserRow {
   id: number;
   username: string;
   password_hash: string;
+  // 'service' - an MCP client's account: never signs in
+  kind: "person" | "service";
   display_name: string | null;
   roles: string[];
   avatar_path: string | null;
@@ -60,7 +62,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     // Same generic message whether the username doesn't exist, the user is
     // deactivated, or the password is wrong - not revealing which is true.
     // The guest never signs in with a password.
-    if (!user || !user.active || user.username === GUEST_USERNAME || !(await verifyPassword(password, user.password_hash))) {
+    if (!user || !user.active || user.username === GUEST_USERNAME || user.kind === "service" || !(await verifyPassword(password, user.password_hash))) {
       return reply.code(401).send({ error: "invalid username or password" });
     }
     // a guest's session in this browser - over

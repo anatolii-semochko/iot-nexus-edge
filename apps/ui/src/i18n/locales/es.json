@@ -923,5 +923,17 @@
   "AI tokens by day": "Tokens de IA por día",
   "requests": "solicitudes",
   "Total": "Total",
-  "{{n}} days": "{{n}} días"
+  "{{n}} days": "{{n}} días",
+  "MCP calls": "Llamadas MCP",
+  "No MCP call yet.": "Aún no hay llamadas MCP.",
+  "Account": "Cuenta",
+  "Tool": "Herramienta",
+  "Result": "Resultado",
+  "ok": "ok",
+  "Changes": "Cambios",
+  "none - sees nothing": "ninguno - no ve nada",
+  "Roles of its account": "Roles de su cuenta",
+  "What it may read and change, on which objects - later in Users, as a person. Never a role with every right.": "Qué puede leer y cambiar, y en qué objetos - después en Usuarios, como una persona. Nunca un rol con todos los derechos.",
+  "A change its roles allow: Auto - applied at once, Confirm - waits for a person (Logs -> AI Proposals). Install - never Auto.": "Un cambio que sus roles permiten: Auto - se aplica al momento, Confirm - espera a una persona (Registros -> Propuestas de IA). Install - nunca Auto.",
+  "External AI clients (Claude Code, Claude Desktop, other agents) use the assistant's tools over the Model Context Protocol. Each token has its own service account: its roles say what it may read and change, the levels - whether a change applies at once or waits for a person. Every call - Logs -> MCP calls.": "Los clientes de IA externos (Claude Code, Claude Desktop, otros agentes) usan las herramientas del asistente mediante el Model Context Protocol. Cada token tiene su propia cuenta de servicio: sus roles dicen qué puede leer y cambiar, los niveles, si un cambio se aplica al momento o espera a una persona. Cada llamada, en Registros -> Llamadas MCP."
 }
