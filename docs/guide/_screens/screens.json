@@ -30,11 +30,6 @@
     "waitMs": 3000
   },
   {
-    "name": "aquarium",
-    "path": "/dashboard/1",
-    "waitMs": 3000
-  },
-  {
     "name": "ai-assistant",
     "path": "/ai-assistant"
   },
@@ -50,18 +45,6 @@
       }
     ],
     "js": "window.scrollTo(0, 118)"
-  },
-  {
-    "name": "hero-aquarium",
-    "path": "/dashboard/1",
-    "width": 1080,
-    "height": 1530,
-    "waitMs": 3000,
-    "steps": [
-      {
-        "js": "document.querySelector('.header-toggler')?.click()"
-      }
-    ]
   },
   {
     "name": "nodes",
@@ -149,88 +132,22 @@
     "path": "/library"
   },
   {
-    "name": "aq-service-control",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1500,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Control"
-      }
+    "name": "common-table",
+    "path": "/logs",
+    "click": [
+      "Commands"
     ],
-    "clip": ".modal-content",
-    "clipLast": true
+    "waitMs": 2500
   },
   {
-    "name": "aq-service-devices",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1500,
-    "waitMs": 2500,
+    "name": "common-checklist",
+    "path": "/users",
     "steps": [
       {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
+        "wait": 1000
       },
       {
-        "click": "Devices"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-service-dosing",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1500,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Dosing"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-service-calibration",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 860,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Calibration"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-cal-ph",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1000,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Calibration"
-      },
-      {
-        "js": "[...document.querySelectorAll('.modal.show button[title^=\"Calibrate - \"]')].find(b=>/pH/i.test(b.title)).click()"
+        "js": "(()=>{const bs=[...document.querySelectorAll('tbody tr button')].filter(b=>b.textContent.trim()==='Edit');const b=bs[bs.length-1];b&&b.click()})()"
       },
       {
         "wait": 1500
@@ -240,501 +157,147 @@
     "clipLast": true
   },
   {
-    "name": "aq-cal-flow",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1000,
-    "waitMs": 2500,
+    "name": "common-unit-popup",
+    "path": "/dashboard/16",
     "steps": [
       {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
+        "wait": 2000
       },
       {
-        "click": "Calibration"
+        "js": "(()=>{const e=document.querySelector('button.eo-gridb');e&&e.click()})()"
       },
       {
-        "js": "[...document.querySelectorAll('.modal.show button[title^=\"Calibrate - \"]')].find(b=>/flow/i.test(b.title)).click()"
-      },
-      {
-        "wait": 1500
+        "wait": 2500
       }
     ],
     "clip": ".modal-content",
     "clipLast": true
   },
   {
-    "name": "aq-cal-levels",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1000,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Calibration"
-      },
-      {
-        "js": "[...document.querySelectorAll('.modal.show button[title^=\"Calibrate - \"]')].find(b=>/bottle/i.test(b.title)).click()"
-      },
-      {
-        "wait": 1500
-      }
+    "name": "logs-ai-usage",
+    "path": "/logs",
+    "click": [
+      "AI usage"
     ],
-    "clip": ".modal-content",
-    "clipLast": true
+    "waitMs": 2500
   },
   {
-    "name": "aq-cal-pumps",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1000,
-    "waitMs": 2500,
+    "name": "service-config-mcp",
+    "path": "/service",
     "steps": [
       {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
+        "js": "(()=>{[...document.querySelectorAll('button')].filter(e=>/AI\\s*$/.test(e.textContent||'')&&e.textContent.length<10).forEach(e=>e.click())})()"
       },
       {
-        "click": "Calibration"
+        "wait": 2500
       },
       {
-        "js": "[...document.querySelectorAll('.modal.show button[title^=\"Calibrate - \"]')].find(b=>/pump/i.test(b.title)).click()"
-      },
-      {
-        "wait": 1500
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-service-profile",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1500,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Profile"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-settings-parameters",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1500,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Settings"
-      },
-      {
-        "click": "Parameters"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-settings-schedules",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1500,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Settings"
-      },
-      {
-        "click": "Schedules"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-settings-messages",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1500,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Settings"
-      },
-      {
-        "click": "Messages"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-service-system",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 1500,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "System"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-light-control",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 860,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Main Light"
-      },
-      {
-        "click": "Control"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-light-day",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 860,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Main Light"
-      },
-      {
-        "click": "Day"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-light-curves",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 860,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Main Light"
-      },
-      {
-        "click": "Day Curves"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-light-spectrum",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 860,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Main Light"
-      },
-      {
-        "click": "Spectrum Profiles"
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-light-week",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 860,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Main Light"
-      },
-      {
-        "click": "Week"
+        "js": "(()=>{const h=[...document.querySelectorAll('h5')].find(e=>/MCP/.test(e.textContent));h&&h.scrollIntoView()})()"
       },
       {
         "wait": 600
-      },
-      {
-        "js": "(()=>{const m=[...document.querySelectorAll('.modal.show')].pop(); const r=[...m.querySelectorAll('tbody tr')].find(t=>t.cells[0]?.textContent.trim()==='Work week & weekend'); if(!r) return; const b=[...r.querySelectorAll('button')].pop(); b.click(); setTimeout(()=>r.scrollIntoView({block:'start'}),300);})()"
-      },
-      {
-        "wait": 900
       }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
+    ]
   },
   {
-    "name": "aq-light-month",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 860,
-    "waitMs": 2500,
+    "name": "processes-expanded",
+    "path": "/processes",
     "steps": [
       {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
+        "wait": 1500
       },
       {
-        "click": "Main Light"
+        "js": "(()=>{const r=[...document.querySelectorAll('tbody tr')].find(t=>t.textContent.includes(\"Energy Field\"));const b=r&&r.querySelector('button[aria-label=\"Expand\"]');b&&b.click()})()"
       },
       {
-        "click": "Month"
-      },
-      {
-        "wait": 600
-      },
-      {
-        "js": "(()=>{const m=[...document.querySelectorAll('.modal.show')].pop(); const r=[...m.querySelectorAll('tbody tr')].find(t=>t.cells[0]?.textContent.trim()==='Algae break'); if(!r) return; const b=[...r.querySelectorAll('button')].pop(); b.click(); setTimeout(()=>r.scrollIntoView({block:'start'}),300);})()"
-      },
-      {
-        "wait": 900
+        "wait": 2500
       }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
+    ]
   },
   {
-    "name": "aq-light-year",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 860,
-    "waitMs": 2500,
+    "name": "devices-expanded",
+    "path": "/devices",
     "steps": [
       {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
+        "wait": 1500
       },
       {
-        "click": "Main Light"
+        "js": "(()=>{const b=document.querySelector('tbody tr button[aria-label=\"Expand\"]');b&&b.click()})()"
       },
       {
-        "click": "Year"
-      },
-      {
-        "wait": 600
-      },
-      {
-        "js": "(()=>{const m=[...document.querySelectorAll('.modal.show')].pop(); const r=[...m.querySelectorAll('tbody tr')].find(t=>t.cells[0]?.textContent.trim()==='Seasons'); if(!r) return; const b=[...r.querySelectorAll('button')].pop(); b.click(); setTimeout(()=>r.scrollIntoView({block:'start'}),300);})()"
-      },
-      {
-        "wait": 900
+        "wait": 2000
       }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
+    ]
   },
   {
-    "name": "aq-light-spectrum-edit",
-    "path": "/dashboard/1",
+    "name": "config-energy-field",
+    "path": "/processes",
     "width": 1440,
-    "height": 900,
-    "waitMs": 2500,
+    "height": 1000,
     "steps": [
       {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
+        "wait": 1500
       },
       {
-        "click": "Main Light"
+        "js": "(()=>{const i=document.querySelector('input[type=search], input[placeholder^=\"Search\"]');if(!i)return;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Energy Field');i.dispatchEvent(new Event('input',{bubbles:true}))})()"
       },
       {
-        "click": "Spectrum Profiles"
+        "wait": 1500
       },
       {
-        "wait": 700
+        "js": "(()=>{const r=[...document.querySelectorAll('tbody tr')].find(t=>t.textContent.includes(\"Energy Field\"));const b=r&&r.querySelector('button[aria-label=\"Process settings\"]');b&&b.click()})()"
       },
       {
-        "js": "(()=>{const m=[...document.querySelectorAll('.modal.show')].pop(); const r=[...m.querySelectorAll('tbody tr')].find(t=>[...t.cells].some(c=>c.textContent.trim()==='Sunny Day')); if(!r) return; [...r.querySelectorAll('button')].pop().click(); setTimeout(()=>r.scrollIntoView({block:'start'}),400);})()"
-      },
-      {
-        "wait": 1200
+        "wait": 2500
       }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
+    ]
   },
   {
-    "name": "aq-light-spectrum-edit-2",
-    "path": "/dashboard/1",
+    "name": "config-heating",
+    "path": "/processes",
     "width": 1440,
-    "height": 900,
-    "waitMs": 2500,
+    "height": 1000,
     "steps": [
       {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
+        "wait": 1500
       },
       {
-        "click": "Main Light"
+        "js": "(()=>{const i=document.querySelector('input[type=search], input[placeholder^=\"Search\"]');if(!i)return;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'House heating');i.dispatchEvent(new Event('input',{bubbles:true}))})()"
       },
       {
-        "click": "Spectrum Profiles"
+        "wait": 1500
       },
       {
-        "wait": 700
+        "js": "(()=>{const r=[...document.querySelectorAll('tbody tr')].find(t=>t.textContent.includes(\"House heating\"));const b=r&&r.querySelector('button[aria-label=\"Process settings\"]');b&&b.click()})()"
       },
       {
-        "js": "(()=>{const m=[...document.querySelectorAll('.modal.show')].pop(); const r=[...m.querySelectorAll('tbody tr')].find(t=>[...t.cells].some(c=>c.textContent.trim()==='Tropical Sun')); if(!r) return; [...r.querySelectorAll('button')].pop().click(); setTimeout(()=>r.scrollIntoView({block:'start'}),400);})()"
-      },
-      {
-        "wait": 1200
+        "wait": 2500
       }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
+    ]
   },
   {
-    "name": "aq-light-curves-edit",
-    "path": "/dashboard/1",
+    "name": "config-weather",
+    "path": "/processes",
     "width": 1440,
-    "height": 900,
-    "waitMs": 2500,
+    "height": 1000,
     "steps": [
       {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
+        "wait": 1500
       },
       {
-        "click": "Main Light"
+        "js": "(()=>{const i=document.querySelector('input[type=search], input[placeholder^=\"Search\"]');if(!i)return;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Weather Node');i.dispatchEvent(new Event('input',{bubbles:true}))})()"
       },
       {
-        "click": "Day Curves"
+        "wait": 1500
       },
       {
-        "wait": 700
+        "js": "(()=>{const r=[...document.querySelectorAll('tbody tr')].find(t=>t.textContent.includes(\"Weather Node\"));const b=r&&r.querySelector('button[aria-label=\"Process settings\"]');b&&b.click()})()"
       },
       {
-        "js": "(()=>{const m=[...document.querySelectorAll('.modal.show')].pop(); const r=[...m.querySelectorAll('tbody tr')].find(t=>[...t.cells].some(c=>c.textContent.trim()==='Summer Day')); if(!r) return; [...r.querySelectorAll('button')].pop().click(); setTimeout(()=>r.scrollIntoView({block:'start'}),400);})()"
+        "wait": 2500
       },
       {
-        "wait": 1200
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-light-curves-siesta",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 900,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Main Light"
-      },
-      {
-        "click": "Day Curves"
-      },
-      {
-        "wait": 700
-      },
-      {
-        "js": "(()=>{const m=[...document.querySelectorAll('.modal.show')].pop(); const r=[...m.querySelectorAll('tbody tr')].find(t=>[...t.cells].some(c=>c.textContent.trim()==='Siesta')); if(!r) return; [...r.querySelectorAll('button')].pop().click(); setTimeout(()=>r.scrollIntoView({block:'start'}),400);})()"
-      },
-      {
-        "wait": 1200
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-light-day-edit",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 900,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Main Light"
-      },
-      {
-        "click": "Day"
-      },
-      {
-        "wait": 700
-      },
-      {
-        "js": "(()=>{const m=[...document.querySelectorAll('.modal.show')].pop(); const r=[...m.querySelectorAll('tbody tr')].find(t=>[...t.cells].some(c=>c.textContent.trim()==='Summer Day')); if(!r) return; [...r.querySelectorAll('button')].pop().click(); setTimeout(()=>r.scrollIntoView({block:'start'}),400);})()"
-      },
-      {
-        "wait": 1200
-      }
-    ],
-    "clip": ".modal-content",
-    "clipLast": true
-  },
-  {
-    "name": "aq-light-day-siesta",
-    "path": "/dashboard/1",
-    "width": 1440,
-    "height": 900,
-    "waitMs": 2500,
-    "steps": [
-      {
-        "js": "document.querySelector('button[title^=\"Service\"]').click()"
-      },
-      {
-        "click": "Main Light"
-      },
-      {
-        "click": "Day"
-      },
-      {
-        "wait": 700
-      },
-      {
-        "js": "(()=>{const m=[...document.querySelectorAll('.modal.show')].pop(); const r=[...m.querySelectorAll('tbody tr')].find(t=>[...t.cells].some(c=>c.textContent.trim()==='Siesta')); if(!r) return; [...r.querySelectorAll('button')].pop().click(); setTimeout(()=>r.scrollIntoView({block:'start'}),400);})()"
+        "click": "Configuration"
       },
       {
         "wait": 1200

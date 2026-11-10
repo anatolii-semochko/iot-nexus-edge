@@ -34,6 +34,15 @@ Los controles (para quien pueda controlar):
   una hora, cuatro horas, hasta el final del día, hasta que se cambie), con un
   motivo opcional; el plan puede adaptarse.
 
+![Los ajustes del campo de energía](screen:config-energy-field)
+
+Los ajustes del campo, en Procesos -> Energy Field -> el botón Ajustes del
+proceso: los grupos (generación o baterías) y qué unidad está en cada uno; los
+rangos de carga de las baterías (bueno desde, aceptable desde, carga mínima y
+máxima); los estados críticos, en rojo en la escena (sobre el plan en % o kW,
+sobre el nominal). La estrategia, en el panel del campo (Auto / Manual / Isla,
+la reserva); el factor de rendimiento de una unidad, en su ventana de la escena.
+
 ## Notas del día
 
 Las notas cuentan al plan cómo es el día: un festivo o un fin de semana

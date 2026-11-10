@@ -17,3 +17,13 @@ search, a status filter (all, error, simulation) and groups narrow the list.
   parent node, the maker's model, its photo, the place on the map); the Library
   link of its type.
 - **Groups** - node groups for the business view (a building, a tank).
+
+## A node's settings
+
+- **Name**, **Group** (the node groups), **Attached to** - the node it plugs
+  into (a building's controller, a bus master) or **Not attached**;
+- **Model** - the maker's model of the real unit (its Library type stays);
+- **Photo of the unit** - the real one, shown in its popup's Photo tab;
+  **Remove the current photo**;
+- **Position on the map** - latitude and longitude (both or none), shown in
+  the popup's Map tab.

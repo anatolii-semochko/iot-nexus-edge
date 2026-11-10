@@ -29,6 +29,16 @@ calor entre ellos; un bloque abre sus detalles y gráficos.
   bombas esperan y los depósitos sostienen las salas; cuando es barata o el
   sol da más de lo que toma el sitio, los depósitos acumulan más calor.
 
+![Los ajustes de una calefacción](screen:config-heating)
+
+Los ajustes de una calefacción, en Procesos -> su calefacción -> el botón
+Ajustes del proceso: los grupos (bombas de calor, depósitos, fancoils) y qué
+unidad está en cada uno; el modo automático (calentar por debajo de, enfriar por
+encima de, °C); el orden de arranque de las bombas de calor (automático, primero
+las de menos horas, o por prioridad), la pausa entre arranques, las temperaturas
+de arranque y de parada; los rangos de los depósitos (bueno desde, aceptable
+desde); la reducción de una sala cerrada (K); el COP en la tarjeta.
+
 ## El planificador de calefacción
 
 El planificador hace el plan anticipado de las bombas de calor, franja a

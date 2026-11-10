@@ -19,3 +19,14 @@ la lista.
   el mapa); el enlace de su tipo en la biblioteca.
 - **Grupos** - grupos de nodos para la vista de negocio (un edificio, un
   acuario).
+
+## Los ajustes de un nodo
+
+- **Nombre**, **Grupo** (los grupos de nodos), **Adjunto a** - el nodo al que se
+  conecta (el controlador de un edificio, un maestro de bus) o **No adjunto**;
+- **Modelo** - el modelo del fabricante de la unidad real (su tipo de la
+  Biblioteca se mantiene);
+- **Foto de la unidad** - la real, visible en la pestaña Foto de su ventana;
+  **Quitar la foto actual**;
+- **Posición en el mapa** - latitud y longitud (las dos o ninguna), visible en la
+  pestaña Mapa de la ventana.

@@ -20,3 +20,21 @@ atrasados se resaltan.
 - **Simulado** - el valor de un dispositivo simulado se puede fijar en el
   sitio.
 - **Grupos** - grupos de dispositivos para la vista de negocio.
+
+![Un dispositivo desplegado - su información y sus ajustes](screen:devices-expanded)
+
+## Los ajustes de un dispositivo
+
+El botón de ajustes de la fila:
+
+- **Nombre**; **Nodo** - el nodo al que pertenece (o ninguno: un dispositivo
+  independiente);
+- **ID físico** - su dirección en el bus o en EdgeX, para la unidad real;
+- **Grupos de dispositivos** - los grupos de negocio en los que está;
+- **Color de fondo cuando está activo** - cómo se iluminan su fila y su ficha al
+  encenderse;
+- **Simular** - si la simulación interpreta este dispositivo.
+
+El dispositivo de una cámara tiene la pestaña **Medios**: la última imagen, las
+guardadas, **Subir imagen** y **Eliminar imagen** (con todo lo guardado con
+ella).

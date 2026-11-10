@@ -27,6 +27,10 @@ details and charts.
   pumps hold off and the tanks carry the rooms; when it is cheap or the sun
   gives more than the site takes, the tanks store more heat.
 
+![A heating system's settings](screen:config-heating)
+
+A heating system's settings - Processes -> its heating -> the settings button: the groups (heat pumps, tanks, fan coils) and which unit is in which; the auto mode (heat below, cool above, °C); the heat pumps' start order (automatic - the least run hours first, or by priority), the pause between the starts, the start / stop temperatures; the tanks' bands (good from, fair from); a closed room's set back (K); the COP shown on the card.
+
 ## The heating planner
 
 The planner makes the heat pumps' plan ahead, slot by slot, for every heating

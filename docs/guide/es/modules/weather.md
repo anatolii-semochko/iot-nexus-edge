@@ -16,3 +16,9 @@ energético y el planificador de calefacción toman de aquí sus pronósticos.
 Ajustes: la ubicación, la actualización, los umbrales de la escena (helada,
 ráfagas de tormenta, lluvia intensa, calor, un día de sol bueno / aceptable,
 la base de calefacción).
+
+![Los ajustes del tiempo](screen:config-weather)
+
+Los ajustes, en Procesos -> Weather Node -> el botón Ajustes del proceso: el
+lugar y sus coordenadas, los días y la actualización de la previsión, las zonas
+de luz, los dispositivos.

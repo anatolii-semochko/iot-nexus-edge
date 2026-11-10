@@ -33,6 +33,10 @@ The controls (for those allowed to control):
   hours, to the day's end, until changed), with an optional reason; the plan
   can adapt to it.
 
+![The energy field's settings](screen:config-energy-field)
+
+The field's settings - Processes -> Energy Field -> the settings button: the groups (generation or batteries) and which unit is in which; the batteries' charge bands (good from, fair from, the lowest and the highest charge); the critical states drawn red on the scene (over the plan by % or kW, over a rating). The strategy - on the field's panel (Auto / Manual / Island, the reserve); a unit's yield factor - in its popup on the scene.
+
 ## Day notes
 
 Notes tell the plan about the day: a public holiday or a working weekend (the

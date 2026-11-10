@@ -36,6 +36,9 @@ import TableSearchInput from '../../components/table/TableSearchInput'
 import { useExpandableRows } from '../../hooks/useExpandableRows'
 import Breadcrumb from '../../components/UpBreadcrumb'
 import AddRegistryModal from './AddRegistryModal'
+
+// the add button's text per catalog kind - one key each, so a language puts its own word order
+const ADD_LABEL = { node: 'Add node', device: 'Add device', process: 'Add process' }
 import LibraryItemDetailRow from './LibraryItemDetailRow'
 import PageTitle from '../../components/PageTitle'
 import { t } from 'src/i18n'
@@ -506,7 +509,7 @@ const LibraryBrowser = () => {
                                   : setAddRegistryItem(row)
                               }
                             >
-                              {t('Add')} {kind}
+                              {ADD_LABEL[kind] ? t(ADD_LABEL[kind]) : `${t('Add')} ${kind}`}
                             </CButton>
                           )}
                       </CTableDataCell>

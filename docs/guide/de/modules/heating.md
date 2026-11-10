@@ -30,6 +30,16 @@ Wärmeflüssen dazwischen; ein Block öffnet seine Details und Diagramme.
   liefert die Sonne mehr als der Standort braucht, speichern die Speicher mehr
   Wärme.
 
+![Die Einstellungen einer Heizung](screen:config-heating)
+
+Die Einstellungen einer Heizung - Prozesse -> ihre Heizung -> die Schaltfläche
+Prozesseinstellungen: die Gruppen (Wärmepumpen, Speicher, Gebläsekonvektoren)
+und welche Einheit in welcher ist; der Automatikmodus (heizen unter, kühlen
+über, °C); die Startreihenfolge der Wärmepumpen (automatisch - die wenigsten
+Betriebsstunden zuerst - oder nach Priorität), die Pause zwischen den Starts,
+die Start- und Stopptemperaturen; die Bereiche der Speicher (gut ab, mittel ab);
+die Absenkung eines geschlossenen Raums (K); der COP auf der Karte.
+
 ## Der Heizplaner
 
 Der Planer erstellt den Plan der Wärmepumpen voraus, Slot für Slot, für jedes

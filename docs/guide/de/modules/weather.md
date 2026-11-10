@@ -16,3 +16,9 @@ der Heizplaner nehmen ihre Prognosen von hier.
 Einstellungen - der Standort, die Aktualisierung, die Schwellen der Szene
 (Frost, Sturmböen, Starkregen, Hitze, ein guter / mittlerer Sonnentag, die
 Heizgrenze).
+
+![Die Einstellungen des Wetters](screen:config-weather)
+
+Die Einstellungen - Prozesse -> Weather Node -> die Schaltfläche
+Prozesseinstellungen: der Ort und seine Koordinaten, Tage und Aktualisierung der
+Vorhersage, die Zonen des Lichts, die Geräte.

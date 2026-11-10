@@ -15,3 +15,7 @@ planner take their forecasts from it.
 
 Settings - the location, the refresh, the scene's thresholds (frost, storm
 gusts, heavy rain, heat, a good / fair sun day, the heating base).
+
+![The weather's settings](screen:config-weather)
+
+The settings - Processes -> Weather Node -> the settings button: the place and its coordinates, the forecast's days and refresh, the light's zones, the devices.

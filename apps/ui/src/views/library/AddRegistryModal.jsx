@@ -162,7 +162,7 @@ const AddRegistryModal = ({ kind, item, onClose, onCreated }) => {
     <CModal visible onClose={onClose}>
       <CModalHeader>
         <CModalTitle>
-          {tr('Add')} {kind} - {item.name}
+          {tr(kind === 'node' ? 'Add node' : 'Add device')} - {item.name}
         </CModalTitle>
       </CModalHeader>
       <CModalBody>

@@ -34,6 +34,16 @@ Die Steuerung (für alle, die steuern dürfen):
   eine Stunde, vier Stunden, bis Tagesende, bis zur Änderung), mit optionalem
   Grund; der Plan kann sich anpassen.
 
+![Die Einstellungen des Energiefelds](screen:config-energy-field)
+
+Die Einstellungen des Felds - Prozesse -> Energy Field -> die Schaltfläche
+Prozesseinstellungen: die Gruppen (Erzeugung oder Batterien) und welche Einheit
+in welcher ist; die Ladebereiche der Batterien (gut ab, mittel ab, niedrigste
+und höchste Ladung); die kritischen Zustände, rot in der Szene (über dem Plan in
+% oder kW, über Nennwert). Die Strategie - im Panel des Felds (Auto / Manuell /
+Insel, die Reserve); der Ertragsfaktor einer Einheit - in ihrem Fenster in der
+Szene.
+
 ## Tagesnotizen
 
 Notizen erzählen dem Plan vom Tag: ein Feiertag oder ein Arbeitswochenende

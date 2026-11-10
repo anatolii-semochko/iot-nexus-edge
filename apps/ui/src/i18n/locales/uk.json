@@ -225,7 +225,7 @@
   "Edit {{name}}": "Редагувати {{name}}",
   "Edit {{username}}": "Редагувати {{username}}",
   "Email": "Email",
-  "Empty - kept.": "Порожньо - без змін.",
+  "Empty - kept.": "Порожньо - зберігаються завжди.",
   "Empty - the whole day": "Порожньо - увесь день",
   "Empty - unlimited, 0 - the AI off.": "Порожньо - без ліміту, 0 - ШІ вимкнено.",
   "Enabled": "Увімкнено",
@@ -484,7 +484,7 @@
   "On the Dashboard": "На Dashboard",
   "On the visible height - scaled to fit, no scrolling": "На видиму висоту - масштабується, без прокрутки",
   "On the visible width - laid out in it": "На видиму ширину - розкладається в ній",
-  "Only relevant questions kept": "Залишено лише доречні питання",
+  "Only relevant questions kept": "Зберігати лише доречні запитання",
   "Oops! You": "Ой! Ви",
   "Opacity": "Непрозорість",
   "Open": "Відкрити",
@@ -935,5 +935,8 @@
   "Roles of its account": "Ролі його облікового запису",
   "What it may read and change, on which objects - later in Users, as a person. Never a role with every right.": "Що він може читати й змінювати і на яких об'єктах - далі в Користувачах, як у людини. Ніколи не роль з усіма правами.",
   "A change its roles allow: Auto - applied at once, Confirm - waits for a person (Logs -> AI Proposals). Install - never Auto.": "Зміна, яку дозволяють його ролі: Auto - застосовується одразу, Confirm - чекає на людину (Журнали -> Пропозиції ШІ). Install - ніколи не Auto.",
-  "External AI clients (Claude Code, Claude Desktop, other agents) use the assistant's tools over the Model Context Protocol. Each token has its own service account: its roles say what it may read and change, the levels - whether a change applies at once or waits for a person. Every call - Logs -> MCP calls.": "Зовнішні ШІ-клієнти (Claude Code, Claude Desktop, інші агенти) користуються інструментами асистента через Model Context Protocol. У кожного токена свій сервісний обліковий запис: його ролі визначають, що він може читати й змінювати, рівні - чи зміна застосовується одразу, чи чекає на людину. Кожен виклик - у Журнали -> Виклики MCP."
+  "External AI clients (Claude Code, Claude Desktop, other agents) use the assistant's tools over the Model Context Protocol. Each token has its own service account: its roles say what it may read and change, the levels - whether a change applies at once or waits for a person. Every call - Logs -> MCP calls.": "Зовнішні ШІ-клієнти (Claude Code, Claude Desktop, інші агенти) користуються інструментами асистента через Model Context Protocol. У кожного токена свій сервісний обліковий запис: його ролі визначають, що він може читати й змінювати, рівні - чи зміна застосовується одразу, чи чекає на людину. Кожен виклик - у Журнали -> Виклики MCP.",
+  "Add node": "Додати вузол",
+  "Add device": "Додати пристрій",
+  "Add process": "Додати процес"
 }

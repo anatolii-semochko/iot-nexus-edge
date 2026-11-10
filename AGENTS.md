@@ -9720,6 +9720,14 @@ Energy Ledger's README has the details.
 
 ## The user guide - one source (2026-10-31)
 
+- **Parts** (2026-11-10): this repo holds the core's and its public packages'
+  pages; a private package keeps its own in its repo's `docs/guide/` (the same
+  tree - e.g. nexus-edge-aquarium `docs/guide/modules/aquarium/`, its
+  screenshots and `_screens/screens.json`), merged in by its stack: the UI
+  Dockerfile copies it over the core's `docs/guide`, the api mounts it under
+  `project-docs`, the site's sync-docs adds `GUIDE_PARTS`. The dev server
+  (`make ui-dev`) shows the core's pages only.
+
 - `docs/guide/*.md` (English; `docs/guide/<lang>/*.md` - uk, de, es, the
   UI's names as the translated UI shows them; front matter values quoted -
   YAML) - the people's documentation: index, concepts, dashboard, energy,
