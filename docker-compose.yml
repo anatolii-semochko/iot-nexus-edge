@@ -182,6 +182,7 @@ services:
       dockerfile: apps/ui/Dockerfile
       args:
         VITE_NODE_ENV: ${NODE_ENV:-production}
+        VITE_SIMULATION_BADGE: ${SIMULATION_BADGE:-}
     container_name: nexus-edge-ui
     restart: unless-stopped
     env_file: .env

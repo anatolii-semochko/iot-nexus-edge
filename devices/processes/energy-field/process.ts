@@ -452,6 +452,9 @@ export default function registerEnergyField(register: any, { apiClient, logger, 
       block: g.block ?? "generation",
       pvKw: r(pv.filter((x) => group(x.item.group) === g.key).reduce((a, x) => a + x.kw, 0)),
       windKw: r(wind.filter((x) => group(x.item.group) === g.key).reduce((a, x) => a + x.kw, 0)),
+      // how many units the group holds (the AI counted groups as blocks without it - 2026-11-10)
+      pvBlocks: pv.filter((x) => group(x.item.group) === g.key).length,
+      turbines: wind.filter((x) => group(x.item.group) === g.key).length,
     }));
     const values: Record<string, number> = {
       "field.pvKw": r(pv.reduce((a, x) => a + x.kw, 0), 3),

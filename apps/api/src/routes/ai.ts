@@ -341,6 +341,31 @@ export async function aiRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Logs -> AI: every conversation, newest first, with its totals
+  // the AI's tokens by day and kind (guest / scheduled / person) - the Logs' AI usage monitor; with the day
+  // limits to draw as lines: each connection's and the guests' (their shared account's)
+  app.get<{ Querystring: { days?: string } }>("/ai/usage", { preHandler: requireAdmin }, async (request) => {
+    const days = Math.min(366, Math.max(1, Number(request.query.days) || 30));
+    const rows = (
+      await pool.query<{ day: string; kind: string; requests: number; tokens: string }>(
+        `SELECT to_char(day, 'YYYY-MM-DD') AS day, kind, sum(requests)::int AS requests, sum(tokens_in + tokens_out)::text AS tokens
+           FROM ai_usage_daily WHERE day > current_date - $1::int GROUP BY 1, 2 ORDER BY 1`,
+        [days],
+      )
+    ).rows;
+    const connections = (
+      await pool.query<{ name: string; daily_token_limit: number | null }>("SELECT name, daily_token_limit FROM ai_connections WHERE enabled ORDER BY is_default DESC, name")
+    ).rows;
+    const guest = (await pool.query<{ ai_daily_tokens: number | null }>("SELECT ai_daily_tokens FROM users WHERE username = 'guest' AND active")).rows[0];
+    return {
+      days,
+      usage: rows.map((r) => ({ day: r.day, kind: r.kind, requests: r.requests, tokens: Number(r.tokens) })),
+      limits: {
+        connections: connections.map((c) => ({ name: c.name, daily: c.daily_token_limit })),
+        guests: guest ? guest.ai_daily_tokens : null,
+      },
+    };
+  });
+
   app.get<{ Querystring: { page?: string; pageSize?: string; instanceKey?: string } }>("/ai/logs", { preHandler: requireAdmin }, async (request) => {
     const pageSize = Math.min(100, Math.max(5, Number(request.query.pageSize) || 25));
     const page = Math.max(1, Number(request.query.page) || 1);

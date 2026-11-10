@@ -247,6 +247,8 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ shared }),
     }),
+  // the AI's tokens by day and kind, with the day limits (Logs -> AI usage)
+  getAiUsage: (days) => request(`/ai/usage?${new URLSearchParams({ days })}`),
   listAiLogs: ({ page, pageSize }) =>
     request(`/ai/logs?${new URLSearchParams({ page, pageSize })}`),
   listAiReports: ({ page, pageSize }) =>

@@ -168,7 +168,7 @@ export default async function energyFieldApi(_app: any, ctx: any): Promise<void>
   registerAiTool?.({
     name: "energy.field",
     description:
-      "The energy field now (an energy-field process): the mode (auto / manual / island) and its current decision, the totals (PV, wind, consumption, battery + discharge / - charge, grid + import / - export, curtailed, the array's SoC), the price now and its rank in the day ahead, the weather it runs on, the groups' generation, every PV block / turbine / battery (power, state, SoC), today's energy (PV, wind, consumption, charge / discharge, import / export, curtailed, self-sufficiency %). Changes go through the process's commands (setMode, setManualPower, setExport, setReserve, setEnabled) - propose them with the control tool.",
+      "The energy field now (an energy-field process): the mode (auto / manual / island) and its current decision, the totals (PV, wind, consumption, battery + discharge / - charge, grid + import / - export, curtailed, the array's SoC), the price now and its rank in the day ahead, the weather it runs on, the groups (each a set of units: its PV blocks' and turbines' count and generation - a group is not a block), every PV block / turbine / battery (power, state, SoC), today's energy (PV, wind, consumption, charge / discharge, import / export, curtailed, self-sufficiency %). Changes go through the process's commands (setMode, setManualPower, setExport, setReserve, setEnabled) - propose them with the control tool.",
     input: {
       type: "object",
       properties: {

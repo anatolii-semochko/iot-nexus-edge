@@ -913,5 +913,15 @@
   "{{label}} '{{name}}' hasn't sent a heartbeat in {{ticks}} ticks": "{{label}} '{{name}}' не надсилав heartbeat {{ticks}} тактів",
   "Value {{value}} is outside [{{v}}, {{v2}}]": "Значення {{value}} поза межами [{{v}}, {{v2}}]",
   "Enclosure temperature {{temperature}}C is outside [{{v}}, {{v2}}]": "Температура в корпусі {{temperature}} C поза межами [{{v}}, {{v2}}]",
-  "Enclosure humidity {{humidity}}%RH is outside [{{v}}, {{v2}}]": "Вологість у корпусі {{humidity}} %RH поза межами [{{v}}, {{v2}}]"
+  "Enclosure humidity {{humidity}}%RH is outside [{{v}}, {{v2}}]": "Вологість у корпусі {{humidity}} %RH поза межами [{{v}}, {{v2}}]",
+  "AI usage": "Використання ШІ",
+  "Guests": "Гості",
+  "Schedules": "Розклади",
+  "People": "Люди",
+  "Guests limit": "Ліміт гостей",
+  "day limit": "денний ліміт",
+  "AI tokens by day": "Токени ШІ по днях",
+  "requests": "запитів",
+  "Total": "Разом",
+  "{{n}} days": "{{n}} днів"
 }

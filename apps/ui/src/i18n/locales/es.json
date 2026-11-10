@@ -913,5 +913,15 @@
   "{{label}} '{{name}}' hasn't sent a heartbeat in {{ticks}} ticks": "{{label}} '{{name}}' no ha enviado un latido en {{ticks}} ciclos",
   "Value {{value}} is outside [{{v}}, {{v2}}]": "El valor {{value}} está fuera de [{{v}}, {{v2}}]",
   "Enclosure temperature {{temperature}}C is outside [{{v}}, {{v2}}]": "La temperatura de la caja {{temperature}} C está fuera de [{{v}}, {{v2}}]",
-  "Enclosure humidity {{humidity}}%RH is outside [{{v}}, {{v2}}]": "La humedad de la caja {{humidity}} %HR está fuera de [{{v}}, {{v2}}]"
+  "Enclosure humidity {{humidity}}%RH is outside [{{v}}, {{v2}}]": "La humedad de la caja {{humidity}} %HR está fuera de [{{v}}, {{v2}}]",
+  "AI usage": "Uso de la IA",
+  "Guests": "Invitados",
+  "Schedules": "Programaciones",
+  "People": "Personas",
+  "Guests limit": "Límite de invitados",
+  "day limit": "límite diario",
+  "AI tokens by day": "Tokens de IA por día",
+  "requests": "solicitudes",
+  "Total": "Total",
+  "{{n}} days": "{{n}} días"
 }

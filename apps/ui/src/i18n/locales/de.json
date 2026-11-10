@@ -913,5 +913,15 @@
   "{{label}} '{{name}}' hasn't sent a heartbeat in {{ticks}} ticks": "{{label}} '{{name}}' hat seit {{ticks}} Takten keinen Heartbeat gesendet",
   "Value {{value}} is outside [{{v}}, {{v2}}]": "Wert {{value}} liegt außerhalb von [{{v}}, {{v2}}]",
   "Enclosure temperature {{temperature}}C is outside [{{v}}, {{v2}}]": "Gehäusetemperatur {{temperature}} C liegt außerhalb von [{{v}}, {{v2}}]",
-  "Enclosure humidity {{humidity}}%RH is outside [{{v}}, {{v2}}]": "Gehäusefeuchte {{humidity}} %rF liegt außerhalb von [{{v}}, {{v2}}]"
+  "Enclosure humidity {{humidity}}%RH is outside [{{v}}, {{v2}}]": "Gehäusefeuchte {{humidity}} %rF liegt außerhalb von [{{v}}, {{v2}}]",
+  "AI usage": "KI-Verbrauch",
+  "Guests": "Gäste",
+  "Schedules": "Zeitpläne",
+  "People": "Personen",
+  "Guests limit": "Limit der Gäste",
+  "day limit": "Tageslimit",
+  "AI tokens by day": "KI-Tokens pro Tag",
+  "requests": "Anfragen",
+  "Total": "Gesamt",
+  "{{n}} days": "{{n}} Tage"
 }

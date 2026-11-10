@@ -271,6 +271,22 @@ export async function accountTokensToday(userId: number): Promise<number> {
   return Number(r.rows[0].n);
 }
 
+// a model call's tokens in the day's usage (ai_usage_daily - the Logs' AI usage monitor; kept when a guest's
+// conversation is deleted)
+async function recordUsage(c: { connectionId: number | null; connectionName: string | null; guestSession: string | null; scheduled: boolean }, tin: number, tout: number) {
+  const kind = c.guestSession !== null ? "guest" : c.scheduled ? "scheduled" : "person";
+  await pool
+    .query(
+      `INSERT INTO ai_usage_daily (day, connection_id, connection_name, kind, requests, tokens_in, tokens_out)
+       VALUES (current_date, $1, $2, $3, 1, $4, $5)
+       ON CONFLICT (day, COALESCE(connection_id, 0), kind) DO UPDATE SET requests = ai_usage_daily.requests + 1,
+         tokens_in = ai_usage_daily.tokens_in + EXCLUDED.tokens_in, tokens_out = ai_usage_daily.tokens_out + EXCLUDED.tokens_out,
+         connection_name = EXCLUDED.connection_name`,
+      [c.connectionId, c.connectionName ?? "", kind, tin, tout],
+    )
+    .catch((err: unknown) => logger.error({ err }, "AI usage not recorded"));
+}
+
 // a guest's question off the installation (prompts/guest.md) - the answer's last line
 const OFF_TOPIC = /\s*<off-topic\s*\/?>\s*$/i;
 
@@ -367,6 +383,7 @@ export async function sendMessage(conversationId: number, text: string, onEvent:
         tokensOut: result.usage?.outputTokens ?? null,
         latencyMs: result.latencyMs,
       });
+      await recordUsage(conversation, result.usage?.inputTokens ?? 0, result.usage?.outputTokens ?? 0);
       if (result.toolCalls.length === 0) {
         if (instance.access.report) await storeReports(conversationId, instance.key, result.content);
         break;

@@ -29,6 +29,9 @@ ENV VITE_PROJECT_NAME=$VITE_PROJECT_NAME
 # production). Defaults to production when not passed.
 ARG VITE_NODE_ENV=production
 ENV VITE_NODE_ENV=$VITE_NODE_ENV
+# The header's Simulation badge (appEnv.js): hide / show / blink; empty - blink in production, show otherwise.
+ARG VITE_SIMULATION_BADGE=
+ENV VITE_SIMULATION_BADGE=$VITE_SIMULATION_BADGE
 # The project's own website (homeSite.js, 2026-11-01) - optional: the logo and the user menu link
 # to it, in the interface's language when the site has it (VITE_HOME_LANGS). Empty - no link.
 ARG VITE_HOME_URL=

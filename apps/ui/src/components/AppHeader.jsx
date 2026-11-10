@@ -41,7 +41,7 @@ import CIcon from '@coreui/icons-react'
 import { cilContrast, cilMoon, cilSun } from '@coreui/icons'
 
 import { useAnyNodeSimulated } from '../api/useLiveNode'
-import { IS_PRODUCTION } from '../appEnv'
+import { SIMULATION_BADGE } from '../appEnv'
 import { AppHeaderDropdown } from './header/index'
 import NotificationCenter from './header/NotificationCenter'
 import SystemTickIndicator from './header/SystemTickIndicator'
@@ -130,17 +130,14 @@ const AppHeader = ({ bleed = false, scroller = null }) => {
           </CHeaderToggler>
         )}
         <CHeaderNav className="ms-auto">
-          {anyNodeSimulated && !hideSimulation && (
+          {anyNodeSimulated && !hideSimulation && SIMULATION_BADGE !== 'hide' && (
             // a phone - left out (the pulse instead; 2026-11-07)
             <li className="nav-item d-none d-sm-flex align-items-center py-1 me-1 me-sm-3">
-              {/* Blinks only in production, where a node left in
-                  simulation is an operational problem worth attention;
-                  in development simulation is the normal working state,
-                  so the badge is shown steady (AGENTS_TO_DO.md
-                  2026-09-25). */}
+              {/* hide / show / blink - the stack's SIMULATION_BADGE (appEnv.js); by default it blinks only
+                  in production, where a node left in simulation is a problem worth attention. */}
               <CBadge
                 color="primary"
-                className={`${IS_PRODUCTION ? 'wem-blink-ring ' : ''}rounded-pill px-3 py-2 me-2`}
+                className={`${SIMULATION_BADGE === 'blink' ? 'wem-blink-ring ' : ''}rounded-pill px-3 py-2 me-2`}
                 role="status"
                 title={t('At least one node is in simulation mode')}
               >

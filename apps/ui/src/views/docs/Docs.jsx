@@ -1,5 +1,5 @@
 import React from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useTranslation } from 'react-i18next'
@@ -97,7 +97,10 @@ const Tree = ({ id, current, lang, depth = 0 }) =>
   })
 
 const Docs = () => {
-  const id = (useParams()['*'] ?? '').replace(/\/$/, '')
+  // the id from the path itself: on /docs the router hands down the layout's own splat ("docs") as '*'
+  const id = useLocation()
+    .pathname.replace(/^\/docs\/?/, '')
+    .replace(/\/$/, '')
   const { i18n } = useTranslation()
   const navigate = useNavigate()
   const lang = i18n.resolvedLanguage

@@ -90,6 +90,19 @@ const PAGE_CSS = `
 .ai-group { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--cui-secondary-color); text-align: center; margin: 14px 0 8px }
 .ai-quick .ai-tile { width: 10rem; min-height: 0; flex-direction: row; text-align: left; padding: 8px 10px }
 .ai-quick .ai-tile-label { text-align: left }
+.ai-start { max-width: 52rem }
+/* a wide screen (Full HD and up): bigger tiles - the small ones looked lost there (the user, 2026-11-10) */
+@media (min-width: 1600px) {
+  .ai-start { max-width: 72rem }
+  .ai-tiles { gap: 14px }
+  .ai-tile { width: 10rem; min-height: 8.5rem; gap: 10px; border-radius: 12px }
+  .ai-tile-icon { height: 46px }
+  .ai-objects .ai-tile-icon svg, .ai-objects .ai-tile-icon img { width: 44px; height: 44px }
+  .ai-tile-label { font-size: .95rem }
+  .ai-quick .ai-tile { width: 13rem; min-height: 0; padding: 10px 14px }
+  .ai-quick .ai-tile-icon { height: 32px }
+  .ai-group { font-size: .85rem }
+}
 .ai-composer { display: grid; grid-template-columns: auto minmax(10rem, 15rem) minmax(0, 1fr) auto; gap: 8px; align-items: stretch }
 .ai-composer-icon { width: 2.5rem; display: flex; align-items: center; justify-content: center; color: var(--cui-secondary-color) }
 .ai-composer-selects { display: flex; flex-direction: column; gap: 4px; justify-content: center; min-width: 0 }
@@ -393,7 +406,7 @@ const AiConversation = ({
           </CAlert>
         )}
         {!active && entities.length > 0 && !compact && (
-          <div className="mx-auto py-3" style={{ maxWidth: '52rem' }}>
+          <div className="mx-auto py-3 ai-start">
             <div className="text-center mb-3">
               <AiBrainIcon size={56} />
               <div className="fs-5 mt-1">{tr('Nexus Edge AI Assistant')}</div>

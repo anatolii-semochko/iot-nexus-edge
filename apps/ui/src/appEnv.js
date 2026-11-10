@@ -7,3 +7,12 @@
 // behavior.
 export const NODE_ENV = import.meta.env.VITE_NODE_ENV || 'production'
 export const IS_PRODUCTION = NODE_ENV === 'production'
+
+// The header's Simulation badge (the user, 2026-11-10): 'hide', 'show' (steady) or 'blink' - the stack's
+// SIMULATION_BADGE (the VITE_SIMULATION_BADGE build arg); unset - blinks in production, steady otherwise.
+const BADGE = String(import.meta.env.VITE_SIMULATION_BADGE || '').toLowerCase()
+export const SIMULATION_BADGE = ['hide', 'show', 'blink'].includes(BADGE)
+  ? BADGE
+  : IS_PRODUCTION
+    ? 'blink'
+    : 'show'

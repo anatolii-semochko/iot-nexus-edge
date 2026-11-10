@@ -6054,6 +6054,9 @@ The UI is a static bundle, so `NODE_ENV` reaches it only as the
 production}`, same plumbing as `VITE_PROJECT_NAME`), read by
 `src/appEnv.js` (`IS_PRODUCTION`); unset counts as production. Changing
 `NODE_ENV` therefore needs a UI rebuild, not just a restart.
+Three modes since 2026-11-10: `SIMULATION_BADGE` = `hide` / `show`
+(steady) / `blink` (the `VITE_SIMULATION_BADGE` build arg, read by
+`appEnv.js` `SIMULATION_BADGE`); empty keeps the default above.
 
 **The footer (2026-10-31)** - on the left the installation's name
 (`VITE_PROJECT_NAME` from `PROJECT_NAME`, e.g. "Nexus Edge Demo" or a
@@ -8612,6 +8615,14 @@ plan and the decisions - iot `AGENTS_TO_DO.md` (B1).
   the most generous (`Principal.aiDailyTokens`, `/auth/me`
   `access.aiDailyTokens`). Counted per account per day (all its
   conversations - the guest's: all guests together); over it - 429.
+- The AI's usage monitor (2026-11-10; `ai_usage_daily`, migration 108):
+  every model call adds its tokens to a row per day, connection and kind
+  (guest / scheduled / person) in `agent.ts` `recordUsage` - kept when a
+  guest's conversation is deleted after its retention (the per-account
+  check still reads `ai_messages`). `GET /ai/usage?days=` (admin) - the
+  rows and the limits (each enabled connection's `daily_token_limit`, the
+  guest account's `ai_daily_tokens`); Logs -> AI usage (`AiUsageTab.jsx`) -
+  stacked bars by day, the limits as dashed lines, a hover per day, a table.
 - A role's pages (2026-10-27; `roles.pages`, migration 097; null - every
   page its rights open): the menu entries / pages it shows, on their own -
   an owner, an operator, a visitor work on the Dashboard (their rights let
