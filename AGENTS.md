@@ -9137,6 +9137,7 @@ scroll gestures, 390 px): the energy scene 488 -> 10 paints (layout 242 ->
 5), the Heating level 502 -> 13, Aquariums 510 -> 19.
 
 ## The application shell (2026-11-09)
+Scroll restoration (2026-11-11, `hooks/useScrollRestoration.js`, used by `DefaultLayout.jsx`): the shell scrolls an element, so the browser's own restoration never applies - a new page (PUSH) starts at the top, Back / Forward (POP) returns to the history entry's place, a REPLACE keeps the place. Device-independent by three rules: a scroll event is written to the entry current when it fires (the key switches in a `useLayoutEffect`, before the browser dispatches the scroll its own clamping causes when the old page goes - that clamped value never overwrites the old entry); the place is re-applied as the content grows (a `ResizeObserver` on the scroller's content, up to 10 s), not on a timer; only a real scroll stops it (`wheel`, `touchmove`, `keydown` - not a tap or the back swipe's touch). Places per history entry and address (`<location.key> <pathname><search>` - an entry the router didn't make, a raw `location.hash` change, has the shared key `default`) in sessionStorage `nexusedge.scroll` (the last 60). Packages navigate through `src/navigation.js` `useAppNavigate()` (the router's own - a new entry with its key), never by writing `location.hash` (the demo navigator did - Back from a card it opened landed at the Dashboard's top).
 
 `layout/DefaultLayout.jsx`: the wrapper is the window's height (`100dvh`),
 the header an ordinary block at its top, under it the one scrolling area

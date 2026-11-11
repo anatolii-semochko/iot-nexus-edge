@@ -19,11 +19,12 @@
  * <Route path="*" element={<DefaultLayout />} />
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { matchPath, useLocation } from 'react-router-dom'
 import { AppContent, AppSidebar, AppFooter, AppHeader } from '../components/index'
 import { AiPanelProvider } from '../components/ai/AiPanel'
 import { routes } from '../routes'
+import { useScrollRestoration } from '../hooks/useScrollRestoration'
 
 /**
  * DefaultLayout functional component
@@ -35,18 +36,17 @@ import { routes } from '../routes'
  *
  * A route marked `bleed` (routes.js - the AI Assistant, 2026-10-24) takes the whole room under the
  * header: no side or bottom padding, no footer, exactly the window's height (its own parts scroll).
- * The AI Assistant's side panel (components/ai/AiPanel) is open to every page under it.
+ * The AI Assistant's side panel (components/ai/AiPanel) is open to every page under it. Scroll
+ * restoration - hooks/useScrollRestoration.js (the scrolling element is not the window).
  *
  * @returns {React.ReactElement} Complete application layout
  */
 const DefaultLayout = () => {
   const { pathname } = useLocation()
   const bleed = routes.some((r) => r.bleed && matchPath({ path: r.path, end: true }, pathname))
-  // the scrolling area - the header's shadow follows it; another page starts at its top
+  // the scrolling area - the header's shadow follows it; a new page starts at its top, Back returns
   const [scroller, setScroller] = useState(null)
-  useEffect(() => {
-    scroller?.scrollTo({ top: 0 })
-  }, [pathname, scroller])
+  useScrollRestoration(scroller)
   return (
     <AiPanelProvider>
       <AppSidebar />
