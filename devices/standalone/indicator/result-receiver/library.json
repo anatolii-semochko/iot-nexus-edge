@@ -1,0 +1,5 @@
+{
+  "id": "device-result-receiver",
+  "name": "Result receiver",
+  "description": "Receives a result from NexusEdge as one JSON string (e.g. an AI analysis result shown on a camera's display) - writable, atomic."
+}

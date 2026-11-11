@@ -16,6 +16,8 @@ func Open(ifaceName string) (*Conn, error) {
 
 func (c *Conn) Close() error { return nil }
 
+func (c *Conn) Ifindex() int { return 0 }
+
 func (c *Conn) Send(f Frame) error {
 	return fmt.Errorf("SocketCAN is only supported on Linux")
 }

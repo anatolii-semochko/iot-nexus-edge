@@ -1,3 +1,4 @@
+import { t } from 'src/i18n'
 /**
  * Message Levels (AGENTS.md section 22, beep-count/repeat-seconds redesign
  * AGENTS_TO_DO.md 2026-08-01) - shared between MessageLevelsForm.jsx (the
@@ -10,15 +11,15 @@
 // combined selector (one dropdown instead of separate mode + count
 // controls) actually offers.
 export const SELECTOR_OPTIONS = [
-  { value: 'off', label: 'Off' },
-  { value: 'constant', label: 'Constant' },
+  { value: 'off', label: t('Off') },
+  { value: 'constant', label: t('Constant') },
   ...[1, 2, 3, 4].map((count) => ({
     value: `shortBeep:${count}`,
-    label: `${count} short beep${count > 1 ? 's' : ''}`,
+    label: t('{{count}} short beep{{v1}}', { count, v1: count > 1 ? 's' : '' }),
   })),
   ...[1, 2, 3, 4].map((count) => ({
     value: `longBeep:${count}`,
-    label: `${count} long beep${count > 1 ? 's' : ''}`,
+    label: t('{{count}} long beep{{v1}}', { count, v1: count > 1 ? 's' : '' }),
   })),
 ]
 
@@ -42,8 +43,8 @@ export function decodeSelectorValue(value) {
  */
 export function formatMessageLevel({ type, mode, beepCount, repeatSeconds }) {
   const Type = type.charAt(0).toUpperCase() + type.slice(1)
-  if (mode === 'off') return `${Type} - Off`
-  if (mode === 'constant') return `${Type} - Constant`
+  if (mode === 'off') return t('{{Type}} - Off', { Type })
+  if (mode === 'constant') return t('{{Type}} - Constant', { Type })
   const style = mode === 'shortBeep' ? 'short' : 'long'
   const plural = beepCount === 1 ? 'beep' : 'beeps'
   const repeatWord = repeatSeconds > 0 ? 'repeatable' : 'once'

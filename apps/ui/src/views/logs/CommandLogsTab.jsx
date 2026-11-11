@@ -21,9 +21,28 @@ import ResetFiltersButton from '../../components/ResetFiltersButton'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
-import { formatSmartDateTime, localDateTimeToIso, userInitials } from '../../utils/format'
+import {
+  formatSmartDateTime,
+  localDateTimeToIso,
+  userInitials,
+  userTitle,
+} from '../../utils/format'
+import AiButton from '../../components/ai/AiButton'
+import { t } from 'src/i18n'
 
-const ACTIONS = ['write', 'auto', 'release', 'simulate', 'on', 'off', 'config', 'simulated-on', 'simulated-off']
+const ACTIONS = [
+  'write',
+  'auto',
+  'release',
+  'simulate',
+  'on',
+  'off',
+  'config',
+  'simulated-on',
+  'simulated-off',
+  'set-state',
+  'clear-logs',
+]
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
 const formatValue = (value) => {
@@ -43,7 +62,7 @@ const formatValue = (value) => {
 const ActorCell = ({ actorUser }) => {
   if (!actorUser) {
     return (
-      <span title="Unknown user">
+      <span title={t('Unknown user')}>
         <CAvatar color="secondary" textColor="white" size="sm">
           ?
         </CAvatar>
@@ -51,7 +70,7 @@ const ActorCell = ({ actorUser }) => {
     )
   }
   return (
-    <span title={actorUser.display_name ?? actorUser.username}>
+    <span title={userTitle(actorUser)}>
       {actorUser.avatar_path ? (
         <CAvatar src={`/api/uploads/avatars/${actorUser.avatar_path}`} size="sm" />
       ) : (
@@ -80,6 +99,15 @@ const ActorCell = ({ actorUser }) => {
  * matching `onXChange` callbacks, the same prop-per-field convention
  * ProcessesTable.jsx already uses.
  */
+// the record the AI is asked about (its subject's `view`, up to 300 characters)
+const recordView = (item) =>
+  t('the command log record: {{toISOString}}, {{v1}}, {{action}} {{String}}', {
+    toISOString: new Date(item.created_at).toISOString(),
+    v1: item.actor_user?.username ?? 'orchestrator',
+    action: item.action,
+    String: String(formatValue(item.value) ?? ''),
+  }).slice(0, 300)
+
 const CommandLogsTab = ({
   devices,
   users,
@@ -128,7 +156,7 @@ const CommandLogsTab = ({
             value={deviceId}
             onChange={(e) => onDeviceIdChange(e.target.value)}
           >
-            <option value="">All devices</option>
+            <option value="">{t('All devices')}</option>
             {devices.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -138,7 +166,7 @@ const CommandLogsTab = ({
         </CCol>
         <CCol xs="auto">
           <CFormSelect size="sm" value={action} onChange={(e) => onActionChange(e.target.value)}>
-            <option value="">All actions</option>
+            <option value="">{t('All actions')}</option>
             {ACTIONS.map((a) => (
               <option key={a} value={a}>
                 {a}
@@ -152,7 +180,7 @@ const CommandLogsTab = ({
             value={actorUserId}
             onChange={(e) => onActorUserIdChange(e.target.value)}
           >
-            <option value="">All users</option>
+            <option value="">{t('All users')}</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.display_name ?? u.username}
@@ -165,12 +193,12 @@ const CommandLogsTab = ({
             key={searchResetToken}
             value={search}
             onSearch={onSearchChange}
-            placeholder="Search by device or process..."
+            placeholder={t('Search by device or process...')}
           />
         </CCol>
         <DateRangeFilter from={from} to={to} onFromChange={onFromChange} onToChange={onToChange} />
         <CCol className="d-flex justify-content-end gap-2">
-          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel="Reload" />
+          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel={t('Reload')} />
           <ResetFiltersButton active={hasActiveFilters} onClick={onResetFilters} />
         </CCol>
       </CRow>
@@ -182,16 +210,20 @@ const CommandLogsTab = ({
           <CSpinner color="primary" />
         </div>
       ) : items.length === 0 ? (
-        <CAlert color="info">No command logs match this filter.</CAlert>
+        <CAlert color="info">{t('No command logs match this filter.')}</CAlert>
       ) : (
         <>
           <CTable responsive>
             <CTableHead>
               <CTableRow>
-                <CTableHeaderCell scope="col">Time</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Target</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Action</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Value</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Time')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Target')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Action')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Value')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col" title={t('The role the person acted in')}>
+                  {t('As')}
+                </CTableHeaderCell>
+                <CTableHeaderCell scope="col" />
               </CTableRow>
             </CTableHead>
             <CTableBody>
@@ -204,12 +236,38 @@ const CommandLogsTab = ({
                     {formatSmartDateTime(item.created_at)}
                   </CTableDataCell>
                   <CTableDataCell>
+                    {/* Service->Database's set-state/clear-logs (AGENTS_TO_DO.md,
+                        2026-08-30) target neither a device nor a process -
+                        a system-wide action, not "#?" . */}
                     {item.device_name ??
                       item.process_name ??
-                      `#${item.device_id ?? item.process_id ?? '?'}`}
+                      ((item.device_id ?? item.process_id)
+                        ? `#${item.device_id ?? item.process_id}`
+                        : t('System'))}
                   </CTableDataCell>
                   <CTableDataCell>{item.action}</CTableDataCell>
                   <CTableDataCell>{formatValue(item.value)}</CTableDataCell>
+                  {/* the role "Act as" chose then (2026-10-28); none - a service's or an older record */}
+                  <CTableDataCell className="small text-body-secondary">
+                    {item.acted_as ?? '-'}
+                  </CTableDataCell>
+                  <CTableDataCell className="text-end text-nowrap">
+                    {/* the AI on the record's device / process (else the page), the record itself told
+                        (the user, 2026-10-25: "why did this switch?") */}
+                    <AiButton
+                      action
+                      className="align-middle"
+                      subject={{
+                        ...(item.device_id
+                          ? { type: 'device', id: item.device_id }
+                          : item.process_id
+                            ? { type: 'process', id: item.process_id }
+                            : { type: 'page', page: 'Logs' }),
+                        view: recordView(item),
+                      }}
+                      label={t('this command')}
+                    />
+                  </CTableDataCell>
                 </CTableRow>
               ))}
             </CTableBody>

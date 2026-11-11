@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { simulationTint, useHideSimulation } from '../../presentation'
 import {
   CAlert,
   CCard,
@@ -18,12 +19,14 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilLibrary, cilSettings } from '@coreui/icons'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
 import GroupsConfigModal from '../../components/GroupsConfigModal'
 import IconButton from '../../components/IconButton'
 import Switch from '../../components/Switch'
 import ResetFiltersButton from '../../components/ResetFiltersButton'
 import ExpandAllToggleButton from '../../components/table/ExpandAllToggleButton'
 import ExpandToggleButton from '../../components/table/ExpandToggleButton'
+import LibraryTypeLink from '../../components/table/LibraryTypeLink'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useExpandableRows } from '../../hooks/useExpandableRows'
@@ -34,6 +37,9 @@ import { useNodesLiveState } from '../../api/useLiveNode'
 import RowStatusBadge from '../../components/table/RowStatusBadge'
 import { formatRelativeTime } from '../../utils/format'
 import NodeSettingsModal from './NodeSettingsModal'
+import AiButton from '../../components/ai/AiButton'
+import PageTitle from '../../components/PageTitle'
+import { t } from 'src/i18n'
 
 // Registration for usePersistedState (AGENTS_TO_DO.md, 2026-08-01, joined
 // 2026-08-02 by `expandedIds`) - flat variant (no tabs), unlike
@@ -104,17 +110,17 @@ const matchesSearch = (node, search) => {
 // `heartbeatStopped`, which despite its name is only the "monitoring
 // paused" toggle and never flips on a real disconnect (found live,
 // 2026-08-15).
-const nodeRowColor = (node) =>
-  node.heartbeatStale === 'error' ? 'danger' : node.simulated ? 'info' : undefined
+const nodeRowColor = (node, hideSimulation = false) =>
+  node.heartbeatStale === 'error' ? 'danger' : simulationTint(node.simulated, hideSimulation)
 
 // Filter dropdown options, keyed by the exact rowColor value above ('' -
 // unset - means OK, the same "anything not danger/info" default
 // RowStatusBadge itself falls back to).
 const STATUS_FILTER_OPTIONS = [
-  { value: '', label: 'All statuses' },
+  { value: '', label: t('All statuses') },
   { value: 'ok', label: 'OK' },
-  { value: 'danger', label: 'Error' },
-  { value: 'info', label: 'Simulation' },
+  { value: 'danger', label: t('Error') },
+  { value: 'info', label: t('Simulation') },
 ]
 
 /**
@@ -126,6 +132,9 @@ const STATUS_FILTER_OPTIONS = [
  * Devices' many-to-many Device Groups (DevicesList.jsx).
  */
 const NodesList = () => {
+  // what this person may do here (access.js - the server decides)
+  const can = useCan()
+  const hideSimulation = useHideSimulation()
   const [nodes, setNodes] = useState(null)
   const [nodeGroups, setNodeGroups] = useState([])
   const [error, setError] = useState(null)
@@ -199,7 +208,9 @@ const NodesList = () => {
   const filtered = nodesWithLive
     .filter((node) => matchesSearch(node, search))
     .filter((node) => !groupFilter || String(node.group_id) === groupFilter)
-    .filter((node) => !statusFilter || (nodeRowColor(node) || 'ok') === statusFilter)
+    .filter(
+      (node) => !statusFilter || (nodeRowColor(node, hideSimulation) || 'ok') === statusFilter,
+    )
   const { page, pageSize, pageItems, totalItems, setPage, setPageSize } = usePagination(filtered, {
     pageSize: pageState.pageSize,
     onPageSizeChange: (size) => setPageState({ pageSize: size }),
@@ -214,7 +225,7 @@ const NodesList = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <strong>Nodes</strong>
+        <PageTitle title={t('Nodes')} />
       </CCardHeader>
       <CCardBody>
         {error && <CAlert color="danger">{error}</CAlert>}
@@ -227,9 +238,11 @@ const NodesList = () => {
                   size="sm"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  aria-label="Filter by status"
+                  aria-label={t('Filter by status')}
                 >
-                  {STATUS_FILTER_OPTIONS.map((opt) => (
+                  {STATUS_FILTER_OPTIONS.filter(
+                    (opt) => !hideSimulation || opt.value !== 'info',
+                  ).map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
@@ -242,7 +255,7 @@ const NodesList = () => {
                   value={groupFilter}
                   onChange={(e) => setGroupFilter(e.target.value)}
                 >
-                  <option value="">All groups</option>
+                  <option value="">{t('All groups')}</option>
                   {nodeGroups.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.name}
@@ -255,39 +268,43 @@ const NodesList = () => {
                   key={searchResetToken}
                   value={search}
                   onSearch={setSearch}
-                  placeholder="Search by name, type, location..."
+                  placeholder={t('Search by name, type, location...')}
                 />
               </CCol>
               <CCol className="d-flex justify-content-end gap-2">
-                <IconButton
-                  icon={cilSettings}
-                  size="sm"
-                  center
-                  onClick={() => setConfigVisible(true)}
-                  ariaLabel="Configure Node Groups"
-                />
+                {can('nodes.manage') && (
+                  <IconButton
+                    icon={cilSettings}
+                    size="sm"
+                    center
+                    onClick={() => setConfigVisible(true)}
+                    ariaLabel={t('Configure Node Groups')}
+                  />
+                )}
                 <ResetFiltersButton active={hasActiveFilters} onClick={handleResetFilters} />
               </CCol>
             </CRow>
             {filtered.length === 0 ? (
               <CAlert color="info">
-                {nodes.length === 0 ? 'No nodes registered yet.' : 'No nodes match these filters.'}
+                {nodes.length === 0
+                  ? t('No nodes registered yet.')
+                  : t('No nodes match these filters.')}
               </CAlert>
             ) : (
               <>
                 <CTable responsive>
                   <CTableHead>
                     <CTableRow>
-                      <CTableHeaderCell scope="col">Status</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Status')}</CTableHeaderCell>
                       <CTableHeaderCell scope="col"></CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Name</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Group</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Location</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Type</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Last heartbeat</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Name')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Group')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Location')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Type')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Last heartbeat')}</CTableHeaderCell>
                       <CTableHeaderCell scope="col" className="text-end">
                         <div className="d-flex justify-content-end align-items-center gap-2">
-                          <span>Actions</span>
+                          <span>{t('Actions')}</span>
                           <ExpandAllToggleButton
                             ids={pageItems.map((node) => node.id)}
                             expandedIds={expandedIds}
@@ -306,7 +323,7 @@ const NodesList = () => {
                       // actually expanded.
                       const expandedRow = isExpanded(node.id)
                       const noBorderWhenExpanded = expandedRow ? 'border-bottom-0' : undefined
-                      const rowColor = nodeRowColor(node)
+                      const rowColor = nodeRowColor(node, hideSimulation)
                       return (
                         <React.Fragment key={node.id}>
                           <CTableRow color={rowColor}>
@@ -318,6 +335,11 @@ const NodesList = () => {
                             </CTableDataCell>
                             <CTableDataCell className={noBorderWhenExpanded}>
                               {node.name}
+                              {node.parent_name && (
+                                <div className="small text-body-secondary">
+                                  {t('Attached to')} {node.parent_name}
+                                </div>
+                              )}
                             </CTableDataCell>
                             <CTableDataCell className={noBorderWhenExpanded}>
                               {node.group_name ?? '-'}
@@ -326,34 +348,53 @@ const NodesList = () => {
                               {node.location ?? '-'}
                             </CTableDataCell>
                             <CTableDataCell className={noBorderWhenExpanded}>
-                              {node.type}
+                              <LibraryTypeLink kind="node" typeName={node.type} />
                             </CTableDataCell>
                             <CTableDataCell className={noBorderWhenExpanded}>
                               {formatRelativeTime(node.last_heartbeat_at)}
                             </CTableDataCell>
                             <CTableDataCell className={`text-end ${noBorderWhenExpanded ?? ''}`}>
                               <div className="d-flex justify-content-end align-items-center gap-1 flex-nowrap">
-                                <IconButton
-                                  icon={cilSettings}
-                                  size="sm"
-                                  center
-                                  onClick={() => setSettingsNode(node)}
-                                  ariaLabel={`${node.name} settings`}
+                                <AiButton
+                                  action
+                                  subject={{ type: 'node', id: node.id }}
+                                  label={node.name}
                                 />
-                                <Switch
-                                  checked={node.simulated}
-                                  onChange={() => handleToggleSimulated(node)}
-                                  disabled={!node.simulated && !node.can_enable_simulated}
-                                  activeColor="#e55353"
-                                  inactiveColor="#d3d3d3"
-                                  ariaLabel={
-                                    node.simulated
-                                      ? `${node.name} is simulated - switch to physical`
-                                      : node.can_enable_simulated
-                                        ? `${node.name} is physical - switch to simulated`
-                                        : `${node.name} has no simulated twin provisioned`
-                                  }
-                                />
+                                {can('nodes.manage', { node: node.id }) && (
+                                  <IconButton
+                                    icon={cilSettings}
+                                    size="sm"
+                                    center
+                                    onClick={() => setSettingsNode(node)}
+                                    ariaLabel={`${node.name} settings`}
+                                  />
+                                )}
+                                {(!hideSimulation ||
+                                  can('devices.simulate', { node: node.id })) && (
+                                  <Switch
+                                    checked={node.simulated}
+                                    onChange={() => handleToggleSimulated(node)}
+                                    disabled={
+                                      (!node.simulated && !node.can_enable_simulated) ||
+                                      !can('devices.simulate', { node: node.id })
+                                    }
+                                    activeColor="#e55353"
+                                    inactiveColor="#d3d3d3"
+                                    ariaLabel={
+                                      node.simulated
+                                        ? t('{{name}} is simulated - switch to physical', {
+                                            name: node.name,
+                                          })
+                                        : node.can_enable_simulated
+                                          ? t('{{name}} is physical - switch to simulated', {
+                                              name: node.name,
+                                            })
+                                          : t('{{name}} has no simulated twin provisioned', {
+                                              name: node.name,
+                                            })
+                                    }
+                                  />
+                                )}
                                 <ExpandToggleButton
                                   expanded={isExpanded(node.id)}
                                   onClick={() => toggleOne(node.id)}
@@ -388,9 +429,9 @@ const NodesList = () => {
       <GroupsConfigModal
         visible={configVisible}
         onClose={() => setConfigVisible(false)}
-        title="Node Groups"
-        addLabel="Add Group"
-        namePlaceholder="Group name"
+        title={t('Node Groups')}
+        addLabel={t('Add Group')}
+        namePlaceholder={t('Group name')}
         items={nodeGroups}
         onAdd={async (name) => {
           await api.createNodeGroup(name)
@@ -410,6 +451,7 @@ const NodesList = () => {
         visible={Boolean(settingsNode)}
         onClose={() => setSettingsNode(null)}
         node={settingsNode}
+        nodes={nodes ?? []}
         nodeGroups={nodeGroups}
         onSaved={reloadNodes}
       />

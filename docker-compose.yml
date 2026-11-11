@@ -1,8 +1,24 @@
 name: nexus-edge
 
+# Container logs (json-file) are capped per service: max-size per file, max-file
+# files kept (.env DOCKER_LOG_MAX_SIZE / DOCKER_LOG_MAX_FILE). Unbounded, the
+# stacks' logs reached 43 GB in two weeks on a dev machine (2026-11-07).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+    max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
 services:
   postgres:
-    image: postgres:16-alpine
+    logging: *logging
+    # TimescaleDB (PostgreSQL 16 + the time-series extension, arm64 too -
+    # nexus-edge AGENTS.md "Time series"): the device / value logs as
+    # hypertables with continuous aggregates. The library is preloaded
+    # here, not by the image's initdb config, so an existing PG16 data
+    # volume works as it is.
+    image: timescale/timescaledb:2.17.2-pg16
+    command: ["postgres", "-c", "shared_preload_libraries=timescaledb"]
     container_name: nexus-edge-postgres
     restart: unless-stopped
     environment:
@@ -17,6 +33,7 @@ services:
       - nexus-edge-network
 
   redis:
+    logging: *logging
     image: redis:7-alpine
     container_name: nexus-edge-redis
     restart: unless-stopped
@@ -34,6 +51,7 @@ services:
       - nexus-edge-network
 
   rabbitmq:
+    logging: *logging
     image: rabbitmq:4-management-alpine
     container_name: nexus-edge-rabbitmq
     restart: unless-stopped
@@ -52,12 +70,22 @@ services:
       - nexus-edge-network
 
   orchestrator:
+    logging: *logging
     build:
       context: .
       dockerfile: apps/orchestrator/Dockerfile
     container_name: nexus-edge-orchestrator
     restart: unless-stopped
     env_file: .env
+    environment:
+      # Host timezone (.env TZ) - "now" (minute of day, day of week/
+      # month/year) is computed in it; without it the container runs
+      # in UTC and light output shifts by the host's UTC offset.
+      TZ: ${TZ:?set TZ in .env to the host timezone}
+      # Node's own flags for this server (.env ORCHESTRATOR_NODE_OPTIONS) - the garbage collector's young generation
+      # (--max-semi-space-size, MB): a service that makes and drops many objects every tick pauses less
+      # with a larger one (iot PERF_PROD_2026-11-05.md)
+      NODE_OPTIONS: ${ORCHESTRATOR_NODE_OPTIONS:-}
     depends_on:
       - postgres
       - redis
@@ -68,11 +96,22 @@ services:
       - nexus-edge-network
 
   api:
+    logging: *logging
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     container_name: nexus-edge-api
     restart: unless-stopped
+    # Service->Commands (AGENTS_TO_DO.md, 2026-08-30) - Docker's own
+    # default AppArmor profile ("docker-default") blocks a container from
+    # sending ANY D-Bus method call, even a harmless read-only query,
+    # regardless of the /run/dbus/system_bus_socket mount below (confirmed
+    # live via dmesg: apparmor="DENIED" operation="dbus_method_call"
+    # label="docker-default"). Same tradeoff Home Assistant's own
+    # Supervisor container accepts for the identical reason - this
+    # container loses AppArmor confinement entirely, not just for D-Bus.
+    security_opt:
+      - apparmor:unconfined
     env_file: .env
     # Live-debugged 2026-08-14 (process management's registered-kinds
     # proxy, routes/processes.ts): Node's default libuv threadpool (4
@@ -89,6 +128,14 @@ services:
     # hostname from this service under load would have hit the same
     # queueing, this just happened to be the first one added.
     environment:
+      # Host timezone (.env TZ) - "now" (minute of day, day of week/
+      # month/year) is computed in it; without it the container runs
+      # in UTC and light output shifts by the host's UTC offset.
+      TZ: ${TZ:?set TZ in .env to the host timezone}
+      # Node's own flags for this server (.env API_NODE_OPTIONS) - the garbage collector's young generation
+      # (--max-semi-space-size, MB): a service that makes and drops many objects every tick pauses less
+      # with a larger one (iot PERF_PROD_2026-11-05.md)
+      NODE_OPTIONS: ${API_NODE_OPTIONS:-}
       UV_THREADPOOL_SIZE: "64"
     depends_on:
       - postgres
@@ -98,10 +145,22 @@ services:
       - "${API_PORT}:${API_PORT}"
     volumes:
       - api-avatars:${AVATAR_UPLOAD_DIR}
+      # Media Store (AGENTS.md section 81) - device media, e.g. camera frames.
+      - api-media:${MEDIA_DIR}
+      - api-system-stamps:${SYSTEM_STAMPS_DIR}
+      # Service->Commands (AGENTS_TO_DO.md, 2026-08-30) - lets systemCommands.ts
+      # call org.freedesktop.login1 (systemd-logind) on the HOST bus to
+      # power off/reboot the actual machine this stack runs on. Harmless
+      # to mount even with SHUTDOWN_ENABLE/RESTART_ENABLE both false (the
+      # route stays 403'd) - only omit this on a host with no D-Bus system
+      # bus (rare; the mount then just fails to appear and the route's own
+      # connect-time check reports the commands unavailable).
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
     networks:
       - nexus-edge-network
 
   messaging-gateway:
+    logging: *logging
     build:
       context: .
       dockerfile: apps/messaging-gateway/Dockerfile
@@ -117,9 +176,13 @@ services:
       - nexus-edge-network
 
   ui:
+    logging: *logging
     build:
       context: .
       dockerfile: apps/ui/Dockerfile
+      args:
+        VITE_NODE_ENV: ${NODE_ENV:-production}
+        VITE_SIMULATION_BADGE: ${SIMULATION_BADGE:-}
     container_name: nexus-edge-ui
     restart: unless-stopped
     env_file: .env
@@ -139,3 +202,5 @@ volumes:
   redis-data:
   rabbitmq-data:
   api-avatars:
+  api-media:
+  api-system-stamps:

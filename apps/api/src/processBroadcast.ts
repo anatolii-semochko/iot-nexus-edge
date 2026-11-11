@@ -1,8 +1,8 @@
 // Fleet-wide process public-state broadcast (AGENTS.md section 24). Reads
 // every process's `process:{id}:public` hash (processRegistry.ts) plus its
-// Postgres type (for the controllable-only status suppression withLiveState
-// already applies), assembles one snapshot for the whole fleet, and makes
-// it available two ways:
+// Postgres type (for the controllable/simulation-only status suppression
+// withLiveState already applies), assembles one snapshot for the whole
+// fleet, and makes it available two ways:
 // - cached at a well-known Redis key (`process:state:latest`) that both
 //   this service's own REST layer and apps/messaging-gateway can read
 //   directly, no round trip back through here;
@@ -24,6 +24,7 @@ import * as processRegistry from "./processRegistry.js";
 import type { ProcessPublicState } from "./processRegistry.js";
 import { processStateEvents } from "./processStateEvents.js";
 import { redis } from "./redis.js";
+import { isSimulationTargetSimulated } from "./simulationTarget.js";
 
 export const SNAPSHOT_CACHE_KEY = "process:state:latest";
 export const SNAPSHOT_UPDATED_CHANNEL = "process:state:updated";
@@ -53,6 +54,10 @@ export interface ProcessFleetEntry extends Omit<ProcessPublicState, "status"> {
   // handler - reported live as "the button doesn't react to clicks at
   // all"). Live now for the same reason.
   hasActiveWem: boolean;
+  // Second gate a simulation process needs (AGENTS_TO_DO.md, 2026-08-29) -
+  // see simulationTarget.ts's own doc comment. Only meaningful for
+  // type: "simulation" processes, undefined otherwise.
+  simulationTargetSimulated?: boolean;
 }
 
 export interface ProcessFleetSnapshot {
@@ -63,6 +68,9 @@ export interface ProcessFleetSnapshot {
   // per the user's own direction: one systematic feed, not a second
   // parallel one just for this.
   unreadCounts: Record<processMessages.MessageType, number>;
+  // the same per process - {id: [message, warning, error]}; the gateway sums a limited person's processes
+  // and drops this before sending (2026-10-28)
+  unreadByProcess: Record<string, number[]>;
   timestamp: string;
   // Why this particular broadcast fired - "timer" for the periodic
   // cadence, or what triggered an urgent one ("critical", "warning",
@@ -83,23 +91,32 @@ let urgentTimer: ReturnType<typeof setTimeout> | undefined;
 async function assembleSnapshot(source: string): Promise<ProcessFleetSnapshot> {
   const { rows } = await pool.query<{
     id: number;
-    type: "controllable" | "permanent";
+    type: "controllable" | "permanent" | "simulation";
     dashboard_flagged_at: string | null;
-  }>("SELECT id, type, dashboard_flagged_at FROM processes");
+    node_id: number | null;
+    device_id: number | null;
+  }>("SELECT id, type, dashboard_flagged_at, node_id, device_id FROM processes");
 
   const processes: ProcessFleetEntry[] = [];
-  for (const { id, type, dashboard_flagged_at } of rows) {
+  for (const { id, type, dashboard_flagged_at, node_id, device_id } of rows) {
     try {
-      const [state, hasActiveWem] = await Promise.all([
+      const [state, hasActiveWem, simulationTargetSimulated] = await Promise.all([
         processRegistry.getPublicState(id),
         processMessages.hasActiveEntries(id),
+        // Second gate a simulation process needs (AGENTS_TO_DO.md,
+        // 2026-08-29, simulationTarget.ts's own doc comment) - live here
+        // too, not just GET /processes' own withLiveState, so the
+        // Simulator page's Active/Sleep label updates the instant the
+        // target Node/Device's own simulated toggle flips elsewhere,
+        // without a page reload.
+        type === "simulation" ? isSimulationTargetSimulated({ node_id, device_id }) : Promise.resolve(undefined),
       ]);
       processes.push({
         id,
         // Same suppression GET /processes' withLiveState applies - a
         // permanent/system process has no on/off concept, so it reports no
         // status at all here rather than a fabricated "on".
-        status: type === "controllable" ? state.status : undefined,
+        status: type === "controllable" || type === "simulation" ? state.status : undefined,
         critical: state.critical,
         warning: state.warning,
         metrics: state.metrics,
@@ -107,6 +124,7 @@ async function assembleSnapshot(source: string): Promise<ProcessFleetSnapshot> {
         updatedAt: state.updatedAt,
         dashboardFlaggedAt: dashboard_flagged_at,
         hasActiveWem,
+        simulationTargetSimulated,
       });
     } catch (err) {
       // One process's malformed/unreachable cache entry must not take the
@@ -117,8 +135,9 @@ async function assembleSnapshot(source: string): Promise<ProcessFleetSnapshot> {
   }
 
   const unreadCounts = await processMessages.getUnreadCounts();
+  const unreadByProcess = await processMessages.getUnreadByProcess();
 
-  return { processes, unreadCounts, timestamp: new Date().toISOString(), source };
+  return { processes, unreadCounts, unreadByProcess, timestamp: new Date().toISOString(), source };
 }
 
 async function broadcastNow(source: string): Promise<void> {

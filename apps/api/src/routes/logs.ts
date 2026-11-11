@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
+import { scopeIds } from "../access/scope.js";
 import * as commandLog from "../commandLog.js";
 import type { DeviceCommandAction } from "../commandLog.js";
 import * as deviceLog from "../deviceLog.js";
@@ -22,7 +23,10 @@ export async function logRoutes(app: FastifyInstance): Promise<void> {
   app.get<{
     Querystring: {
       deviceId?: string;
-      action?: DeviceCommandAction;
+      // comma-separated process ids
+      processIds?: string;
+      // one action or several, comma-separated
+      action?: string;
       actorUserId?: string;
       search?: string;
       from?: string;
@@ -31,11 +35,22 @@ export async function logRoutes(app: FastifyInstance): Promise<void> {
       pageSize?: string;
     };
   }>("/logs/commands", async (request) => {
-    const { action, search, from, to } = request.query;
+    // a person limited to some DNP instances sees only their rows (access/scope.ts)
+    // (the simulations' commands - only for one who sees the simulation)
+    const visible = (await scopeIds(request, "logs.view", { quiet: true })) ?? undefined;
+    const { search, from, to } = request.query;
+    const action = request.query.action ? (request.query.action.split(",").filter(Boolean) as DeviceCommandAction[]) : undefined;
     const deviceId = request.query.deviceId ? Number(request.query.deviceId) : undefined;
     const actorUserId = request.query.actorUserId ? Number(request.query.actorUserId) : undefined;
+    const processIds = request.query.processIds
+      ? request.query.processIds
+          .split(",")
+          .map(Number)
+          .filter((n) => Number.isInteger(n))
+      : undefined;
     return commandLog.listCommandLogs({
       deviceId,
+      processIds,
       action,
       actorUserId,
       search,
@@ -43,6 +58,7 @@ export async function logRoutes(app: FastifyInstance): Promise<void> {
       to,
       page: parsePage(request.query.page),
       pageSize: parsePageSize(request.query.pageSize),
+      visible,
     });
   });
 
@@ -58,6 +74,7 @@ export async function logRoutes(app: FastifyInstance): Promise<void> {
   }>("/logs/devices", async (request) => {
     const { search, from, to } = request.query;
     const deviceId = request.query.deviceId ? Number(request.query.deviceId) : undefined;
+    const visible = await scopeIds(request, "logs.view");
     return deviceLog.listDeviceLogs({
       deviceId,
       search,
@@ -65,6 +82,7 @@ export async function logRoutes(app: FastifyInstance): Promise<void> {
       to,
       page: parsePage(request.query.page),
       pageSize: parsePageSize(request.query.pageSize),
+      visibleDeviceIds: visible?.deviceIds,
     });
   });
 }

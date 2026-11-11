@@ -2,12 +2,33 @@
 // Postgres/Redis/EdgeX-backed state (AGENTS.md section 4/10). Not a general
 // SDK, just the handful of calls the process tick loop needs.
 
+import type { MessageI18n } from "./messageText.js";
+import { packageOfKind } from "./kindPackages.js";
+import { tickProcesses } from "./tickProcesses.js";
 import { config } from "./config.js";
+import { holds, settle } from "./messageSettle.js";
+import { cachedRead, tickShared } from "./shared.js";
+import { createValueBatcher } from "./valueBatcher.js";
+import { tickStats } from "./tickStats.js";
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// `actingProcess` - the request made for the person that process acts for (the API's guard -
+// `X-Acting-Process`: that person's rights, that person the author)
+async function request<T>(path: string, options: RequestInit = {}, actingProcess?: number): Promise<T> {
+  tickStats.request(options.method ?? "GET", path);
+  // AGENTS_TO_DO.md, 2026-08-29 - server.ts's own tick() re-entrancy guard
+  // (added the same day, to stop unbounded overlapping ticks) means a
+  // fetch() that never settles now freezes every future tick permanently
+  // instead of just adding to a pile - previously a real risk, since
+  // nothing here had a timeout at all. AbortSignal.timeout() is the
+  // built-in fetch mechanism for this, no extra dependency.
   const res = await fetch(`${config.apiUrl}${path}`, {
-    headers: options.body ? { "Content-Type": "application/json" } : {},
+    signal: AbortSignal.timeout(config.apiRequestTimeoutMs),
     ...options,
+    headers: {
+      "X-Service-Token": config.serviceApiToken,
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(actingProcess !== undefined ? { "X-Acting-Process": String(actingProcess) } : {}),
+    },
   });
   if (!res.ok) {
     const text = await res.text();
@@ -20,9 +41,68 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // (heartbeatControl.ts's fleet-wide staleness check, controlNode.ts's own
 // pulse/heartbeat/sensor handling), not a full mirror of routes/nodes.ts's
 // response shape.
+// A process's state reports (critical / warning flags, metrics, active
+// messages) are sent only when they differ from the last one sent for the
+// same process and slot - most ticks change nothing (nexus-edge-aquarium
+// AGENTS_TO_DO.md 2026-10-16: 141 of 247 requests a tick were such
+// repeats). Re-sent anyway every `config.reportResendMs`, so a restarted
+// API or a lost write converges; a failed send isn't remembered (tried
+// again next tick). The same for an AUTO device value: written when it
+// changes, re-asserted every `config.autoReassertMs` (a released MANUAL
+// override gets its AUTO value from the API itself).
+const lastSent = new Map<string, { body: string; at: number }>();
+
+// `body` - what is compared with the last one sent; `send` - how it goes out (a request, or an item of a
+// batch - batcher.ts)
+function sendChanged(key: string, body: string, send: () => Promise<unknown>, resendMs = config.reportResendMs): Promise<unknown> {
+  const now = Date.now();
+  const prev = lastSent.get(key);
+  if (prev && prev.body === body && now - prev.at < resendMs) return Promise.resolve({ status: "unchanged" });
+  return send().then((result) => {
+    lastSent.set(key, { body, at: now });
+    return result;
+  });
+}
+
+// A device's AUTO value - one request per device, NOT batched: each write goes on to EdgeX (core-command,
+// device-service), and in a batch every process waited for the slowest one - the demo's ticks got worse
+// (iot PERF_PROD_2026-11-05.md, 2026-11-06); a process's sequential writes keep their order.
+const autoWrite = (deviceId: number, value: unknown) => request(`/devices/${deviceId}/auto`, { method: "PUT", body: JSON.stringify({ value }) });
+
+export interface SeriesRecord {
+  id: number;
+  key: string;
+  name: string;
+  unit: string | null;
+  deviceId: number | null;
+  processId: number | null;
+  valueKey: string | null;
+  kind: "gauge" | "counter" | "state";
+  mode: "period" | "change" | "off";
+  periodS: number | null;
+  deadband: number | null;
+  maxIntervalS: number | null;
+  staleS: number | null;
+}
+
+export interface SeriesDeclaration {
+  valueKey: string;
+  name: string;
+  unit?: string | null;
+  kind?: SeriesRecord["kind"];
+  mode?: SeriesRecord["mode"];
+  periodS?: number | null;
+  deadband?: number | null;
+  maxIntervalS?: number | null;
+  staleS?: number | null;
+}
+
 export interface NodeRecord {
   id: number;
   name: string;
+  type: string;
+  // AGENTS.md section 87 - the base node this one is attached to, by id.
+  parent_id: number | null;
   heartbeat_control: HeartbeatControlConfig;
   heartbeatStopped: boolean;
   heartbeatLastSeenAt: string | null;
@@ -47,12 +127,23 @@ export interface AnnunciatorSlot {
   messageGroupId: number | null;
 }
 
+// A one-shot command a person gave a process (api routes/processes.ts,
+// migrations/1690000000064): applied once, then reported done
+// (completeCommand). Comes with the tick's process list.
+export interface ProcessCommand {
+  id: number;
+  action: string;
+  params: Record<string, unknown>;
+}
+
 export interface ProcessRecord {
   id: number;
   name: string;
-  type: "controllable" | "permanent";
+  type: "controllable" | "permanent" | "simulation";
   kind: string;
   device_id: number | null;
+  // pending one-shot commands (not older than the api's PROCESS_COMMAND_TTL_MS)
+  commands?: ProcessCommand[];
   config: {
     min?: number;
     max?: number;
@@ -70,6 +161,13 @@ export interface ProcessRecord {
     ramWarnMax?: number;
     diskWarnMax?: number;
     tempWarnMax?: number;
+    // a raised level holds until its metric falls this far below the
+    // threshold (the metric's own unit) - resourceMonitor.ts; 0 - none
+    hysteresis?: number;
+    // ...and holds this long (s) after it fell below - resourceMonitor.ts
+    holdSeconds?: number;
+    // a level is raised only after its metric has been over this long (s) - resourceMonitor.ts; 30 by default
+    raiseSeconds?: number;
     // temperature-control/temperature-monitor role -> deviceId mapping
     // (AGENTS_TO_DO.md's 2026-07-27 Device/Node refactor, roadmap Phase 4.1) - a
     // single `device_id` above no longer says enough once the sensor and
@@ -111,6 +209,11 @@ export interface ProcessRecord {
     envHumidityWarnMax?: number;
   };
   status?: "on" | "off";
+  // Second of two independent gates a simulation process needs before it
+  // should actually run (AGENTS_TO_DO.md, 2026-08-29): this Redis on/off
+  // status, AND its own target Node/Device currently being in simulated
+  // mode - not either alone. Only meaningful for type: "simulation".
+  simulationTargetSimulated?: boolean;
   // Fleet-wide, unfiltered by any user's "hidden" dismissal (AGENTS.md's
   // Active Zummer section) - the active-buzzer process reads these across
   // every process to decide whether to sound, deliberately not the
@@ -119,6 +222,8 @@ export interface ProcessRecord {
   // still-active physical alarm).
   critical: boolean;
   warning: boolean;
+  // the active (not hidden) messages - messageSettle.ts seeds its hold from them after a restart
+  messages?: { type: MessageType; level: number; code: string; text: string; subject?: string | null; i18n?: MessageI18n | null }[];
   // Heartbeating Control (AGENTS.md) - `heartbeat_control` is this
   // process's own design-time config (Postgres); `heartbeatStopped`/
   // `heartbeatLastSeenAt` are its live Redis counterparts, both already
@@ -167,6 +272,10 @@ export interface MessageInput {
   code: string;
   level: number;
   text: string;
+  // what part of the process's domain it is about (an aquarium's service) - absent: the process as a whole
+  subject?: string | null;
+  // the text in the interface's language - the English template and its values (messageText.ts)
+  i18n?: MessageI18n | null;
 }
 
 // Mirrors processMessages.AutoResolveMode (apps/api) - see
@@ -229,10 +338,37 @@ export interface DataLoggerSettings {
   tickLoggingEnabled: boolean;
 }
 
+const batchedValues = createValueBatcher((ids, maxAgeMs) =>
+  request<{ values: Record<number, { value: unknown; at: number | null; source: string }> }>("/devices/values", {
+    method: "POST",
+    body: JSON.stringify({ ids, maxAgeMs }),
+  }),
+);
+
+// a message's template with no package named - its process's (kindPackages.ts): the UI translates it in
+// that package's words
+const withPackage = (processId: number, entries: MessageInput[]): MessageInput[] =>
+  entries.some((e) => e.i18n && !e.i18n.ns)
+    ? entries.map((e) =>
+        e.i18n && !e.i18n.ns
+          ? { ...e, i18n: { ...e.i18n, ns: packageOfKind(tickProcesses().find((p) => p.id === processId)?.kind) } }
+          : e,
+      )
+    : entries;
+
 export const apiClient = {
-  listProcesses: () => request<ProcessRecord[]>("/processes"),
-  listNodes: () => request<NodeRecord[]>("/nodes"),
+  // the lists are read once per tick and shared by its processes (shared.ts);
+  // `fetchProcesses` - the tick's own fresh read (server.ts)
+  listProcesses: () => tickShared("processes", () => request<ProcessRecord[]>("/processes")),
+  fetchProcesses: () => request<ProcessRecord[]>("/processes"),
+  listNodes: () => tickShared("nodes", () => request<NodeRecord[]>("/nodes")),
   getDevice: (deviceId: number) => request<DeviceRecord>(`/devices/${deviceId}`),
+  // AGENTS.md section 88 - many devices' current values in one call, served
+  // from the cache wherever the cache is the source (actuators' commanded
+  // value, simulated/virtual sensors), EdgeX only for a physical sensor
+  // whose cached reading is older than `maxAgeMs` (API default from config).
+  // ... the reads of processes running together coalesced (valueBatcher.ts)
+  getDeviceValues: (deviceIds: number[], maxAgeMs?: number) => batchedValues(deviceIds, maxAgeMs),
   // Node-side counterpart of the heartbeat call below - see routes/
   // nodes.ts's POST /nodes/heartbeat (AGENTS_TO_DO.md, 2026-08-09).
   touchNodeHeartbeats: (nodeIds: number[]) =>
@@ -241,25 +377,33 @@ export const apiClient = {
       body: JSON.stringify({ nodeIds }),
     }),
   // AGENTS.md's Active Zummer section - the admin-configured beep policy
-  // per (type, level), read fresh every tick rather than cached, since an
-  // admin edit in Settings -> Message Levels should take effect on the
-  // very next tick, not require an orchestrator restart.
-  getMessageLevels: () => request<MessageLevelRecord[]>("/message-levels"),
+  // per (type, level): kept until the table changes (an admin edit in
+  // Settings -> Message Levels takes effect on the change event - shared.ts),
+  // not read every tick.
+  getMessageLevels: () => cachedRead("message-levels", ["message_levels"], () => request<MessageLevelRecord[]>("/message-levels")),
   // Same "read fresh every tick" convention as getMessageLevels above.
   getMessageSignalTiming: () => request<MessageSignalTimingRecord>("/message-signal-timing"),
   // Alarm Annunciator (AGENTS_TO_DO.md, 2026-08-02) - "does this group
   // currently have an active error/warning", read fresh every tick same
   // as message levels/signal timing above.
   getMessageGroupsActiveState: () =>
-    request<{ id: number; hasActiveError: boolean; hasActiveWarning: boolean }[]>("/message-groups/active-state"),
+    request<
+      { id: number; hasActiveError: boolean; hasActiveWarning: boolean; errorLevels?: number[]; warningLevels?: number[] }[]
+    >("/message-groups/active-state"),
   // Orchestrator-driven write - only reaches EdgeX while the device is
   // still AUTO (AGENTS.md section 6); always records the intended value
   // even while a human has it overridden MANUAL via the UI.
-  setDeviceAuto: (deviceId: number, value: unknown) =>
-    request(`/devices/${deviceId}/auto`, {
-      method: "PUT",
-      body: JSON.stringify({ value }),
-    }),
+  // Written on a change, re-asserted every config.autoReassertMs
+  // (sendChanged); `always` - every call is written: a write whose arrival
+  // itself is the signal (the control node's Pulse - its watchdog counts
+  // the frames, the value never changes).
+  // A one-shot command applied (ProcessCommand) - `result`: what the process says back (optional).
+  completeCommand: (processId: number, commandId: number, result?: unknown) =>
+    request(`/processes/${processId}/commands/${commandId}/done`, { method: "POST", body: JSON.stringify({ result }) }),
+  setDeviceAuto: (deviceId: number, value: unknown, options: { always?: boolean } = {}) =>
+    options.always
+      ? autoWrite(deviceId, value)
+      : sendChanged(`device:${deviceId}:auto`, JSON.stringify({ value }), () => autoWrite(deviceId, value), config.autoReassertMs),
   // For a readOnly device with no EdgeX backend at all - e.g. the
   // `weather-control` process's own computed `light-level` device
   // (devices/standalone/sensor/light-level). setDeviceAuto above would
@@ -271,21 +415,48 @@ export const apiClient = {
       method: "PUT",
       body: JSON.stringify({ value }),
     }),
-  setCritical: (processId: number, critical: boolean) =>
-    request(`/processes/${processId}/critical`, {
-      method: "POST",
-      body: JSON.stringify({ critical }),
+  // For a readOnly device that DOES have a real EdgeX profile (e.g.
+  // aquarium's `light-power-actual`) - a `simulation`-type process
+  // (AGENTS_TO_DO.md, 2026-08-29) computes its value every tick the same
+  // way setDeviceReading above does for a no-EdgeX device, but needs the
+  // write to actually flow through EdgeX so other consumers see it as a
+  // real reading. Hits PUT /devices/:id/simulate-auto, the unauthenticated
+  // orchestrator-only counterpart of the human Dev Simulator's .../simulate
+  // route (same split as setDeviceAuto/.../auto above).
+  simulateDevice: (deviceId: number, value: unknown) =>
+    request(`/devices/${deviceId}/simulate-auto`, {
+      method: "PUT",
+      body: JSON.stringify({ value }),
     }),
-  setMetrics: (processId: number, metrics: ProcessMetrics) =>
-    request(`/processes/${processId}/metrics`, {
-      method: "POST",
-      body: JSON.stringify(metrics),
+  // Time series (api routes/series.ts): the series with their recording
+  // policy, a process declaring the values it publishes, the logger's points
+  listSeries: () => request<SeriesRecord[]>("/series"),
+  declareSeries: (processId: number, items: SeriesDeclaration[]) =>
+    request(`/series/declare`, { method: "POST", body: JSON.stringify({ processId, items }) }),
+  writeSamples: (rows: { seriesId: number; t: number; v: number }[]) =>
+    request(`/samples`, { method: "POST", body: JSON.stringify({ rows }) }),
+  // several simulated readings in one request - each item's own result
+  simulateDevices: (values: { id: number; value: unknown }[]) =>
+    request<{ results: { id: number; ok: boolean; error?: string }[] }>(`/devices/simulate-auto`, {
+      method: "PUT",
+      body: JSON.stringify({ values }),
     }),
-  setWarning: (processId: number, warning: boolean) =>
-    request(`/processes/${processId}/warning`, {
-      method: "POST",
-      body: JSON.stringify({ warning }),
-    }),
+  // the state reports - sent only on a change (sendChanged above)
+  // the state reports - sent only on a change, each its own request (not batched: in a batch every process
+  // waited for the slowest part of all of them - iot PERF_PROD_2026-11-05.md, 2026-11-06)
+  setCritical: (processId: number, critical: boolean) => {
+    const body = JSON.stringify({ critical: critical || holds(processId, "error", config.messageClearAfterMs) });
+    return sendChanged(`${processId}:critical`, body, () => request(`/processes/${processId}/critical`, { method: "POST", body }));
+  },
+  setMetrics: (processId: number, metrics: ProcessMetrics) => {
+    const body = JSON.stringify(metrics);
+    return sendChanged(`${processId}:metrics`, body, () => request(`/processes/${processId}/metrics`, { method: "POST", body }));
+  },
+  setWarning: (processId: number, warning: boolean) => {
+    // an error held (settle above) wins over a warning, as a reported one does
+    const body = JSON.stringify({ warning: (warning || holds(processId, "warning", config.messageClearAfterMs)) && !holds(processId, "error", config.messageClearAfterMs) });
+    return sendChanged(`${processId}:warning`, body, () => request(`/processes/${processId}/warning`, { method: "POST", body }));
+  },
   // WEM (AGENTS.md section 22) - `entries` must be the *complete current
   // set* of codes this process considers active for `type`, not just new
   // ones; the API reconciles that against what's already active (dedup,
@@ -295,10 +466,25 @@ export const apiClient = {
   // whose producer re-asserts its code every tick like a warning/error
   // would (see processMessages.syncActiveMessages's own doc comment for
   // what each mode does), not for a genuine one-shot notification.
-  syncMessages: (processId: number, type: MessageType, entries: MessageInput[], autoResolve?: AutoResolveMode) =>
-    request(`/processes/${processId}/messages`, {
+  // Warnings and errors settle (settle above): gone from `entries`, one stays active `clearAfterMs` more.
+  syncMessages: (
+    processId: number,
+    type: MessageType,
+    reported: MessageInput[],
+    autoResolve?: AutoResolveMode,
+    { clearAfterMs = config.messageClearAfterMs }: { clearAfterMs?: number } = {},
+  ) => {
+    const entries = settle(processId, type, withPackage(processId, reported), clearAfterMs);
+    return sendChanged(`${processId}:messages:${type}`, JSON.stringify({ type, entries, autoResolve }), () =>
+      request(`/processes/${processId}/messages`, { method: "POST", body: JSON.stringify({ type, entries, autoResolve }) }),
+    );
+  },
+  // Events - one-shot reports for the log only, never in the process's
+  // active WEM list (api processMessages.logEvents).
+  logEvents: (processId: number, entries: MessageInput[]) =>
+    request(`/processes/${processId}/events`, {
       method: "POST",
-      body: JSON.stringify({ type, entries, autoResolve }),
+      body: JSON.stringify({ entries: withPackage(processId, entries) }),
     }),
   // Forces an immediate fleet-wide public-state broadcast (AGENTS.md
   // section 24), outside the automatic critical/warning/new-message
@@ -344,11 +530,14 @@ export const apiClient = {
     }),
   // Data Logger (AGENTS.md) - the combined Devices-only list + the
   // process's own two global switches; see apps/api/src/dataLoggerControl.ts.
-  listDataLoggerControls: () => request<DataLoggerControlEntry[]>("/data-logger-controls"),
+  // the configured devices only - the rest have nothing to log (read every tick)
+  listDataLoggerControls: () => request<DataLoggerControlEntry[]>("/data-logger-controls?configured=true"),
   getDataLoggerSettings: () => request<DataLoggerSettings>("/data-logger-controls/settings"),
   // Reads the device's own current live value server-side and writes it
   // to log_device in one call - see routes/devices.ts's POST
   // /devices/:id/log.
+  // the AI Assistant's calendar (processes/aiAssistant.ts) - the scheduled runs it started
+  aiCalendarTick: () => request<{ started: number[] }>("/ai/calendar/tick", { method: "POST" }),
   logDeviceReading: (deviceId: number) =>
     request<{ status: string; value: unknown }>(`/devices/${deviceId}/log`, { method: "POST" }),
   // Generic escape hatch (AGENTS.md section 31) - a target project's own
@@ -357,4 +546,10 @@ export const apiClient = {
   // `request()` every typed method above already uses, without needing
   // those routes added to this shared object.
   request: <T = unknown>(path: string, options?: RequestInit) => request<T>(path, options),
+  // The same, made for the person the process acts for (its "Acts as" - set by an administrator, iot
+  // AGENTS_TO_DO.md 2026-11-06): that person's rights, that person the author of what it records (a
+  // maintenance process doing a technician's work). None set - the API refuses (403).
+  asPerson: (processId: number) => ({
+    request: <T = unknown>(path: string, options?: RequestInit) => request<T>(path, options, processId),
+  }),
 };

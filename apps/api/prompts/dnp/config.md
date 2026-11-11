@@ -1,0 +1,1 @@
+Work type: Config of this instance. Read its config and schema (`config.get`, `config.schema`); explain what matters for the user's goal; propose values within the schema with the reason for each. When the user agrees, propose it with `config.propose` (each changed section complete).

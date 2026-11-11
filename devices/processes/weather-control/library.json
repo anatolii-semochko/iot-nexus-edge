@@ -1,0 +1,10 @@
+{
+  "id": "process-weather-control",
+  "name": "Weather Control",
+  "description": "The outdoor weather station's software side (weather-node): classifies the raw light reading into light-level zones and keeps the node's liveness. Its panel, zones settings and the Dashboard \"Weather\" component. The Aquarium, Energy Field and Heating packages depend on it.",
+  "ai": {
+    "scheduledTypes": [
+      "status-analysis"
+    ]
+  }
+}

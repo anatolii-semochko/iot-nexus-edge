@@ -16,6 +16,16 @@ body {
   vertical-align: middle;
 }
 
+// Bootstrap/CoreUI draws a border under every row, including the last
+// one, which reads as a redundant double line right above a table's own
+// bottom edge (a card's edge, a Save/Cancel row, pagination). Dropped for
+// every table - an opt-in class was too easy to forget. Selector
+// specificity matches (and so overrides) the base
+// `.table > :not(caption) > * > *` rule above.
+.table > tbody > tr:last-child > * {
+  border-bottom-width: 0;
+}
+
 .wrapper {
   width: 100%;
   padding-inline: var(--cui-sidebar-occupy-start, 0) var(--cui-sidebar-occupy-end, 0);
@@ -53,6 +63,34 @@ body {
 .sidebar-narrow-unfoldable:not(:hover) {
   .sidebar-toggler {
     margin-inline-end: auto;
+  }
+}
+
+// the header's notification icons (components/header/NotificationCenter.jsx)
+.wem-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+// the menu button - at the container's edge (its own padding inside)
+.app-header-toggler {
+  margin-inline-start: -14px;
+}
+
+// a phone: the header in one row with the menu button - no wrap, tighter (2026-11-07)
+@include media-breakpoint-down(sm) {
+  .app-header-row {
+    flex-wrap: nowrap;
+  }
+
+  // the header's left padding is smaller here - the button keeps its own room from the edge
+  .app-header-toggler {
+    margin-inline-start: 0;
+  }
+
+  .wem-icon {
+    width: 2rem;
+    height: 2rem;
   }
 }
 
@@ -110,17 +148,28 @@ body {
   0% {
     transform: scale(1);
     opacity: 1;
-    box-shadow: 0 0 0 0 currentColor;
   }
   60% {
     transform: scale(1.25);
     opacity: 1;
-    box-shadow: 0 0 4px 3px currentColor;
   }
   100% {
     transform: scale(1);
     opacity: 0.35;
-    box-shadow: 0 0 0 0 transparent;
+  }
+}
+// the glow - a static shadow on its own layer, only its opacity animated: an animated box-shadow
+// repainted the whole document ~20 times a second (a trace, 2026-11-09) - the header, its menu button
+// and on a phone all the content blinked while scrolling; transform and opacity stay on the compositor
+@keyframes system-tick-glow {
+  0% {
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 
@@ -132,8 +181,434 @@ body {
   color: var(--cui-success);
   background-color: currentColor;
   opacity: 0.35;
+  position: relative;
+  will-change: transform, opacity;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 4px 3px currentColor;
+    opacity: 0;
+    will-change: opacity;
+  }
 }
 
 .system-tick-pulse {
   animation: system-tick-pulse 0.1s ease-out;
+
+  &::after {
+    animation: system-tick-glow 0.1s ease-out;
+  }
 }
+
+// Channel spectrum regulator (Light Profiles editor, AGENTS_TO_DO.md
+// 2026-09-06) - a native <input type="range"> has no built-in "filled
+// track" visual; the fill (the channel's own config color, up to the
+// current value) is painted by an inline `background: linear-gradient`
+// set from JS per slider. That gradient only becomes visible once the
+// browser's own track/progress pseudo-elements (which otherwise paint
+// over it) are made transparent here - scoped to this one class so
+// every other `.form-range` in the app (Dev Simulator, etc.) keeps
+// Bootstrap's own default track.
+.channel-power-range {
+  &::-webkit-slider-runnable-track {
+    background: transparent;
+  }
+
+  &::-moz-range-track {
+    background: transparent;
+  }
+
+  &::-moz-range-progress {
+    background: transparent;
+  }
+}
+
+
+// A page without a frame: the routed view's own top card (AppContent's
+// `page-content` container) loses its border, its header band and its
+// side padding, and the container its max width - the page is one sheet
+// on the body colour, edge to edge, aligned with the header. Cards inside
+// a page (Dashboard tiles, panels, folders) keep their usual look.
+.wrapper {
+  background: var(--cui-body-bg);
+}
+
+.page-content {
+  max-width: none;
+  // the last block never sticks to the footer (the user, 2026-10-24)
+  padding-bottom: 1.5rem;
+}
+
+// the page's top card - and a page's component on the Dashboard (an opened avatar, a level's component -
+// views/dashboard/Dashboard.jsx `dc-page`, the user 2026-11-01): the same sheet, the header as the
+// title, no side padding
+.page-content,
+.dc-page {
+  > .card {
+    --cui-card-spacer-x: 0;
+    --cui-card-cap-padding-x: 0;
+    --cui-card-cap-padding-y: 0;
+    --cui-card-cap-bg: transparent;
+    border: 0;
+
+    > .card-header {
+      border-bottom: 0;
+
+      strong {
+        font-size: 1.5em;
+      }
+    }
+  }
+}
+
+// Badges in a table cell keep a small gap below, so several of them
+// wrapping onto two lines don't touch.
+.table td > .badge,
+.table th > .badge {
+  margin-bottom: 0.25rem;
+}
+
+// Key values (AGENTS.md "Key values", 2026-10-22): the figures a person
+// looks for first - power, energy, money, prices, percentages - stand out
+// from the text around them: bold, about a fifth larger, tabular lining
+// digits (neighbouring figures align and compare digit by digit); the unit
+// smaller and regular. `components/KeyValue.jsx` renders it; plain markup
+// may use the classes. Seven-segment digits stay for device displays and
+// gauges (SevenSegment) - not for text.
+.kv {
+  font-weight: 700;
+  font-size: 1.2em;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.kv-unit {
+  font-weight: 400;
+  font-size: 0.8em;
+  margin-left: 0.15em;
+  // grey and slanted, as the summary lines' units (the user, 2026-10-25)
+  font-style: italic;
+  color: var(--cui-secondary-color);
+}
+// the AI button (components/ai/AiButton.jsx): the AI's mark, no frame, a soft ground on hover
+.ai-btn {
+  border: 0;
+  background: transparent;
+  color: inherit; // the text's colour beside it, as the other icons
+  padding: 2px;
+  line-height: 0;
+  border-radius: 6px;
+  vertical-align: middle;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--cui-tertiary-bg);
+  }
+}
+
+// the AI's mark calls for attention (components/AiBrainIcon.jsx, the user 2026-10-25): every 10 s
+// one turn about its vertical axis in 0.9 s (the user 2026-10-25: 0.3 -> 0.6 -> 0.9 s) - narrows to a line, comes back mirrored, narrows again,
+// restored - on a sine's pace; every mark on the page at once (the phase from the clock); only before
+// a page's or a popup's title - still (`still`) in the side menu, the table rows' actions, the
+// conversation; none with reduced motion
+.ai-mark-flip {
+  animation: ai-mark-flip 10s infinite;
+}
+@keyframes ai-mark-flip {
+  0%,
+  91% {
+    transform: rotateY(0deg);
+    animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1); // ease-in-out sine
+  }
+  100% {
+    transform: rotateY(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-mark-flip {
+    animation: none;
+  }
+}
+
+// a page that takes the whole room under the header (routes.js `bleed` - DefaultLayout): no
+// padding, the window's height, its own parts scroll
+.page-content.page-bleed {
+  padding-bottom: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+// a block's summary line (components/SummaryLine.jsx, the user 2026-10-24): the name, the figures
+// (1.5em bold, tabular), their words - one style for every scene
+.sum-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.75rem;
+  row-gap: 2px;
+}
+.sum-figures {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.3em;
+}
+.sum-title {
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+.sum-value {
+  font-weight: 700;
+  font-size: 1.5em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.sum-text {
+  font-weight: 500;
+  white-space: nowrap;
+  // the words grey, as every other text (the figures keep the block's colour - the user, 2026-10-25)
+  color: var(--cui-secondary-color);
+}
+// a figure's unit right after it ("kW", "%", "kWh") - grey and slanted
+.sum-unit {
+  font-style: italic;
+  color: var(--cui-secondary-color);
+}
+// a labelled reading's value (components/StatTile.jsx) - its KeyValues stand out, the rest stays tabular
+.kv-tile {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+// A popup with charts (the user, 2026-10-29 - "all the popups with charts big"): nearly the window's
+// width - UnitPopup, the weather's chart popup; their charts taller too.
+// The popups with tabs / charts / a photo / a map (iot memory popup-size-rules, the user 2026-11-08): as
+// wide and as tall as the window, whatever the tab - switching tabs never moves the box; the body is what
+// scrolls when a tab holds more; the tabs' main content fills the room (nodeInfo/UnitPopup useRoomBelow)
+.chart-popup .modal-dialog {
+  max-width: calc(100vw - 2 * var(--cui-modal-margin));
+  height: calc(100dvh - 2 * var(--cui-modal-margin));
+  min-height: 0;
+  margin-top: var(--cui-modal-margin);
+  margin-bottom: var(--cui-modal-margin);
+}
+.chart-popup .modal-content {
+  height: 100%;
+}
+.chart-popup .modal-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+// The header's dropdowns (the language, the theme, the user) - their toggles centred in the header's
+// height like the other items (the user, 2026-10-31: they sat above the middle)
+.header-nav > .dropdown {
+  display: flex;
+  align-items: center;
+
+  > .nav-link,
+  > .dropdown-toggle {
+    display: flex;
+    align-items: center;
+  }
+}
+
+// The user guide's pages (views/docs/Docs.jsx) - headings sized for a card, tables spaced
+.ne-docs {
+  h2 {
+    font-size: 1.35rem;
+    margin-top: 1.5rem;
+  }
+  h3 {
+    font-size: 1.1rem;
+    margin-top: 1.2rem;
+  }
+  pre {
+    padding: 0.6rem 0.8rem;
+    background: var(--cui-tertiary-bg);
+    border-radius: var(--cui-border-radius);
+  }
+}
+
+// The guide's layout (views/docs/Docs.jsx): no frames - the list and the text, a light line between
+.ne-docs-nav {
+  min-width: 220px;
+  padding-inline-end: 1rem;
+  border-inline-end: var(--cui-border-width) var(--cui-border-style) var(--cui-border-color);
+
+  .nav-link {
+    padding: 0.35rem 0.75rem;
+    border-radius: var(--cui-border-radius);
+  }
+
+  .nav-link.active {
+    color: var(--cui-primary);
+    background: var(--cui-tertiary-bg);
+  }
+}
+
+.ne-docs-text {
+  padding-inline-start: 1.5rem;
+}
+
+// a phone: the list over the text, the line under it
+@media (max-width: 991.98px) {
+  .ne-docs-nav {
+    padding-inline-end: 0;
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem;
+    border-inline-end: 0;
+    border-bottom: var(--cui-border-width) var(--cui-border-style) var(--cui-border-color);
+  }
+
+  .ne-docs-text {
+    padding-inline-start: 0;
+  }
+}
+
+// a section's pages under its title (views/docs/Docs.jsx): the title as a link, the description under it
+.ne-docs-sub {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 0.75rem 1.5rem;
+  margin: 0.5rem 0 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: var(--cui-border-width) var(--cui-border-style) var(--cui-border-color);
+}
+
+// the guide's screenshots (views/docs/Docs.jsx): the light or the dark one - by the interface's theme
+.ne-shot {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0 1.25rem;
+  border: var(--cui-border-width) var(--cui-border-style) var(--cui-border-color);
+  border-radius: var(--cui-border-radius);
+}
+
+.ne-shot-dark {
+  display: none;
+}
+
+[data-coreui-theme='dark'] {
+  .ne-shot-light {
+    display: none;
+  }
+
+  .ne-shot-dark {
+    display: block;
+  }
+}
+
+// the brand mark's two tones (components/BrandMark.jsx) - the one for the current theme's ground
+.brand-mark-on-dark {
+  display: none;
+}
+[data-coreui-theme='dark'] {
+  .brand-mark-on-light {
+    display: none;
+  }
+  .brand-mark-on-dark {
+    display: inline;
+  }
+}
+
+// a phone (the first user's Samsung, 2026-11-07):
+// - a card's header with a row of controls wraps instead of widening the page (Live Events' "Clear" pushed
+//   the whole page to 470px - the header and the content then scrolled sideways)
+@media (max-width: 575.98px) {
+  .card-header.d-flex,
+  .card-header > .d-flex {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+}
+
+// - the user's menu scrolls inside itself to its last item (it is taller than a phone's screen)
+.header .dropdown-menu {
+  max-height: calc(100dvh - 4.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+// - the side menu over the page: its scroll stops at its ends (it used to carry on into the page behind),
+//   the content area under it does not scroll
+.sidebar,
+.sidebar .simplebar-content-wrapper {
+  overscroll-behavior: contain;
+}
+html:has(.sidebar-backdrop.show) .app-scroll {
+  overflow: hidden;
+}
+
+// - the application shell (layout/DefaultLayout.jsx): the window's height; the header an ordinary block at
+//   its top, never in a scroll (a sticky one shook a pixel on a phone while the page scrolled - the
+//   user's screencasts 2026-11-09); under it the one scrolling area - the page and its footer. Its own
+//   overscroll stays in it (the browser's stretch moves the content, never the header)
+.wrapper.app-shell {
+  height: 100dvh;
+}
+.app-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.app-scroll.is-bleed {
+  overflow: hidden;
+}
+.header {
+  transition: none;
+}
+// the gap under the header (a page, not a bleed one)
+.app-scroll:not(.is-bleed) > .body {
+  padding-top: 1.5rem;
+}
+
+// the menu button's bars (AppHeader.jsx) - whole pixels, the header's text colour
+.app-burger {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 20px;
+  height: 14px;
+  vertical-align: middle;
+
+  > span {
+    display: block;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+  }
+}
+
+// - a wide table not wrapped in .table-responsive scrolls inside its own box on a phone, never the page
+@media (max-width: 767.98px) {
+  .table:not(.table-responsive .table) {
+    display: block;
+    overflow-x: auto;
+  }
+  // a row of buttons wider than the phone breaks into two
+  .btn-group {
+    flex-wrap: wrap;
+  }
+}
+
+// A Dashboard card's picture (the scaled copy of a component - Dashboard.jsx FitBox / StretchBox): the
+// animations inside its SVGs still - each step of an animation inside an SVG re-laid out and repainted
+// the whole page (three aquariums' pumps, UV lamps and dosers on the Aquariums level: ~500 repaints in a
+// few seconds' scroll, the page blinked on a phone - 2026-11-09). The component on its own page keeps
+// them; what turns as its own element (a turbine's rotor, a fan, the anemometer) turns here too.
+.dc-preview svg * {
+  animation: none !important;
+}
+

@@ -4,9 +4,16 @@ import { pathToFileURL } from "node:url";
 
 import { apiClient } from "./apiClient.js";
 import { determineAlarmPlan } from "./alarmPolicy.js";
+import { onEntityChange } from "./changeEvents.js";
+import { compute } from "./compute.js";
+import { stepDue } from "./schedule.js";
+import { cachedRead } from "./shared.js";
+import { wem, type MessageParams } from "./messageText.js";
+import { setKindPackage } from "./kindPackages.js";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
-import { processRegistry, type ProcessRunner } from "./processRegistry.js";
+import { processRegistry, type ProcessHooks, type ProcessRunner } from "./processRegistry.js";
+import { tickProcesses } from "./tickProcesses.js";
 import { driveSoundOutput, silenceSoundOutput } from "./soundOutput.js";
 
 /**
@@ -51,9 +58,31 @@ interface ProcessPluginContext {
   determineAlarmPlan: typeof determineAlarmPlan;
   driveSoundOutput: typeof driveSoundOutput;
   silenceSoundOutput: typeof silenceSoundOutput;
+  // change events (changeEvents.ts): a plugin drops its caches by them
+  onEntityChange: typeof onEntityChange;
+  // this tick's process list, with live metrics (tickProcesses.ts) - not a
+  // second GET /processes
+  tickProcesses: typeof tickProcesses;
+  // a periodic part of a runner (a simulation's step): whether it is due -
+  // once per interval, at the process's own place in it (schedule.ts)
+  stepDue: typeof stepDue;
+  // a pure CPU-heavy computation off the main thread (compute.ts):
+  // compute(new URL("./module.ts", import.meta.url).href, "export", [args])
+  compute: typeof compute;
+  // a reference read kept until one of its tables changes (shared.ts):
+  // cachedRead(key, ["table", ...], () => apiClient.request(...))
+  cachedRead: typeof cachedRead;
+  // a message's English text and its template for the UI's language (messageText.ts) - the package's
+  // translations by its folder: { code, level, ...wem("{{name}}: frost risk", { name }) }
+  wem: (template: string, params?: MessageParams) => ReturnType<typeof wem>;
 }
 
-type ProcessPluginModule = (register: (kind: string, runner: ProcessRunner) => void, ctx: ProcessPluginContext) => void;
+// `hooks` (AGENTS.md section 80) is optional - a plugin that only has a
+// tick runner keeps calling register(kind, runner) exactly as before.
+type ProcessPluginModule = (
+  register: (kind: string, runner: ProcessRunner, hooks?: ProcessHooks) => void,
+  ctx: ProcessPluginContext,
+) => void;
 
 async function findProcessPluginFiles(dir: string): Promise<string[]> {
   let entries;
@@ -77,22 +106,51 @@ async function findProcessPluginFiles(dir: string): Promise<string[]> {
 }
 
 export async function loadProcessPlugins(): Promise<void> {
-  const dir = config.processPlugins.extraDir;
-  if (!dir) return;
+  // The target project's own roots first - the LAST listed first (the most
+  // specific project: the demo before the aquarium it is built on) - then
+  // the CORE Library (devices/processes/, AGENTS.md section 82). An earlier
+  // source OVERRIDES a kind of the same name in a later one - that copy is
+  // skipped with a warning - so a project can carry its own version of a
+  // Library (or a dependency's) kind without the orchestrator failing to
+  // start. A kind registered twice within the same source is still a hard
+  // error (processRegistry.register).
+  const sources = [...config.processPlugins.extraDirs].reverse().concat([{ label: "library", dir: config.processPlugins.builtinDevicesDir }]);
 
-  const files = await findProcessPluginFiles(dir);
-  for (const file of files) {
-    const mod = (await import(pathToFileURL(file).href)) as { default?: ProcessPluginModule };
-    if (typeof mod.default !== "function") {
-      throw new Error(`${file}: process.ts must have a default export (function(register, ctx) {...})`);
+  const registeredBy = new Map<string, string>();
+  for (const source of sources) {
+    for (const file of await findProcessPluginFiles(source.dir)) {
+      const mod = (await import(pathToFileURL(file).href)) as { default?: ProcessPluginModule };
+      if (typeof mod.default !== "function") {
+        throw new Error(`${file}: process.ts must have a default export (function(register, ctx) {...})`);
+      }
+      logger.info({ source: source.label, file }, "registering process plugin");
+      mod.default(
+        (kind, runner, hooks) => {
+          const owner = registeredBy.get(kind);
+          // registered by an earlier (more specific) source - this copy is overridden
+          if (owner !== undefined && owner !== source.label) {
+            logger.warn({ kind, file, by: owner }, "process kind overridden by a more specific source - this copy skipped");
+            return;
+          }
+          processRegistry.register(kind, runner, hooks);
+          registeredBy.set(kind, source.label);
+          setKindPackage(kind, path.basename(path.dirname(file)));
+        },
+        {
+          apiClient,
+          logger,
+          determineAlarmPlan,
+          driveSoundOutput,
+          silenceSoundOutput,
+          onEntityChange,
+          tickProcesses,
+          stepDue,
+          compute,
+          cachedRead,
+          // the package's i18next namespace - its folder (devices/processes/<pkg>/process.ts, plugins/<pkg>/...)
+          wem: (template: string, params?: MessageParams) => wem(template, params, path.basename(path.dirname(file))),
+        },
+      );
     }
-    logger.info({ file }, "registering process plugin");
-    mod.default((kind, runner) => processRegistry.register(kind, runner), {
-      apiClient,
-      logger,
-      determineAlarmPlan,
-      driveSoundOutput,
-      silenceSoundOutput,
-    });
   }
 }

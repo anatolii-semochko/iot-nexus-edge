@@ -1,156 +1,311 @@
-# NexusEdge — Open Edge Automation Platform
+# Nexus Edge
 
-*Powered by EdgeCore Runtime.*
+*An edge automation platform that runs real equipment - and gets better at it
+every day from its own data, with AI at every step.*
 
-An edge-first, modular automation platform for controlling physical (and
-simulated) hardware — heating, lighting, aquarium equipment, industrial
-nodes, and anything else that speaks a bus protocol. The platform itself is
-not an application: it's the reusable core (device registry, real-time
-messaging, orchestration, admin UI) that domain-specific systems get built
-on top of. The first such system, a Smart House controller, lives in its
-own separate repository.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/guide/_screens/dashboard-dark.webp">
+  <img alt="The Dashboard - the site's tree of live cards" src="docs/guide/_screens/dashboard-light.webp">
+</picture>
 
-Everything here is designed to run unattended on constrained hardware
-(Raspberry Pi class), fully containerized, with no cloud dependency for
-local operation.
+Nexus Edge is the open core of a platform for automation on site: one gateway
+for every device and bus, a model of the whole installation, processes that
+control it, a simulator that can stand in for any part of it, a web interface
+for people and an AI assistant - all on the same data, on a Raspberry Pi class
+computer, with no cloud needed.
 
-## Screenshots
+- **Live demo** - [demo.nexus-edge.tech](https://demo.nexus-edge.tech): energy,
+  heating and aquariums on simulated equipment, open in every role.
+- **Documentation** - [nexus-edge.tech/docs](https://nexus-edge.tech/docs/):
+  the user guide (English, Ukrainian, German, Spanish) and the
+  [system examples](https://nexus-edge.tech/docs/examples/).
+- **Quick start** - `cp .env.example .env && make up-all` ([below](#quick-start)).
 
-| Processes / Orchestration | Dev Simulator |
-|---|---|
-| ![Processes page](docs/images/processes.png) | ![Dev Simulator page](docs/images/simulator.png) |
+![The demo in motion - the Dashboard, the navigator, energy, heating, the AI Assistant](docs/readme/demo-walk.gif)
 
-The **Processes** page runs a real 1-second control loop (a temperature
-controller driving a virtual heater/cooler pair) with a live, independent
-safety monitor watching the same device. The **Dev Simulator** lets you
-drive every virtual device's sensors by hand — no physical hardware
-required to develop or demo against.
+## Contents
 
-## What's actually built
+- [A constructor, not a product](#a-constructor-not-a-product)
+- [Examples of target systems](#examples-of-target-systems)
+- [Architecture](#architecture)
+- [Quick start](#quick-start)
+- [The code](#the-code)
+- [Tech stack](#tech-stack)
+- [Status](#status) - [License](#license) - [Author](#author)
 
-This is a working vertical slice, not a scaffold — every item below runs
-end-to-end today, verified live in a running container stack (see
-`../AGENTS_TO_DO.md` for the full, dated build log):
+## A constructor, not a product
 
-- **EdgeX Foundry integration** (Palau 4.0.2) with a **custom Go
-  device-service** (`apps/device-service`) written against the EdgeX
-  Device SDK — no official EdgeX service supports CAN bus, so this was
-  built from scratch, with a `PhysicalTransport` interface so the next bus
-  (RS485, Modbus, MQTT...) is a new package, not a rewrite.
-- **Dual Devices Model** — every device resource is independently
-  `AUTO` (orchestrator-driven) or `MANUAL` (UI override), with a
-  **Model State Validator** that rejects physically forbidden combined
-  states (e.g. heating and cooling the same zone at once) before they ever
-  reach the hardware.
-- **Virtual Node Runtime** — physical vs. virtual is a per-device
-  config flag handled inside the same device-service process, so
-  developing and testing new device types never requires real hardware.
-- **Event-driven messaging** — a RabbitMQ topic exchange plus a
-  dedicated WebSocket gateway (`apps/messaging-gateway`) push every state
-  change to the UI in real time, filtered per-client by routing-key
-  pattern.
-- **Orchestrator with real control logic** (`apps/orchestrator`) — a
-  1-second tick loop, demonstrated with a temperature controller and an
-  independent safety monitor that flags critical states across the whole
-  UI.
-- **UI authentication** — JWT in an httpOnly/`SameSite=Strict` cookie,
-  bcrypt-hashed passwords, Postgres-backed users with roles stored as a
-  proper set (not a comma-joined string), protected `admin`/`system`
-  accounts, and avatar upload.
-- **A universal pagination/filtering toolkit** for admin tables (debounced
-  search, page-size control, client-side pagination) — built once, reused
-  across every list view in the app.
-- **Multiple real device types end-to-end** (starting with
-  `devices/standalone/actuator/light-regulator`) — contract schema,
-  EdgeX device profile, safety rules, and both a production and a
-  dev-simulator UI component, the convention every device type since
-  has followed.
+The core knows no house, no plant and no aquarium. It gives the parts a system
+is built from; a target project composes them and adds its own.
 
-Deliberately **not** done yet, and documented as such rather than left
-quiet: per-endpoint API authorization (today only the UI login and the
-`/users` admin endpoints are gated — device/process control endpoints are
-still open), real CAN hardware has not been tested against the transport
-code, and there's no heartbeat/liveness signal from devices yet.
+### The Dashboard
+
+A site as a **tree of cards**: a folder per level (a building, a system), an
+avatar per live unit - its small picture opens it - and components drawn at a
+level's full width. What a person sees follows their role: a card shows only
+where the role sees its object. Every popup is the same: the live status with
+its charts, the Library model, the photo, the place on the map.
+[The Dashboard](https://nexus-edge.tech/docs/platform/dashboard/) -
+[the common elements](https://nexus-edge.tech/docs/platform/common/).
+
+A **component** is a package's own view on the Dashboard. The demo's navigator
+is one - the storeys as 3D maps with their rooms' status, a tree with a search,
+the zones as strips - built by the demo project, not by the core:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://nexus-edge.tech/docs-screens/demo-navigator-dark.webp">
+  <img alt="The demo's navigator - a Dashboard component of a target project" src="https://nexus-edge.tech/docs-screens/demo-navigator-light.webp">
+</picture>
+
+### The AI Assistant - at every step, under control
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/guide/_screens/ai-assistant-dark.webp">
+  <img alt="The AI Assistant" src="docs/guide/_screens/ai-assistant-light.webp">
+</picture>
+
+- One assistant for the whole system and one for each package instance:
+  install, configure, watch, analyse, control, propose, report. The AI button
+  on any card opens a conversation about that object.
+- **Access levels** per area - Off / Confirm (a person accepts each change) /
+  Auto (applied, logged with its author); roles limit what it sees.
+- **Scheduled runs** - e.g. the day plan for energy and heating, the daily
+  report; every token counted by day (guests, schedules, people) against the
+  limits.
+- **MCP** - the same tools for your own agents (`/api/mcp`): each token has its
+  own service account whose roles decide what it reads and changes; every call
+  logged.
+- OpenAI, Anthropic or a **local model** (Ollama, LM Studio, vLLM) - the data
+  can stay on site; the keys encrypted.
+
+[The AI Assistant](https://nexus-edge.tech/docs/ai/).
+
+### Processes and their settings
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/guide/_screens/processes-settings-dark.webp">
+  <img alt="The processes and the system's settings" src="docs/guide/_screens/processes-settings-light.webp">
+</picture>
+
+A process is a package's control loop on the orchestrator's tick: its config
+(sections checked against the kind's JSON schema; a change made meanwhile by
+someone else is refused, not overwritten), its commands, its state and
+metrics, its warnings and errors (levels, groups, the operator's sound and LED
+signalling). A process may **act as** a person - their rights, their name in
+the logs. What a kind's settings mean - each module's page:
+[processes](https://nexus-edge.tech/docs/platform/processes/),
+[the modules](https://nexus-edge.tech/docs/modules/).
+
+### Nodes, devices, simulation
+
+Every node and device is **physical or simulated**, switched live; a model
+state validator rejects a physically forbidden state before it reaches the
+hardware; a node keeps its own safety limits with no link to the server.
+Equipment comes into the system from its type in the Library to the real
+hardware in five steps -
+[your equipment](https://nexus-edge.tech/docs/getting-started/your-equipment/).
+
+## Examples of target systems
+
+What target projects build with the core - the demo runs all of them
+([system examples](https://nexus-edge.tech/docs/examples/)).
+
+**Energy** - PV, wind, batteries and the grid by the day-ahead prices: a plan
+for every 15 minutes, strategies (least cost, self-sufficiency, a reserve
+before a storm, peak shaving) fixed or chosen by the most similar recorded
+days, island mode, and the **Ledger** - what was saved and paid, by day and by
+account (the buildings, the tenants). The energy field, the grid connection
+and the ledger are in this repository (`devices/processes/`).
+[Energy in the demo](https://nexus-edge.tech/docs/examples/energy/).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/guide/_screens/energy-overview-dark.webp">
+  <img alt="The energy overview" src="docs/guide/_screens/energy-overview-light.webp">
+</picture>
+
+**Heating** - heat pumps with staged starts, buffer tanks as heat storage
+(store when cheap or sunny, hold off when dear - SG-Ready), every room with its
+setpoint, one planner shifting the heat into the cheap hours by its strategy.
+In this repository (`heating-control`, `heating-planner`).
+[Heating in the demo](https://nexus-edge.tech/docs/examples/heating/).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/guide/_screens/heating-overview-dark.webp">
+  <img alt="The heating overview" src="docs/guide/_screens/heating-overview-light.webp">
+</picture>
+
+**Aquariums** - a private package on the same core: the light by a target of
+Wh per day with spectrum templates, curves and seasons computed back from it;
+CO2 by pH, dosing, water quality, equipment, maintenance - a tank designed to
+run for months on its own.
+[Aquariums in the demo](https://nexus-edge.tech/docs/examples/aquariums/).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://nexus-edge.tech/docs-screens/aquarium-dark.webp">
+  <img alt="An aquarium - a private package on the core" src="https://nexus-edge.tech/docs-screens/aquarium-light.webp">
+</picture>
 
 ## Architecture
 
 ```
-Physical Device -> Node -> Bus Transport (CAN first)   --\
-                                                            >-- device-service --> EdgeX --> Devices API --> Orchestrator <-> UI
-Virtual Device  -> Virtual Node -> Virtual Node Runtime --/
+ sensors, actuators --> nodes (STM32, ESP32) --> bus (CAN, MQTT, ...) --\
+                                                                        >--> device-service --> EdgeX --> api
+ virtual devices ----> simulation processes ----------------------------/                               |
+                                                                                                         v
+   people (UI, WebSocket push) <-- messaging-gateway <-- RabbitMQ <-- orchestrator (processes) <-- the model
+                                                                          ^
+                                                     AI Assistant, MCP ---/
 ```
 
-The Devices API also pushes every state change onto a RabbitMQ event bus;
-`apps/messaging-gateway` fans it out to the UI over WebSocket, so the
-browser never polls. The UI reaches the Devices API directly for
-per-device control and the Orchestrator directly for starting/stopping
-automation processes — two separate concerns, two separate channels.
-
-## Tech stack
-
-| Layer | Choice |
-|---|---|
-| Runtime | Node.js 22, TypeScript, pnpm workspaces + Turborepo |
-| Backend HTTP | Fastify, Pino logging |
-| Storage | PostgreSQL 16 (device/process registry), Redis 7 (live state + Dual Devices Model) |
-| Messaging | RabbitMQ 4 (`nexus.events` topic exchange), `@fastify/websocket` |
-| Hardware hub | EdgeX Foundry Palau 4.0.2, no-security profile |
-| Device driver | Go, EdgeX Device SDK |
-| UI | React + Vite, CoreUI Free Admin Template |
-
-## Repository layout
-
-```
-apps/           orchestrator, api, messaging-gateway, ui, device-service — the deployable platform services
-packages/       shared libraries (empty for now)
-plugins/        protocol/device-driver/UI/storage/AI plugins (empty for now)
-devices/        device/node type definitions for physical & virtual devices,
-                see AGENTS.md section 7
-examples/       example configurations (empty for now)
-docs/           architecture vision (PROJECT_MASTER-1.1.md) and screenshots
-```
-
-## Requirements
-
-- Docker + Docker Compose v2
-- Node.js 22 is pinned for the workspace (`.nvmrc`), but all builds and
-  services run inside containers — a local Node/pnpm install is not
-  required.
+- **One gateway** - EdgeX Foundry underneath; a custom Go device-service for
+  CAN (a `PhysicalTransport` interface - the next bus is a package, not a
+  rewrite) and MQTT for network nodes; virtual devices for the simulation.
+- **The model** - nodes, devices and their roles, the processes that use them,
+  the Dashboard's tree; PostgreSQL + TimescaleDB (the series with continuous
+  aggregates), Redis for the live values.
+- **The event bus** - RabbitMQ mirrors the physical buses: a value, a command,
+  a state change, a message; the messaging gateway pushes them to the UI by the
+  person's scope.
+- **The orchestrator** - every process's tick, the commands, the alarms; the
+  heavy computations in a worker.
+- **Access** - roles over objects (DNP instances) and sections, server-side
+  sessions, a guest, service accounts; one permission catalog for the API's
+  guard, the UI and the AI.
 
 ## Quick start
+
+Requirements: Docker with Compose v2. Everything builds and runs in
+containers.
 
 ```
 cp .env.example .env
 make up-all
 ```
 
-This starts the platform services (PostgreSQL, Redis, RabbitMQ,
-orchestrator, api, messaging-gateway, ui) together with the EdgeX Foundry
-core stack and its custom device-service. Default login is `admin` /
-whatever you set `ADMIN_DEFAULT_PASSWORD` to in `.env` — change it before
-running this anywhere reachable.
+It starts the platform (PostgreSQL, Redis, RabbitMQ, orchestrator, api,
+messaging-gateway, ui) with the EdgeX core and the device-service. The first
+login is `admin` with `ADMIN_DEFAULT_PASSWORD` from `.env` - change it before
+running anywhere reachable. Every value (ports, keys, limits) is in `.env`;
+every target - in the `Makefile`. A project of your own on the
+core: `make new-project` ([extending](https://nexus-edge.tech/docs/extending/),
+`docs/CREATING_A_TARGET_PROJECT.md`). Installing on a server or a Pi, backups,
+updates - [operations](https://nexus-edge.tech/docs/operations/).
 
-See `Makefile` for all available targets and `AGENTS.md` section 20 for
-details.
+## The code
 
-## Project status & docs
+A pnpm + Turborepo monorepo in TypeScript (the device-service in Go).
+`AGENTS.md` is the living technical reference - every mechanism, how and why,
+section by section; this is the map.
 
-This is an actively developed platform, not a finished product.
-`docs/DEVELOPMENT_LOG.md` is the distilled, dated history of what was
-decided and why; `AGENTS.md` is the living technical reference (rules,
-architecture, per-feature design notes) - trust it over the log if the
-two ever disagree; `docs/PROJECT_MASTER-1.1.md` is the original
-architecture/vision document, kept for historical context and flagged
-where it's since diverged. Read in that order for, respectively: *what
-happened and why*, *how it works*, and *where it started from*.
+```
+apps/
+  api/                 Fastify - the model, the routes, the AI, the migrations
+  orchestrator/        the processes' tick, commands, alarms, the compute worker
+  messaging-gateway/   WebSocket push from RabbitMQ, by the person's scope
+  ui/                  React + Vite (CoreUI), i18next - the web interface
+  device-service/      Go - EdgeX device-service: CAN, MQTT, virtual devices
+devices/               the Library - the public packages (DNP)
+  nodes/<type>/        node.yaml, library.json, docs/, the model's picture
+  standalone/<type>/   single devices (sensor, actuator, input, indicator, speaker)
+  processes/<kind>/    library.json, process.ts, api.ts, model.ts, ui/, docs/
+  lib/                 shared helpers of the packages (local time, WEM)
+plugins/               a target project's own packages (empty in the core)
+templates/             target-project/ - what `make new-project` generates
+docs/guide/            the user guide - one source for the UI, the site, the AI
+config/                the device MQTT broker's configuration
+scripts/               tooling - translations, new projects, process kinds
+```
 
-(The project is also steered day-to-day in `../AGENTS_TO_DO.md`, a
-local, gitignored working journal in Ukrainian one level up - shared by
-this repo and its sibling target-project repos, not part of any of their
-git histories, mentioned here only so its absence from a clone isn't a
-surprise.)
+### apps/api
+
+- `src/server.ts`, `index.ts` - Fastify, the plugins, the start (migrations,
+  then the routes).
+- `routes/` - one file per area: `nodes`, `devices`, `processes`, `registry`
+  (create / delete), `series`, `logs`, `dashboardCards`, `users`, `access`,
+  `ai`, `service`, `dnp` (a package's own routes), ...
+- `access/` - the permission `catalog.ts` (section -> block -> action, one tree
+  for the guard, the UI and the AI), `rights.ts` (a role's table -> the
+  actions per unit), `principal.ts` (who asks and what they may), `guard.ts` /
+  `routes.ts` (every route's permission), `scope.ts` (lists cut to what a
+  person sees), `session.ts`, `guestSettings.ts`.
+- `ai/` - `agent.ts` (a conversation: the prompts, the tools loop, the token
+  limits, the usage by day), `tools.ts` (the gateway's tool registry - read
+  tools and proposing ones), `proposals.ts` (Confirm / Auto, applied as their
+  author), `mcp.ts` (the MCP server, its tokens and service accounts),
+  `instances.ts` (the assistants and their access levels), `calendar.ts`
+  (scheduled runs), `docs.ts` (the documentation search), `openaiClient.ts` /
+  `anthropicClient.ts`, `manifests.ts` (a package's AI work types).
+- the model and its writes - `registry.ts`, `processWrites.ts` (config with
+  stamps, commands, switching), `dualDevicesModel.ts` / `validator.ts`
+  (physical / simulated, the forbidden states), `edgex.ts`, `timeSeries.ts`,
+  `dnpInstances.ts` (which unit an object belongs to), `systemStamps.ts`
+  (backup / restore).
+- `migrations/` - node-pg-migrate, numbered; a project's own SQL migrations run
+  after them (`extraMigrations.ts`).
+- `prompts/` - the AI's system prompts; a package adds its own.
+
+### apps/orchestrator
+
+`tickProcesses.ts` runs every process on its interval (`processDispatch.ts`,
+the kinds from `kindPackages.ts` / `processPlugins.ts`); `processes/` - the
+core's own (heartbeat control, resource monitor, data logger, AI assistant
+runs); `alarmPolicy.ts` / `messageSettle.ts` - warnings and errors with their
+levels; `computeWorker.ts` - the heavy calculations off the tick;
+`valueBatcher.ts` - the device writes.
+
+### apps/ui
+
+`views/` - one folder per page (dashboard, devices, processes, logs, service,
+users, library, ai, docs); `components/` - the shared parts (tables, popups,
+charts, indicators, the AI messenger); `*Registry.js` - where a package's UI
+plugs in (`processTypeRegistry`, `deviceTypeRegistry`, `dashboardRegistry`);
+`i18n/` - the core's texts (a package's own - in its `ui/locales/`); `hooks/`
+(`usePersistedState`, pagination, expandable rows); `api/` - the REST client
+and the live values over the WebSocket.
+
+### A package (DNP)
+
+`devices/processes/<kind>/`: `library.json` (the catalog entry - kind, name,
+the node types it needs), `process.ts` (the orchestrator's tick: read the
+devices, decide, write, publish metrics and messages), `api.ts` (the config's
+JSON schema, its routes, the AI tools), `model.ts` (the pure calculations,
+unit-tested), `ui/` (its panel, its Dashboard scene and avatar, its settings,
+`register.js`, `locales/`), `docs/` (read by the AI). A node type -
+`devices/nodes/<type>/node.yaml` (its devices and limits). A target project
+adds its packages to its own `plugins/` the same way.
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Runtime | Node.js 22, TypeScript, pnpm workspaces + Turborepo |
+| Backend | Fastify, Pino, node-pg-migrate, Ajv |
+| Storage | PostgreSQL 16 + TimescaleDB, Redis 7 |
+| Messaging | RabbitMQ 4, WebSocket gateway |
+| Hardware hub | EdgeX Foundry 4.0, a Go device-service (CAN, MQTT) |
+| UI | React + Vite (based on the CoreUI admin template), i18next |
+| AI | OpenAI / Anthropic / OpenAI-compatible APIs, MCP |
+
+## Status
+
+Actively developed; running the public demo. `AGENTS.md` - the technical
+reference; `docs/DEVELOPMENT_LOG.md` - the dated decisions. Planned: several
+buses at once, a wider automated test suite, more industry examples in the
+demo.
 
 ## License
 
-Apache License 2.0 — see `LICENSE`. `apps/ui` is based on the CoreUI Free
-React Admin Template (MIT) — see `apps/ui/THIRD-PARTY-LICENSE-CoreUI.txt`.
+Apache License 2.0 - see `LICENSE` and `NOTICE`. Use, modify and distribute,
+also commercially; keep the licence and the notices, mark your changes.
+Private packages built on the core may stay private (the aquarium package is
+one). `apps/ui` is based on the CoreUI Free React Admin Template (MIT) - see
+`apps/ui/THIRD-PARTY-LICENSE-CoreUI.txt`.
+
+## Author
+
+Nexus Edge - the platform, its packages and the ideas behind them - is
+designed and built by **Anatolii Semochko**.
+
+- Site - [nexus-edge.tech/author](https://nexus-edge.tech/author/)
+- E-mail - [anatoliy.semochko@gmail.com](mailto:anatoliy.semochko@gmail.com)
+- LinkedIn - [linkedin.com/in/anatolii-semochko](https://www.linkedin.com/in/anatolii-semochko/)

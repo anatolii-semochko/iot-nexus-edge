@@ -393,3 +393,108 @@ verify against: working `eslint.config.*` for the three backend services
 just silenced), the first real test file in the repo
 (`alarmPolicy.test.ts`), and a GitHub Actions CI workflow, verified to
 actually pass end-to-end before being considered done.
+
+## 2026-08-29 to 2026-08-30 - Simulation processes, and a new admin Service page
+
+A large amount of intervening work (target-project extensibility,
+Control Node/Weather Node hardware bring-up, the Aquarium Light Control
+domain, UI/live-push redesigns) is chronicled in
+`../AGENTS_TO_DO.md`'s own linked `archive-development/AGENTS_DEV_*.md`
+files rather than distilled here - this entry picks back up with the
+two features `AGENTS.md` sections 72-76 now document in full.
+
+**Simulation processes** - a third `processes.type` (alongside
+controllable/permanent) that generates a plausible value for a readOnly
+device over time instead of reading real hardware, built as the
+smallest possible extension of the existing schema (no new table, no
+new Redis keys - `status`, `device_id`/`node_id`, and `config` already
+covered everything needed). The interesting design problem turned out
+not to be the ramping logic itself but the control model around it: an
+operator's own ON/OFF switch and the target device's own simulated-mode
+flag are two genuinely independent gates, and an early draft that
+auto-flipped a simulation process's status whenever a node's simulated
+flag changed caused it to silently override an operator's own explicit
+OFF the next time anything touched that flag. The fix was to remove
+every auto-activation path entirely - the switch is now the *only*
+writer of a simulation process's status, full stop - which also
+resolved a related "why does the panel keep flickering" bug in the
+unrelated live-device WebSocket merge it happened to be stress-testing
+for the first time.
+
+**Service->Database** followed the same "verify by actually doing the
+destructive thing safely" discipline that's shaped this log before:
+rather than trust a config-restore endpoint's own `{ok: true}`
+response, the actual test was applying a saved snapshot back onto
+itself (identical data, so before/after row counts and sequence values
+can be diffed with zero real risk) - which is exactly what caught three
+bugs that a shallower test would have shipped silently: a jsonb column
+storing a JSON array got mis-serialized as a Postgres array literal by
+the driver's own default parameter handling, restoring a snapshot never
+advanced the Postgres sequences those rows' own ids came from (so the
+very next normal insert would have collided with existing data), and a
+database-level CHECK constraint - completely separate from the
+TypeScript type that was actually widened - silently rejected the new
+audit-log entries this same feature was supposed to write. None of the
+three were reachable by unit-testing the restore logic in isolation;
+all three needed a real Postgres instance and a real round trip.
+
+**Host Shutdown/Restart**, added alongside, needed two infrastructure
+decisions neither party had reason to expect going in: the API
+container has no path to the real host by default (fixed with a D-Bus
+socket mount to `systemd-logind`, not a raw `shutdown` command that
+would only ever reach the container's own PID namespace), and Docker's
+own default AppArmor profile turned out to block that socket mount from
+working at all, requiring an explicit, consciously-made tradeoff
+(`apparmor:unconfined` on that one container) rather than a silent
+workaround.
+
+## 2026-10-16 - Raspberry budget, time series, change events, config schemas, DNP API
+
+(September and early October - the light program editor, the aquarium
+target project, the AI camera, Dashboard cards - are covered section by
+section in `AGENTS.md`; this entry picks up with the decisions that
+reshaped the core while ten simulated aquariums ran on it.)
+
+The design target is ten aquariums on one Raspberry Pi, so the work
+started with measuring, not guessing: a per-tick request and duration
+counter in the orchestrator showed 247 API requests a tick, almost all of
+them re-sending what had not changed. Sending only changes (with a rare
+re-assert), giving each process kind its own interval, sharing one
+topology cache per aquarium and batching reads brought it to 49, and the
+average tick from 296 to about 115 ms. The command audit log was the
+other hidden cost - continuous set-points written every second - so a
+device type now declares how its automatic writes are audited.
+
+Value history moved into one TimescaleDB store: a narrow `samples`
+hypertable, a `series` row per logged value with its own recording policy
+(a period, on change with a deadband, a stale limit), and hourly / daily
+continuous aggregates in real time, so a year's chart reads a few hundred
+rows and nothing has to be compressed away before any AI analysis exists.
+One writer - the Data Logger - fed by what processes publish in their
+metrics.
+
+Caches used to expire on TTLs, so a config change reached a process up to
+a minute late. Rather than add a publish call to every route that writes,
+a Postgres trigger notifies every relevant row change - whoever writes it,
+a plugin's own SQL and migrations included - the api relays it onto the
+bus, and processes drop exactly the caches built from that table.
+Measured in steady state: no notifications at all, so caches still live
+their full TTL when nothing changes.
+
+Process configs got one source of truth: a process kind registers a JSON
+Schema built from the same module its process and UI read the defaults
+from; the server checks edits by it and serves it - the AI assistant that
+will configure DNPs needs exactly that. Concurrent edits are handled with
+per-section change stamps kept by a trigger (a stale edit of the same
+section is refused, others merge), and one-shot commands left the config
+for a process command channel that rides the tick's process list, so it
+costs no extra requests. Target-project migrations are now tracked and
+applied by the api itself - automatically or after a person's
+confirmation - with a DNP API listing what is installed.
+
+Real CAN hardware finally met the transport: a re-plugged USB adapter
+comes back under the same interface name with a new kernel index, which
+silently stranded the device-service's socket; the transport now checks
+the index and reopens. The same session caught a regression of the
+send-only-changes optimization - a watchdog pulse whose value never
+changes must be written every tick - fixed with an explicit opt-out.

@@ -5,8 +5,11 @@ description: >
   CAN transceiver, mounted outside the enclosure. Three physical sensors,
   four raw logical readings: AHT20 (I2C, temperature + humidity), BMP280
   (I2C, pressure only - its own temperature output is unused, AHT20
-  already covers that), photoresistor (ADC, raw light level). A fifth,
-  computed reading (categorical light level) is derived from the raw
+  already covers that), photoresistor (ADC, raw light level); since
+  2026-10-19 also a cup anemometer (pulses, wind speed) and a resistive
+  rain plate (ADC, surface wetness) - in the Library, not yet in the
+  firmware. A computed reading
+  (categorical light level) is derived from the raw
   light value by the `weather-control` process, not by this node's own
   firmware - see `devices/standalone/sensor/light-level/`'s own docs.
   Posts a heartbeat once/sec, same convention as `control-node`. Unlike
@@ -21,4 +24,6 @@ supports:
   - pressure
   - light
   - light-level
+  - wind-speed
+  - rain
   - heartbeat

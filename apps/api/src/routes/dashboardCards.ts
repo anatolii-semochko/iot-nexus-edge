@@ -1,0 +1,675 @@
+import type { FastifyInstance, FastifyRequest } from "fastify";
+
+import { can } from "../access/principal.js";
+import { scopeFilter } from "../access/scope.js";
+import { requireAdmin, requireAuth } from "../auth.js";
+import { pool } from "../db.js";
+import { config } from "../config.js";
+import { fitImage } from "../images.js";
+import type { MultipartFile } from "@fastify/multipart";
+
+// Dashboard cards (migrations/1690000000058) - the Dashboard page's tree:
+// read by every signed-in user (the cards they may see), edited by those who
+// arrange the dashboard (Service -> Config -> Dashboard).
+// The list is flat (tens of rows) - the UI builds the tree from
+// `parentId`, siblings ordered by `position`. Three kinds (migration 100): a
+// folder, an avatar (a block - the component's picture, opening it on the
+// whole page), a component (the component itself, at the level's full width
+// under its blocks).
+
+type CardType = "folder" | "avatar" | "component";
+const TYPES: CardType[] = ["folder", "avatar", "component"];
+/** The kinds that show a component (its key, process and parameters). */
+const showsComponent = (type: string): boolean =>
+  type === "avatar" || type === "component";
+
+// the frame's parts (migration 100) - null: the type's default; `title` - a component card's title over it
+// (unset - shown; the user, 2026-10-30: an overview without its title)
+interface Frame {
+  top: boolean;
+  middle: boolean;
+  bottom: boolean;
+  fill: boolean;
+  title?: boolean;
+}
+const FRAME_PARTS = ["top", "middle", "bottom", "fill", "title"] as const;
+const PICTURE_SOURCES = ["none", "avatar", "icon", "file"];
+
+interface CardRow {
+  id: number;
+  parent_id: number | null;
+  position: number;
+  type: CardType;
+  title: string;
+  icon: string | null;
+  layout: "blocks" | "list";
+  component_key: string | null;
+  process_id: number | null;
+  view: "fit-height" | "fit-width";
+  // "auto" | "scaled" | an avatar's key (migrations/1690000000066)
+  preview: string;
+  // the component's own parameters (migration 084) - e.g. { nodeId } - a part of its process
+  params: Record<string, unknown>;
+  frame: Frame | null;
+  // its pictures (migrations 091, 100): source, imageScalePct, background's scale / opacity; icon /
+  // background - { at } when uploaded (dashboard_card_images; `at` busts the browser's cache)
+  picture: Picture;
+  // the viewer may switch the opened avatar's fit (migration 100)
+  user_fit: boolean;
+  // a folder's cards drawn this many times larger (migration 103; 1 - as before)
+  cards_scale: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CardBody {
+  parentId?: number | null;
+  type?: CardType;
+  title?: string;
+  icon?: string | null;
+  layout?: "blocks" | "list";
+  componentKey?: string | null;
+  processId?: number | null;
+  view?: "fit-height" | "fit-width";
+  preview?: string;
+  params?: Record<string, unknown>;
+  frame?: Partial<Frame> | null;
+  picture?: Partial<
+    Pick<
+      Picture,
+      "source" | "imageScalePct" | "backgroundOpacityPct" | "backgroundScalePct"
+    >
+  >;
+  userFit?: boolean;
+  cardsScale?: number;
+}
+
+interface Picture {
+  // "none" - no picture (the background only, if any), "avatar" - the component's, "icon" - from the
+  // set, "file" - the uploaded one; unset - the type's default
+  source?: string;
+  imageScalePct?: number;
+  backgroundOpacityPct?: number;
+  backgroundScalePct?: number; // 100 - covers the block; over - larger (its middle seen), under - smaller
+  icon?: { at: number };
+  background?: { at: number };
+}
+
+// a folder's cards' scale - its range (the column's check, migration 103)
+const CARDS_SCALE = { min: 0.5, max: 2 };
+const SLOTS = ["icon", "background"];
+const IMAGE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+]);
+
+/** The picture's settings from a request merged over the stored ones (the uploads' marks kept). */
+const pictureOf = (
+  current: Picture | undefined,
+  body: CardBody["picture"],
+): Picture => {
+  const next: Picture = { ...(current ?? {}) };
+  if (!body) return next;
+  if (body.source === null) delete next.source;
+  else if (
+    typeof body.source === "string" &&
+    PICTURE_SOURCES.includes(body.source)
+  )
+    next.source = body.source;
+  // over 100 % - larger than the block (its middle seen)
+  if (Number.isFinite(body.imageScalePct))
+    next.imageScalePct = Math.max(
+      10,
+      Math.min(300, Number(body.imageScalePct)),
+    );
+  if (Number.isFinite(body.backgroundScalePct))
+    next.backgroundScalePct = Math.max(
+      10,
+      Math.min(300, Number(body.backgroundScalePct)),
+    );
+  if (Number.isFinite(body.backgroundOpacityPct))
+    next.backgroundOpacityPct = Math.max(
+      0,
+      Math.min(100, Number(body.backgroundOpacityPct)),
+    );
+  return next;
+};
+
+const toCard = (row: CardRow) => ({
+  id: row.id,
+  parentId: row.parent_id,
+  position: row.position,
+  type: row.type,
+  title: row.title,
+  icon: row.icon,
+  layout: row.layout,
+  componentKey: row.component_key,
+  processId: row.process_id,
+  view: row.view,
+  preview: row.preview,
+  params: row.params ?? {},
+  frame: row.frame,
+  picture: row.picture ?? {},
+  userFit: row.user_fit,
+  cardsScale: row.cards_scale,
+});
+
+// a jsonb parameter: SQL NULL for null (not the JSON value null)
+const jsonOrNull = (v: unknown): string | null =>
+  v === null || v === undefined ? null : JSON.stringify(v);
+
+/** The frame's parts from a request (each a boolean); null - the type's default. */
+const frameOf = (body: CardBody["frame"]): Frame | null =>
+  body === null || body === undefined
+    ? null
+    : {
+        top: !!body.top,
+        middle: !!body.middle,
+        bottom: !!body.bottom,
+        fill: !!body.fill,
+        ...(body.title !== undefined ? { title: !!body.title } : {}),
+      };
+
+/**
+ * The cards a person sees (B1; by the role since 2026-10-27): whoever arranges the dashboard
+ * (dashboard.manage) sees all; else a card shows when it is in the role's list (`roles.dashboard`, null -
+ * all) and its object is seen - a process's card where the person sees the process, the core's own
+ * cards ("system.<section>") with that section's view (processes / nodes / logs); a hidden folder hides
+ * its subtree, a folder with nothing visible inside is hidden.
+ */
+async function visibleCards(
+  request: FastifyRequest,
+  rows: CardRow[],
+): Promise<CardRow[]> {
+  const principal = request.principal;
+  if (
+    !principal ||
+    principal.kind === "service" ||
+    can(principal, "dashboard.manage")
+  )
+    return rows;
+  const cards = principal.dashboardCards;
+  const scope = await scopeFilter(request, "processes.view");
+  const objectSeen = (r: CardRow) => {
+    if (r.process_id !== null) return !scope || scope.process(r.process_id);
+    const section = r.component_key?.startsWith("system.")
+      ? r.component_key.slice("system.".length)
+      : null;
+    return section === null || can(principal, `${section}.view`);
+  };
+  const own = (r: CardRow) =>
+    (cards === null || cards.has(r.id)) &&
+    (r.type === "folder" || objectSeen(r));
+  const children = new Map<number | null, CardRow[]>();
+  for (const r of rows)
+    children.set(r.parent_id, [...(children.get(r.parent_id) ?? []), r]);
+  const shown: CardRow[] = [];
+  // a card's subtree - the visible ones; true when something in it is a visible component
+  const walk = (r: CardRow): boolean => {
+    if (!own(r)) return false;
+    if (r.type !== "folder") return shown.push(r) > 0;
+    const at = shown.length;
+    shown.push(r);
+    const any = (children.get(r.id) ?? []).map(walk).some(Boolean);
+    if (!any) shown.splice(at); // nothing to see inside
+    return any;
+  };
+  (children.get(null) ?? []).forEach(walk);
+  const ids = new Set(shown.map((r) => r.id));
+  return rows.filter((r) => ids.has(r.id));
+}
+
+/** `parentId` would put `id` inside its own subtree. */
+async function wouldCycle(
+  id: number,
+  parentId: number | null,
+): Promise<boolean> {
+  let current = parentId;
+  while (current !== null) {
+    if (current === id) return true;
+    const row = (
+      await pool.query<{ parent_id: number | null }>(
+        "SELECT parent_id FROM dashboard_cards WHERE id = $1",
+        [current],
+      )
+    ).rows[0];
+    current = row ? row.parent_id : null;
+  }
+  return false;
+}
+
+const MAX_PARAMS_CHARS = 2000;
+
+const problemOf = (body: CardBody, type: string | undefined): string | null => {
+  if (body.title !== undefined && !body.title.trim())
+    return "title is required";
+  if (type !== undefined && !TYPES.includes(type as CardType))
+    return "type must be folder, avatar or component";
+  if (
+    type !== undefined &&
+    showsComponent(type) &&
+    body.componentKey !== undefined &&
+    !body.componentKey
+  )
+    return "the card needs its component";
+  if (
+    body.preview !== undefined &&
+    !/^[A-Za-z0-9_.-]{1,64}$/.test(body.preview)
+  )
+    return 'preview must be "auto", "scaled" or an avatar\'s key';
+  if (
+    body.params !== undefined &&
+    (body.params === null ||
+      typeof body.params !== "object" ||
+      Array.isArray(body.params) ||
+      JSON.stringify(body.params).length > MAX_PARAMS_CHARS)
+  )
+    return "params must be an object (a component's own parameters)";
+  if (
+    body.frame !== undefined &&
+    body.frame !== null &&
+    (typeof body.frame !== "object" ||
+      Array.isArray(body.frame) ||
+      Object.keys(body.frame).some(
+        (k) => !(FRAME_PARTS as readonly string[]).includes(k),
+      ))
+  )
+    return "frame must be {top, middle, bottom, fill, title} or null";
+  if (
+    body.picture?.source != null &&
+    !PICTURE_SOURCES.includes(body.picture.source)
+  )
+    return `picture.source must be one of ${PICTURE_SOURCES.join(", ")}`;
+  if (
+    body.cardsScale !== undefined &&
+    !(
+      Number.isFinite(body.cardsScale) &&
+      body.cardsScale >= CARDS_SCALE.min &&
+      body.cardsScale <= CARDS_SCALE.max
+    )
+  )
+    return `cardsScale must be ${CARDS_SCALE.min} - ${CARDS_SCALE.max}`;
+  return null;
+};
+
+// The Dashboard's own settings (system_settings 'dashboard', the user 2026-11-01 - Service -> Config ->
+// Dashboard -> Config): the top level's cards' scale (a folder's is its own `cards_scale`).
+interface DashboardSettings {
+  cardsScale: number;
+}
+const DASHBOARD_DEFAULTS: DashboardSettings = { cardsScale: 1 };
+
+async function dashboardSettings(): Promise<DashboardSettings> {
+  const row = (
+    await pool.query<{ value: Partial<DashboardSettings> }>(
+      "SELECT value FROM system_settings WHERE key = 'dashboard'",
+    )
+  ).rows[0];
+  return { ...DASHBOARD_DEFAULTS, ...(row?.value ?? {}) };
+}
+
+/** The settings from a form merged over the current ones, or a problem's text. */
+function dashboardSettingsOf(
+  current: DashboardSettings,
+  input: unknown,
+): DashboardSettings | string {
+  if (!input || typeof input !== "object") return "settings are required";
+  const v = input as Record<string, unknown>;
+  const next = { ...current };
+  if (v.cardsScale !== undefined) {
+    const n = Number(v.cardsScale);
+    if (
+      typeof v.cardsScale !== "number" ||
+      !(n >= CARDS_SCALE.min && n <= CARDS_SCALE.max)
+    )
+      return `cardsScale must be ${CARDS_SCALE.min} - ${CARDS_SCALE.max}`;
+    next.cardsScale = n;
+  }
+  return next;
+}
+
+export async function dashboardCardRoutes(app: FastifyInstance): Promise<void> {
+  // the Dashboard's settings - read by whoever sees it, set by its admins
+  app.get("/dashboard-settings", { preHandler: requireAuth }, async () =>
+    dashboardSettings(),
+  );
+
+  app.patch<{ Body: Partial<DashboardSettings> }>(
+    "/dashboard-settings",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const next = dashboardSettingsOf(await dashboardSettings(), request.body);
+      if (typeof next === "string")
+        return reply.code(400).send({ error: next });
+      await pool.query(
+        `INSERT INTO system_settings (key, value) VALUES ('dashboard', $1::jsonb)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+        [JSON.stringify(next)],
+      );
+      return next;
+    },
+  );
+
+  app.get("/dashboard-cards", { preHandler: requireAuth }, async (request) => {
+    const rows = (
+      await pool.query<CardRow>(
+        "SELECT * FROM dashboard_cards ORDER BY parent_id NULLS FIRST, position, id",
+      )
+    ).rows;
+    return (await visibleCards(request, rows)).map(toCard);
+  });
+
+  app.post<{ Body: CardBody }>(
+    "/dashboard-cards",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const body = request.body ?? {};
+      const type = body.type ?? "folder";
+      const problem =
+        problemOf(body, type) ??
+        (!body.title ? "title is required" : null) ??
+        (showsComponent(type) && !body.componentKey
+          ? "the card needs its component"
+          : null);
+      if (problem) return reply.code(400).send({ error: problem });
+      const parentId = body.parentId ?? null;
+      // the new card goes last among its siblings (computed inside the INSERT)
+      const row = (
+        await pool.query<CardRow>(
+          `INSERT INTO dashboard_cards (parent_id, position, type, title, icon, layout, component_key, process_id, view, preview, params, frame, picture, user_fit, cards_scale)
+         SELECT $1, COALESCE(MAX(position) + 1, 0), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+         FROM dashboard_cards WHERE parent_id IS NOT DISTINCT FROM $1
+         RETURNING *`,
+          [
+            parentId,
+            type,
+            body.title!.trim(),
+            body.icon ?? null,
+            body.layout ?? "blocks",
+            showsComponent(type) ? body.componentKey : null,
+            showsComponent(type) ? (body.processId ?? null) : null,
+            body.view ?? "fit-height",
+            body.preview ?? "auto",
+            JSON.stringify(showsComponent(type) ? (body.params ?? {}) : {}),
+            jsonOrNull(frameOf(body.frame)),
+            JSON.stringify(pictureOf({}, body.picture)),
+            type === "avatar" && body.userFit === true,
+            type === "folder" ? (body.cardsScale ?? 1) : 1,
+          ],
+        )
+      ).rows[0];
+      return reply.code(201).send(toCard(row));
+    },
+  );
+
+  // Edit and / or move to another parent (last among its new siblings)
+  app.patch<{ Params: { id: string }; Body: CardBody }>(
+    "/dashboard-cards/:id",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      const body = request.body ?? {};
+      const current = (
+        await pool.query<CardRow>(
+          "SELECT * FROM dashboard_cards WHERE id = $1",
+          [id],
+        )
+      ).rows[0];
+      if (!current) return reply.code(404).send({ error: "card not found" });
+      const problem = problemOf(body, body.type);
+      if (problem) return reply.code(400).send({ error: problem });
+      const moving =
+        body.parentId !== undefined && body.parentId !== current.parent_id;
+      if (moving && (await wouldCycle(id, body.parentId ?? null)))
+        return reply.code(400).send({ error: "a card can't go inside itself" });
+      const type = body.type ?? current.type;
+      const row = (
+        await pool.query<CardRow>(
+          `UPDATE dashboard_cards SET
+           parent_id = $2,
+           position = CASE WHEN $3 THEN (SELECT COALESCE(MAX(position) + 1, 0) FROM dashboard_cards WHERE parent_id IS NOT DISTINCT FROM $2) ELSE position END,
+           type = $4, title = $5, icon = $6, layout = $7, component_key = $8, process_id = $9, view = $10, preview = $11, params = $12, frame = $13, picture = $14, user_fit = $15, cards_scale = $16,
+           updated_at = now()
+         WHERE id = $1 RETURNING *`,
+          [
+            id,
+            moving ? (body.parentId ?? null) : current.parent_id,
+            moving,
+            type,
+            body.title !== undefined ? body.title.trim() : current.title,
+            body.icon !== undefined ? body.icon : current.icon,
+            body.layout ?? current.layout,
+            showsComponent(type)
+              ? body.componentKey !== undefined
+                ? body.componentKey
+                : current.component_key
+              : null,
+            showsComponent(type)
+              ? body.processId !== undefined
+                ? body.processId
+                : current.process_id
+              : null,
+            body.view ?? current.view,
+            body.preview ?? current.preview,
+            JSON.stringify(
+              showsComponent(type) ? (body.params ?? current.params ?? {}) : {},
+            ),
+            jsonOrNull(
+              body.frame !== undefined ? frameOf(body.frame) : current.frame,
+            ),
+            JSON.stringify(pictureOf(current.picture, body.picture)),
+            type === "avatar" && (body.userFit ?? current.user_fit),
+            type === "folder" ? (body.cardsScale ?? current.cards_scale) : 1,
+          ],
+        )
+      ).rows[0];
+      if (showsComponent(row.type) && !row.component_key)
+        return reply.code(400).send({ error: "the card needs its component" });
+      return toCard(row);
+    },
+  );
+
+  // a card's own picture / background (migration 091): read by whoever sees the dashboard, set by its admins
+  app.get<{ Params: { id: string; slot: string } }>(
+    "/dashboard-cards/:id/images/:slot",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      if (!SLOTS.includes(request.params.slot))
+        return reply.code(404).send({ error: "no such picture" });
+      const row = (
+        await pool.query<{ mime: string; data: Buffer; updated_at: Date }>(
+          "SELECT mime, data, updated_at FROM dashboard_card_images WHERE card_id = $1 AND slot = $2",
+          [Number(request.params.id), request.params.slot],
+        )
+      ).rows[0];
+      if (!row) return reply.code(404).send({ error: "no such picture" });
+      // the URL carries the upload's time - cached for long
+      return reply
+        .header("Content-Type", row.mime)
+        .header("Cache-Control", "private, max-age=86400")
+        .send(row.data);
+    },
+  );
+
+  app.post<{ Params: { id: string; slot: string } }>(
+    "/dashboard-cards/:id/images/:slot",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      const slot = request.params.slot;
+      if (!SLOTS.includes(slot))
+        return reply.code(404).send({ error: "no such picture" });
+      const current = (
+        await pool.query<CardRow>(
+          "SELECT * FROM dashboard_cards WHERE id = $1",
+          [id],
+        )
+      ).rows[0];
+      if (!current) return reply.code(404).send({ error: "card not found" });
+      const up = config.uploads;
+      const kb = (bytes: number) => `${Math.round(bytes / 1024)} KB`;
+      const file: MultipartFile | undefined = await request.file({
+        limits: { fileSize: up.dashboardImageUploadMaxBytes },
+      });
+      if (!file)
+        return reply.code(400).send({ error: "the image file is required" });
+      if (!IMAGE_TYPES.has(file.mimetype))
+        return reply
+          .code(400)
+          .send({ error: "the image must be PNG, JPEG, WebP or GIF" });
+      let raw: Buffer;
+      try {
+        raw = await file.toBuffer();
+      } catch (err) {
+        if ((err as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE")
+          return reply.code(413).send({
+            error: `the image is over ${kb(up.dashboardImageUploadMaxBytes)}`,
+          });
+        throw err;
+      }
+      let fitted: { data: Buffer; mime: string };
+      try {
+        fitted = await fitImage(raw, file.mimetype, {
+          maxBytes: up.dashboardImageMaxBytes,
+          maxSide: up.dashboardImageMaxSide,
+          qualities: up.dashboardImageWebpQualities,
+        });
+      } catch {
+        return reply
+          .code(400)
+          .send({ error: "the file is not a readable image" });
+      }
+      const { data, mime } = fitted;
+      if (data.length > up.dashboardImageMaxBytes)
+        return reply.code(413).send({
+          error: `the image is over ${kb(up.dashboardImageMaxBytes)} even shrunk (a GIF is never shrunk)`,
+        });
+      await pool.query(
+        `INSERT INTO dashboard_card_images (card_id, slot, mime, data) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (card_id, slot) DO UPDATE SET mime = $3, data = $4, updated_at = now()`,
+        [id, slot, mime, data],
+      );
+      const picture: Picture = {
+        ...(current.picture ?? {}),
+        [slot]: { at: Date.now() },
+        ...(slot === "icon" ? { source: "file" } : {}),
+      };
+      const row = (
+        await pool.query<CardRow>(
+          "UPDATE dashboard_cards SET picture = $2, updated_at = now() WHERE id = $1 RETURNING *",
+          [id, JSON.stringify(picture)],
+        )
+      ).rows[0];
+      return toCard(row);
+    },
+  );
+
+  app.delete<{ Params: { id: string; slot: string } }>(
+    "/dashboard-cards/:id/images/:slot",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      const slot = request.params.slot;
+      if (!SLOTS.includes(slot))
+        return reply.code(404).send({ error: "no such picture" });
+      const current = (
+        await pool.query<CardRow>(
+          "SELECT * FROM dashboard_cards WHERE id = $1",
+          [id],
+        )
+      ).rows[0];
+      if (!current) return reply.code(404).send({ error: "card not found" });
+      await pool.query(
+        "DELETE FROM dashboard_card_images WHERE card_id = $1 AND slot = $2",
+        [id, slot],
+      );
+      const picture: Picture = { ...(current.picture ?? {}) };
+      delete picture[slot as "icon" | "background"];
+      if (slot === "icon" && picture.source === "file") delete picture.source;
+      const row = (
+        await pool.query<CardRow>(
+          "UPDATE dashboard_cards SET picture = $2, updated_at = now() WHERE id = $1 RETURNING *",
+          [id, JSON.stringify(picture)],
+        )
+      ).rows[0];
+      return toCard(row);
+    },
+  );
+
+  // A card and its whole subtree (ON DELETE CASCADE)
+  app.delete<{ Params: { id: string } }>(
+    "/dashboard-cards/:id",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const result = await pool.query(
+        "DELETE FROM dashboard_cards WHERE id = $1",
+        [request.params.id],
+      );
+      if (result.rowCount === 0)
+        return reply.code(404).send({ error: "card not found" });
+      return reply.code(204).send();
+    },
+  );
+
+  // Up / down among its siblings: swaps positions with the neighbour (the
+  // siblings are renumbered first, so gaps or ties never block a move)
+  app.post<{ Params: { id: string }; Body: { direction: "up" | "down" } }>(
+    "/dashboard-cards/:id/move",
+    { preHandler: requireAdmin },
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      const direction = request.body?.direction;
+      if (direction !== "up" && direction !== "down")
+        return reply.code(400).send({ error: "direction must be up or down" });
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const card = (
+          await client.query<CardRow>(
+            "SELECT * FROM dashboard_cards WHERE id = $1 FOR UPDATE",
+            [id],
+          )
+        ).rows[0];
+        if (!card) {
+          await client.query("ROLLBACK");
+          return reply.code(404).send({ error: "card not found" });
+        }
+        const rows = (
+          await client.query<{ id: number; type: CardType }>(
+            "SELECT id, type FROM dashboard_cards WHERE parent_id IS NOT DISTINCT FROM $1 ORDER BY position, id",
+            [card.parent_id],
+          )
+        ).rows;
+        const siblings = rows.map((r) => r.id);
+        // the blocks (folders, avatars) and the components are ordered apart (the user, 2026-11-01 - two
+        // lists, as the Dashboard shows them): the card swaps with the nearest one of its own group
+        const group = (type: CardType) => type === "component";
+        const own = rows
+          .filter((r) => group(r.type) === group(card.type))
+          .map((r) => r.id);
+        const k = own.indexOf(id);
+        const other = own[direction === "up" ? k - 1 : k + 1];
+        if (other !== undefined) {
+          const i = siblings.indexOf(id);
+          const j = siblings.indexOf(other);
+          [siblings[i], siblings[j]] = [siblings[j], siblings[i]];
+        }
+        for (const [position, siblingId] of siblings.entries()) {
+          await client.query(
+            "UPDATE dashboard_cards SET position = $1, updated_at = now() WHERE id = $2",
+            [position, siblingId],
+          );
+        }
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+      return { status: "ok" };
+    },
+  );
+}

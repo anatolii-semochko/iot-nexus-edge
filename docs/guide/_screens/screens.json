@@ -1,0 +1,309 @@
+[
+  {
+    "name": "dashboard",
+    "path": "/dashboard"
+  },
+  {
+    "name": "dashboard-energy",
+    "path": "/dashboard/16"
+  },
+  {
+    "name": "energy-overview",
+    "path": "/dashboard/16",
+    "clip": "section.mt-4",
+    "height": 1100,
+    "width": 1720
+  },
+  {
+    "name": "energy-ledger",
+    "path": "/dashboard/15",
+    "waitMs": 3000
+  },
+  {
+    "name": "heating-overview",
+    "path": "/dashboard/17",
+    "js": "window.scrollTo(0, 560)"
+  },
+  {
+    "name": "weather",
+    "path": "/dashboard/5",
+    "waitMs": 3000
+  },
+  {
+    "name": "ai-assistant",
+    "path": "/ai-assistant"
+  },
+  {
+    "name": "hero-energy",
+    "path": "/dashboard/11",
+    "width": 1080,
+    "height": 1530,
+    "waitMs": 3000,
+    "steps": [
+      {
+        "js": "document.querySelector('.header-toggler')?.click()"
+      }
+    ],
+    "js": "window.scrollTo(0, 118)"
+  },
+  {
+    "name": "nodes",
+    "path": "/nodes"
+  },
+  {
+    "name": "devices",
+    "path": "/devices"
+  },
+  {
+    "name": "simulator",
+    "path": "/simulator"
+  },
+  {
+    "name": "processes",
+    "path": "/processes"
+  },
+  {
+    "name": "processes-settings",
+    "path": "/processes",
+    "click": [
+      "Settings"
+    ]
+  },
+  {
+    "name": "live-events",
+    "path": "/live-events",
+    "waitMs": 4000
+  },
+  {
+    "name": "logs",
+    "path": "/logs"
+  },
+  {
+    "name": "notifications",
+    "path": "/dashboard",
+    "js": "document.querySelector('button[aria-label=\"Warnings\"]')?.click()",
+    "waitMs": 2500
+  },
+  {
+    "name": "service-config-dashboard",
+    "path": "/service"
+  },
+  {
+    "name": "service-config-ai",
+    "path": "/service",
+    "click": [
+      "AI"
+    ]
+  },
+  {
+    "name": "service-database",
+    "path": "/service",
+    "click": [
+      "Database"
+    ]
+  },
+  {
+    "name": "service-commands",
+    "path": "/service",
+    "click": [
+      "Commands"
+    ]
+  },
+  {
+    "name": "users",
+    "path": "/users"
+  },
+  {
+    "name": "roles",
+    "path": "/users",
+    "click": [
+      "Roles"
+    ]
+  },
+  {
+    "name": "guest",
+    "path": "/users",
+    "click": [
+      "Guest"
+    ]
+  },
+  {
+    "name": "library",
+    "path": "/library"
+  },
+  {
+    "name": "common-table",
+    "path": "/logs",
+    "click": [
+      "Commands"
+    ],
+    "waitMs": 2500
+  },
+  {
+    "name": "common-checklist",
+    "path": "/users",
+    "steps": [
+      {
+        "wait": 1000
+      },
+      {
+        "js": "(()=>{const bs=[...document.querySelectorAll('tbody tr button')].filter(b=>b.textContent.trim()==='Edit');const b=bs[bs.length-1];b&&b.click()})()"
+      },
+      {
+        "wait": 1500
+      }
+    ],
+    "clip": ".modal-content",
+    "clipLast": true
+  },
+  {
+    "name": "common-unit-popup",
+    "path": "/dashboard/16",
+    "steps": [
+      {
+        "wait": 2000
+      },
+      {
+        "js": "(()=>{const e=document.querySelector('button.eo-gridb');e&&e.click()})()"
+      },
+      {
+        "wait": 2500
+      }
+    ],
+    "clip": ".modal-content",
+    "clipLast": true
+  },
+  {
+    "name": "logs-ai-usage",
+    "path": "/logs",
+    "click": [
+      "AI usage"
+    ],
+    "waitMs": 2500
+  },
+  {
+    "name": "service-config-mcp",
+    "path": "/service",
+    "steps": [
+      {
+        "js": "(()=>{[...document.querySelectorAll('button')].filter(e=>/AI\\s*$/.test(e.textContent||'')&&e.textContent.length<10).forEach(e=>e.click())})()"
+      },
+      {
+        "wait": 2500
+      },
+      {
+        "js": "(()=>{const h=[...document.querySelectorAll('h5')].find(e=>/MCP/.test(e.textContent));h&&h.scrollIntoView()})()"
+      },
+      {
+        "wait": 600
+      }
+    ]
+  },
+  {
+    "name": "processes-expanded",
+    "path": "/processes",
+    "steps": [
+      {
+        "wait": 1500
+      },
+      {
+        "js": "(()=>{const r=[...document.querySelectorAll('tbody tr')].find(t=>t.textContent.includes(\"Energy Field\"));const b=r&&r.querySelector('button[aria-label=\"Expand\"]');b&&b.click()})()"
+      },
+      {
+        "wait": 2500
+      }
+    ]
+  },
+  {
+    "name": "devices-expanded",
+    "path": "/devices",
+    "steps": [
+      {
+        "wait": 1500
+      },
+      {
+        "js": "(()=>{const b=document.querySelector('tbody tr button[aria-label=\"Expand\"]');b&&b.click()})()"
+      },
+      {
+        "wait": 2000
+      }
+    ]
+  },
+  {
+    "name": "config-energy-field",
+    "path": "/processes",
+    "width": 1440,
+    "height": 1000,
+    "steps": [
+      {
+        "wait": 1500
+      },
+      {
+        "js": "(()=>{const i=document.querySelector('input[type=search], input[placeholder^=\"Search\"]');if(!i)return;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Energy Field');i.dispatchEvent(new Event('input',{bubbles:true}))})()"
+      },
+      {
+        "wait": 1500
+      },
+      {
+        "js": "(()=>{const r=[...document.querySelectorAll('tbody tr')].find(t=>t.textContent.includes(\"Energy Field\"));const b=r&&r.querySelector('button[aria-label=\"Process settings\"]');b&&b.click()})()"
+      },
+      {
+        "wait": 2500
+      }
+    ]
+  },
+  {
+    "name": "config-heating",
+    "path": "/processes",
+    "width": 1440,
+    "height": 1000,
+    "steps": [
+      {
+        "wait": 1500
+      },
+      {
+        "js": "(()=>{const i=document.querySelector('input[type=search], input[placeholder^=\"Search\"]');if(!i)return;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'House heating');i.dispatchEvent(new Event('input',{bubbles:true}))})()"
+      },
+      {
+        "wait": 1500
+      },
+      {
+        "js": "(()=>{const r=[...document.querySelectorAll('tbody tr')].find(t=>t.textContent.includes(\"House heating\"));const b=r&&r.querySelector('button[aria-label=\"Process settings\"]');b&&b.click()})()"
+      },
+      {
+        "wait": 2500
+      }
+    ]
+  },
+  {
+    "name": "config-weather",
+    "path": "/processes",
+    "width": 1440,
+    "height": 1000,
+    "steps": [
+      {
+        "wait": 1500
+      },
+      {
+        "js": "(()=>{const i=document.querySelector('input[type=search], input[placeholder^=\"Search\"]');if(!i)return;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Weather Node');i.dispatchEvent(new Event('input',{bubbles:true}))})()"
+      },
+      {
+        "wait": 1500
+      },
+      {
+        "js": "(()=>{const r=[...document.querySelectorAll('tbody tr')].find(t=>t.textContent.includes(\"Weather Node\"));const b=r&&r.querySelector('button[aria-label=\"Process settings\"]');b&&b.click()})()"
+      },
+      {
+        "wait": 2500
+      },
+      {
+        "click": "Configuration"
+      },
+      {
+        "wait": 1200
+      }
+    ],
+    "clip": ".modal-content",
+    "clipLast": true
+  }
+]

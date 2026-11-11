@@ -16,6 +16,7 @@ import {
 } from '@coreui/react'
 import { cilSettings, cilTrash } from '@coreui/icons'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
 import { useProcessLiveState } from '../../api/useLiveProcess'
 import IconButton from '../../components/IconButton'
 import ResetFiltersButton from '../../components/ResetFiltersButton'
@@ -23,6 +24,7 @@ import RowStatusBadge from '../../components/table/RowStatusBadge'
 import Switch from '../../components/Switch'
 import ExpandAllToggleButton from '../../components/table/ExpandAllToggleButton'
 import ExpandToggleButton from '../../components/table/ExpandToggleButton'
+import LibraryTypeLink from '../../components/table/LibraryTypeLink'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useExpandableRows } from '../../hooks/useExpandableRows'
@@ -30,6 +32,8 @@ import { usePagination } from '../../hooks/usePagination'
 import { processPanels } from '../../processTypeRegistry'
 import ProcessSettingsModal from './ProcessSettingsModal'
 import WemRow from './WemRow'
+import AiButton from '../../components/ai/AiButton'
+import { t } from 'src/i18n'
 
 const statusColor = (status) => (status === 'on' ? 'success' : 'secondary')
 
@@ -58,6 +62,9 @@ const ProcessRow = ({
   onGroupsChange,
   extraAction,
   registeredKinds,
+  statusLabel,
+  showPower = true,
+  overrideRowColor,
 }) => {
   const live = useProcessLiveState(process.id)
   // `status` is a deliberately non-urgent, timer-only broadcast field
@@ -82,6 +89,11 @@ const ProcessRow = ({
   const status = pendingOptimisticStatus ?? live.status ?? process.status
   const critical = live.critical ?? process.critical
   const warning = live.warning ?? process.warning
+  // Simulation processes only (AGENTS_TO_DO.md, 2026-08-29) - whether this
+  // process's own target Node/Device is currently in simulated mode, the
+  // second gate alongside `status` above. Same live-over-REST fallback.
+  const simulationTargetSimulated =
+    live.simulationTargetSimulated ?? process.simulationTargetSimulated
   // Process management (AGENTS_TO_DO.md, 2026-08-14) - a row whose kind
   // isn't in the running orchestrator's own registered-kinds list yet
   // (registeredKinds === null while that fetch is still in flight, in
@@ -98,6 +110,15 @@ const ProcessRow = ({
       : pendingRestart
         ? 'warning'
         : undefined
+  // Simulator.jsx's own "Off means fully inert" rule (AGENTS_TO_DO.md,
+  // 2026-08-29: "процес і його статус не реагують на інші процеси і
+  // статуси ніяк") - an operator-off simulation process shows neither a
+  // leftover error tint from before it was switched off nor the label
+  // that would come with it. No-op (returns `rowColor` unchanged) unless
+  // a caller actually supplies this.
+  const effectiveRowColor = overrideRowColor
+    ? overrideRowColor(process, { status, rowColor })
+    : rowColor
   const [deleteBusy, setDeleteBusy] = useState(false)
   const handleDelete = async () => {
     setDeleteBusy(true)
@@ -115,6 +136,10 @@ const ProcessRow = ({
   // Which specific action is in flight, not a single shared boolean - only
   // the button the user actually clicked shows a spinner; the other one
   // (already disabled, since it matches the pre-click status) never did.
+  // what this person may do with this process (access.js - the server decides)
+  const can = useCan()
+  const canControl = can('processes.control', { process: process.id })
+  const canManage = can('processes.manage', { process: process.id })
   const [busyAction, setBusyAction] = useState(null)
   const [settingsVisible, setSettingsVisible] = useState(false)
 
@@ -144,28 +169,42 @@ const ProcessRow = ({
 
   return (
     <>
-      <CTableRow color={rowColor}>
+      <CTableRow color={effectiveRowColor}>
         <CTableDataCell className={noBorderWhenExpanded}>
-          <RowStatusBadge rowColor={rowColor} />
-        </CTableDataCell>
-        <CTableDataCell className={noBorderWhenExpanded}>
-          {status ? (
-            <CBadge color={statusColor(status)}>{status.toUpperCase()}</CBadge>
-          ) : (
-            <CBadge color="info">Running</CBadge>
-          )}
+          <RowStatusBadge
+            rowColor={effectiveRowColor}
+            defaultLabel={statusLabel?.(process, { status, simulationTargetSimulated })}
+          />
           {pendingRestart && (
             <CBadge
               color="warning"
-              className="ms-1"
-              title="This kind isn't loaded in the running orchestrator yet - restart it to activate."
+              className="ms-1 mb-1"
+              title={t(
+                "This kind isn't loaded in the running orchestrator yet - restart it to activate.",
+              )}
             >
-              Pending restart
+              {t('Pending restart')}
             </CBadge>
           )}
         </CTableDataCell>
+        {showPower && (
+          <CTableDataCell className={noBorderWhenExpanded}>
+            {status ? (
+              <CBadge color={statusColor(status)} className="mb-1">
+                {status.toUpperCase()}
+              </CBadge>
+            ) : (
+              <CBadge color="info" className="mb-1">
+                {t('Running')}
+              </CBadge>
+            )}
+          </CTableDataCell>
+        )}
         <CTableDataCell className={noBorderWhenExpanded}>{process.name}</CTableDataCell>
         <CTableDataCell className={noBorderWhenExpanded}>{process.group_name}</CTableDataCell>
+        <CTableDataCell className={noBorderWhenExpanded}>
+          <LibraryTypeLink kind="process" typeName={process.kind} />
+        </CTableDataCell>
         <CTableDataCell className={`text-end ${noBorderWhenExpanded ?? ''}`}>
           {/* Single row, right-aligned, left-to-right: on/off, settings,
               remove-from-dashboard, expand toggle - i.e. right-to-left
@@ -178,7 +217,7 @@ const ProcessRow = ({
               <Switch
                 checked={status === 'on'}
                 onChange={(next) => handleAction(next ? 'ON' : 'OFF')}
-                disabled={busyAction !== null}
+                disabled={busyAction !== null || !canControl}
                 ariaLabel={`${process.name} power`}
               />
             ) : (
@@ -191,7 +230,7 @@ const ProcessRow = ({
                     style={ACTION_BUTTON_STYLE}
                     color={isCurrent ? statusColor(status) : 'secondary'}
                     variant={isCurrent ? undefined : 'outline'}
-                    disabled={busyAction !== null || isCurrent}
+                    disabled={busyAction !== null || isCurrent || !canControl}
                     onClick={() => handleAction(action)}
                   >
                     {busyAction === action ? <CSpinner size="sm" /> : action}
@@ -199,31 +238,54 @@ const ProcessRow = ({
                 )
               })
             )}
-            <IconButton
-              icon={cilSettings}
-              size="sm"
-              center
-              onClick={() => setSettingsVisible(true)}
-              ariaLabel="Process settings"
-            />
-            <IconButton
-              icon={cilTrash}
-              size="sm"
-              center
-              disabled={deleteBusy}
-              onClick={handleDelete}
-              ariaLabel={`Delete ${process.name}`}
-            />
+            <AiButton action subject={{ type: 'process', id: process.id }} label={process.name} />
+            {canManage && (
+              <IconButton
+                icon={cilSettings}
+                size="sm"
+                center
+                onClick={() => setSettingsVisible(true)}
+                ariaLabel={t('Process settings')}
+              />
+            )}
+            {canManage && (
+              <IconButton
+                icon={cilTrash}
+                size="sm"
+                center
+                disabled={deleteBusy}
+                onClick={handleDelete}
+                ariaLabel={t('Delete {{name}}', { name: process.name })}
+              />
+            )}
             {extraAction?.(process)}
             {Panel && <ExpandToggleButton expanded={expanded} onClick={onToggleExpand} />}
           </div>
         </CTableDataCell>
       </CTableRow>
       {expanded && Panel && (
-        <CTableRow color={rowColor}>
-          <CTableDataCell colSpan={5} className="p-0">
-            <Panel process={process} onConfigChange={onReload} />
-            <WemRow messages={messages} />
+        <CTableRow color={effectiveRowColor}>
+          <CTableDataCell colSpan={showPower ? 6 : 5} className="p-0">
+            {/* `display: grid; grid-template-columns: minmax(0, 1fr)` -
+                not decorative, load-bearing sizing (nexus-edge-aquarium's
+                own AGENTS.md, "Power Curves polish: Viewer gridlines +
+                Editor width/scroll fix", 2026-09-04): CoreUI's `CTable`
+                defaults to `table-layout: auto`, which still consults a
+                descendant's own preferred (min-content) width when sizing
+                columns even through an `overflow: auto` wrapper with no
+                explicit width - so a process kind whose own expanded
+                Panel renders a wide table (aquarium-light-control's own
+                Month/Year Profiles tabs, reported live 2026-09-19) can
+                inflate this whole Processes table, and the whole page,
+                instead of scrolling inside its own row. An explicit
+                `minmax(0, ...)` grid track is the one sizing context that
+                actually ignores a descendant's intrinsic content width -
+                every Panel gets this for free here, not just aquarium's
+                own. */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)' }}>
+              <Panel process={process} onConfigChange={onReload} />
+              <WemRow messages={messages} />
+            </div>
           </CTableDataCell>
         </CTableRow>
       )}
@@ -310,8 +372,11 @@ const ProcessesTable = ({
   onGroupsChange,
   onResetFilters,
   renderExtraRowAction,
-  emptyMessage = 'No processes match this filter.',
+  emptyMessage = t('No processes match this filter.'),
   registeredKinds = null,
+  statusLabel,
+  showPower = true,
+  overrideRowColor,
 }) => {
   const { isExpanded, toggleOne } = useExpandableRows(expandedIds, setExpandedIds)
 
@@ -362,7 +427,7 @@ const ProcessesTable = ({
               value={groupFilter}
               onChange={(e) => onGroupFilterChange(e.target.value)}
             >
-              <option value="">All groups</option>
+              <option value="">{t('All groups')}</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.name}>
                   {g.name}
@@ -378,9 +443,9 @@ const ProcessesTable = ({
               value={typeFilter}
               onChange={(e) => onTypeFilterChange(e.target.value)}
             >
-              <option value="">All types</option>
-              <option value="controllable">Controllable</option>
-              <option value="permanent">Permanent</option>
+              <option value="">{t('All types')}</option>
+              <option value="controllable">{t('Controllable')}</option>
+              <option value="permanent">{t('Permanent')}</option>
             </CFormSelect>
           </CCol>
         )}
@@ -391,9 +456,9 @@ const ProcessesTable = ({
               value={statusFilter}
               onChange={(e) => onStatusFilterChange(e.target.value)}
             >
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="">{t('All statuses')}</option>
+              <option value="active">{t('Active')}</option>
+              <option value="inactive">{t('Inactive')}</option>
             </CFormSelect>
           </CCol>
         )}
@@ -403,7 +468,7 @@ const ProcessesTable = ({
               key={searchResetToken}
               value={search}
               onSearch={onSearchChange}
-              placeholder="Search by name..."
+              placeholder={t('Search by name...')}
             />
           </CCol>
         )}
@@ -425,14 +490,19 @@ const ProcessesTable = ({
                     ON/OFF/Running) - named "Power" rather than a second
                     "Status" to avoid the obvious collision, matching this
                     file's own existing `power` terminology (see the
-                    ON/OFF Switch's own `ariaLabel` below). */}
-                <CTableHeaderCell scope="col">Status</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Power</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Name</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Group</CTableHeaderCell>
+                    ON/OFF Switch's own `ariaLabel` below). Simulator.jsx
+                    hides this column (AGENTS_TO_DO.md, 2026-08-29) - its
+                    own Status column already folds the switch's raw on/off
+                    into Off/Sleep/Active/Error, making the separate ON/OFF
+                    badge redundant there. */}
+                <CTableHeaderCell scope="col">{t('Status')}</CTableHeaderCell>
+                {showPower && <CTableHeaderCell scope="col">{t('Power')}</CTableHeaderCell>}
+                <CTableHeaderCell scope="col">{t('Name')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Group')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Type')}</CTableHeaderCell>
                 <CTableHeaderCell scope="col" className="text-end">
                   <div className="d-flex justify-content-end align-items-center gap-2">
-                    <span>Actions</span>
+                    <span>{t('Actions')}</span>
                     <ExpandAllToggleButton
                       ids={expandableIds}
                       expandedIds={expandedIds}
@@ -456,6 +526,9 @@ const ProcessesTable = ({
                   onGroupsChange={onGroupsChange}
                   extraAction={renderExtraRowAction}
                   registeredKinds={registeredKinds}
+                  statusLabel={statusLabel}
+                  showPower={showPower}
+                  overrideRowColor={overrideRowColor}
                 />
               ))}
             </CTableBody>

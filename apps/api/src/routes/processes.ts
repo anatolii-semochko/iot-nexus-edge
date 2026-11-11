@@ -1,14 +1,20 @@
 import type { FastifyInstance } from "fastify";
 
+import { can } from "../access/principal.js";
+import { scopeFilter, scopeIds } from "../access/scope.js";
+import { instanceUnits } from "../dnpInstances.js";
 import { requireAuth } from "../auth.js";
 import { logCommand } from "../commandLog.js";
 import { config } from "../config.js";
 import { pool } from "../db.js";
 import * as heartbeatControl from "../heartbeatControl.js";
 import type { HeartbeatControlConfig } from "../heartbeatControl.js";
+import { configSchemaKinds, configSchemaOf } from "../configSchemas.js";
 import { broadcastForced } from "../processBroadcast.js";
+import { createProcess, giveProcessCommand, ProcessWriteError, switchProcess, writeProcessConfig } from "../processWrites.js";
 import * as processMessages from "../processMessages.js";
 import * as processRegistry from "../processRegistry.js";
+import { isSimulationTargetSimulated } from "../simulationTarget.js";
 
 interface ProcessConfig {
   min?: number;
@@ -50,11 +56,27 @@ interface ProcessRow {
   // itself isn't a column on this table anymore, groups are a real,
   // independently manageable entity now (routes/processGroups.ts).
   group_name: string;
-  type: "controllable" | "permanent";
+  // Includes "simulation" (AGENTS_TO_DO.md, 2026-08-29) even though the
+  // POST /processes route below only ever accepts "controllable"/
+  // "permanent" - a simulation process is seed-migration-created only,
+  // never through this generic create route, but this interface also
+  // types every row read back via SELECT * FROM processes (GET
+  // /processes above), which legitimately includes simulation rows.
+  type: "controllable" | "permanent" | "simulation";
   kind: string;
   actions: string[];
   device_id: number | null;
+  // Simulation processes only (AGENTS_TO_DO.md, 2026-08-29) - the "spans
+  // an entire Node" link nexus-edge core's 1690000000029 migration
+  // established. Needed here (not just on the orchestrator-facing
+  // apiClient.ts type) for withLiveState's own isSimulationTargetSimulated
+  // check below.
+  node_id: number | null;
   config: ProcessConfig;
+  // per config section: last changed when / by whom (migrations/1690000000064)
+  config_stamps: Record<string, { at: string; by: number | null }>;
+  // pending one-shot commands (PROCESS_SELECT)
+  commands: { id: number; action: string; params: Record<string, unknown> }[];
   // Dashboard tab (AGENTS.md section 22) - set once, the instant this
   // process first gets an active WEM entry (processMessages.
   // maybeFlagForDashboard), cleared only via the dashboard-flag DELETE
@@ -68,18 +90,25 @@ interface ProcessRow {
   updated_at: string;
 }
 
-const IMPLEMENTED_ACTIONS = new Set(["ON", "OFF"]);
-
+// `commands` - the process's pending one-shot commands (process_commands,
+// not older than config.processCommands.ttlMs) - the orchestrator gets them
+// with the tick's list, no request of its own.
 const PROCESS_SELECT = `
-  SELECT p.*, g.name AS group_name
+  SELECT p.*, g.name AS group_name,
+    COALESCE((SELECT json_agg(json_build_object('id', c.id, 'action', c.action, 'params', c.params) ORDER BY c.id)
+              FROM process_commands c
+              WHERE c.process_id = p.id AND c.done_at IS NULL AND c.created_at > now() - make_interval(secs => ${config.processCommands.ttlMs / 1000})),
+             '[]'::json) AS commands
   FROM processes p
   JOIN process_groups g ON g.id = p.group_id
 `;
 
 export async function processRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/processes", async () => {
+  app.get("/processes", async (request) => {
     const result = await pool.query<ProcessRow>(`${PROCESS_SELECT} ORDER BY g.name, p.name`);
-    return Promise.all(result.rows.map(withLiveState));
+    // a person limited to some DNP instances sees only theirs (access/scope.ts)
+    const scope = await scopeFilter(request, "processes.view");
+    return withLiveStateMany(result.rows.filter((p) => !scope || scope.process(p.id)));
   });
 
   // AGENTS_TO_DO.md, 2026-08-14 process management - live create/delete
@@ -106,28 +135,13 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       config?: ProcessConfig;
     };
   }>("/processes", { preHandler: requireAuth }, async (request, reply) => {
-    const { name, groupId, type, kind, actions, deviceId, config } = request.body;
-    if (!name || !groupId || !kind) {
-      return reply.code(400).send({ error: "name, groupId, and kind are required" });
-    }
-    if (type !== "controllable" && type !== "permanent") {
-      return reply.code(400).send({ error: "type must be 'controllable' or 'permanent'" });
-    }
-
-    let row;
     try {
-      const result = await pool.query<{ id: number }>(
-        `INSERT INTO processes (name, group_id, type, kind, actions, device_id, config)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [name, groupId, type, kind, actions ?? [], deviceId ?? null, config ?? {}],
-      );
-      row = result.rows[0];
+      const id = await createProcess(request.body, request.user.sub, "api");
+      return withLiveState((await findProcess(String(id)))!);
     } catch (err) {
-      return reply.code(400).send({ error: (err as Error).message });
+      if (err instanceof ProcessWriteError) return reply.code(err.statusCode).send({ error: err.message, ...err.extra });
+      throw err;
     }
-
-    await logCommand({ processId: row.id, action: "create", value: request.body, source: "api", actorUserId: request.user.sub });
-    return withLiveState((await findProcess(String(row.id)))!);
   });
 
   // Deliberately unrestricted - this will happily delete a `permanent`
@@ -146,6 +160,28 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     return { status: "ok" };
   });
 
+  // Whom the process acts for (iot AGENTS_TO_DO.md 2026-11-06; access/guard.ts `X-Acting-Process`): a
+  // person (an active account, not an internal service's or the guest) - its requests made "as the person"
+  // get that person's rights and author what it records; null - none. The people's administrator only.
+  app.put<{ Params: { id: string }; Body: { userId?: number | null } }>("/processes/:id/acts-as", async (request, reply) => {
+    const process = await findProcess(request.params.id);
+    if (!process) return reply.code(404).send({ error: "process not found" });
+    const userId = request.body?.userId ?? null;
+    if (userId !== null) {
+      const person = (
+        await pool.query(
+          `SELECT 1 FROM users u WHERE u.id = $1 AND u.active AND u.username <> 'guest'
+             AND NOT EXISTS (SELECT 1 FROM role_members m WHERE m.user_id = u.id AND m.role_key = 'system')`,
+          [userId],
+        )
+      ).rows[0];
+      if (!person) return reply.code(400).send({ error: "a person's active account expected" });
+    }
+    await pool.query("UPDATE processes SET acts_as_user_id = $2, updated_at = now() WHERE id = $1", [process.id, userId]);
+    await logCommand({ processId: process.id, action: "config", value: { actsAsUserId: userId }, source: "api", actorUserId: request.user.sub });
+    return { status: "ok", actsAsUserId: userId };
+  });
+
   // Which `kind`s the running orchestrator actually has plugin code
   // loaded for right now (proxies apps/orchestrator's own GET
   // /process-kinds, config.orchestratorUrl) - the UI's "pending restart"
@@ -154,6 +190,14 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   // this gets called) - returns an empty list rather than failing the
   // whole request, same "warn don't block" spirit as this project's own
   // check-ports.sh/check-version.
+  // Config schemas (configSchemas.ts) - the kinds that have one, and one
+  // kind's: what its config holds, the types, limits and defaults.
+  app.get("/process-kinds/config-schemas", async () => ({ kinds: configSchemaKinds() }));
+  app.get<{ Params: { kind: string } }>("/process-kinds/:kind/config-schema", async (request, reply) => {
+    const schema = configSchemaOf(request.params.kind);
+    return schema ?? reply.code(404).send({ error: "no config schema for this kind" });
+  });
+
   app.get("/processes/registered-kinds", async (_request, reply) => {
     try {
       // 5s margin, not that it should ever need it - see docker-compose.yml's
@@ -198,6 +242,9 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       slots?: AnnunciatorSlot[];
       testLevel?: { type: "warning" | "error"; level: number } | null;
       testSlotIndex?: number | null;
+      // the sections' stamps the editor saw (config_stamps[section].at) -
+      // not a config field: an edit of a section changed since is refused
+      $seen?: Record<string, string | null>;
     };
   }>(
     "/processes/:id/config",
@@ -208,31 +255,20 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(404).send({ error: "process not found" });
       }
 
-      const config: ProcessConfig = { ...process.config, ...request.body };
-      if (config.min !== undefined && config.max !== undefined && config.max < config.min) {
-        return reply.code(400).send({ error: "max cannot be less than min" });
+      const { $seen, ...sections } = request.body ?? {};
+      // stamps, schema, command log, author - processConfig.ts (shared with
+      // the AI Assistant's proposals)
+      try {
+        const { config, stamps } = await writeProcessConfig(process.id, sections, $seen, request.user.sub, "api");
+        return { status: "ok", config, stamps };
+      } catch (err) {
+        if (err instanceof ProcessWriteError) return reply.code(err.statusCode).send({ error: err.message, ...err.extra });
+        throw err;
       }
-
-      // Logged before applying (AGENTS.md section 22's precedent for device
-      // writes) - `value` is the partial patch actually sent, not the whole
-      // resulting config, matching "value is what was written" everywhere
-      // else in log_command.
-      await logCommand({
-        processId: process.id,
-        action: "config",
-        value: request.body,
-        source: "api",
-        actorUserId: request.user.sub,
-      });
-
-      await pool.query("UPDATE processes SET config = $1, updated_at = now() WHERE id = $2", [config, process.id]);
-      return { status: "ok", config };
     },
   );
 
-  // Only ON/OFF exist today (the two seeded processes need nothing else) -
-  // START/PAUSE/STOP are named in the general process concept but not
-  // implemented yet.
+  // ON / OFF - processWrites.ts switchProcess (shared with the AI Assistant's proposals)
   app.post<{ Params: { id: string }; Body: { action: string } }>(
     "/processes/:id/action",
     { preHandler: requireAuth },
@@ -242,29 +278,41 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(404).send({ error: "process not found" });
       }
 
-      const { action } = request.body;
-      if (!process.actions.includes(action)) {
-        return reply.code(400).send({ error: `action '${action}' is not valid for this process`, allowed: process.actions });
+      try {
+        await switchProcess(process.id, request.body.action, request.user.sub, "api");
+        return { status: "ok" };
+      } catch (err) {
+        if (err instanceof ProcessWriteError) return reply.code(err.statusCode).send({ error: err.message, ...err.extra });
+        throw err;
       }
-      if (!IMPLEMENTED_ACTIONS.has(action)) {
-        return reply.code(400).send({ error: `action '${action}' is not implemented yet` });
-      }
+    },
+  );
 
-      await logCommand({
-        processId: process.id,
-        action: action === "ON" ? "on" : "off",
-        source: "api",
-        actorUserId: request.user.sub,
-      });
+  // One-shot commands (migrations/1690000000064): a person's command to a
+  // process - a calibration start, a replacement done, a test - kept out
+  // of its config. Logged like a config edit; reaches the process with the
+  // tick's list (PROCESS_SELECT `commands`); the process reports it done.
+  app.post<{ Params: { id: string }; Body: { action: string; params?: Record<string, unknown> } }>(
+    "/processes/:id/commands",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const process = await findProcess(request.params.id);
+      if (!process) return reply.code(404).send({ error: "process not found" });
+      const { action, params } = request.body ?? ({} as never);
+      if (typeof action !== "string" || action === "") return reply.code(400).send({ error: "action is required" });
+      return { id: await giveProcessCommand(process.id, action, params ?? {}, request.user.sub, "api") };
+    },
+  );
 
-      await processRegistry.setStatus(process.id, action === "ON" ? "on" : "off", "api");
-      // `status` is a deliberately non-urgent, timer-only broadcast field
-      // (AGENTS.md section 24) - a UI-driven ON/OFF click is exactly the
-      // "flip it and watch the effect immediately" case that's laggy for,
-      // same reasoning as the dashboard-flag-cleared route below. Forced,
-      // not left to the next periodic tick or an unrelated urgent trigger.
-      await broadcastForced(`process-action:${action}`);
-      return { status: "ok" };
+  // Orchestrator-driven: the process applied the command (`result` - what it says back, optional).
+  app.post<{ Params: { id: string; commandId: string }; Body: { result?: unknown } }>(
+    "/processes/:id/commands/:commandId/done",
+    async (request, reply) => {
+      const result = await pool.query(
+        "UPDATE process_commands SET done_at = now(), result = $3 WHERE id = $2 AND process_id = $1 AND done_at IS NULL",
+        [request.params.id, request.params.commandId, request.body?.result === undefined ? null : JSON.stringify(request.body.result)],
+      );
+      return result.rowCount ? { status: "ok" } : reply.code(404).send({ error: "no such pending command" });
     },
   );
 
@@ -364,6 +412,20 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     return { status: "ok" };
   });
 
+  // Orchestrator-driven only - a process's events: one-shot reports for
+  // the log only, never active (processMessages.logEvents).
+  app.post<{ Params: { id: string }; Body: { entries: processMessages.MessageInput[] } }>(
+    "/processes/:id/events",
+    async (request, reply) => {
+      const process = await findProcess(request.params.id);
+      if (!process) {
+        return reply.code(404).send({ error: "process not found" });
+      }
+      await processMessages.logEvents(process.id, request.body.entries ?? []);
+      return { status: "ok" };
+    },
+  );
+
   // Orchestrator-driven only (AGENTS.md section 24) - lets a process force
   // an immediate fleet-wide public-state broadcast outside the normal
   // critical/warning/new-message urgent triggers and the periodic timer,
@@ -407,8 +469,15 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   app.patch<{ Params: { messageId: string }; Body: { hidden: boolean } }>(
     "/log-messages/:messageId",
     { preHandler: requireAuth },
-    async (request) => {
-      await processMessages.setHidden(Number(request.params.messageId), request.body.hidden, request.user.sub);
+    async (request, reply) => {
+      // the message's process - the guard can't tell it by the route (2026-10-28): Control on it, else - for
+      // one who can't even see it - not there
+      const id = Number(request.params.messageId);
+      const row = (await pool.query<{ process_id: number }>("SELECT process_id FROM log_messages WHERE id = $1", [id])).rows[0];
+      const unit = row ? ((await instanceUnits()).processUnit.get(row.process_id) ?? null) : null;
+      if (!row || !can(request.principal!, "processes.view", unit)) return reply.code(404).send({ error: "message not found" });
+      if (!can(request.principal!, "processes.control", unit)) return reply.code(403).send({ error: "forbidden", permission: "processes.control" });
+      await processMessages.setHidden(id, request.body.hidden, request.user.sub);
       return { status: "ok" };
     },
   );
@@ -425,6 +494,7 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
       type: processMessages.MessageType | "all";
       scope: processMessages.MessageScope;
       processId?: string;
+      processIds?: string; // comma-separated
       search?: string;
       from?: string;
       to?: string;
@@ -434,9 +504,19 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
   }>("/log-messages", async (request) => {
     const { type, scope, search, from, to } = request.query;
     const processId = request.query.processId ? Number(request.query.processId) : undefined;
+    const asked = request.query.processIds
+      ? request.query.processIds.split(",").map(Number).filter(Number.isFinite)
+      : undefined;
+    // a person limited to some DNP instances sees only their processes' messages (access/scope.ts)
+    // (and the simulations' - only for one who sees the simulation)
+    const visible = await scopeIds(request, "processes.view", { quiet: true });
+    // (the one `processId` too - one of theirs only, else nothing)
+    const processIds = visible
+      ? (asked ?? (processId !== undefined ? [processId] : visible.processIds)).filter((id) => visible.processIds.includes(id))
+      : asked;
     const page = Math.max(1, Number(request.query.page ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(request.query.pageSize ?? 20)));
-    return processMessages.listProcessMessages({ type, scope, processId, search, from, to, page, pageSize });
+    return processMessages.listProcessMessages({ type, scope, processId, processIds, search, from, to, page, pageSize });
   });
 
   // UI-driven - which Tab Groups (routes/tabGroups.ts) this process is
@@ -569,51 +649,40 @@ async function findProcess(id: string): Promise<ProcessRow | undefined> {
   return result.rows[0];
 }
 
-async function withLiveState(process: ProcessRow) {
-  const [
-    status,
-    critical,
-    warning,
-    metrics,
-    messages,
-    hasActiveWem,
-    heartbeatStopped,
-    heartbeatLastSeenAt,
-    heartbeatTestSimulateFailure,
-  ] = await Promise.all([
-    process.type === "controllable" ? processRegistry.getStatus(process.id) : Promise.resolve(undefined),
-    processRegistry.getCritical(process.id),
-    processRegistry.getWarning(process.id),
-    processRegistry.getMetrics(process.id),
-    processMessages.listActiveMessages(process.id),
-    // Deliberately not derived from `messages` above - listActiveMessages
-    // excludes hidden entries, but the Dashboard flag/unflag rule
-    // (AGENTS.md section 22) is symmetric on resolved_at regardless of
-    // hidden, so the UI's "can this be removed from Dashboard" check needs
-    // this separate, unfiltered signal.
-    processMessages.hasActiveEntries(process.id),
-    // Heartbeating Control (AGENTS.md) - live Redis state alongside the
-    // Postgres `heartbeat_control` config already on `process` itself.
-    // Read here so apps/orchestrator's heartbeat-control process kind
-    // gets everything it needs from the one `GET /processes` call it
-    // already makes every tick, no separate endpoint required.
-    heartbeatControl.getProcessHeartbeatStopped(process.id),
-    heartbeatControl.getProcessLastSeenAt(process.id),
-    // "heartbeat-control-test" kind only - fetched unconditionally for
-    // every process anyway (same as hasActiveWem above), simpler than
-    // branching on kind here.
-    heartbeatControl.isTestSimulateFailure(process.id),
+// The processes' live state (status, flags, metrics, messages, heartbeat) -
+// the one builder, for a list and for one process (withLiveState): a fixed
+// number of round trips (one SQL for the messages, one Redis pipeline, one
+// MGET) instead of ~10 per process - GET /processes is read every
+// orchestrator tick (iot PERF_PROD_2026-11-05.md).
+async function withLiveStateMany(processes: ProcessRow[]) {
+  const ids = processes.map((p) => p.id);
+  const [pub, msgs, beats, simulated] = await Promise.all([
+    processRegistry.getPublicMany(ids),
+    processMessages.activeMessagesOf(ids),
+    heartbeatControl.processHeartbeatMany(ids),
+    Promise.all(processes.map((p) => (p.type === "simulation" ? isSimulationTargetSimulated(p) : Promise.resolve(undefined)))),
   ]);
-  return {
-    ...process,
-    status,
-    critical,
-    warning,
-    metrics,
-    messages,
-    hasActiveWem,
-    heartbeatStopped,
-    heartbeatTestSimulateFailure,
-    heartbeatLastSeenAt,
-  };
+  return processes.map((process, i) => {
+    const live = pub.get(process.id)!;
+    const m = msgs.get(process.id)!;
+    const beat = beats.get(process.id)!;
+    return {
+      ...process,
+      status: process.type === "controllable" || process.type === "simulation" ? live.status : undefined,
+      critical: live.critical,
+      warning: live.warning,
+      metrics: live.metrics,
+      messages: m.messages,
+      hasActiveWem: m.hasActive,
+      heartbeatStopped: beat.stopped,
+      heartbeatTestSimulateFailure: beat.testSimulateFailure,
+      heartbeatLastSeenAt: beat.lastSeenAt,
+      simulationTargetSimulated: simulated[i],
+    };
+  });
+}
+
+// one process - the same shape, built the same way as the list's
+async function withLiveState(process: ProcessRow) {
+  return (await withLiveStateMany([process]))[0];
 }

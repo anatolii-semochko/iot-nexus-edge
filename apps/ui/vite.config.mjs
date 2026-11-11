@@ -1,7 +1,25 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import fs from 'node:fs'
 import path from 'node:path'
 import autoprefixer from 'autoprefixer'
+
+// A target project's own UI plugins for `pnpm dev` (iot AGENTS_TO_DO.md 2026-11-09 - the demo's live
+// reload): UI_PLUGINS_DIR - a folder of its plugins (the demo's `make ui-dev` makes one of links to the
+// aquarium's and its own, as its Dockerfile copies them); UI_DEV_PROXY - a running stack's UI (its nginx)
+// to send /api and /ws to, instead of a local API / messaging gateway; UI_DEV_PORT - the dev server's port.
+const pluginsDir = process.env.UI_PLUGINS_DIR
+  ? path.resolve(process.env.UI_PLUGINS_DIR)
+  : path.resolve(__dirname, '../../plugins')
+// the dev server may serve the linked plugins' real folders (other repositories)
+const pluginRoots = () => {
+  try {
+    return fs.readdirSync(pluginsDir).map((n) => fs.realpathSync(path.join(pluginsDir, n)))
+  } catch {
+    return []
+  }
+}
+const devProxy = process.env.UI_DEV_PROXY
 
 export default defineConfig(() => {
   return {
@@ -38,7 +56,7 @@ export default defineConfig(() => {
         // alias the same way a static import does.
         {
           find: 'plugins/',
-          replacement: `${path.resolve(__dirname, '../../plugins')}/`,
+          replacement: `${pluginsDir}/`,
         },
         // devices/ lives outside apps/ui's own package, so plain Node
         // resolution (walking up node_modules from the importing file)
@@ -81,23 +99,29 @@ export default defineConfig(() => {
       extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.scss'],
     },
     server: {
-      port: 3000,
-      proxy: {
-        // Mirrors nginx.conf.template's /api reverse proxy, for local
-        // `pnpm dev` (not the containerized workflow, which always goes
-        // through nginx) - see apps/ui/src/api/client.js.
-        '/api': {
-          target: `http://localhost:${process.env.API_PORT ?? 3001}`,
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, ''),
-        },
-        // Mirrors nginx.conf.template's /ws reverse proxy, for local
-        // `pnpm dev` - see apps/ui/src/api/liveSocket.js.
-        '/ws': {
-          target: `http://localhost:${process.env.MESSAGING_GATEWAY_PORT ?? 3030}`,
-          ws: true,
-        },
-      },
+      port: Number(process.env.UI_DEV_PORT ?? 3000),
+      fs: { allow: [path.resolve(__dirname, '../..'), pluginsDir, ...pluginRoots()] },
+      proxy: devProxy
+        ? {
+            '/api': { target: devProxy, changeOrigin: true },
+            '/ws': { target: devProxy.replace(/^http/, 'ws'), ws: true, changeOrigin: true },
+          }
+        : {
+            // Mirrors nginx.conf.template's /api reverse proxy, for local
+            // `pnpm dev` (not the containerized workflow, which always goes
+            // through nginx) - see apps/ui/src/api/client.js.
+            '/api': {
+              target: `http://localhost:${process.env.API_PORT ?? 3001}`,
+              changeOrigin: true,
+              rewrite: (path) => path.replace(/^\/api/, ''),
+            },
+            // Mirrors nginx.conf.template's /ws reverse proxy, for local
+            // `pnpm dev` - see apps/ui/src/api/liveSocket.js.
+            '/ws': {
+              target: `http://localhost:${process.env.MESSAGING_GATEWAY_PORT ?? 3030}`,
+              ws: true,
+            },
+          },
     },
   }
 })

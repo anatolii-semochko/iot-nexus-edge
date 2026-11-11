@@ -1,0 +1,21 @@
+Nexus Edge
+Copyright 2026 Anatolii Semochko and the Nexus Edge contributors
+
+Created and maintained by Anatolii Semochko.
+Original repository: https://github.com/anatolii-semochko/iot-nexus-edge
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product includes third-party software:
+
+- apps/ui is based on the CoreUI Free React Admin Template
+  (https://github.com/coreui/coreui-free-react-admin-template),
+  Copyright (c) 2026 creativeLabs Łukasz Holeczek, licensed under the MIT
+  License - see apps/ui/THIRD-PARTY-LICENSE-CoreUI.txt.
+
+Nexus Edge runs alongside EdgeX Foundry (https://www.edgexfoundry.org),
+licensed under the Apache License, Version 2.0, as separate containers; it
+is not bundled in this repository.
+
+The libraries Nexus Edge depends on are distributed under their own licences,
+as declared in their package manifests.

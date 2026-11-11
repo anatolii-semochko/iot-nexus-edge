@@ -1,0 +1,22 @@
+# Copy of devices/standalone/sensor/flow-rate/edgex-device-profile.yaml
+# (the source of truth) - kept in sync by hand (AGENTS.md section 7).
+name: "NexusEdge-FlowRate"
+manufacturer: "NexusEdge"
+model: "flow-rate"
+labels:
+  - "sensor"
+description: "Volume flow measurement - atomic device, one Float32 value"
+
+deviceResources:
+  - name: "FlowRate"
+    isHidden: false
+    description: "Volume flow measurement reading"
+    properties:
+      valueType: "Float32"
+      # RW at the EdgeX level although read-only for the platform - the
+      # simulate endpoints (and a physical write) push readings through
+      # core-command (same as ../pressure).
+      readWrite: "RW"
+      units: "l/min"
+
+deviceCommands: []

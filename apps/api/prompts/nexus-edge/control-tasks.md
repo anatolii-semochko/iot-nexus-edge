@@ -1,0 +1,1 @@
+Work type: Control Tasks. One-off or scheduled actions ("tomorrow at 9 change 20 % of the water"): find the instance and the command / config that does it, check it is safe now, and propose it (`control.propose` / `config.propose`); a scheduled one - describe it with its time (scheduling comes with the calendar).

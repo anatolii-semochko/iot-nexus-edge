@@ -496,8 +496,12 @@ a Postgres seed migration).
 `apps/api` exposes this over HTTP: `GET /nodes`, `GET /nodes/:id` (registry
 only), `GET /devices` (registry rows plus, for any with an
 `edgex_device_name`, that device's live `operatingState`/`adminState` from
-one core-metadata call), `GET /devices/:id` (registry row plus the device's
-live `value`/`valueType`/`units`, read from EdgeX core-command, and - for a
+one core-metadata call; `?live=false` - the registry rows only, without the
+EdgeX call and the overdue snapshots, for a process mapping its devices -
+2026-11-06), `GET /devices/:id` (registry row plus the device's
+live `value`/`valueType`/`units`, read from EdgeX core-command - for a
+virtual / simulated device the value is the API's cache, EdgeX gives the type
+and the units (2026-11-05) - and - for a
 *controllable* device only - its Dual Devices Model `dualState` - see the
 read-only-devices note in section 6), `PUT /devices/:id` (Model State
 Validator, then proxies the write to EdgeX core-command; used by the UI's
@@ -674,7 +678,10 @@ Socket.IO (an unneeded protocol layer over plain WebSocket).
 **Implementation status / known simplifications**:
 - No heartbeat producer exists anywhere — `node.*.heartbeat` is a reserved
   routing-key shape, not a real event yet.
-- `apps/api` is the only publisher. Nothing bridges EdgeX's own southbound
+- `apps/api` is the only publisher. **Update 2026-09-26:** a device's own
+  push (MQTT nodes) is now bridged from EdgeX's bus into `nexus.events` -
+  see section 80; everything below still holds for every other
+  (polled/written) device. Otherwise nothing bridges EdgeX's own southbound
   device events into `nexus.events` yet, so a device's state only reaches
   the bus when something calls the Devices API's write path — a physical
   device changing state on its own (e.g. a sensor reading drifting, not
@@ -977,9 +984,10 @@ exists above, or build these before they're actually needed):
 - **Permissions/roles helper** (a generic `roles()` hook reading many
   possible permissions, an `AccessDeniedBlock`) — UI authorization (section
   13) landed with only one meaningful role (`admin`) and a single inline
-  check (`user.roles.includes('admin')`) everywhere it's needed
-  (`AppSidebar.jsx`, `AppHeaderDropdown.jsx`) — a generic multi-permission
-  hook would be solving a problem that doesn't exist yet.
+  check (`user.roles.includes('admin')`) everywhere it's needed — a generic
+  multi-permission hook would be solving a problem that doesn't exist yet.
+  (Superseded: the access rework added `access.js` `useCan` / `canOpen` -
+  see the access section.)
 - **`objectToFormData` / generic file-upload helper** — avatar upload
   (section 13) turned out to need only a single `FormData` + one `<input
   type="file">` call site (`UserForm.jsx`), not a reusable helper; revisit if
@@ -989,16 +997,27 @@ exists above, or build these before they're actually needed):
   `body.reason ?? body.error` from a non-2xx JSON response; no need to add a
   second, separately-named helper that does the same thing.
 
+### Pages without a frame, table rows (2026-10-18)
+
+- A page's own top card - the routed view's root `<CCard>`, a direct child
+  of AppContent's `page-content` container - has no border, header band or
+  side padding (`scss/style.scss`); the container has no max width and the
+  wrapper is the body colour in both themes, so a page is one sheet aligned
+  with the header. Cards inside a page keep their usual look. A new page
+  keeps the convention: one `<CCard>` as its root, its title a `<strong>` in
+  the card header.
+- Every table drops the border under its last row (no opt-in class);
+  badges in a table cell keep a 0.25rem gap below.
+
 ## 13. UI authorization (login, users, roles, avatars)
 
-Login-gates the admin panel itself (AGENTS.md's original "Ми додаємо
-наступні кроки" roadmap, step 2). **Deliberately NOT done here**: per-endpoint
-API authorization — `/nodes`, `/devices`, `/processes`, `/system/*` remain
-completely open, unauthenticated, exactly as before. Only two route groups
-are actually gated: `/auth/*` and `/users/*`. That's a separate, much larger
-future task (would need to decide what an EdgeX-adjacent device-control API
-protected by roles even looks like) — not something this step should block
-on or half-implement.
+Login-gates the admin panel itself. 2026-10-17: **superseded by the access
+control below** ("Access control - permissions, roles, scopes, sessions")
+- every API route is now checked by one guard; the session is server-side
+(2026-10-27); the JWT carries `{sub, username, sid, ctx?, guest?}` (no
+roles). The text of this
+section stays as the history of the first login step; where it disagrees,
+the "Access control" section wins.
 
 **Session mechanism** — one JWT, httpOnly cookie, no refresh token:
 - `POST /auth/login` verifies `bcryptjs` against `users.password_hash`,
@@ -1038,7 +1057,11 @@ on or half-implement.
   convention as every other credential here, not a stronger generated-secret
   scheme, for consistency): `admin` (role `admin`, can never be deleted or
   deactivated) and `system` (no roles, can never be deleted, *can* be
-  deactivated). `PROTECTED_USERNAMES`/`NON_DEACTIVATABLE_USERNAMES` in
+  deactivated). 2026-10-11: `simulator` (the simulation's account) is
+  protected the same way as `system`, seeded by
+  `..._seed-simulator-user.ts` (password from `SIMULATOR_DEFAULT_PASSWORD`
+  - required in every stack's `.env`; an existing `simulator` is kept).
+  `PROTECTED_USERNAMES`/`NON_DEACTIVATABLE_USERNAMES` in
   `routes/users.ts` are the one place this is encoded — every response
   includes computed `deletable`/`deactivatable` booleans so `apps/ui` only
   ever disables buttons based on what the server already decided, never
@@ -1114,7 +1137,9 @@ real user would go. All of it is now deleted:
   the sidebar's external link to CoreUI's own doc site. This platform's
   actual documentation lives in the repo (`README.md`, this file,
   `docs/PROJECT_MASTER-1.1.md`), not behind a UI page - stays empty until
-  there's a real reason to render docs in-app.
+  there's a real reason to render docs in-app. (Both later became real: the
+  Dashboard - its cards and folders; the Docs - the user guide from
+  `docs/guide/`, 2026-10-31.)
 - `views/pages/login/`, `page404/`, `page500/` — real functional pages
   (section 13), wired directly in `App.jsx` outside `routes.js`/`_nav.jsx`.
   The sidebar shortcut *links* to `/login`/`/404`/`/500` (the old "Extras >
@@ -1147,16 +1172,30 @@ only the current page of a paginated table) and changes every render.
 `ids`/`expandedIds`/`setExpandedIds` and it renders nothing when there's
 nothing expandable, otherwise the same `ExpandToggleButton` used per-row.
 
+**Don't add CoreUI's `hover` prop to a `<CTable>` that has expandable
+rows** (AGENTS_TO_DO.md 2026-09-04) - `hover` applies its highlight
+per-`<tr>`, so the row directly under the cursor and the expanded
+detail row right below it (a *separate* `<tr>`, per this same toolkit's
+own convention) each light up/dim independently as the mouse crosses
+between them - reads as the whole expanded panel's own background
+flickering. Applies to any table built with this hook, not just the one
+it was first caught on.
+
 **Persisted page state** (`hooks/usePersistedState.js` +
 `utils/cookies.js`): filters, search text, page size, and which rows are
 expanded are the kind of thing someone sets up while actually using a
-page and expects to survive a refresh - not durable data, so a cookie, not
-Postgres. `usePersistedState(cookieName, defaults)` treats `defaults` as a
+page and expects to survive a refresh - not durable data, so the browser,
+not Postgres: `localStorage` since 2026-10-29 (was a cookie - one mechanism
+for every page and the Dashboard's fit, the one that lasts: no expiry,
+unlike a cookie's 400 days at most, and not sent with every request; an
+old cookie of the same name is moved over on its first read and deleted;
+storage off - the state lasts while the page is open).
+`usePersistedState(key, defaults)` treats `defaults` as a
 **registration**, not just a fallback: its keys are exactly what gets
-read from / written to the cookie (as one JSON blob), its values are what
-a first visit (or a field a stale cookie doesn't have yet) starts from. A
+read from / written to the storage (as one JSON blob), its values are what
+a first visit (or a field a stale saved state doesn't have yet) starts from. A
 field removed from `defaults` later stops being read even if an old
-cookie still has it - the schema decides what exists, not the cookie.
+saved state still has it - the schema decides what exists, not the storage.
 Returns `[state, setState]` where `setState(partial)` shallow-merges and
 re-persists the whole object, same ergonomics as the app's Redux
 `dispatch({type:'set', ...})` pattern elsewhere.
@@ -1438,7 +1477,36 @@ previous CPU sample to diff against (see above) — that one tick reports
 `cpu: 0` and skips both the critical and warning checks entirely rather
 than risk a false reading off a meaningless first sample.
 
+**Hysteresis and hold (2026-10-19, migrations 075 / 076)**: a metric at a
+threshold (a host's CPU temperature swinging 69-91 C within seconds under
+load) raised and resolved its warning tick after tick - each re-raise a new
+`log_messages` row (587 a day on the demo, the header's counters at 99+).
+A raised level (`<metric>_warning` / `_error`) now holds until the value is
+`hysteresis` units (config, the metric's own % or C; default 2) below the
+threshold, and clears only after `holdSeconds` (default 60) below
+continuously. The flags (critical / warning) and the messages use the same
+rule. Per process, in the orchestrator's memory (a restart starts from the
+plain thresholds). The panel: "Hysteresis", "Hold, s".
+
+**Raise after (2026-11-07)**: a level is raised only once its metric has
+been over the threshold `raiseSeconds` (config, default 30) continuously -
+the demo server's CPU over 70 % for seconds (a build, the nightly jobs)
+raised a warning up to 17 times an hour. The panel: "Raise after, s". Its
+messages go without the platform's settling (section 22) - its own hold.
+
 ## 22. Logging + WEM (Warnings/Errors/Messages)
+
+**The logs' size (2026-11-07)**: every service's container log capped
+(`x-logging` in the compose files - `DOCKER_LOG_MAX_SIZE` 10m x
+`DOCKER_LOG_MAX_FILE` 3; unbounded, the stacks' logs reached 43 GB in two
+weeks on a dev machine); the api logs only the requests answered with 5xx
+(`API_REQUEST_LOG=errors`; `all` - every request, ~1.5 GB a day - for
+debugging); EdgeX's services at `EDGEX_LOG_LEVEL` (WARN). A number written
+to EdgeX goes as a string (`edgex.ts writeValue`) - a JSON number came back
+from core-command as "1.411806e+06" and an integer resource refused it.
+
+> A one-shot report that should only be logged (never active) is an event -
+> see "Process events - log only, never active (2026-10-15)" at the end.
 
 First slice of a larger, explicitly-scoped-down logging/notifications
 system - three new Postgres tables and their services, wired into real
@@ -1520,6 +1588,46 @@ actually changed - same no-redundant-publish principle as
 boolean, since a boolean only has two states to compare and this has to
 diff two code sets. `setHidden` (UI-driven dismiss) publishes the same
 event after toggling, so every viewer's row updates immediately.
+
+**In the interface's language (2026-11-08, migration 106)**: a message
+carries `i18n` - `{ ns, template, params }`: the producer's English template
+with its `{{placeholders}}` and their values; `text` stays the English filled
+in (the logs, the search, the AI, the rows from before). A producer builds
+both with `wem(template, params)` - `{ code, level, ...wem("{{name}}: frost
+risk", { name }) }` (`devices/lib/wem.ts`; `ctx.wem` in a plugin's context;
+the built-ins - `apps/orchestrator/src/messageText.ts`); it never names its
+package: the orchestrator adds `ns` from the process's kind - the plugin
+file's folder (`kindPackages.ts`, `apiClient.withPackage`; a built-in kind -
+`core`). The UI's `messageText(m)` (`src/i18n`) translates the template in
+that package's `ui/locales` (then the core's) - the header's notifications,
+Logs -> Messages, the processes' WEM rows, the aquarium's Control / Logs
+tabs. A text with a nested template literal, or one made whole elsewhere
+(`{{v}}` alone), is still plain English - convert it when touched.
+
+**Settling (2026-11-07, `apps/orchestrator/src/messageSettle.ts`)**:
+`apiClient.syncMessages` holds a warning / error gone from a process's
+report `ORCHESTRATOR_MESSAGE_CLEAR_AFTER_MS` (30 s) more, with its last
+text - back within it, it is the same message, not a new row; the
+process's `setCritical` / `setWarning` hold with it (a held error wins).
+Every producer has it (the plugins' ctx is the same `apiClient`); a
+producer with its own hold passes `{ clearAfterMs: 0 }` (resource-monitor).
+After an orchestrator restart the hold starts from what the API has active
+(`GET /processes` `messages`): a process's first tick, before its state is
+loaded, reported nothing - each deploy resolved every aquarium warning and
+raised it again seconds later as a new row.
+Why: conditions at their edge - a simulation's writes failing every other
+tick while EdgeX restarts on a deploy, a tank charge around a threshold -
+logged a new row each time they came back: 3 265 unread errors and 1 769
+warnings on the demo in three days, the header at 99+ for everyone.
+
+**Simulations' messages are quiet** for a person without
+`simulation.view` on their unit (2026-11-07, `access/scope.ts`
+`quietSimulations`): the stream scope's `quiet` ids - the gateway sends
+those processes without their flags / active messages and leaves them out
+of the unread counters; `GET /log-messages` and `/logs/commands`
+(`scopeIds(..., { quiet: true })`) leave their rows out. `GET /processes`
+still lists them (the aquarium's calibration wizard and dosing read their
+simulation's state for a person without simulation.view).
 
 **Real producer**: `resourceMonitor.ts` (section 21) now calls
 `apiClient.syncMessages` twice per tick - once for `"error"`, once for
@@ -2203,7 +2311,9 @@ Today/Yesterday/date + time-to-the-minute, new alongside the existing
 `formatDateTime` (full locale string, too wide for a dense feed) and
 `formatRelativeTime` ("N minutes ago", right for one last-updated field,
 reads badly repeated down a whole column where every row needs its own
-reference point).
+reference point). `{ numeric: true }` (2026-11-11) - the date in the locale's
+digits (20.10.2026) for a narrow screen's list; `smartDateTimeParts` - the same
+as `[day, time]`, for a cell that puts the time under the day.
 
 ### Cosmetic revision pass (after first ship)
 
@@ -2608,6 +2718,18 @@ Batched heartbeat touch, not one HTTP call per process per second:
 `apiClient.touchHeartbeats(ids)` once at the end - a single
 `POST /processes/heartbeat`, pipelined into Redis server-side
 (`heartbeatControl.touchHeartbeats`), not N round trips.
+
+The silence is counted from Heartbeating Control's first run at the
+latest (2026-11-07): after a restart (a deploy) the last-seen marks in Redis were
+minutes old, and the first tick raised "hasn't sent a heartbeat in 82
+ticks" for every process, Heartbeating Control itself included.
+And for `ORCHESTRATOR_HEARTBEAT_STARTUP_GRACE_MS` (60 s, 2026-11-08) after
+that first run no one's silence is judged at all: while the stack starts,
+every process's first run comes late (each deploy still raised "Resource
+Monitor: no heartbeat in 3 ticks" for half a minute).
+The grace starts again whenever the watcher itself missed more than 3 ticks
+(the API unreachable while a deploy restarts it - no heartbeat could get
+through, so no one's silence is theirs).
 
 ### "Heartbeating control test" process
 
@@ -3834,7 +3956,10 @@ everywhere in this table, rendered with its own real avatar in the
 Commands tab exactly like any human actor - no more special-cased gear
 icon, no more separate "Orchestrator" entry in the actor filter
 dropdown (`GET /users/directory` already returns "system" like any
-other active user, so it appears there for free).
+other active user, so it appears there for free). Since migration 094
+(2026-10-27) the account is `orchestrator` ("Orchestrator", the role
+`system` - the internal services' role; the simulator and the AI agent hold
+it too); `getSystemActorUserId()` looks up `'orchestrator'`.
 
 ### Actor column moved first
 
@@ -5924,6 +6049,37 @@ the header component has nothing to do with that page. Reuses the
 existing `.wem-blink-ring` CSS animation (`NotificationCenter.jsx`'s
 own warning/error icons) rather than inventing a second blink
 mechanism.
+Blinks only in production (2026-09-25): with `NODE_ENV=development`
+simulation is the normal working state, so the badge shows steady.
+The UI is a static bundle, so `NODE_ENV` reaches it only as the
+`VITE_NODE_ENV` build arg (docker-compose passes `${NODE_ENV:-
+production}`, same plumbing as `VITE_PROJECT_NAME`), read by
+`src/appEnv.js` (`IS_PRODUCTION`); unset counts as production. Changing
+`NODE_ENV` therefore needs a UI rebuild, not just a restart.
+Three modes since 2026-11-10: `SIMULATION_BADGE` = `hide` / `show`
+(steady) / `blink` (the `VITE_SIMULATION_BADGE` build arg, read by
+`appEnv.js` `SIMULATION_BADGE`); empty keeps the default above.
+
+**The footer (2026-10-31)** - on the left the installation's name
+(`VITE_PROJECT_NAME` from `PROJECT_NAME`, e.g. "Nexus Edge Demo" or a
+client's site) with the current year; on the right always "Powered by
+Nexus Edge" - the product, the same in every installation (the old
+"EdgeCore Runtime" name is gone).
+
+**The brand and the project's website (2026-11-01)** - the logo is the
+Nexus Edge mark ("Nexus node", the same as nexus-edge.tech), rendered in
+3D (`iot/images/logo/make_logo_3d.py`, Blender): `components/
+BrandMark.jsx`, two tones - light nodes on dark grounds (the sidebar,
+always), dark nodes on light ones (the header's brand follows the theme,
+`.brand-mark-on-light/-dark` in style.scss). The favicon is the site's
+flat mark; the old chip logo is gone. Optional `VITE_HOME_URL` /
+`VITE_HOME_LANGS` build args (from `HOME_URL` / `HOME_LANGS` in the
+project's `.env`; `src/homeSite.js`): set - the brand links to that site
+in the interface's language (`<url><lang>/` when the language is in
+HOME_LANGS, else the root), same tab, and the user menu gets a link with
+the site's host (the way back on a phone, where the sidebar is hidden);
+unset - the brand goes to the app's start, as before. The demo sets them
+to nexus-edge.tech (`uk,de,es`).
 
 **Nodes/Devices status filter** - a new leftmost filter dropdown (OK/
 Error/Simulation), filtering by the exact same `rowColor` value each
@@ -6165,6 +6321,29 @@ flip live across the whole list simultaneously, also with zero polling
 in either direction.
 
 ## 66. New "weather-node" node type - CORE Library + firmware scaffold, first Device with no EdgeX backend at all
+
+> **Current state (2026-10-19):** the `weather-control` process kind is a
+> whole public CORE Library package - `devices/processes/weather-control/`
+> (`process.ts`, `ui/` - panel, Zones section, `lightLevels.js`, the
+> Dashboard component `weatherControl.panel` with its avatar, `register.js`;
+> `docs/README.md`, `library.json`), loaded like every Library process kind
+> (section 82). The runner moved there from the aquarium project, the UI
+> from `apps/ui/src/views/processes/`. The Aquarium, Energy Field and
+> Heating packages depend on it; a project seeds only its instance. Paths
+> below are the history. Since 2026-10-19 also: the forecast (`api.ts` -
+> Open-Meteo for `config.forecast`, stored in `weather_forecasts`
+> (migration 078), the last good one kept on a failed fetch, `GET
+> /weather-control/:processId/forecast`, AI tool `weather.forecast`;
+> `.env` `OPEN_METEO_URL`, API config `services`, plugin context
+> `services`), a simulated node following the forecast, the wind-speed
+> and rain device types (`devices/standalone/sensor/`), the Settings
+> "Configuration" tab (zones + forecast + simulation). Package routes
+> `/<kind>/:processId/...` are scoped to that process by the access guard
+> (`entityOf`). Since 2026-10-30 the Dashboard component is the user's
+> weather scene (`ui/WeatherScene.jsx` - the warnings, now and the sun's day,
+> the tiles, the widgets, the next 24 hours, the days with the PV's sun and
+> the heating's degree-days; config `scene` - its thresholds), the process
+> row keeps the engineer's panel. Details - the package's `docs/README.md`.
 
 2026-08-23. `Node Weather Control.txt` (AGENTS_TO_DO.md) - components
 ordered, not yet in hand; this section is the CORE-side software prep
@@ -6692,3 +6871,3059 @@ none of this had ever been exercised by a real file before**:
   resolution problem here, since `process.ts` already received
   `apiClient` as a function argument rather than importing it (the
   precedent the two fixes above both cite).
+
+## 72. Simulation processes (`processes.type = 'simulation'`) - a third process type alongside controllable/permanent
+
+2026-08-29. A process kind that generates a plausible value for a
+readOnly device over time (e.g. ramping a simulated actual power toward
+its target, PT4115 soft-start style) rather than reading real hardware.
+Scoped as a third `processes.type` CHECK value, not a new table - the
+existing `status` (Redis, `processRegistry.setStatus/getStatus`,
+already used by Active Buzzer/Alarm Annunciator), `device_id`/`node_id`
+(nullable FKs, either covers the "one process per device" and "one
+process serving several devices on one node" cases - `config.channels`,
+same array-of-target/actual-pairs shape `aquarium-light-control`'s own
+`mainChannels` already established), and `config` jsonb were already
+everything a simulation process needed. `routes/processes.ts`'s
+`withLiveState()` (the `GET /processes` live-status read, already
+covering `type === "controllable"`) was widened to include
+`"simulation"` too, so a simulation process's on/off reaches the
+orchestrator through the exact same per-tick `GET /processes` poll the
+tick loop already does for every other kind.
+
+**Two independent gates, both required, before a simulation process's
+runner does any work** - found live as a real gap, not a design
+choice: an operator's own ON/OFF switch (`process.status`, written
+*exclusively* via `POST /processes/:id/action`) is NOT enough on its
+own, because it kept ramping even while the target node/device's own
+"simulated" flag was off. `apps/api/src/simulationTarget.ts`'s
+`isSimulationTargetSimulated()` computes the second gate fresh on every
+`GET /processes` and every live broadcast (`processBroadcast.ts`'s
+`assembleSnapshot()`) - a simulation process's own runner (the
+`process.ts` plugin, via `apiClient`) must see BOTH `status === "on"`
+AND `simulationTargetSimulated` before writing anything; either one
+false means sleep. These two toggles are deliberately kept as two
+separate concepts sharing no code path: the operator switch never
+auto-flips (an earlier draft had `PATCH /nodes/:id/simulated`
+unconditionally re-syncing every attached simulation process's status
+on every call, including no-op PATCHes with an unchanged value - fixed
+by only syncing on a real transition), and a node/device's own
+`simulated` toggle never reads or writes `process.status` at all.
+
+**UI status label - four states, not the generic OK/Warning/Error a
+controllable/permanent process shows**: Off (operator switch is off -
+the row's label AND background color deliberately do not react to
+`critical`/`warning` at all, even a stale one from before the switch
+was flipped off - `ProcessesTable.jsx`'s `overrideRowColor` prop, only
+supplied by the Simulator page), Sleep (on, but
+`simulationTargetSimulated` is false), Active (on and target is
+simulated), Error/Warning (as usual, `critical`/`warning` flags win
+over Sleep/Active exactly like they do everywhere else).
+`RowStatusBadge`'s new optional `defaultLabel` prop only overrides the
+"OK" fallback - it never touches the danger/warning label lookup, so
+the plain Processes page keeps its own "OK"/"Error" unchanged. The
+Simulator page (renamed from the old Dev Simulator, `Simulator.jsx`)
+also hides the redundant raw ON/OFF badge entirely (`showPower={false}`
+prop) since its own status column already folds that into the four
+labels above.
+
+**Error casting** - a simulation process is still just a process: if
+what it depends on goes wrong (a target/actual device deleted, EdgeX
+unreachable, a target value outside the target device's own
+`capabilities.min/max`), it casts an error through the exact same
+`setCritical`/`syncMessages` pair every other process kind's own
+health check already uses - row background, a WemRow message, casting
+into whatever Message Casting Groups it's a member of, all for free.
+The range check deliberately reads the target device's OWN
+`capabilities.min/max` (`devices.capabilities`, already fetched via the
+normal `apiClient.getDevice()` call) rather than a redundant separate
+config field, so the same check works for any future simulation kind
+driven off a target device with its own min/max, not just this one.
+
+**Settings popup** - a `type: 'simulation'` process's own
+`ProcessSettingsModal.jsx` drops the generic Tabs section entirely (the
+`isSimulation` guard covers both the render AND `handleSave`, so Save
+doesn't wipe out nonexistent Tab Group membership) but keeps Message
+Casting Groups, laid out side-by-side (`CRow`/`CCol`) with a kind-
+specific config form on the right - `aquarium-light-simulation`'s own
+`AquariumLightSimulationSettingsSection.jsx` exposes only its ramp
+rate; the channel target/actual device-id pairs are deliberately NOT
+editable there (they're already visible with live values on the
+Simulator panel - making them a raw editable id list would just invite
+misconfiguration).
+
+**Only on the Simulator page** (2026-10-10) - `ProcessesList.jsx` drops
+`type: 'simulation'` processes at load, so none of the Processes page's
+tabs (Dashboard, All, Tab Groups) lists them; the Simulator page is
+their one home.
+
+## 73. Settings reorg: new `/service` page, Library moved out of Devices
+
+2026-08-30. Library Catalog moved from the DEVICES nav group into a
+new SETTINGS group (`_nav.jsx`), which now reads Service, Users,
+Library, Docs in that order. `Service` (`/service`, admin-only -
+`adminOnly: true` in `_nav.jsx`, `requireAdmin` on every `/service/*`
+API route, same pattern `routes/users.ts` already established) is a
+new tabbed page (`apps/ui/src/views/service/Service.jsx`) - Config
+(placeholder, "буде розширюватися"), Database (section 76 below),
+Commands (section 75 below). The page remembers its own last-open tab
+(`usePersistedState`, cookie `nexusedge.servicePage`) - falls back to
+the first tab in the list on a fresh visit or if the saved key no
+longer matches any tab, rather than hardcoding a default.
+
+## 74. Type-column Library deep links, private `plugins/processes/` tree
+
+2026-08-30. Every Nodes/Devices/Processes list row's own "type"/"kind"
+column is now a link (`LibraryTypeLink.jsx` - plain blue, no
+underline, literal text "link", `title` = the real type name) that
+opens `#/library?kind=X&type=Y` in a new tab, filtered down to just
+that one Library item. Processes previously had no Type column at all
+(`process.kind`, not `processes.type` - a different, unrelated concept
+with no Library correspondence) - added as a new last-column-before-
+Actions, matching Devices/Nodes' own existing convention.
+
+Backend: `GET /library/items/by-type?kind&typeName` (`routes/
+library.ts`) resolves a (kind, typeName) pair straight to its Library
+item + breadcrumb - the existing `/library/items/:id/location` only
+resolves an id (which a Type-column click never has) to a place to
+browse. Frontend: `LibraryBrowser.jsx` gained a "single-item filter"
+mode driven by the URL's own `kind`/`type` query params (read once on
+mount) - a banner ("Showing only X" + Clear filter) replaces the normal
+category browser entirely while filtered, distinct from the pre-
+existing `handleNavigateToItem` (a `library-item://` doc link) which
+scrolls to an item within its full category listing instead of hiding
+everything else.
+
+**Private process kinds had never had a Library entry at all** - found
+live the moment this feature's own by-type lookup 404'd for a private
+target project's own custom process kinds. `libraryCatalog.ts`'s
+private-plugin scan only ever walked `plugins/devices/` and
+`plugins/nodes/` (its own header comment used to say "no private
+processes tree yet, since a process kind's own registration already
+happens at runtime via `plugins/<name>/process.ts`, not through this
+design-time catalog" - true, but meant the Library Catalog simply had
+nothing to resolve a private process kind to). Fixed generically, not
+per-project: `syncLibrary()` now also walks `extraDir/processes` (kind
+`"process"`) - deliberately a SEPARATE location from where a kind's own
+`process.ts` actually lives, the same "design-time catalog independent
+of runtime registration" split the public `devices/processes/` tree
+already has. A target project adds one `plugins/processes/<kind>/
+library.json` per private process kind it wants resolvable; nothing
+else about how that kind's `process.ts` is loaded changes.
+
+## 75. Service->Commands: host Shutdown/Restart via D-Bus/systemd-logind
+
+2026-08-30. `apps/api/src/systemCommands.ts` + `routes/service.ts`
+(`GET /service/commands`, `POST /service/commands/:id/run`, both
+`requireAdmin`) - calls `org.freedesktop.login1.Manager`'s
+`PowerOff`/`Reboot` over D-Bus (`dbus-next`), not
+`child_process.exec('shutdown -h now')`, which would at most affect the
+container's own PID namespace, never the real host machine it runs on.
+Gated behind `SHUTDOWN_ENABLE`/`RESTART_ENABLE` (both default `false`)
+- the route and UI exist unconditionally on every deployment, but stay
+403'd/disabled until an operator opts in on a deployment where powering
+off the host is actually intended (a Raspberry Pi, not a shared dev
+box). The UI (`Service.jsx`'s `CommandsTab`) renders its command rows
+as a real `<CTable>`, not a fixed-fraction Bootstrap grid (`row`/
+`col-3`) - a table's own column-width behavior sizes the button column
+to its widest cell and every row shares that width, so "Shutdown"/
+"Restart" come out consistently sized without hardcoding a guessed
+fraction of the container.
+
+**Two infrastructure gaps found live, neither in the original plan**:
+
+1. The `api` container has zero host-level privileges by default
+   (confirmed by grepping `docker-compose.yml` for `privileged`,
+   `pid:`, `cap_add` - all absent) - a bind mount of
+   `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` (read-
+   write) into the container is the chosen mechanism, avoiding
+   `--privileged`/`pid: host` entirely, the same general approach Home
+   Assistant's own Supervisor uses.
+2. The socket mount alone was NOT sufficient - Docker's own default
+   AppArmor profile (`docker-default`, applied to every container on a
+   host unless overridden) blocks a container from sending ANY D-Bus
+   method call at all, even a harmless read-only one (confirmed via the
+   kernel audit log: `apparmor="DENIED" operation="dbus_method_call"
+   ... label="docker-default"`). Fixed with `security_opt:
+   [apparmor:unconfined]` on the `api` service in both `docker-
+   compose.yml` files - the same tradeoff Home Assistant's Supervisor
+   container accepts for the identical reason. This container loses
+   AppArmor confinement entirely, not just for D-Bus - a real security
+   posture change, done only after the user explicitly chose it over
+   two other options.
+
+Verified without ever calling a real `PowerOff`/`Reboot`: `CanPowerOff`/
+`CanReboot` (read-only D-Bus queries logind exposes for exactly this
+kind of dry-run check) returned `yes` once both fixes above landed,
+proving the whole chain works; `SHUTDOWN_ENABLE`/`RESTART_ENABLE`
+stayed `false` throughout, so `GET /service/commands` reports both
+commands disabled and `POST .../run` 403s regardless.
+
+## 76. Service->Database: System Stamps (config backup/restore) and Logs management
+
+2026-08-30. `apps/api/src/systemStamps.ts` + `routes/serviceDatabase.ts`
+(all `requireAdmin`) split the schema into two buckets: 15 "config"
+tables (`devices`, `nodes`, `processes`, `users`, every `*_groups`
+table, `message_*`, `light_templates` - `CONFIG_TABLES`, kept in a
+topological/FK-safe order for INSERT after TRUNCATE) and 3 "logs"
+tables (`log_command`/`log_device`/`log_messages` -
+`LOG_TABLES`), managed independently. `library_categories`/
+`library_items` (re-derived from disk on every Library sync - restoring
+stale rows would fight the live sync) and `pgmigrations` (schema-
+version bookkeeping) are outside both buckets on purpose.
+
+**A "System Stamp"** is a JSON snapshot of every config table,
+deliberately saved as a plain file (`config.systemStamps.dir`, a new
+`api-system-stamps` Docker volume mirroring the existing `api-avatars`
+pattern) rather than a row in the very database it snapshots. Each
+dump embeds `projectName` (`config.postgres.database`) and the full
+list of currently-applied migration names - `applyStampDump()` rejects
+(409, `StampCompatibilityError`) a stamp from a different project or a
+schema that doesn't exactly match, before touching any data ("the
+compatibility check" the feature was built to have). It also validates
+every dumped row's own column names against `information_schema` for
+the actual table - the real defense against a crafted/malformed
+uploaded dump reaching raw SQL as an interpolated column list, not just
+a stricter compatibility check.
+
+Five top-level actions (`DatabaseTab.jsx`, rendered as a real `<CTable>`
+donut chart hand-rolled in SVG - no new chart-library dependency - on
+the left, height-matched to the action table via a `CRow`'s own default
+`align-items: stretch`): **Save State** (snapshot now, persisted as a
+file, appears in the CRUD list below), **Download State** (an ad-hoc
+snapshot streamed straight to the client via `Content-Disposition:
+attachment`, never written to disk server-side), **Upload State**
+(pick a file, validate, apply directly), **Download Logs** (the same
+ad-hoc-download shape as Download State, but for the 3 log tables - a
+deliberately simpler envelope with no `migrations`/`formatVersion`,
+since logs are never uploaded back, only downloaded or cleared), and
+**Clear Logs** (`TRUNCATE` the 3 log tables - replaced 2026-10-17 by a form with a choice of what and up to when: see "Clear Logs with a choice" below). **Apply** exists ONLY as
+a per-row action in the CRUD list of saved stamps below both blocks,
+never as a top-level button - a saved stamp needs to be picked before
+"apply" means anything.
+
+**Three real bugs, all caught only by live-testing "apply a stamp back
+onto itself"** (safe - it restores identical data, so before/after row
+counts and sequence values can be diffed with zero risk) rather than
+trusting a bare `{ok: true}` response:
+
+1. `light_templates.channel_spectrum` is a jsonb column whose value is
+   a top-level JSON ARRAY, not an object. `pg`'s own automatic
+   parameter serialization checks `Array.isArray` before checking "is
+   this an object" - a JS array bound as a query parameter gets
+   formatted as a Postgres ARRAY literal (`{a,b}`), which is exactly
+   correct for `processes.actions` (a real `text[]` column) but wrong
+   for a jsonb column storing an array, and Postgres rejected it
+   ("invalid input syntax for type json"). Fixed by reading each
+   column's real `data_type` from `information_schema` and explicitly
+   `JSON.stringify`-ing only json/jsonb columns before binding them.
+2. `TRUNCATE ... RESTART IDENTITY` resets every SERIAL sequence to 1,
+   but every row is then re-inserted with its own explicit `id`
+   (preserved from the dump) - which never advances a sequence. After
+   one Apply, `devices_id_seq` sat at 1 while real ids ran into the
+   hundreds; the very next auto-generated insert (a device created
+   normally through the UI) would have collided with an existing row.
+   Fixed with a per-table `setval(pg_get_serial_sequence(...), max(id),
+   ...)` after that table's inserts - guarded in TypeScript (checking
+   `information_schema` for an `id` column), not in the SQL itself,
+   because `pg_get_serial_sequence` raises a hard error rather than
+   returning NULL for a table with no `id` column at all (every
+   composite-PK join table, `message_levels`), as opposed to a column
+   that exists but has no sequence (`message_signal_timing`'s fixed
+   singleton row) - a SQL-side `IF ... IS NOT NULL` guard never gets a
+   chance to catch the former case.
+3. `log_command.action` has its own Postgres CHECK constraint,
+   completely separate from the TypeScript `DeviceCommandAction` union
+   in `commandLog.ts` - widening the TS type to add `'set-state'`/
+   `'clear-logs'` did nothing to the actual database constraint, and
+   `logCommand()` is deliberately best-effort (swallows its own
+   errors), so every `set-state`/`clear-logs` audit insert failed
+   completely silently - zero rows, zero visible errors anywhere.
+   Migration `1690000000055` widens the constraint to match.
+
+Apply/Upload log a `set-state` command, Clear Logs logs `clear-logs`
+(`log_command`, both device_id/process_id absent - "System" is the
+target shown in `CommandLogsTab.jsx`'s own fallback) - the only two
+Database actions the feature was asked to audit; Save/Download aren't
+destructive to live data, so they aren't logged. Clear Logs also calls
+`broadcastForced("clear-logs")` (`processBroadcast.ts`, the same helper
+`routes/processes.ts`'s own ON/OFF actions and forced-broadcast route
+already use) right after clearing - the clearing itself (now `logCleanup.ts clearLogs`) already
+resyncs the header's own Redis-cached unread-warning/error counters
+(`processMessages.ts`'s `wem:unread:*`, incrementally maintained on
+every hide/create, NOT derived fresh from `log_messages` on read - a
+raw `TRUNCATE` alone left them showing stale pre-clear numbers, making
+the whole action look like it silently did nothing even though the
+rows were genuinely gone) via `initUnreadCounts()`, but without the
+forced broadcast a client only found out on the next periodic tick (up
+to `PROCESS_STATE_BROADCAST_INTERVAL_MS`, 5s later).
+
+## 77. `GET /devices/:id` broadcasting `value: null` on a transient EdgeX read failure - live value blinking once/sec
+
+Reported against `nexus-edge-aquarium`'s own Devices page (a light
+channel's Watts reading visibly disappearing and redrawing about once a
+second), but the bug lives entirely in this repo - any project polling
+a Device this way at a high-ish cadence (a Data Logger `periodSeconds:
+1`, in the reported case) can hit it.
+
+`routes/devices.ts`'s `GET /devices/:id` defaults `let value: unknown =
+null` before attempting a live EdgeX read, and only overwrites it on
+success. On a transient failure (`readValue()` throws - a core-command
+timeout under load, in the observed case) the `catch` block only logged
+a warning; `value` stayed `null`, and the handler went on to call
+`publishDeviceReading(device, readingOrigin, value, "device-read")`
+unconditionally - broadcasting `value: null` over the live `device`
+socket domain to every connected client regardless of whether the read
+actually succeeded.
+
+On the client, `useLiveDevice.js`'s own reducer does `if ('value' in
+event) { next.value = event.value; ... }` - the key being merely
+*present* (even as `null`) was enough to clobber the last known-good
+reading, and both consumers that key feeds (`DevicesList.jsx`'s own
+`ValueCell` in the collapsed row, `formatFieldValue` in the expand
+row's plain Value line) render `null`/`undefined` as `-`/blank. One
+transient EdgeX hiccup per second (matching whatever's re-polling this
+route at that cadence) reads as the value itself "flickering."
+
+This is the exact same bug CLASS commit `640000c` already fixed once
+for `mode`/`valueAuto`/`valueManual`/`isOverdue`/`expiresAt` (a sparse
+event without those fields was clobbering them with `undefined`) - but
+`value` itself was never given the same guard, since every OTHER
+publish site (`dualDevicesModel.ts`'s own `publishState`/
+`publishReading`) always has a real reading to report.
+
+Fixed by reusing `DeviceEventEnvelope.value`'s own EXISTING optionality
+(`value?: unknown`, already documented there for a metadata-only event
+that has no reading of its own) for this case too: `GET /devices/:id`
+now tracks a `readFailed` flag separately from `value` staying at its
+`null` default, and passes `undefined` (not `value`) to
+`publishDeviceReading` when the read failed. `publishDeviceReading`
+itself now only includes the `value` key in the published envelope
+when it's not `undefined` - so a failed read publishes an `isOverdue`/
+`expiresAt` update (still needed - staleness tracking must keep
+working even while EdgeX is unreachable) with no `value` key at all,
+letting `useLiveDevice.js`'s own `'value' in event` check correctly
+leave the client's last known-good value untouched, exactly like a
+metadata-only event already does. The route's own REST response body
+(the one-time mount fetch) is unaffected - it still honestly returns
+`null` for a request that itself failed to read a value; only the
+recurring live-socket broadcast to already-connected clients was ever
+wrong.
+
+Also bumped `NumericStepper.jsx`'s own display/commit precision from a
+hardcoded 2 decimals to a new optional `precision` prop (default `2`,
+so every existing caller is unaffected) - `DevicesList.jsx`'s own
+numeric Override control was rounding a Float device's reading to 2
+decimals even though the plain read-only Value line right next to it
+already showed full precision, which read as an inconsistency once the
+value-blink fix above made it obvious the underlying data itself was
+never rounded. Now passes `precision={0}` for an int-typed device
+(nothing to gain from decimals) or `precision={6}` for a Float one
+(enough for any practical reading without displaying raw floating-
+point noise) - scoped to this one caller only.
+
+Live-verified in `nexus-edge-aquarium` (both this repo's own api/ui
+images are built FROM this source tree via each sibling project's own
+`additional_contexts: nexus-edge`, so a rebuild there exercises this
+fix directly): the Devices list's own aquarium light-power-target rows
+already showed full un-rounded precision (`2.6729559748427194`,
+confirming that display path was never the problem); the expand row's
+own Override input, previously capped at 2 decimals, now shows several
+more. No console errors.
+
+## 78. `ProcessesTable.jsx`'s own expanded-row cell had no width ceiling - any process kind's wide Panel could inflate the whole page
+
+Reported live (2026-09-19) against `nexus-edge-aquarium`: opening its
+Month/Year Profiles tabs (each grew to 10 columns after that project's
+own recent "Max Total Wh" work) sometimes forced the whole Processes
+page into an unwanted extra vertical scrollbar too, not just a
+horizontal one on the wide table itself.
+
+Root cause was here, not in the aquarium project: this file's own
+expanded-row cell renders `<Panel process={process} .../>` (whichever
+process kind's own registered panel component - `processTypeRegistry`)
+directly inside `<CTableDataCell colSpan={showPower ? 6 : 5}
+className="p-0">`, with no width constraint of any kind on that cell's
+own content. CoreUI's `CTable` defaults to `table-layout: auto`, and
+that algorithm still consults a descendant's own *preferred*
+(min-content) width when sizing columns - even through a nested
+`.table-responsive` wrapper (`overflow-x: auto`) that has no explicit
+width of its own - so any process kind whose Panel renders a table
+wider than the available row (exactly what happened once
+aquarium-light-control's own Month/Year Profiles tabs grew past ~10
+columns) inflates THIS table's own column sizing, and from there the
+whole page, instead of scrolling inside its own row like it should.
+
+This is the identical root cause `nexus-edge-aquarium`'s own AGENTS.md
+already documented once for a narrower case ("Power Curves polish:
+Editor width/scroll fix", 2026-09-04) - a wide `EqualizerEditor` chart
+inside that project's own `CTableDataCell colSpan={5}` doing the same
+thing to ITS OWN table. Same fix, applied here instead so every
+process kind's own panel is protected, not just that one aquarium tab:
+wrapped `<Panel/>` + `<WemRow/>` in
+`<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)' }}>`
+- an explicit `minmax(0, ...)` grid track is the one sizing context
+that actually ignores a descendant's intrinsic content width, unlike
+plain block/table layout (where a plain `overflow: auto` wrapper's own
+`min-width: 0` doesn't propagate through a table ancestor).
+
+Live-verified in `nexus-edge-aquarium` (rebuilt `ui`, which bundles
+this file via its own `additional_contexts: nexus-edge`): injected a
+temporary `body { max-width: 1000px }` constraint via devtools console
+before and after the fix, on the Month Profiles tab specifically (its
+own widest table at the time) - before, `document.body.scrollWidth`
+stayed at 1708px regardless of the constraint (genuine overflow,
+clipped only visually by the injected `overflow-x: hidden`); after,
+`document.body.scrollWidth` matched the constraint exactly (1000px,
+properly contained). No other process kind's own panel was available
+to cross-check live in this session, but the fix is structural (this
+file's own shared expand-row cell, not anything aquarium-specific), so
+every registered panel benefits equally.
+
+## 79. MQTT transport for network nodes + device broker (AI Analyzing Camera, stage 1)
+
+2026-09-26, stage 1 of the AI Analyzing Camera plan (AGENTS_TO_DO.md,
+2026-09-24/26). First network (WiFi/Ethernet) transport, alongside CAN -
+infrastructure for every future network node, not camera-specific.
+
+**Principle.** Nodes reach the Device API only through our own gateway
+(`apps/device-service`); an MQTT node is just another `PhysicalTransport`
+(`internal/transport/mqtt`), so physical/virtual switching, simulation and
+the Virtual Node Runtime (sections 6, 48) work unchanged. Not the official
+EdgeX device-mqtt service - that would bypass exactly that logic.
+
+**Device broker** (`device-mqtt-broker` in `docker-compose.edgex.yml`,
+config `config/device-mqtt-broker/mosquitto.conf`) - a separate
+Mosquitto instance from `edgex-mqtt-broker` (EdgeX's internal bus, never
+exposed). Published on all interfaces via `DEVICE_MQTT_HOST_PORT` (core
+1883, target projects 1983 by default, in `check-ports.sh`'s
+`PORT_VARS`) because LAN nodes connect to it. **Anonymous, LAN only** -
+node authentication and TLS are deferred to the platform-wide
+authorization task; do not expose it beyond the LAN before that.
+`max_packet_size` (4 MB) sized for a whole camera frame in one message;
+`persistence false` (read-only container, runs as the image's own uid
+1883 so the entrypoint doesn't try to chown a read-only root).
+
+**Transport** - registered in `driver.Initialize` only when
+`DEVICE_MQTT_BROKER_URL` is set (plus `DEVICE_MQTT_TOPIC_ROOT`,
+`DEVICE_MQTT_CLIENT_ID`, all from `.env` via compose); without it an
+mqtt-bound device fails validation as "unknown transport". One shared
+paho client (already an indirect EdgeX SDK dependency, now direct),
+`ConnectRetry`+`AutoReconnect`, subscription re-made in `OnConnect` -
+live-verified: a broker restart and a device-service restart both
+recover on their own.
+
+Topics (every NexusEdge device is atomic - one resource - so topics are
+per device, not per resource):
+
+```
+<root>/<node>/<device>/state   device -> NE  (publish retained)
+<root>/<node>/<device>/set     NE -> device  (not retained)
+<root>/<node>/<device>/event   device -> NE  (stage 2, push events)
+<root>/<node>/status           online/offline via Last Will (later)
+```
+
+A device binds via its protocol properties: `transport: {type: "mqtt",
+node: "<node>", device: "<device>"}` (`device` defaults to the EdgeX
+device name; `/`, `+`, `#` rejected). Payload = plain UTF-8 text of the
+value (`21.5`, `true`/`false` (also `1`/`0`, `on`/`off`), strings raw);
+binary (images) comes with the Media Store stage. Read = latest `state`
+payload from the cache, origin = its receipt time (same staleness
+contract as CAN, section 59); nothing received yet = read error, like
+CAN. Write = QoS 1 publish to `set`, not retained (outputs are
+re-asserted every tick; a retained command could re-apply a stale value
+to a node reconnecting much later).
+
+**Known limitation:** a retained `state` from a node that has since died
+is re-delivered after a device-service restart with a fresh receipt
+time, so it reads as fresh. Acceptable for the intermittent ("sleeping")
+nodes this is first used for; revisit (MQTT v5 message expiry, or a
+node-side timestamp) before relying on MQTT staleness for safety.
+
+Live-verified (aquarium stack, temporary EdgeX devices created via the
+metadata API, removed afterwards): read before any state -> "no data
+received yet"; retained `21.5` -> read 21.5; write Led=true -> `true` on
+`nexus/bench/led/set`; invalid payload -> clear decode error; value
+recovered from retained after a device-service restart. Unit tests:
+`internal/transport/mqtt/codec_test.go` (payload codec, topics, device
+properties).
+
+## 80. Device push events: gateway -> EdgeX bus -> Devices API -> process hooks (AI Analyzing Camera, stage 2)
+
+2026-09-26, stage 2 of the AI Analyzing Camera plan. Until now every
+device value was pulled (orchestrator tick -> `GET /devices/:id` ->
+core-command read), so two changes inside one 1s tick collapsed into the
+last one and a reaction waited for the next tick. Now a device that
+publishes on its own reaches every consumer immediately, through the
+platform's existing layers - nothing bypasses the gateway or the
+Devices API.
+
+```
+node --MQTT state--> device-service --AsyncValues, tag nexusPush--> EdgeX bus
+  --> api edgexPushBridge.ts --> publishPushedReading (same path as a read)
+  --> nexus.events device.<id>.updated (source "device-push")
+  --> UI (messaging-gateway)  +  orchestrator busEvents.ts --> onDeviceEvent hooks
+```
+
+**Gateway** (`apps/device-service`). New optional `transport.Pusher`
+interface (`Bind`/`Unbind`/`SetPushSink`); the MQTT transport implements
+it. The driver keeps bindings in step with EdgeX's device list - all
+known devices in `Start()` (AddDevice only fires for devices new this
+run), then `AddDevice`/`UpdateDevice`/`RemoveDevice` - bound only while
+the device is `physical` on that transport (switched to virtual = no
+push), using the profile's single resource (atomic device; a profile
+with != 1 resource is logged and skipped). Every `state` payload of a
+bound topic becomes an async reading (`Device.EnableAsyncReadings: true`,
+`AsyncBufferSize: 16` in `res/configuration.yaml`) tagged
+`nexusPush=true` (`transport.PushTag`) at event level. Empty payloads
+(retained being cleared) and undecodable ones are not pushed; the latest
+payload is still cached for `Read` either way. CAN does not push yet -
+same interface when a CAN node with buttons needs it.
+
+**Devices API** (`apps/api/src/edgexPushBridge.ts`). Subscribes to EdgeX's
+internal bus (`EDGEX_MESSAGEBUS_HOST`/`PORT`, `edgex/events/device/#`,
+`mqtt` npm client, auto-reconnect) and processes **only** events tagged
+`nexusPush` - EdgeX also emits an event for every ordinary core-command
+read/write, and those already went through the Devices API's own read
+path (live-verified: 8s of normal aquarium traffic = 197 `device-read` +
+96 `api` events, zero `device-push`). `routes/devices.ts`
+`publishPushedReading` maps the EdgeX device name to the Device(s) whose
+**currently active** registration it is (`resolveEdgexName` - a node in
+simulated mode is not fed by its physical twin) and calls the same
+`publishDeviceReading` a read uses. Unset `EDGEX_MESSAGEBUS_HOST` = bridge
+off, polling unchanged.
+
+**Orchestrator.** `busEvents.ts` (was deviceEvents.ts) consumes `nexus.events`
+`device.*.updated` (own exclusive auto-delete queue, amqp-connection-
+manager, config from the same `RABBITMQ_*` env the API uses; unset
+`RABBITMQ_HOST` = hooks disabled). Value-less (metadata) events are
+skipped. `processDispatch.ts` routes each event to every process whose
+kind registered a hook - the process list is the one the last tick
+fetched, no API call per event. Plugin API (additive, existing plugins
+unchanged):
+
+```ts
+register(kind, runner, {
+  onDeviceEvent: async (process, event /* {deviceId, value, timestamp, source} */) => { ... },
+});
+```
+
+Handlers get every device event and filter by `deviceId` themselves (a
+process knows which devices it cares about from its own config). A
+process's tick runner and its hooks never run concurrently -
+`processLock.ts` `runExclusive(processId, fn)` chains them per process
+(different processes still run in parallel; a failed run doesn't block
+the next) - so plugins' per-process in-memory Maps stay safe without
+locking of their own. Missed events while the orchestrator's AMQP link
+is down are not replayed - the tick still sees the latest value.
+
+**Simulation needs nothing extra:** a virtual device's value set from the
+UI (`.../simulate`) is already published to `nexus.events`, so a process
+hook reacts to a simulated image-caster exactly as to a real one.
+
+Live-verified on the aquarium stack with a temporary EdgeX device, registry
+row and probe plugin (all removed afterwards): two pushes sent back to back
+both reached EdgeX's bus as separate tagged events, both reached
+`nexus.events` as `device.<id>.updated` with `source: "device-push"` and
+typed values (`true`/`false`, not strings), and both reached the probe
+process's `onDeviceEvent` ~50-90ms after publish (incl. `docker exec`
+overhead); the binding survives a device-service restart (bound in
+`Start()`). Tests: `internal/transport/mqtt/push_test.go` (push, burst,
+unbound/invalid/cleared payloads, shared-topic rejection),
+`apps/orchestrator/src/processLock.test.ts`.
+
+## 81. Media Store + generic file module + media devices (AI Analyzing Camera, stage 3)
+
+2026-09-26, stage 3 of the AI Analyzing Camera plan. Devices can now
+deliver files (camera frames) while staying atomic: the blob goes to a
+Media Store owned by the Devices API, and the device's single String
+value is that file's Media Store id (claim-check pattern). No DB table.
+
+**Generic file store** (`apps/api/src/fileStore.ts`, tests
+`fileStore.test.ts`) - reusable CRUD over a directory of "entries", for
+any feature with a modest number of files (hundreds to low thousands per
+scope; user's request - one module, not per-feature fs code). Layout
+`<root>/<scope...>/<entryId>.<part>`: `entryId` starts with its UTC
+creation time (`20260926T071234Z_a1b2c3`) so name order = time order
+(newest-first paging = readdir + sort + slice, creation time needs no
+metadata); `part` names each file of an entry (`original.jpg`, and
+consumers' own derived parts next to it - `preview.jpg`, `result.json`);
+deleting an entry removes all parts. Atomic writes (tmp + rename), so
+"part X exists" is a safe state flag. `list` supports paging, date range
+on the id's own timestamp, and a filter predicate over a sidecar JSON
+part (reads every candidate's JSON - fine at this scale). Every segment
+validated (no traversal / hidden files), per-part size limit.
+
+**Media Store** (`mediaStore.ts`) - one instance, one scope per Device:
+`<MEDIA_DIR>/device-<id>/` - keyed by the registry id (deliberate change
+from the plan's `<node>/<device>` names: a rename never orphans history).
+The uploaded file is `original.<ext>` (jpg/png/webp). `MEDIA_DIR` is the
+`api-media` docker volume, `MEDIA_MAX_FILE_BYTES` the per-file limit
+(8 MB default) - both in `.env`.
+
+**Routes** (`routes/media.ts`):
+
+| Route | Who | |
+|---|---|---|
+| `PUT /media/edgex/:edgexDeviceName?ext=jpg` | gateway | raw body -> stored under the Device whose **active** registration this is (same rule as pushes, section 80) -> `{mediaId}` |
+| `GET /devices/:id/media` | UI/processes | `{items, total}`, paged (`offset`, `limit` <= 100, `from`, `to`) |
+| `GET /devices/:id/media/:mediaId[/:part]` | UI/processes | the original / one part, `cache-control: immutable` (entries never change) |
+| `DELETE /devices/:id/media/:mediaId` | UI (auth) | whole entry |
+| `POST /devices/:id/media/simulate` | UI (auth) | multipart upload for a simulated read-only media device: store + write the id through EdgeX + `publishReading` - identical to a real capture for every consumer |
+
+**UI proxy body limit** (fixed 2026-09-26, found by the user's first
+real upload): the UI's nginx rejected any request body over its default
+1 MB with an HTML 413 before the api saw it - e.g. a normal phone photo
+through the Media tab. `nginx.conf.template`'s `/api/` location now sets
+`client_max_body_size ${API_MAX_REQUEST_BODY_SIZE}` (`.env`, default
+`10m` - keep it >= the api's largest upload limit plus multipart
+overhead). The variable is **required** (nginx's envsubst leaves an
+unset one literal and nginx won't start) - every project's `.env` needs
+it, including `nexus-edge-smart-house` when it next rebuilds its UI.
+Verified: a 3 MB upload now reaches the api (its own JSON 401 without a
+session), an 11 MB one still stops at nginx.
+
+The gateway upload route is unauthenticated like `.../auto` (no
+service-to-service auth on the platform yet; reachable through the UI's
+`/api` proxy like `.../auto`) - closed by the platform-wide authorization
+task, not piecemeal.
+
+**Gateway** (`apps/device-service`). A resource whose profile attributes
+say `mqttPayload: "media"` (`mediaExtension`, default `jpg`) gets its
+`state` payload uploaded (`DEVICE_MEDIA_UPLOAD_URL` =
+`http://api:${API_PORT}/media/edgex`, `DEVICE_MEDIA_UPLOAD_TIMEOUT_SECONDS`)
+and the returned id cached (for `Read`) and pushed (section 80) as the
+value - the blob never enters EdgeX. `transport.Pusher.Bind` now also
+receives the resource's attributes. Retained media payloads are ignored
+(a frame from an earlier session - re-uploading on every reconnect would
+duplicate it; **media nodes must not publish retained**); `Bind` drops a
+raw frame cached before the media binding existed; a failed upload is
+logged and pushes nothing (last good value kept). One message per image
+(section 79's 4 MB broker packet limit), no chunking protocol.
+
+**Library**: new `devices/standalone/sensor/image-caster` (profile
+`NexusEdge-ImageCaster`, resource `Image`, String, `mqttPayload: media`,
+loaded copy in `apps/device-service/res/profiles/`). Device rows use
+`capabilities: { edgexResource: "Image", readOnly: true, media: true }` -
+the new `capabilities.media` flag tells the UI it's a media device.
+
+**UI**: generic `components/files/` - `FileTable` (thumbnail + date +
+caller columns + delete, on `TablePagination`/`useServerPaginatedList`),
+`FilePreviewModal` (image + date + caller content; `overlay` slot
+positioned over the image, for the AI Analyzer's boxes later),
+`FileUploadButton`. First consumer: `views/devices/DeviceMediaTab.jsx` -
+a **Media** tab in a media device's expand row (between Value and Info):
+latest image (the live value), "Upload image" while simulated, stored
+history with preview and delete. `api.listDeviceMedia/deviceMediaUrl/
+deleteDeviceMedia/simulateDeviceMedia` in `api/client.js`.
+
+Live-verified on the aquarium stack with temporary devices (removed
+afterwards, incl. their Media Store dirs): a real 103 KB JPEG published
+with `mosquitto_pub -s` on a physical image-caster's state topic was
+stored byte-identical (sha256 match), the device's value became its id,
+`GET .../media/:id` served it as `image/jpeg`, and a second frame arrived
+on `nexus.events` as `device-push` with its new id; the simulate upload
+stored the file and set the value (401 without a session); delete
+removed the entry. The Media tab itself was built and lint-clean but not
+clicked through in a browser (login required). Tests: `fileStore.test.ts`,
+`internal/transport/mqtt/media_test.go`.
+
+**Plugin files and guarded plugin routes** (2026-10-11, first user: the
+aquarium photo gallery). A plugin's own files (not a device's) go into
+the same Media Store under `pluginMediaScope(plugin, ...key)` =
+`plugin-<plugin>/<key...>/`, never mixed with the `device-<id>` scopes.
+`ApiPluginContext` now also passes `requireAuth` (the core route guard -
+`request.user` is the session's user after it), `media.pluginScope`,
+`media.extensionForMimeType` and `media.maxFileBytes` (for the plugin's
+own multipart limit - @fastify/multipart's default is 1 MB), and
+`logCommand` (a plugin route that changes a process's config records it
+in Logs > Commands like the core config route does).
+
+## 82. AI layer + AI Analyzer process kind + CORE Library process loading (AI Analyzing Camera, stage 4)
+
+(2026-10-17: the provider now comes from the AI connections - section "AI Assistant" -> "Connections and clients" at the end; `getVisionProvider()` is async and returns the default connection's client.)
+
+2026-09-26, stage 4 of the AI Analyzing Camera plan: the camera's whole
+software side, running today on simulation (hardware still being built).
+
+**CORE Library process kinds are now loaded everywhere** - the Library's
+own `devices/processes/<kind>/` ships all three parts and every project
+picks them up with no copying: `process.ts` by the orchestrator
+(`processPlugins.ts`, new `BUILTIN_DEVICES_DIR`, `devices/` now copied into
+the orchestrator image like the api's), `api.ts` by the api (already the
+case), `ui/register.js` by the UI (new glob in `pluginProcessTypes.js`).
+Order: the project's own `plugins/` first, then the Library; **a project
+plugin overrides a Library kind of the same name** (Library copy skipped
+with a warning) - found live: aquarium carried an unrenamed copy of the
+`example-threshold-monitor` template, and making the duplicate fatal
+crash-looped its orchestrator. A duplicate within one source is still an
+error.
+
+**AI layer** (`apps/api/src/ai/`) - `vision.ts`: provider-agnostic
+`analyzeImage({image, mimeType, instructions, prompt, schemaName,
+schema})` -> `{output, model, usage{input,output,total tokens},
+latencyMs}`; `getVisionProvider()` returns null when unconfigured (no
+key). `openaiVision.ts`: `openai` npm (v7, same client family as
+ai-job-analyzer), Chat Completions, strict `json_schema` response, image
+as a base64 data URL, `maxRetries: 0`. Config (`.env`): `AI_PROVIDER`,
+`OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-4.1-mini` - budget over
+quality, user decision), `AI_REQUEST_TIMEOUT_MS`, `AI_IMAGE_MAX_SIDE`
+(1536 - the copy sent for analysis; the original is kept). Token usage is
+recorded and shown, **never counted or limited** (user decision).
+`images.ts`: `resizeJpeg` on `sharp` (prebuilt musl/arm64 binaries) for
+thumbnails (`MEDIA_PREVIEW_MAX_SIDE`) and the AI copy.
+
+**Plugin context** (`apiPlugins.ts` `ApiPluginContext`) now also carries
+`media` (Media Store), `ai` (`getVisionProvider`, `imageMaxSide`),
+`resizeJpeg`, `previewMaxSide` - Library/project api.ts files use these
+instead of reaching into apps/api.
+
+**Library additions**: `devices/standalone/indicator/result-receiver`
+(String, written whole), `devices/nodes/ai-camera` (node.yaml `bus: mqtt`,
+docs incl. firmware behaviour table and `wiring.md`),
+`devices/processes/ai-analyzer` (process.ts + api.ts + ui/, docs).
+
+**ai-analyzer** (see its own `docs/README.md` for the full contract):
+- process.ts: `onDeviceEvent` on the image device, only for fresh captures
+  (`source` `device-push` or `api` = simulated upload - never a re-read, so
+  an old frame is never re-analysed), duplicate ids dropped; the analysis
+  runs **detached** from the hook in a per-process queue (it takes seconds
+  and the hook shares the process lock with the tick - holding it would
+  stall the tick). Writes `{"imageId","status","text","found":<count>}`
+  to the result-receiver. WEM: failure -> Error until the next success;
+  targets found -> one-shot Message (`found_<mediaId>`, never
+  auto-resolved); > 200 stored images -> persistent Warning (count every
+  10 s). Live metrics `analyzing/lastMediaId/lastAnalyzedAt/lastError/
+  imageCount` drive the panel.
+- api.ts: `POST /ai-analyzer/:id/analyze` (idempotent - `result.json`
+  exists = done, never billed twice) writes `preview.jpg`, sends the AI
+  copy with the active Target objects, validates returned ids against
+  them (invented ids dropped, boxes clamped to 0..1, names snapshotted),
+  stores `result.json` (`status, text, found[{id,name,box}], model,
+  latencyMs, usage, error, analyzedAt`); `GET .../images` (paging, search
+  over text + object names, date range, found yes/no, status, targetId);
+  `GET .../stats`; Target objects CRUD - each change one atomic SQL
+  statement on the process config (limit 100, text <= 50, ids from
+  `nextTargetId`, never reused).
+- UI: Last image (image + red SVG boxes + text/objects/model/latency/
+  tokens, follows new analyses via live metrics), Images (FileTable +
+  filters + preview with boxes + delete), Target objects (add, click-to-
+  rename, active switch, delete, search, paging).
+
+**Aquarium instance** (`nexus-edge-aquarium`): node `ai-camera-01`
+(`simulated = true`), physical MQTT image-caster/result-receiver + `-sim`
+virtual twins (`extra-res/devices/ai-camera-devices.yaml`), process "AI
+Analyzer" (migration `021_seed_ai_camera.sql`).
+
+**Multiple instances + box accuracy (2026-09-26, user review).** A target
+visible several times (bottles, birds, chips) got only one box - api.ts
+dropped repeated ids as duplicates, and the prompt didn't ask for every
+instance. Now: one `found` entry per visible instance (same id may
+repeat), the prompt demands a separate entry per instance and a tight box;
+the UI groups them for display ("Bottle x3"), the camera's `found` is the
+instance count, the WEM Message reads "Found: Bottle x3". Box **accuracy**
+was also examined on the user's own images: gpt-4.1-mini localizes only
+roughly, and a prompt experiment with 0-1000 corner coordinates
+(x1,y1,x2,y2) did not improve it (placements stayed off, some worse) - a
+model limitation, not a prompt one, so the 0..1 x/y/w/h format was kept.
+Better boxes would need a stronger (costlier) model or a dedicated
+detector - deliberately not done (budget first, "not critical").
+
+Live-verified on the aquarium instance with a real OpenAI call: simulated
+upload of a tomatoes photo -> preview + analysis in ~4 s ("whole and
+sliced tomatoes on wood", target "tomato" found with a box, 678 tokens) ->
+result-receiver value written -> "Found: tomato" Message; a guitar photo
+-> no targets; every images filter, and targets add/deactivate/delete/
+validation/id-never-reused, checked through the API; exactly one analyze
+call per capture. Test images/targets removed afterwards. The panel was
+built and bundles, but not clicked through in a browser (login required).
+
+## 83. ai-camera firmware (AI Analyzing Camera, stage 5)
+
+2026-09-26, the last stage of the AI Analyzing Camera plan:
+`devices/nodes/ai-camera/firmware/` - ESP32-CAM (AI-Thinker) + OV3660,
+PlatformIO + Arduino-ESP32 2.0.x (ESP-IDF 4.4, pinned via
+`espressif32@^6.9.0`). **Compiles** (built in a throwaway
+`python:3.11-slim` container with a cached `nexus-pio-cache` volume: RAM
+15.6 %, flash 35.9 %, no warnings in its own sources) - **not flashed or
+run**, the hardware is still being assembled. See its `README.md`.
+
+- MQTT through ESP-IDF's own esp-mqtt (bundled with the core), not
+  PubSubClient: a whole ~0.5-1 MB QXGA JPEG goes out as one QoS 1,
+  non-retained message on `nexus/<node>/image-caster/state` (sections 79,
+  81 - the gateway uploads it to the Media Store). Results arrive on
+  `nexus/<node>/result-receiver/set`; retained `online` / Last Will
+  `offline` on `nexus/<node>/status` (the reserved status topic,
+  section 79 - not consumed by NexusEdge yet).
+- Captive portal (WiFiManager) + NVS for WiFi / broker host+port / node
+  id; mDNS discovery deferred to the authorization task (user decision).
+- State machine = the behaviour table in `devices/nodes/ai-camera/docs/
+  README.md`. **Result correlation refined:** the plan said the camera
+  accepts only the result whose `imageId` matches its frame, but the id
+  is assigned by NexusEdge after the frame arrives - the camera can't know
+  it. Instead the camera accepts a result only while Processing, and the
+  timeouts are ordered so the answer always comes first (NE AI request
+  <= 25 s, camera 30 s); anything arriving outside Processing is ignored.
+- Buzzer on GPIO3 (U0RXD) re-pinned as an output after `Serial.begin` -
+  serial log stays on TX; result hand-off from the MQTT task to `loop()`
+  through a FreeRTOS mutex (a critical section can't allocate a String).
+
+## 84. Host timezone (`TZ`) - "now" is the server's local time
+
+Added 2026-09-26 (found live on aquarium: the Control tab's power
+numbers matched the day plan at UTC while the browser's time marker sat
+at CEST - 2h apart). Containers run in UTC unless told otherwise, so any
+wall-clock logic (minute of day, day of week/month/year) silently used
+UTC instead of the local time of the machine next to the hardware.
+
+- `.env` `TZ` (IANA name, e.g. `Europe/Tirane`) - **required** for
+  `api`/`orchestrator`: docker-compose sets `TZ: ${TZ:?...}` there and
+  refuses to start without it (other services get it through
+  `env_file`). Same in `templates/target-project`; `make new-project`
+  fills it from the host (`timedatectl`, then `/etc/timezone`).
+- Must be the env var, not a bind-mounted `/etc/localtime`: the Alpine
+  images have no zoneinfo, and Node/ICU then misidentifies the mounted
+  file (tested: resolved to `Europe/Brussels` and still printed UTC
+  time). Node's bundled ICU handles `TZ` by itself. `date` inside the
+  containers (busybox, no zoneinfo) still prints UTC - expected, Node is
+  what matters.
+- UI rule: server-side "now" wins. A panel showing something tied to
+  the current time takes the server's minute/date from the process's own
+  live metrics (aquarium's Control tab: `serverMinute`/`serverDate`),
+  not from the browser clock. Absolute timestamps (logs, media) are
+  unaffected - they are instants, shown in the viewer's locale.
+- `nexus-edge-smart-house` (reference-only) not changed - its compose
+  doesn't require `TZ`, so it keeps running in UTC until updated.
+
+## 85. Dashboard content extension point (minimal)
+
+Added 2026-09-29 for the aquarium info panel. `apps/ui/src/
+dashboardRegistry.js`: a target project's `plugins/*/ui/register.js`
+calls `dashboardRegistry.register(Component)` and the Dashboard page
+(`views/dashboard/Dashboard.jsx`) renders that component instead of its
+placeholder. One slot, last registration wins - deliberately the
+minimum; the full "Dashboard widget host" (several widgets, layout,
+per-user choice) is still an open design topic. A UI-only plugin
+directory (just `ui/register.js`, no `process.ts`/`api.ts`) is fine -
+the orchestrator/api loaders skip it.
+
+## 86. PrecisionRoundGauge - detailed gauge in the visual elements library
+
+`apps/ui/src/components/indicators/PrecisionRoundGauge.jsx` (2026-10-01),
+next to StatusIndicator/BuzzerIndicator (section on elementary visual
+components). First drawn for the aquarium info panel, moved here when
+that panel switched most of its gauges to a simpler, more readable one -
+kept for places that need precision and fine divisions.
+
+- 240-degree scale, 40 fine ticks (every 5th major) colored by zone:
+  green inside the warning limits, yellow between warning and error, red
+  beyond error. `limits: { min, max, errLow, warnLow, warnHigh, errHigh }`,
+  any limit may be null (one-sided scales, e.g. "days left" red only at
+  the low end).
+- Needle, value with unit, label; rim turns yellow/red and the value red
+  in that zone; `state` 'absent'/'inactive' renders muted grey.
+- Renders an SVG `<g>` at (x, y) with radius r - place it inside your own
+  `<svg>`. Also exports `zoneAt(value, limits)` and its palette constants.
+
+`RoundGauge.jsx` (2026-10-20, beside it) - the readable sibling: a white
+dial, bold zone segments by the same `limits` (`zoneAt`), the rim coloured
+by the value's zone, a big value; optional `inner` - a second, smaller
+scale with its own needle and value in its own colour (two related
+readings: flow / return, heat / electric). Also an SVG `<g>` at (x, y).
+
+**Agents: when a task needs a gauge/scale anywhere in the UI, offer this
+component to the user as an option** (alongside any simpler variant the
+target project has - e.g. nexus-edge-aquarium's `SimpleRoundGauge`, now
+used for every gauge of its info panel: bold zone segments sized by
+the limits over ~209 degrees, big value, length-fitted label). More
+specific gauges are expected to join this library later.
+
+## 87. Node -> parent Node (modules of a fleet), and the "no name-based coupling" rule
+
+2026-10-09 (AGENTS_TO_DO.md, aquarium planning). Nexus Edge is built
+for a fleet: one orchestrator (Pi) serves several independent groups of
+equipment on one (later: segmented) bus - e.g. a building with access
+control, HVAC and three aquariums of different configurations. A group
+is built from modules: one base node plus optional nodes that only make
+sense together with it (an aquarium's Aquarium Control + its CO2,
+dosing, sensor and light nodes). Some modules may also run alone (a
+light with no Aquarium Control).
+
+**Relation by id.** `nodes.parent_id` (migration 1690000000056) - the
+base node an optional node is attached to; null = autonomous.
+ON DELETE SET NULL, no self-reference (check constraint), loops rejected
+by the route. Which node TYPES may be parents is declared by the child
+type's own `node.yaml`:
+
+```yaml
+parents:
+  - aquarium-control
+```
+
+synced by the Library walk into `library_items.parent_types`
+(libraryCatalog.ts, next to `supports`). A type with no `parents:` list
+attaches to nothing.
+
+- `PATCH /nodes/:id/parent {parentId|null}` - validates existence, the
+  child type's `parents:`, and loops; pushes the node event like the
+  other node PATCH routes.
+- `GET /nodes` rows carry `parent_id`, `parent_name`, `parent_types`;
+  orchestrator `NodeRecord` carries `type` and `parent_id`.
+- UI: Node Settings popup - "Attached to" select, shown only when the
+  type declares `parents:`, candidates = nodes of those types. Nodes list
+  shows "Attached to <name>" under the node name.
+
+**Rule for every process, plugin and seed (core and target projects)**:
+never find a node, device or process by its display name, by "the first
+row of kind X" (`WHERE kind = ... LIMIT 1`), or by an EdgeX device name
+in runtime code. Address by id: a process gets its devices as ids in its
+own `config`, its node via `processes.node_id`, related nodes via
+`nodes.parent_id`; a route serving one of several processes of a kind
+takes the process id as a parameter. Seeds may look rows up by
+`seed_key`/`edgex_device_name` (that is what those anchors are for), and
+EdgeX device names of a new instance carry the instance's own seed key
+(`<seed_key>-<device>`), so a second instance never collides.
+System singletons (data-logger, heartbeat-control - one per installation
+by design) are the only accepted `WHERE kind = ...` lookups.
+
+**Known open item - CAN addressing per instance.** A device profile's
+`canId` attribute (device-service `transport/can/mapping.go`) is per
+profile, i.e. per device TYPE: two physical nodes of the same type on one
+bus would share arbitration ids (already noted for `heartbeat`'s shared
+profile). Planned fix, before the second physical node of any type goes
+on one bus: a per-node bus address (in `nodes.bus_config`) that the
+device-service combines with the profile's per-resource id offset. Not
+needed while every node but one is virtual.
+
+**`/log-messages?processIds=1,2,3`** (2026-10-09) - messages of several
+processes at once (`listProcessMessages` `processIds`, ANY), for a
+target project's dashboard of one group of equipment. Its Logs tab shows
+only that group's processes, found by id.
+
+
+## 88. Batch device read - `POST /devices/values`
+
+2026-10-10. Processes that read many devices every tick did one
+`GET /devices/:id` each - each one a core-command -> EdgeX round trip.
+That is about 68 reads per second on the aquarium stack, too much for a
+Raspberry Pi.
+
+**Route.** `POST /devices/values {ids: number[], maxAgeMs?}` returns
+`{values: {[id]: {value, at, source}}}`. Unknown ids are left out.
+Rows come from one SQL query; cached readings and Dual Devices Model
+states come from one Redis MGET
+(`dualDevicesModel.getCachedBatch`). Where each value comes from:
+- **An actuator** (not readOnly) gives its DDM active value, i.e. what
+  was commanded (AUTO, or a manual override): `source: "state"`,
+  `at: null`.
+- **A sensor whose cache IS its source** gives the cached reading. That
+  is a sensor on a virtual EdgeX device (`backend: virtual`, or a node's
+  simulated twin) or one with no EdgeX backend: every write to it goes
+  through `publishReading()`. `source: "cache"`, `at` = when it was
+  written.
+- **A physical sensor** gives the cached reading while it is younger
+  than `maxAgeMs` (env `DEVICE_VALUES_MAX_AGE_MS`, default 5000).
+  Otherwise the route reads it live from EdgeX and caches it
+  (`dualDevicesModel.cacheReading`: `state:{id}` only, no bus event).
+  `source: "edgex"`.
+- **A cache miss or no DDM state yet** falls back to EdgeX too. A
+  failed read gives `source: "error"`, `value: null`.
+
+**Clients.** Orchestrator `apiClient.getDeviceValues(ids, maxAgeMs?)`.
+Target-project plugins call it once per tick for everything they need,
+falling back to single reads on an older core.
+
+**Measured** on the aquarium stack: single `GET /devices/:id` went from
+1357 to 224 per 20 s, and edgex-core-command CPU from ~13 % to ~6 %.
+The remaining single reads come from processes not converted yet
+(control-node, weather-control, the light's heartbeat/button counters)
+and the UI.
+
+## 89. User avatars: role + name tooltip, "read by" avatar (2026-10-11)
+
+- **Tooltip.** Every user avatar's title is the role and the name -
+  `userTitle(user, suffix?)` in `utils/format.js` (e.g. "Administrator
+  Anatolii Semochko", or "... · read Today, 01:14 PM"). Role labels:
+  `ROLE_LABELS` (`admin` -> Administrator); no role -> "User". Used by
+  the header avatar, the users list, Logs > Commands (actor), Logs >
+  Processes and the notification center (read by), and target projects
+  (the aquarium's author avatars).
+- The avatar data now carries `roles`: `GET /users/directory` and the
+  log messages' `hidden_by_user` include them.
+- **`components/ReadByAvatar.jsx`** - who marked a WEM message as read,
+  shown in place of its X button: as wide as the button
+  (`ICON_BUTTON_WIDTH`, exported by `IconButton.jsx`) with the avatar
+  centered, so read rows' avatars line up with unread rows' buttons.
+  Used by the notification center (the avatar was pushed to the right
+  before) and the aquarium dashboard's Logs tab.
+- The `simulator` account is protected like `system` and seeded by a
+  migration (section 13).
+
+
+## Message group active state: levels (2026-10-14)
+
+`GET /message-groups/active-state` also returns `errorLevels` /
+`warningLevels` - the distinct levels of the group's active messages
+(`log_messages`, unresolved, of the member processes); a flag without an
+active message of its type counts as `[1]`. Processes can raise real
+levels 1-4 now (the aquarium's Settings -> Messages); a buzzer's alarm
+plan (`determineAlarmPlan`) takes the highest active level. Additive -
+the old fields are unchanged. Also: GET `/logs/commands` takes
+`processIds` (comma-separated) - one aquarium's change log.
+
+## Sub-tabs - `src/components/SubTabs` (2026-10-15)
+
+One sub-tab strip for every plugin: the standard `btn-group` (as the
+logs' type filter) of small secondary buttons - icon + label, the open
+one filled, the others outlined. `size`: "sm" (the default for now) or
+"md" (a regular `btn` - nexus-edge-aquarium already; the whole app is to
+move to "md", then it becomes the default - AGENTS_TO_DO "На потім"). `SubTabs({tabs: [{key, label, icon?, badge?}], tab, onChange})`,
+`activeSubTab(tabs, tab)`, `SubTabIcon` - the 24 x 24 line-icon box the
+items' icons share. A host with a fixed tab strip and a scrolling
+content renders an empty element under its strip and wraps the content
+in `<SubTabsHost target={element}>`: the strips inside are portalled
+there and don't scroll with the content; without a host (a page) the
+strip is drawn in place. Used by nexus-edge-aquarium's Service popup and
+its light panel.
+
+## Process events - log only, never active (2026-10-15)
+
+`POST /processes/:id/events {entries}` (orchestrator `apiClient.logEvents`,
+api `processMessages.logEvents`): one-shot reports a process wants in the
+log but not in its active WEM list - a routine "5 ml dosed" would
+otherwise sit as an active `message` until someone dismisses it, filling
+the process's row and the Processes page with green entries that say
+nothing is wrong. Written as `type: "message"` rows already resolved:
+Logs (New / All) and the unread counter see them; the active list, the
+Dashboard tab and the public-state cache don't. Idempotent per code (a
+code already logged for the process is skipped). A notice that asks for
+an action stays a `syncMessages(..., "message", ...)`.
+
+## Dashboard cards - the Dashboard's tree (2026-10-16)
+
+One tree for the whole system (`dashboard_cards`, migration 058; api
+`routes/dashboardCards.ts`): a card is a folder (its children as blocks or
+a list - `layout`), an avatar (a block - the component's picture, opening
+the component on the whole page) or a component (the component itself,
+drawn at the level's full width under its blocks, its title over it) -
+the last two with `component_key` + `process_id` (a named process
+instance; null - a system component); ordered by `position` among its
+siblings (migration 100, 2026-10-29: the former "component" card is the
+avatar - a target project's seed written before it that inserts
+'component' converts its own rows after it, as the demo's 036 does). GET - any signed-in user; edits - admin only (POST,
+PATCH incl. a move to another folder with a cycle check, DELETE with the
+subtree, POST `/:id/move {up|down}`).
+- Components: `dashboardRegistry.registerComponent({key, title,
+  processKind?, Component, avatars?, description})` (src/dashboardRegistry.js;
+  avatars - section "Dashboard: avatars ..." below);
+  `availableComponents(processes)` - one per named process of the kind, a
+  system one once. The core's own (builtinDashboardComponents.js, lazy):
+  Processes, Nodes, Live events, Logs; process-bound - Resource monitor,
+  Weather. `register(Component)` stays: the page shows it while the tree
+  is empty.
+- Service -> Config -> Dashboard (views/service/DashboardConfigTab.jsx):
+  browsed like the Library - `components/UpBreadcrumb` (the up arrow and
+  the path, shared with the Library), one level listed, a folder's name
+  (a link) opens its level; actions up / down, edit, delete. Add / edit -
+  a popup, a new card's fields empty: title, folder, layout / component
+  (grouped by process), `view` (fit-height - scaled to the visible height,
+  no vertical scrolling; fit-width - the visible width, scrolling
+  sideways), `preview` (auto - the component's own, else a scaled copy;
+  scaled).
+- Dashboard page (views/dashboard/Dashboard.jsx, routes `/dashboard`,
+  `/dashboard/:cardId`): a level's cards, breadcrumb, a component card's
+  preview / scaled copy, the component on the page by its view. The root
+  level is blocks (no setting yet).
+- **Access**: which cards a person sees - the role's Dashboard list and the
+  rights on the card's object (`routes/dashboardCards.ts` `visibleCards`;
+  see the access section).
+- Icons: `src/dashboardIcons.js` - the card icons (`dashboard_cards.icon`
+  = a CoreUI icon key; `cardIcon(card)` - its own, else the folder /
+  component default); a folder's icon is picked in its popup. On the page
+  a folder is a card (border, background, divider) with its icon; a
+  component has no border, background or divider - its preview (own or a
+  copy of the component) drawn at 1400 px and scaled to fit the block
+  whole, centered (Dashboard.jsx `FitBox`).
+- Lists (Library, the Dashboard config - both tables): folder names blue and bold without underline,
+  item / DNP names bold.
+- "fit-height" (Dashboard.jsx `FitHeight`): the component drawn at the
+  page's width, scaled down (never up) to the height left above the
+  footer, centered - measured live (ResizeObserver, window resize).
+- A component card's own parameters (`dashboard_cards.params`, migration
+  084, 2026-10-21): a component declares them in the registry (`params:
+  (process) => [{ key, label, required, hint, options }]`), the card popup
+  offers them as selects, the component gets `params` beside `process` -
+  one part of a process on its own card: `heatingControl.room` (a room -
+  its fan coil, `nodeId`), `energyField.meter` (a sub-meter, `nodeId`).
+- The overviews (2026-10-29) - components made for a folder's full width
+  under its blocks: `energyField.overview` (EnergyOverview.jsx - three
+  columns: the generation over the grid, the Energy Ledger the field's
+  `ledgerProcessId` names - its card picture, the batteries over the
+  consumption; the flows between them in the scene's colours and
+  directions; narrow - one column) and `heatingControl.overview`
+  (HeatingOverview.jsx, a system component - every heating system the
+  person sees together: the outdoor air, one heat pump, one tank, one fan
+  coil, the heat's flows yellow while heating, blue while cooling; powers
+  and energy summed, temperatures averaged, the COP the heat over the
+  electricity, the modes counted). The heating's one is a mockup until the
+  heating's logic is reworked.
+- Known limits: a folder of component cards draws every scaled copy live
+  (e.g. ten aquarium scenes at once).
+
+## Time series - TimescaleDB (2026-10-16)
+
+One store for logged values (migrations 060, 061; api `timeSeries.ts`,
+`routes/series.ts`; orchestrator `processes/seriesLogger.ts`). The
+postgres image is `timescale/timescaledb:2.17.2-pg16` with
+`shared_preload_libraries=timescaledb` (this repo's and the template's
+compose); without the extension the migration makes plain tables and
+queries bucket the raw points.
+- `series` - `key` (`device:<id>` | `process:<processId>:<valueKey>`),
+  name, unit, `kind` (gauge - averaged; counter - only grows, consumption
+  = the sum of its positive steps; state - a step value, weighted by
+  time), the policy: `mode` period / change / off, `period_s`, `deadband`,
+  `max_interval_s` (change mode: a point at least this often; default
+  1 h), `stale_s` (an older reading is not logged).
+- `samples(series_id, t, v)` - a hypertable (7-day chunks); continuous
+  aggregates `samples_hourly` / `samples_daily` (v_avg, v_min, v_max,
+  v_last, n) with refresh policies, real time (061 - the newest
+  unmaterialized hour / day comes from the raw points).
+- Reading (`querySeries`): the bucket `max(60 s, range / points)` picks
+  the source - raw under an hour, hourly under a day, daily above - so a
+  year's chart reads a few hundred rows; gauge - the n-weighted average,
+  counter - the last value, state - time-weighted from the raw steps.
+  `consumption` - counter rise / state integral in hours (W -> Wh) /
+  gauge average.
+- Routes: `GET /series?processId|deviceId`, `POST /series/declare
+  {processId, items}` (creates with the declared policy; an existing
+  series only gets name / unit / kind refreshed), `PATCH /series/:id`
+  (session; validated), `POST /samples {rows}` (one INSERT),
+  `GET /series/data`, `GET /series/consumption`. Plugins get
+  `context.series` ({query, consumption}). UI client: `listSeries`,
+  `updateSeries`.
+- Writer: the Data Logger process (`runDataLogger` runs `logSeries()`
+  first): series list cached 30 s; device values in one batch read,
+  process values from `metrics.values[valueKey]`; period windows written
+  at the window's start; one `POST /samples` per run. A process publishes
+  its loggable values in `metrics.values` and declares them.
+- Follow-up: the per-device Data Logger (`log_device`,
+  `data_logger_controls`, section 32) is still separate - to be unified
+  with series.
+
+## Change events - caches dropped at once (2026-10-16)
+
+A cache is dropped the moment what it holds changes, not after its TTL
+(nexus-edge-aquarium AGENTS_TO_DO.md item 10 / 9g).
+- Postgres: migration 062 - `notify_change(ignored...)`, an AFTER
+  INSERT / UPDATE / DELETE row trigger: `pg_notify('entity_changes',
+  {table, op, id})` on commit, whoever wrote the row (a core route, a
+  plugin's SQL, a migration); an UPDATE that changed only the ignored
+  columns (and `updated_at`) sends nothing. Watched: `processes`
+  (ignoring `dashboard_flagged_at`), `nodes` (`last_heartbeat_at`,
+  `health`), `devices`, `series`, `library_items` (`last_synced_at`). A
+  target project watches its own tables with the same function
+  (`CREATE OR REPLACE TRIGGER ... EXECUTE FUNCTION notify_change()`).
+  Measured: no notification in steady state (30 s, 10 aquariums).
+- api `entityChanges.ts`: `LISTEN entity_changes` on its own connection
+  (reopened after `ENTITY_CHANGES_RECONNECT_MS`); each change is emitted
+  locally (`entityChanges.on("change")` - e.g. devices.ts' audit policy
+  cache) and published as `<table>.<id>.changed` (messaging.ts
+  `ChangeEventEnvelope`: domain = table, entityId, op). After the LISTEN
+  connection opens - `all.all.changed` op `resync` (changes may have been
+  missed). `announceChange(table, id)` - a change held outside Postgres
+  (a process's ON / OFF status, Redis - routes/processes.ts action).
+- orchestrator: `busEvents.ts` (was deviceEvents.ts) - one queue for
+  `device.*.updated` (readings -> onDeviceEvent) and `*.*.changed` ->
+  `changeEvents.ts` `onEntityChange(tables, listener)`; a resync (the
+  api's, or this subscription (re)opened) reaches every listener. Plugins
+  get `ctx.onEntityChange`. The seriesLogger's series list follows
+  `series`. TTLs stay only as the last safety net (minutes).
+- `tickProcesses.ts`: the process list the tick fetched (with live
+  metrics / status) - the runners (heartbeat control, the series logger),
+  the device event dispatcher and the plugins (`ctx.tickProcesses()`) read
+  it instead of a second `GET /processes`.
+- The UI gets the change events too (the gateway forwards `#`); nothing
+  consumes them yet (Live events shows them).
+
+## CAN transport: a re-plugged adapter is reopened (2026-10-16)
+
+device-service `internal/transport/can`: a USB CAN adapter re-plugged (or
+`can0` moved into the container's namespace again) comes back under the
+same name with a NEW kernel index - the open socket stayed bound to the
+gone one and every write failed "no such device or address" until the
+service was restarted (the control node then lost NexusEdge's pulse - its
+yellow LED). Now `ensureBus` reuses a connection only while it still
+reaches the interface (`busConn.stale`: the reader died, or
+`net.InterfaceByName(name).Index` differs from the socket's `Ifindex`) and
+reopens it otherwise; a failed send marks it dead, reopens once and
+retries. The cached frames are carried over (each with its true receipt
+time). `make attach-can-bus` after a re-plug is still needed (it moves the
+interface into the container) - no device-service restart any more.
+
+## Message subject (2026-10-16)
+
+`log_messages.subject` (migration 063): what part of its process's domain
+a message is about - a key the project defines (an aquarium's service:
+`heating`, `co2`...), null - the process as a whole. A process sends it
+with the message (`MessageInput.subject`, api processMessages.ts and the
+orchestrator's apiClient): stored on insert, updated with level / text,
+written for events too, and carried in the public state's active messages
+(`ProcessPublicMessage.subject`) - a UI groups messages by it instead of
+matching their codes.
+
+## Process config schemas (2026-10-16)
+
+`apps/api/src/configSchemas.ts` (ajv): a process kind's config schema
+(JSON Schema) registered by its API plugin
+(`ApiPluginContext.registerConfigSchema(kind, schema)`).
+- `PATCH /processes/:id/config` checks the sections sent against it - 400
+  `{error, problems}` (a stored config older than its schema doesn't block
+  other edits); a kind without a schema is not checked.
+- `GET /process-kinds/config-schemas` - the kinds that have one;
+  `GET /process-kinds/:kind/config-schema` - the schema (types, limits,
+  defaults, descriptions) - for UIs and the coming AI assistant that
+  configures DNPs.
+
+## Config section stamps and process commands (2026-10-16)
+
+Migration 064 (nexus-edge-aquarium AGENTS_TO_DO.md tech debt 6):
+- `processes.config_stamps` `{section: {at, by}}` - kept by the trigger
+  `stamp_config_sections` on EVERY config write (a route, a plugin's SQL, a
+  migration) for each top-level section that really changed; `by` - the
+  transaction's `nexus.actor` (the config route sets it), null otherwise.
+  `PATCH /processes/:id/config` takes `$seen: {section: at}` (not a config
+  field): a section changed after the editor's stamp - 409 (who, when);
+  a section sent without one - not checked. The answer carries the new
+  `stamps`. UI errors carry the HTTP `status` (client.js request).
+- `process_commands` - one-shot commands kept out of the config:
+  `POST /processes/:id/commands {action, params}` (session; logged as
+  log_command action "command"); pending ones (not older than
+  `PROCESS_COMMAND_TTL_MS`, default 10 min - never applied late) come with
+  GET /processes (`commands`) - the tick's list, no request of their own;
+  the process reports `POST /processes/:id/commands/:commandId/done
+  {result}` (orchestrator apiClient.completeCommand). UI client:
+  `sendProcessCommand`. `/logs/commands?action=` takes several, comma-
+  separated.
+
+## DNP API and project migrations (2026-10-16)
+
+- `extraMigrations.ts`: a target project's own migrations
+  (`EXTRA_MIGRATIONS_DIR` - its migrations/ mounted into the api), each
+  applied ONCE with psql (in the api image - a file may use \gset / \if)
+  and recorded in `extra_migrations` (name, sha256); a recorded file
+  changed since - "changed", never re-run. Applied at every api start
+  (after `listen`) - they come with a deployment (the 2026-10-16 setting
+  `dnp.migrations.apply` and the Service -> Database -> Migrations card were
+  removed 2026-10-17, migration 067; what an AI agent installs goes through
+  its Install level). Replaces the one-off `migrate-extra` container.
+  After a batch applied any, the api plugins hear of it
+  (`onProjectMigrationsApplied` in their context - see "Several project
+  roots" below).
+- `system_settings` (migration 065) - a typed key/value table, empty now.
+  `library_items.version` - a DNP's version from library.json (optional,
+  "0" unset; compared once DNPs get updates).
+- `routes/dnp.ts` (admin): `GET /dnp` (the catalog's DNPs with versions,
+  the project's code plugins - api / process / ui, `plugin.json`
+  {version, description} optional - and the kinds with a config schema),
+  `GET /dnp/migrations` (core + project), `POST /dnp/migrations/apply`.
+- Nodes / devices through the API - "Device Registry writes" below.
+
+## Dashboard: avatars, taller cards, fit-width (2026-10-16)
+
+- The custom: a DNP brings, beside its Dashboard components, their
+  versions adapted to the Dashboard - first the card's picture, its
+  avatar: `registerComponent({..., avatars: [{key, title, Component,
+  fit?}]})` (dashboardRegistry.js; `Preview` is gone). An avatar fills the
+  card's picture block itself (on an unframed card - `frame` "none" - it is
+  drawn at its natural size and scaled to the block's edges, StretchBox,
+  2026-10-23; on a framed one - as it is, only shrunk when larger than the
+  block; scaled by CSS `zoom`, not a transform - 2026-10-30: a transformed
+  picture's text shimmered beside the cards' animations on a GPU; its place
+  on whole pixels, no pointer events inside); a `fit` one is a full view scaled into it (FitBox). A card's `preview` (migration 066 - any key): "auto" (the first
+  avatar, else a scaled copy), "scaled", or an avatar's key; Service ->
+  Config -> Dashboard -> a card's "Avatar". The core's: Resource monitor -
+  `chart` (its live chart only, ResourceMonitorAvatar - the history hook
+  `useResourceHistory` shared with the panel); Weather - `picture` (a
+  static sun / cloud / rain / thermometer SVG, transparent, WeatherAvatar).
+- The cards 20 % taller (picture block 10.8 rem), a folder's icon 6.6 rem.
+- fit-width: the component is laid out in the visible width (was its
+  natural width - a wide part, e.g. a table, pushed the rest out of view);
+  what can't shrink scrolls sideways.
+
+## AI Assistant (2026-10-17)
+
+The Nexus Edge AI Assistant: a person picks an entity (the whole system or
+a DNP instance) and a work type and talks to an agent that reads the
+system through tools, proposes changes within its access levels, runs on a
+calendar and reports to the developers. The same tools are served over MCP
+to any external agent. History of the decisions - iot `AGENTS_TO_DO.md`
+chronology (AI Assistant).
+
+### Authors and accounts
+
+- `ai-agent` - a protected account (migration 067; routes/users.ts
+  `PROTECTED_USERNAMES`), the author of what an agent applies on its own
+  (an Auto access level); its password is random, never stored. What a
+  person accepts is that person's; the orchestrator (the calendar's runs) -
+  `system`; the simulation - `simulator`.
+
+### Connections and clients
+
+- `ai_connections` (migration 067; `ai/connections.ts`): name, type
+  (`openai`, `anthropic`, `openai-compatible` - a local model server's /v1),
+  endpoint (null - the type's own), model, the API key encrypted
+  (`ai/secrets.ts`: AES-256-GCM with `AI_SECRETS_KEY`, format
+  `v1:iv:tag:data`; never returned - `hasKey`), one default, enabled,
+  limits (`max_output_tokens` - else `AI_MAX_OUTPUT_TOKENS`;
+  `daily_token_limit` - checked before each agent call, 429). A client per
+  connection, cached, dropped on a change. The first connection is
+  imported once from the old `OPENAI_*` .env settings when there is none.
+- Clients (`ai/vision.ts` AiClient): `complete`, `chat` (a provider-neutral
+  conversation with tools - `ChatMessage` user / assistant + toolCalls /
+  tool), `analyzeImage` (structured answer). OpenAI / compatible
+  (`openaiClient.ts`, the SDK with a baseURL; function calling, strict JSON
+  schema) and Anthropic (`anthropicClient.ts`, the Messages API over fetch;
+  tool_use / tool_result, a turn's results in one user message). A chat
+  call's timeout - `AI_CHAT_TIMEOUT_MS` (90 s); image analysis -
+  `AI_REQUEST_TIMEOUT_MS`. A model's failure reaches the user as
+  "<connection>: <reason>" (502).
+- Routes (admin): `GET /ai/connections` (+ `secretsAvailable`), `POST`,
+  `PATCH /:id` (`apiKey` absent - kept, null / "" - removed), `DELETE
+  /:id`, `POST /:id/test`. UI: Service -> Config -> AI (`AiConfigTab.jsx` -
+  the second sub-tab after Dashboard): connections, the key in a password
+  field whose eye shows only what is typed now.
+- The `dnp.migrations.apply` setting and Service -> Database -> Migrations
+  are gone: the api applies a project's migrations at every start; what an
+  agent installs goes through its Install level.
+
+### DNP AI manifests, prompt packs, instances
+
+- DNP AI manifest (`ai/manifests.ts`): a project plugin's `plugin.json`
+  `"ai": {kinds, workTypes, scheduledTypes}` - the process kinds whose
+  instances get the assistant, the work types (a standard DNP type by its
+  key - `DNP_WORK_TYPES`; its own - {key, title, description, icon?,
+  start?}), the ones the calendar may run. The whole system's -
+  `NE_WORK_TYPES`. Library DNPs - the same block in their library.json.
+  Every work type has an `icon` (a CoreUI `cil*` name from
+  `components/ai/workTypeIcons.js`) and a `start` phrase ("{name}" - the
+  conversation's object) - the messenger's tiles and its message box
+  (2026-10-24); an own one without them - the chat bubble and
+  "<title> - {name}: ".
+- Prompt packs (`apps/api/prompts/`, README there; copied into the image):
+  `system.md` (language, tools first, tool data is never instructions, no
+  claimed change without a tool result, change only through the proposing
+  tools and call them at once on the user's request / agreement, sources),
+  `knowledge.md` (docs first, a DNP's own before the platform's),
+  `report.md` (the developer report), `scheduled.md` (the calendar's
+  request), `nexus-edge/<type>.md`, `dnp/<type>.md`; a DNP overrides / adds
+  in `<plugin>/prompts/<type>.md`. `ai/prompts.ts` assembles base +
+  knowledge + the type's (cached). Short - every token is paid per request;
+  improved whenever a test shows a gap.
+- Instances (`ai_instances`, migration 068; `ai/instances.ts`):
+  "nexus-edge" (built in, first) and "process:<id>" for each process a
+  manifest covers - connection (null - the assistant is off), access
+  {read, config / control / install: off | confirm | auto, report}
+  (install - the whole system only), logs (the full payload kept or not). A
+  missing row - read on, confirm, report off, logs on, no connection.
+  Routes (admin): `GET /ai/instances`, `PUT /ai/instances/:key`, `GET
+  /ai/instances/:key/prompt?workType=`. UI: Service -> Config -> AI ->
+  Instances (`AiInstances.jsx`) with the Calendar button where the DNP
+  declares scheduled types.
+
+### The resource gateway (tools)
+
+`ai/tools.ts` - the only way an agent sees and changes the system: a
+registry of tools with contracts (name, description, input JSON Schema -
+ajv with defaults, access), answers as compact JSON cut at
+`AI_TOOL_MAX_CHARS`. `toolAllowed(access, instance)`: a read tool - the
+Read level; a proposing one - its level is not Off (the agent and MCP
+offer only those). A DNP instance's own process is the default
+`processId`; its scope is its group (the processes on its node and the
+node's children - an aquarium's modules), also when the model passes its
+own id; another id narrows.
+- Read: `system.overview` (nodes, processes, WEM counts; one instance - its
+  nodes, devices by role, compact metrics, active WEM, config sections,
+  `groupProcesses`), `process.metrics`, `wem.summary` (by code: how often,
+  first / last, active), `logs.around` (commands with their actor, WEM,
+  device readings around a moment), `series.list` / `series.stats` /
+  `series.points` (raw / hourly / daily by the period), `config.get` (+
+  section stamps; the sections asked for that the config hasn't, with the
+  ones it has), `config.schema`, `dnp.list`, `library.node_type` (a node
+  type's bus, parents, devices by role), `docs.search` / `docs.read`
+  (`ai/docs.ts`: Markdown of `AI_DOCS_SOURCES` split by headings, BM25,
+  built once; the core's docs in the image, the project's AGENTS.md /
+  README mounted at /workspace/project-docs).
+- Proposing (see Proposals): `config.propose`, `control.propose`,
+  `install.process.propose`, `install.node.propose`,
+  `install.device.propose`. Types are accepted bare or as dnp.list prints
+  them (`node:...`).
+- Routes (admin): `GET /ai/tools`, `POST /ai/tools/:name {instanceKey,
+  input}` (a run for checks).
+
+### MCP server
+
+The gateway over the Model Context Protocol (`ai/mcp.ts`,
+`@modelcontextprotocol/sdk`) - a permanent working tool for analysing a
+local or remote system (a Raspberry Pi) with any MCP client, improved as
+it is used.
+- `/mcp` (through the UI: `<origin>/api/mcp`): Streamable HTTP, stateless,
+  JSON answers; `initialize` carries short instructions. Tool names - "_"
+  for "."; read tools `readOnlyHint`, proposing ones not; a refusal -
+  `isError`. A proposal from MCP waits in Logs -> AI Proposals.
+- Access: `Authorization: Bearer <token>` - `ai_mcp_tokens` (migration
+  069; only its sha-256 and a prefix stored, shown once; enable / disable,
+  revoke, last used). No enabled token - 401.
+- Service accounts (migration 109, 2026-11-10): each token has its own
+  account (`users.kind = 'service'`, `mcp-<name>`, no password - the login
+  refuses it, no sessions) - one per client, not a shared `mcp`. Its roles
+  (`role_members`, set when the token is made, later in Users like a
+  person's) are what it may read and change and on which objects; roles
+  holding everything (admin, system) are refused (token creation and
+  `PUT /access/users/:id/roles`). The token's `levels` (config / control:
+  off / confirm / auto; install: off / confirm) say whether a change the
+  roles allow applies at once or waits for a person. `accessOfToken` builds
+  the whole system's instance with those levels, each cut to off when the
+  roles hold its permission nowhere (`processes.config`,
+  `processes.control`, `processes.manage` / `nodes.manage` /
+  `devices.manage`; read - any `*.view`).
+  - Reading: `runTool` refuses a `processId` the account doesn't see
+    (`processes.view` units); `system.overview` lists only its nodes and
+    processes.
+  - Changing: `propose()` checks the operation's permission on the
+    process's unit (`OPERATION_PERMISSION`; roles - never); on Auto the
+    account itself is the author (`decided_by`, the command log), not
+    `ai-agent`. `access.propose` is not offered over MCP (no raising its
+    own rights); an account can't accept proposals (it never signs in).
+  - Every tool call -> `ai_mcp_calls` (token, account, tool, input cut at
+    4000 chars, error, ms); `GET /ai/mcp-calls` (admin, paged), Logs -> MCP
+    calls (`McpCallsTab.jsx`).
+  - Revoking a token deletes its account (switched off instead when
+    something still references it).
+  - The tokens made before: an account each, role `engineer`, the levels of
+    the instance they acted as (install at most confirm).
+- Routes (admin): `GET / POST /ai/mcp-tokens` (`{name, roles, levels}`),
+  `PATCH / DELETE /ai/mcp-tokens/:id` (`enabled`, `name`, `levels`),
+  `GET /ai/mcp-calls`. UI: Service -> Config -> AI -> MCP access
+  (`AiMcpAccess.jsx`: the account, its roles, the levels inline, the
+  `claude mcp add --transport http ...` command).
+- Still the built-in assistant's way: `ai-agent` is the author of what an
+  instance applies on Auto (next - through a role of its own, as here).
+
+### The agent, conversations, logs
+
+- `ai/agent.ts`: a conversation is about one instance and work type through
+  the instance's connection. The system prompt: the packs + the entity
+  (with its group) + the time + the report instruction (Report on); kept
+  with the conversation when it logs. One answer - up to
+  `AI_AGENT_MAX_STEPS` model calls with tools (the last - without); the
+  history cut to `AI_HISTORY_MAX_CHARS` at a user's turn;
+  `<developer-report title>` blocks -> `ai_reports` (stored only).
+- Storage (migration 070): `ai_conversations` (instance, work type, title,
+  connection + model, logged, system prompt, token totals, who;
+  `schedule_id` / `scheduled` - migration 072), `ai_messages` (role,
+  content, tool calls, error, model, tokens, latency; a tool result
+  "[not logged]" when the instance doesn't log), `ai_reports`.
+- Routes: any signed-in user, their own conversations (a scheduled run's -
+  readable by all; continued / deleted by an admin; an admin - all):
+  `POST /ai/conversations`, `GET /ai/conversations`, `GET
+  /ai/conversations/:id` (+ its proposals), `POST
+  /ai/conversations/:id/messages`, `POST .../messages/stream`, `DELETE
+  /ai/conversations/:id`; `GET /ai/entities` (what the messenger offers);
+  admin - `GET /ai/logs`, `GET /ai/reports`. The UI's nginx `/api/` -
+  `proxy_read_timeout 300s`.
+- Streaming: server-sent events over the POST (`status` - thinking /
+  calling <tool> / reading the results; `message`; `done`; `error`),
+  `x-accel-buffering: no`; the UI reads them with fetch + a stream reader
+  (`streamAiMessage`, client.js).
+- UI: menu "AI Assistant" (under Dashboard) - `views/ai/AiAssistant.jsx`:
+  the conversations (scheduled ones badged), the entity and work type of a
+  new one, the turns - the user's message, the tool steps under "Used
+  tools", proposal cards, the answer as Markdown (react-markdown +
+  remark-gfm); route `/ai-assistant/:conversationId` opens one. Logs ->
+  "AI" (`AiLogsTab.jsx` - the full payload), "AI Reports", "AI Proposals".
+
+### Proposals
+
+Every change an agent asks for (`ai/proposals.ts`, migration 071
+`ai_proposals`): `access` (config / control / install - the level
+governing it), `operation` (config / command / switch / create-process /
+create-node / create-device), `payload` (applied as it is), `before` (the
+diff's left side; a config's - also the stamps the agent saw), `via`
+(assistant - `conversation_id`; mcp - `mcp_token_id`), status pending /
+applied / rejected / failed, `result` / `error`, who decided and when.
+- Auto - applied at once as `ai-agent`; Confirm - pending until a person
+  accepts (applied as that person, source "ai" in the command log) or
+  rejects; Off - not offered. A decision is claimed atomically (two
+  Accepts apply once; a decided one - 409). A config accepted after someone
+  changed the same section - failed with who / when.
+- The tools check before proposing: `config.propose {processId?, sections,
+  reason}` (only the sections that change, schema-checked);
+  `control.propose {processId?, action, params?, reason}` (ON / OFF if the
+  process lists it, else a one-shot command); `install.process.propose
+  {kind, name, groupId, nodeId?, type?, config?}`; `install.node.propose`
+  / `install.device.propose` (the Device Registry's checks - below).
+  Install - Nexus Edge only; a DNP instance changes only its own group.
+- Applying is the same code a person's edit runs: `processWrites.ts`
+  (`writeProcessConfig` - stamps seen, min / max, the kind's schema, the
+  command log, `nexus.actor`; `checkProcessConfig`; `giveProcessCommand`;
+  `switchProcess`; `createProcess` - also schema-checks its config) - the
+  routes `PATCH /processes/:id/config`, `POST /processes/:id/action`,
+  `POST /processes/:id/commands`, `POST /processes` call them; `registry.ts`
+  for nodes / devices.
+- Routes: `GET /ai/proposals {page, pageSize, status?, conversationId?}`
+  (a non-admin - their conversations'), `POST
+  /ai/proposals/:id/accept|reject` (the conversation's owner or an admin;
+  an MCP client's / a scheduled run's - an admin). UI: `ProposalCard.jsx` -
+  access, summary, status, reason, the diff by field path
+  (`channels[0].dailyMl 20 -> 22`), Accept / Reject or who decided / why it
+  failed; in the messenger's turn and Logs -> AI Proposals.
+
+### The calendar
+
+- `ai_schedules` (migration 072): instance, work type (of its
+  `scheduledTypes`), on / off, repeat day / week (`weekday` 0 - Sunday) /
+  month (`month_day`) / year (`month` + `month_day`), local "HH:MM"; the
+  last run - its date, when, conversation, status running / ok / problem /
+  failed / skipped, note.
+- The clock: the built-in process "AI Assistant" (kind `ai-assistant`,
+  System, migration 072; orchestrator `processes/aiAssistant.ts`, every
+  `AI_CALENDAR_INTERVAL_MS`) calls `POST /ai/calendar/tick`; `ai/calendar.ts`
+  claims what is due atomically (one run per occurrence date) and runs it
+  in an in-memory queue, one at a time. Runs left "running" by a stopped
+  API - failed at start.
+- The time rule (`ai/calendarTime.ts`, tests - vitest pins
+  `TZ=Europe/Berlin`): the host's local wall time on the occurrence's date
+  - a time the spring switch skips runs right after the jump, a repeated
+  autumn time once; later than `AI_CALENDAR_CATCH_UP_MIN` - skipped; a day
+  past a shorter month's end - its last day. The same rule as the
+  aquarium's `dueOccurrence` (plugins are self-contained - a shared
+  `packages/` module is the place once one exists).
+- A run: a conversation of the `system` user, the request
+  `prompts/scheduled.md` (language - `AI_SCHEDULED_LANGUAGE`); the answer's
+  last line `Status: OK | PROBLEM - <what>` is its status; no connection -
+  skipped. Problems and failures - the AI Assistant process's WEM warnings
+  (code `schedule:<id>`, level - its config `problemLevel`, `link`
+  `/ai-assistant/<conversation>`), resolved by the next OK run or by
+  switching the schedule off.
+- `log_messages.link` - a general WEM field (`MessageInput.link`, the
+  public messages too); "Open" in the WEM row, the notification center and
+  Logs -> Messages (`components/MessageLink.jsx`).
+- Routes (admin): `GET / POST /ai/schedules`, `PATCH / DELETE
+  /ai/schedules/:id`, `POST /ai/schedules/:id/run`; `POST
+  /ai/calendar/tick` - orchestrator-driven. UI: Instances -> Calendar
+  (`AiCalendarModal.jsx`).
+
+### Checked live (OpenAI gpt-4.1-mini, the aquarium project)
+
+A pH question answered from the CO2 module's evidence (~6 s, ~10 k
+tokens); MCP through curl and the SDK client; streamed answers; a dosing
+change proposed and accepted in the browser, Auto as ai-agent, a stamp
+conflict -> failed; a scheduled run started by the orchestrator found the
+stale "Main node control" heartbeat and raised a linked warning; "add a
+virtual CO2 module to Bare Tank with only heartbeat, pH and the valve" ->
+the right node proposal.
+
+## Device Registry writes - nodes and devices through the API (2026-10-17)
+
+A node and its devices came only from a project's seed migration plus its
+EdgeX device list (`extra-res/devices/*.yaml`); now also at run time -
+`apps/api/src/registry.ts` (a person: routes / Library; the assistant:
+Install proposals).
+- `createNode {type, name, parentId?, groupId?, location?, roles?,
+  backend?, busConfig?, transport?, simulated?}` - a Library node type with
+  the devices its `node.yaml` declares under `devices: [{role, type,
+  name?}]` (all, or `roles`), each with `capabilities.role` (section 87). A
+  type with `parents` needs a parent of one of them; the name is unique;
+  `bus_type` from `node.yaml` `bus.type`; Heartbeating Control from
+  `node.yaml` `heartbeatControl` (absent - not monitored). A failed device
+  rolls the node back.
+- `createDevice {type, name, nodeId?, role?, location?, backend?,
+  transport?, capabilities?}` - a Library device type: profile and
+  resource from `edgex-device-profile.yaml`, `readOnly` from its
+  `contract.schema.ts` (imported as a DNP's api.ts is; a sensor's profile
+  is RW for its simulation). On a node: the node type must `support` it,
+  the role free. Registered in EdgeX core-metadata first (`edgex.ts
+  addEdgeXDevice`, bound to `EDGEX_DEVICE_SERVICE_NAME` - the
+  device-service takes it through AddDevice, no restart), then the row; a
+  failed row removes the registration. EdgeX name `<node type>-<node
+  id>-<role or name>` (standalone - `standalone-...`). Virtual by default;
+  physical - `transport {type: can | mqtt, ...}`.
+- `deleteDevice` (row + EdgeX registrations, the simulated twin's too),
+  `deleteNode` (its devices, then the row; refused while it has child
+  nodes). `checkNode` / `checkDevice` - the same checks, nothing written.
+  Device create / delete - log_command `create` / `delete`.
+- Routes (`routes/registry.ts`, signed-in): `POST /nodes`, `DELETE
+  /nodes/:id`, `POST /devices`, `DELETE /devices/:id`, `GET
+  /registry/node-types/:type`. UI: Library -> Nodes / Devices -> "Add node"
+  / "Add device" (`AddRegistryModal.jsx`; virtual). Not in the UI yet:
+  deleting from the Nodes / Devices pages, a physical binding.
+
+## Clear Logs with a choice (2026-10-17)
+
+Service -> Database -> Clear Logs is a form (`ClearLogsModal.jsx`): the
+date the logs are cleared before (local midnight; empty - all), then the
+units with their volume up to it - permanent first ("AI Assistant
+Messenger", "AI Assistant Reports", "AI Assistant Proposals", "System" -
+rows of no DNP instance: core, users, standalone devices, deleted
+entities), then the DNP instances, larger first: a root node's tree (an
+aquarium with its modules - the processes on those nodes and their
+devices) or a process with no node; the selected volume; Clear Logs.
+- `logCleanup.ts`: `logVolumes(before)` / `clearLogs(before, units)` with
+  one mapping (a log_command row of a process -> its unit, else of a
+  device -> the device's, else System; log_device by device; log_messages
+  by process). Kept: active WEM messages and pending proposals; time
+  series are not logs. One transaction, then `initUnreadCounts` and a
+  forced broadcast.
+- Routes (admin): `GET /service/database/logs/volumes?before`, `DELETE
+  /service/database/logs {before?, units}`; audit - `clear-logs` with
+  `{before, units, deleted}`.
+
+## Access control - permissions, roles, scopes, sessions (B1.1, 2026-10-17)
+
+One check for every API route, one catalog of what a person can do; the
+plan and the decisions - iot `AGENTS_TO_DO.md` (B1).
+- The catalog (`apps/api/src/access/catalog.ts`): section (a menu tab) ->
+  block -> action, a key `<section>.<action>` (`processes.config`,
+  `devices.write`, `service.database.clear-logs`, ...), each with a level
+  (read / control / config / install / admin - the AI Assistant's levels +
+  admin). An administrator never ticks single actions - a role gives them
+  by levels on objects (`access/rights.ts`, below). `system` - the internal
+  services' role (`SERVICE_ROLES`, never a person's). `simulation.view`:
+  without it the units show as if real; `ai.share` - share one's
+  conversation. `GET /access/catalog` serves it.
+- **Roles as tables, no groups** (2026-10-27, migration 095 - replacing
+  the groups / grants / a person's own grants of B1.1-B1.2): a role is
+  what a person acts as - `roles.rights` = object -> levels (`view` /
+  `control` - operate: ON / OFF, setpoints, commands, manual values /
+  `config` - an engineer's: settings, registry, simulation; a higher level
+  brings the lower ones). Objects: the system sections (`section:dashboard`,
+  `ai`, `logs`, `library`, `settings`, `service`, `users` - each with the
+  levels it has), `*` - every other object, and the DNP instances (units -
+  `node:<root>` / `process:<id>`, `system` - the devices with no node;
+  `dnpInstances.ts`); an object's row replaces `*` (up or down). The
+  sections' levels: Simulation (`simulation.view` - which units are
+  simulated; on the objects viewed - an engineer's sight apart from
+  configuring, migration 096), Users (view - `users.view`: the Users page
+  read only; config - `users.manage`).
+  `access/rights.ts` - THE mapping (object, level) -> catalog actions
+  (`computeRights`; `rights.test.ts` - every action mapped once); the AI
+  Assistant's and Logs' use is gated - their section's level opens them,
+  on the objects viewed (the whole-system assistant - with every object
+  viewed). The pages and the menu follow from the actions. Also in a role:
+  `dashboard` (null - every card, else the card ids; a process's card -
+  only where its process is seen), `link_key` (`?account=`),
+  `ai_daily_tokens`; its people - `role_members`. `admin` and `system`
+  hold everything by their key (`FULL_ROLES`). The built-in roles:
+  Administrator, Operator, Viewer, Guest, System service; Users -> Roles
+  makes / copies own ones. Migration 095 turned every group into a role of
+  its name (its grants -> rows, its members, its link name), a person's own
+  grants into a role "<name> - own access" (one role everywhere - that
+  role), the cards' groups into the roles' card lists, the last group into
+  the role; the old operator's install-level actions (registering nodes /
+  devices / processes) are now its `config` level.
+- Storage: `roles` (+ `rights`, `dashboard`, `link_key`,
+  `ai_daily_tokens`), `role_members` (migration 095; the groups, the grants
+  and `roles.permissions` of migration 073 are gone); the `demo` account
+  (protected; the `guest` since migration 094). `users.roles` - only kept
+  in step ('admin' for a member of Administrator) for old readers.
+- The guard (`access/guard.ts`, an onRequest hook): the route's permission
+  from ONE table (`access/routes.ts` - its own `config.permission`, an exact
+  "METHOD /pattern", the longest prefix read / write, else a project
+  package's route - `dnp.view` / `dnp.config`; special: public,
+  authenticated, service); internal services - `X-Service-Token` =
+  `SERVICE_API_TOKEN` (the orchestrator's apiClient - and so every process
+  plugin, the device-service's media uploads) act as `orchestrator` (the
+  former `system` account, role `system` - migration 094); else the
+  session cookie -> the principal (`access/principal.ts`, the role acted
+  in - or the union of all for one role, cached `AUTH_PRINCIPAL_CACHE_MS`,
+  dropped on any access change). A route naming a process / node / device
+  checks it on that entity's unit: not even visible -> 404, visible but not
+  allowed -> 403 (the guest's refusal - "sign in to change this", `guest: true`). `requireAuth` /
+  `requireAdmin` remain only as "known person" checks - the guard decides.
+- A process acting for a person (2026-11-06; migration 105): an
+  administrator sets a process's "Acts as" (`processes.acts_as_user_id`,
+  `PUT /processes/:id/acts-as` - `users.manage`; a person's active account,
+  not a service's or the guest; Processes -> the process's settings ->
+  System, admins only). Its plugin's requests through
+  `apiClient.asPerson(processId).request(...)` carry `X-Acting-Process`
+  with the service token: the guard takes that person's principal (all
+  their roles) and checks the route as for their session; the person is
+  `request.user` - the author of what it records; the command log's "As" -
+  their roles ", via <the process>". None set (or the person inactive) -
+  403 "the process acts for no one". Plain `apiClient` requests stay the
+  orchestrator's. Use: a maintenance process doing a technician's work, a
+  scheduled job on the duty person's behalf (the demo's `demo-maintenance`).
+- Limited people (a role with objects' rows) don't see other instances at all:
+  the lists filter (`access/scope.ts` - `/processes`, `/nodes`, `/devices`,
+  `/dashboard-cards` with the role's cards, `/logs/commands`,
+  `/logs/devices`, `/log-messages`), the AI Assistant offers only their DNP
+  instances (the whole-system instance - with `ai.use` everywhere), other
+  people's scheduled runs are hidden; the live stream (messaging gateway)
+  asks `GET /access/stream-scope` with the person's cookie on connect and
+  every `GATEWAY_SCOPE_REFRESH_MS`, closes with 4401 without a session, and
+  sends only their processes / devices / nodes, and the header's unread
+  counters summed over their processes (2026-10-28: the API keeps them per
+  process too - Redis hash `wem:unread:by-process`, `getUnreadByProcess`;
+  the fleet snapshot carries `unreadByProcess`, the gateway sums a limited
+  person's and drops it before sending - `scopedProcessSnapshot`). A
+  message's hide (`PATCH /log-messages/:messageId`) needs Control on its
+  process; `GET /log-messages?processId=` - one of theirs only. The
+  simulations' messages - only for one with `simulation.view` (section 22,
+  "quiet").
+- **Acting in one role** (G1, 2026-10-26 - groups then, roles since
+  2026-10-27; migration 093): a person with several roles chooses one at a
+  time in the header's avatar menu ("Act as"; the menu: the name, the
+  roles, Logout / Sign in - the Users page only from the sidebar) - `principalOf(userId,
+  context)` keeps only that role ("role:<key>"); the server checks it (the
+  session's `ctx` claim, the guard). `contextsOf` - their roles, the
+  strongest first; fewer than two - no choice.
+  The choice is remembered (`users.last_context`, POST `/auth/context`) and
+  offered at the next sign-in; the first time - the strongest. `/auth/me`
+  - `contexts`, `context`; the UI reloads on a switch. The AI's tools act in
+  the person's current role. One per session (every tab alike).
+- Sessions (`access/session.ts`; server-side since 2026-10-27, as in
+  sevenstime-backoffice): the cookie's JWT names the person and the session
+  (`sid` - a `user_sessions` row, migration 094); the token and its cookie
+  live `JWT_TOKEN_TTL` seconds (the cookie outlives the browser); the guard
+  checks the row on every request (re-read / its `last_activity_at` written
+  at most every `AUTH_ACTIVITY_WRITE_SECONDS`) - unused for
+  `JWT_TIME_INVALIDATION` seconds, revoked (sign-out), or the person
+  deactivated / given a new password (`revokeSessionsOf`; not the session
+  changing its own password) - 401 "the session is over". Per session, not
+  per person (unlike sevenstime): signing out on one device leaves the
+  others. A context switch re-signs the same session. Ended sessions are
+  removed nightly (`maintenance.guests`). `AUTH_SESSION_IDLE_MINUTES` /
+  `AUTH_SESSION_MAX_HOURS` and the sliding renewal are gone.
+- Dashboard cards (`visibleCards`): whoever holds `dashboard.manage` (the
+  Dashboard's Configure) sees and arranges all; else a card shows when it is
+  in the role's list (`roles.dashboard`, null - all) and its object is seen
+  - a process's card where the process is seen, the core's own
+  (`system.<section>`) with that section's view; a hidden folder hides its
+  subtree, a folder with nothing visible inside is hidden.
+- `.env`: `SERVICE_API_TOKEN` (api, orchestrator, device-service),
+  `JWT_TOKEN_TTL`, `JWT_TIME_INVALIDATION`, `AUTH_ACTIVITY_WRITE_SECONDS`,
+  `GUEST_CLEANUP_AT`, `LOG_RETENTION_DAYS`. The `DEMO_*` block is gone
+  (2026-10-27) - the core knows no demo; a demo is the guest set up by its
+  project's migrations (nexus-edge-tech `demo/migrations/032_demo_guest.sql`).
+- Tests: `access/routes.test.ts` (the table), `access/rights.test.ts` (the
+  mapping, the `*` row and its replacement, the gated sections). Checked live: no session -
+  401 (the stream - 4401); a bad service token - 401; a person on a
+  service-only route - 403; a viewer limited to one aquarium - only its
+  processes / nodes / devices / cards / log rows / stream, another
+  aquarium's process - 404, a change of their own - 403, no AI instance;
+  (2026-10-27) a session idle past `JWT_TIME_INVALIDATION` - 401 and
+  revoked, a signed-out one - 401.
+- The UI (B1.2): `/auth/me` -> `access` (the keys held everywhere; those
+  held on some instances - with their units' process / node / device ids);
+  `ui/src/access.js` - `useCan()` / `canAny()` / `SECTION_PERMISSIONS`: the
+  menu and the pages by a section's permissions (no right - no entry, a
+  direct link - "no access"), Service's tabs, the action buttons (process
+  ON / OFF - control, settings / delete - manage; a device's value -
+  write / simulate, settings - manage; a node's settings, groups,
+  simulation; Library sync / add; a proposal's Accept / Reject -
+  ai.decide); any other refusal - said in words by the API client ("no
+  permission (key)", the guest's "Sign in to change this"). Users -> Users /
+  Roles / Guest (`views/users/`): a person's roles (a checklist); a role
+  (`RolesTab.jsx`) - tabs General (name, key, link name, AI tokens,
+  members) / Sections / Objects / Dashboard / Pages (below); the rights table
+  (the sections' rows; "Every other object" and the objects' own rows, each
+  with View / Control / Configure and a quick choice Viewer / Operator /
+  Engineer; a search over the rows; "Add objects" - a checklist); the
+  Dashboard (every card / the cards chosen - the cards' tree); its members;
+  "Copy" - a new role from it. The form shows only what the choices above
+  make relevant: the Dashboard's cards - with its View (Configure - "sees
+  and arranges every card", no list), the cards of the role's objects only
+  (each with its process and folder path; "show the cards of other
+  objects"), the AI tokens - with the AI Assistant's View. Without
+  `users.manage` the page is read only. Every long list is `components/
+  SearchChecklist.jsx` - a search by a part of a word, "Selected only", the
+  count. An internal service's account (orchestrator, simulator, ai-agent -
+  `service`) has no password field and fixed roles; the guest - no
+  password.
+- The AI's tokens a day (2026-10-27; `users.ai_daily_tokens`,
+  `roles.ai_daily_tokens`, migration 094): empty - unlimited (a green check
+  in the Users / Roles tables), 0 - the AI off (a red cross; the principal
+  loses `ai.use` - every AI entry hides), a number - the limit (shown). The
+  account's own and its roles' - the strictest holds; of several roles -
+  the most generous (`Principal.aiDailyTokens`, `/auth/me`
+  `access.aiDailyTokens`). Counted per account per day (all its
+  conversations - the guest's: all guests together); over it - 429.
+- The AI's usage monitor (2026-11-10; `ai_usage_daily`, migration 108):
+  every model call adds its tokens to a row per day, connection and kind
+  (guest / scheduled / person) in `agent.ts` `recordUsage` - kept when a
+  guest's conversation is deleted after its retention (the per-account
+  check still reads `ai_messages`). `GET /ai/usage?days=` (admin) - the
+  rows and the limits (each enabled connection's `daily_token_limit`, the
+  guest account's `ai_daily_tokens`); Logs -> AI usage (`AiUsageTab.jsx`) -
+  stacked bars by day, the limits as dashed lines, a hover per day, a table.
+- A role's pages (2026-10-27; `roles.pages`, migration 097; null - every
+  page its rights open): the menu entries / pages it shows, on their own -
+  an owner, an operator, a visitor work on the Dashboard (their rights let
+  it read the devices) and need no Nodes / Devices / Processes pages;
+  `messages` - the header's messages (the notification centre). A page
+  opens when the role shows it AND its rights let it (`access.js`
+  `canOpen` / `pageShown`; the sidebar - `components/useMenu.js`, the
+  routes, the header). One page at most (only the Dashboard) - no sidebar,
+  no menu button, the brand in the header. Shown only - the rights decide
+  what may be read or done. The Pages tab - each page on / off and which
+  row opens it or what it lacks (`POST /access/rights/preview`,
+  `rights.ts` `actionSources`), "The role gets: ...". After a role switch
+  ("Act as" reloads) a page the new role doesn't open is left for its
+  first page (`ui/src/roleSwitch.js` `isSwitchLanding(pathname)` - a mark
+  read once at the load, only for that page, dropped once the person is on
+  another; any other closed page still says "no access"); a Dashboard
+  folder / card it doesn't see - for the Dashboard's top (`Dashboard.jsx`).
+- The users' and roles' tables show circles (`views/users/Avatars.jsx`): a
+  role's Members - the people's avatars (the active flag, the name in the
+  title), "+N" past 8; a person's Roles - the roles' initials coloured by
+  their highest level, the strongest first (`byStrength`), "+N" past 4; a
+  guest's role - outlined. The Roles table: the name (no key, no link - in
+  the form), Rights - the highest level as a badge (`roleLevel`,
+  `RoleLevelBadge`; what on which objects - in its title): None, View,
+  Control, Configure, Administer (Users and access - Configure: can give
+  anyone anything), Full (built in - Administrator), Service (the system's
+  own accounts). The colours read in both themes (Full - the text's own
+  colour). The AI column - a green circle with a check (unlimited), a red
+  one with a cross (off), or the limit as plain text. Both tables search by
+  the names behind them.
+- **An object is a process with its nodes** (2026-10-28; `access/usage.ts`
+  `processUsage`): which installations a process uses - those its processes
+  run on, and those naming one of its nodes in `processes.config` (a
+  `nodeId` anywhere - a heating plant's pumps and rooms, the field's PV
+  blocks and meters). A role's row of a process with no node covers the
+  installations it uses (`computeRights(rights, units, covers)`): with no
+  row of their own they take the covering processes' levels (the most of
+  them), before the "*" row - one row "House heating" instead of a row per
+  room. The objects' list (`GET /access/objects`) says where each sits: a
+  process - its kind and "with N installations"; an installation - "used by
+  <processes>" and `coveredBy`; the role editor's "Add objects" lists each
+  process with its installations under it.
+- **A linked process's commands** (2026-10-28; `access/linked.ts`): a DNP
+  package's manifest (`library.json` / a plugin's `plugin.json`) may say
+  which commands of the process its config links to are part of operating
+  its own - `"access": {"linked": [{"configKey": "ledgerProcessId",
+  "commands": ["setOperating", "replan"], "dayNotes": true}]}` (the Energy
+  Field's reserve / selling switches are the Energy Ledger's operating
+  parameters). Control on the field then sends those commands - and day
+  notes - to the ledger it names, without Control on the ledger; nothing
+  else of it. The guard defers these two routes (`POST
+  /processes/:id/commands`, `POST /processes/:id/day-notes`) to a
+  preHandler that reads the command's action from the body.
+- **A system-wide change** (2026-10-28; `rights.ts` `SYSTEM_WIDE_CONFIG`): an
+  object's configuration action with no object named (a new process, the
+  process / tab / device / node groups, the kinds) needs it everywhere
+  ("*" - Configure), never one object's row - a process's engineer is not
+  the system's. Processes -> Settings is shown only to those
+  (`canEverywhere(access, 'processes.manage')` or `settings.config`).
+- **The roles in the command log** (2026-10-28; migration 099
+  `log_command.acted_as`): the names of the roles the person acted in,
+  kept as they were then (Logs -> Commands "As"). The guard opens a request
+  context (`requestContext.ts`, AsyncLocalStorage) and fills it with the
+  principal's `roleNames`; `logCommand` reads it - no write passes it on.
+- **Service: View** (2026-10-28; `service.view`): the Service pages seen -
+  the database's sizes, the saved states, the commands - with every action
+  off (Database: each by its own right, Commands: `service.system`); the
+  downloads stay `service.database.backup`.
+- **The person's profile** (2026-10-28; `routes/users.ts` `profileRoutes`,
+  `ui/src/components/header/ProfileForm.jsx`): the user menu's "Profile" -
+  the username (fixed), the display name, the email (migration 098
+  `users.email`, optional, unique case-insensitive; the admin's form has
+  it too), the avatar (on Save) and a new password - with its repeat and the
+  current one (a tab left open must not let another change it); a new
+  password ends the person's other sessions. `GET / PATCH /profile`, `POST /
+  DELETE /profile/avatar` - any signed-in person, not the guest, not a
+  service account.
+- The AI button on a subject the person only views (decided 2026-10-28):
+  shown - asking is reading; the AI acts only within the person's rights
+  and says "no access" about what they can't see.
+- A link into a role (2026-10-27; `roles.link_key`): `?account=<link
+  name>` - before the hash or in it - opens the application in that role
+  of the person (`/auth/me?account=`, the login's `account`;
+  `contextOfLink`), remembered as their last (not the guest's);
+  `ui/src/accountLink.js` reads it once and takes it off the address.
+  API (users.manage): `/access/roles` (GET; POST - `copyOf`; PATCH -
+  name / rights / dashboard / linkKey / aiDailyTokens / memberIds; DELETE -
+  not a built-in), `/access/objects` (the levels, the sections, the
+  objects), `PUT /access/users/:id/roles`; `GET /users` carries each
+  person's `roleKeys`.
+- **A link's language** (2026-11-03): `?lang=<en|uk|de|es>` (before the
+  hash or in it, as `?account=` - `accountLink.js` `paramFromUrl` /
+  `clearParamFromUrl`) - read once at the start by `i18n/index.js`
+  (`languageFromLink`), remembered as the browser's choice, taken off the
+  address; for a signed-in person it wins over the profile's language on
+  that visit (AuthGate). A site's links into the demo carry their page's
+  language (nexus-edge-tech `src/lib/demo.ts`).
+- The guest (2026-10-27, replacing the demo mode of B1.3 - the core knows no
+  demo): the built-in `guest` account (migration 094 - the former `demo`;
+  never deleted, off at first; its role `guest`, its AI tokens 0). On
+  (Users -> Guest - its `active`): `/auth/me` without a live session starts
+  a guest session (`guest: true`; each browser its own - its `sid` keeps
+  the guest's own conversations, `ai_conversations.guest_session`); the
+  application opens with the guest's roles (G1 contexts - the
+  first time the strongest, never remembered on the account; `?account=`
+  links), the menu's "Sign in" goes to the sign-in page (the guest session
+  stays until someone signs in - the login ends it), which offers "Continue
+  as a guest" (`/auth/me?signin=1` - `guestEnabled`, no session started).
+  Off - the sign-in page. A sign-out with the guest on lands on the
+  Dashboard as the guest (AuthGate checks again whenever the person is
+  gone). A new visitor starts in the guest's `defaultRole` (the guest's
+  settings; none - its most allowing role; a link wins). A change - 403
+  "sign in to change this". A guest's role may view Users (a demo shows
+  the function): `GET /users`, `/users/:id` send it no e-mails (2026-11-06,
+  `routes/users.ts` `isGuest`). The
+  guest's settings (`system_settings` 'guest', `access/guestSettings.ts`,
+  `GET/PUT /access/guest`): its conversations private (each browser its
+  own) or public (every guest reads all, continues only their own); kept N
+  days (empty - kept; removed nightly at `GUEST_CLEANUP_AT`); "only relevant
+  questions" - a guest's conversation starts its system prompt with
+  `prompts/guest.md`: an off-topic question is refused and marked
+  `<off-topic/>` on the answer's last line (stripped) - that turn is
+  deleted, the conversation too when empty (the tokens stay counted). A
+  person who can't decide proposals (no `ai.decide` - the guest, a viewer)
+  gets the reading tools only.
+- Shared conversations (2026-10-27; the former demo showcase -
+  `ai_conversations.shared`, migration 094): the owner (`ai.share`; an AI
+  administrator - any) shares one with the star in the AI Assistant's list
+  (`PATCH /ai/conversations/:id/shared`) - everyone who may talk to its
+  instance's assistant reads it (marked "shared"), starts their own; the
+  list's rows carry `mine` (else read only) and `guest`. The log retention
+  keeps the shared ones.
+- The simulation's marks (2026-10-21, by the permission since 2026-10-27):
+  without `simulation.view` the UI (`src/presentation.js` -
+  `useHideSimulation`, `simulationTint`) drops them - the rows' tint, the
+  "Simulation" status, its filter option, the header badge, the simulation
+  switch for those who may not simulate; the simulation itself, the
+  Simulator and the other rights stay.
+- The nightly maintenance (`maintenance.ts`, each job once a day at its
+  local time by the calendar's rule; the last day in `system_settings`):
+  `GUEST_CLEANUP_AT` - the guests' conversations past the guest's kept days
+  and the ended sessions removed; `LOG_RETENTION_DAYS` at
+  `LOG_RETENTION_AT` - every unit's logs older than that
+  (`logCleanup.clearLogsOlderThan`, the shared conversations kept); and at start
+  the TimescaleDB retention of the raw `samples` (`SAMPLES_RETENTION_DAYS`,
+  0 - forever; the aggregates stay).
+- The AI's help (B1.4; roles since 2026-10-27): `access.explain` (a
+  person's roles with their rows, the role acted in, what they hold
+  everywhere / where; for a permission - held now or not and which of
+  their roles give it where) and `access.propose` (a person's roles
+  replaced; by key or name) - the whole-system assistant only; an access
+  proposal (operation `roles`; the pending `grants` ones were rejected by
+  migration 095) is never applied
+  on its own (pending whatever the level) and only a person holding
+  `users.manage` decides it.
+- Checked live (B1.3 - the demo mode, since replaced by the guest; the guest
+  re-checked 2026-10-27 - its session, refusals, public conversations, an
+  off-topic question dropped, `?account=`, the idle / signed-out session):
+  the Users / Roles screens; a limited viewer's UI; the demo
+  - two visitors signed in apart, a change refused, AI answered with
+  reading tools only, visitors isolated, MCP 404, the nightly reset removed
+  the visitors' conversations, the log retention ran once a day; the AI
+  explained why a viewer can't change Bare Tank's settings and proposed an
+  operator role on Bare Tank only; a viewer's Accept - 403, the admin's -
+  applied, the change took effect.
+
+## Several project roots (B2, 2026-10-19)
+
+A target project can be built on another one (the demo in
+`../nexus-edge-tech/demo/` on `../nexus-edge-aquarium`): every extension
+directory takes a comma-separated LIST of roots, a dependency's first.
+
+- `projectRoots.ts` `parseRoots(value, defaultLabel)`: each entry
+  `label=path` or a bare `path`; the first bare one gets the default label
+  ("private" for packages, "project" for migrations) - so a single-root
+  setup reads exactly as before. Used by `EXTRA_API_PLUGINS_DIR`,
+  `EXTRA_PROCESS_PLUGINS_DIR` (orchestrator config), `EXTRA_MIGRATIONS_DIR`;
+  the device-service's `EXTRA_RES_DIR` (extrares.go) - the same list,
+  labels ignored.
+- API packages (`apiPlugins.ts`, `libraryCatalog.ts` - `projectRootOf`,
+  `resolveAbsDir`), static UI files per root (`server.ts`), the Library
+  catalog's private DNPs, AI manifests - from every root.
+- Process kinds (orchestrator `processPlugins.ts`): the roots in reverse
+  plus the Library - a later root's kind overrides an earlier root's (or
+  the Library's) kind of the same name; the same name twice in one source
+  is still an error.
+- Migrations (`extraMigrations.ts`): root by root, file-name order inside;
+  recorded as the plain file name for the first root (as in the
+  single-root days) and `<label>/<file name>` for the others.
+- `onProjectMigrationsApplied(fn)` - in the api plugins' context: called
+  after a batch applied at least one project migration (on start - they run
+  after `listen`, so after the plugins loaded - or later). What a plugin
+  derives from the data at its start (the aquarium light's stored MPT) is
+  recomputed then: a project built on it may seed rows the start predated.
+- How to set one up: `docs/CREATING_A_TARGET_PROJECT.md` section 8
+  "Building on another target project".
+
+## AI tools of a DNP, clearer tool errors (2026-10-19)
+
+- `registerAiTool(tool)` in the api plugins' context (apiPlugins.ts): a
+  DNP adds its own AI Assistant tool to the same registry (ai/tools.ts) -
+  in every instance's tool list and the MCP server. Reading only (the
+  access is forced to "read"); changes go through the core's proposing
+  tools. The first - the aquarium light's `light.plan` (today's plan: the
+  profile, the peak, the power hour by hour, the periods with their
+  spectrum templates).
+- A tool's invalid input is reported as a model can act on it: the unknown
+  field named with the allowed ones, a missing one named (was ajv's bare
+  "must NOT have additional properties"). `series.stats` / `series.points`
+  say their keys are full series keys from `series.list`.
+
+## A DNP's proposing AI actions (2026-11-04)
+
+A change the core's proposing tools can't express - a record of the
+package's own (an aquarium's water test, a probe's calibration) - is the
+package's action:
+- `registerAiAction(action)` in the api plugins' context (apiPlugins.ts;
+  `ai/dnpActions.ts` DnpAction): `name` (the tool's - `<package>.<what>.propose`),
+  `description`, `access` (config / control - the instance's level that
+  governs it), `properties` / `required` (its fields; `processId` and
+  `reason` are added), `kinds` (the process kinds it is for), `prepare(input,
+  process)` - checks the input now and answers `{summary, data}` (its error
+  is the model's to act on), `apply(data, process, userId)` - applies as the
+  deciding person (or `ai-agent` on Auto), its result kept with the proposal.
+- `ai/tools.ts` `registerDnpAction` serves it as a proposing tool - in the
+  assistant and over MCP, offered by the access level; the process is
+  checked against the instance's group and the kinds; then the proposal's
+  operation `dnp`, payload `{action, data}` (`ai/proposals.ts` applies it
+  with the package's `apply`; an action no longer loaded - failed, 410; the
+  package's error - failed with its message, the stack in the api log).
+- `ProposalCard.jsx` shows a `dnp` proposal's `data` fields.
+- The first - the aquarium's `aquarium.test.propose` and
+  `aquarium.calibration.propose` (with the reading tool `aquarium.records`).
+
+
+## Energy packages - the shared base (2026-10-19)
+
+The public CORE Library packages the Energy Field and Heating target
+packages build on (iot AGENTS_TO_DO.md - the demo site: a small German
+business with generation fields, a battery array and buildings). Each
+package documents itself in its `docs/README.md`; here - what exists:
+
+- **`weather-control`** (`devices/processes/weather-control/` - see the note
+  in section 66): the station, the light-level zones, the **forecast**
+  (Open-Meteo, stored, AI `weather.forecast`), a simulated node following
+  the forecast; device types `wind-speed`, `rain`.
+- **`energy-grid`** (`devices/processes/energy-grid/`): the site's grid
+  connection - the `grid-meter` node type (`devices/nodes/grid-meter/`,
+  reference model Janitza UMG 604-PRO, Modbus TCP - virtual until the
+  device service has a Modbus transport), the purchase price (time-of-use
+  tariff zones or the day-ahead market + surcharge - a dynamic tariff), the
+  sale price (fixed or market), today's account, supply quality and
+  import / export limits as WEM, time series `grid.*`; day-ahead prices
+  from Energy-Charts (aWATTar fallback) stored in `energy_prices`
+  (migration 079); routes `/energy-grid/:processId/prices[...]`, AI
+  `energy.prices`; panel with today's / tomorrow's price chart, settings,
+  Dashboard component `energyGrid.panel`.
+- Generic device types (`devices/standalone/sensor/`): `voltage` (V),
+  `frequency` (Hz), `power` (kW, signed by the measuring point's
+  convention), `energy` (kWh counter), `current` (A, signed),
+  `state-of-charge` (%), `rotational-speed` (rpm); for heating / cooling
+  (2026-10-20) `thermal-power` (kW, + heating / - cooling),
+  `thermal-energy` (kWh heat counter), `flow-rate` (l/min).
+- Heating / cooling node types (2026-10-20, for `heating-control`):
+  `heat-pump` (air / water monobloc - reference Vaillant aroTHERM plus 12
+  kW: flow / return / outdoor temperature, flow, heat output and counter,
+  electric power and counter, fan speed, on / off), `buffer-tank`
+  (reference Vaillant allSTOR plus 800 l: top / middle / bottom
+  temperature - the stored heat is computed), `fan-coil` (reference Daikin
+  FWT: room temperature and humidity, the valve, fan power and speed).
+  Several devices of one type on a node (the temperatures) - the process
+  takes each by its role from its config (`...DeviceId`, by id).
+- **`heating-control`** (`devices/processes/heating-control/`, 2026-10-20):
+  heating / cooling on water - heat pumps charge buffer tanks, the rooms'
+  fan coils draw from them (three blocks, optional groups `{ key, name,
+  block }`); items' devices by role in the config (`devices: { flowTemp:
+  id, ... }`). Mode auto by the outdoor temperature (hysteresis) or by
+  hand (heating / cooling / off); the tanks' start / stop band; room
+  thermostats. Models (`model.ts`, pure): COP / EER as a share of the
+  Carnot COP, output vs the outdoor temperature, the tank's energy balance
+  and stratification, the room's heat balance, the fan coil's output.
+  Today's account with the Energy Ledger's baselines (direct electric
+  heating; heat pumps without tanks). Metrics `electricKw` - the Energy
+  Field adds it to the site's consumption (`loadProcessIds`). Commands
+  `setMode`, `setSetpoint`, `setEnabled`; WEM (frost, a hot tank, low COP,
+  empty tanks); series `heat.*`; AI `heating.status`. UI: the scene
+  (`HeatingScene` - the weather widget, the blocks, the warm / cold lines
+  with their gauges) as the process row's panel and the Dashboard
+  component `heatingControl.scene`.
+- The sky picture `SkyIcon` lives in `weather-control/ui/SkyIcon.jsx`;
+  energy-field re-exports it. Since 2026-11-01 the weather's pictures are
+  one 3D set (`weather-control/ui/icons/`: sun, dusk, partly, cloud, night,
+  drop, rain, rain-dry, thermometer - WebP with alpha, `icons.js` their
+  files and proportions; made by iot `images/weather-icons/`
+  `make_weather_icons.py` (Blender, Cycles - the clouds of the Weather
+  card's 3D background) and `build_icons.sh` (trim, WebP, icons.js));
+  `WxIcon` (SkyIcon.jsx) shows one by its height / width or fitted into a
+  square (`box`); `weatherIcons.jsx` (drop, rain, thermometer) and
+  `WeatherAvatar` use them. The same on both themes - the old `--wx-sun` /
+  `--wx-cloud` / `--wx-moon` no longer colour anything.
+- **`energy-ledger`** (`devices/processes/energy-ledger/`, 2026-10-20 -
+  L1): the site's energy and money journal - one record a day
+  (`ledger_days`, migration 081) from the field's, the grid's and the
+  heatings' "today" counters (by increments - every figure over the same
+  time; mid-day start - `partial`) plus its own "all bought" integral (the
+  consumption x the slot's price); the savings bridge (`ledger.ts` - without
+  the system - heat pumps - heat storage - own energy - sales = paid, EUR
+  and kWh, summing exactly); `GET /energy-ledger/:id/period`, AI
+  `ledger.history`; `LedgerScene` (panel, Dashboard `energyLedger.scene`):
+  Day / Month / Year, the bridge, KPIs, the month's calendar. heating-control's
+  today adds `noStorageKwh` for it. L2 (2026-10-21) - the batteries' plan:
+  15-minute slots to the end of the day-ahead prices, the forecast from the
+  field's models on the weather and its profile plus the heating
+  (degree-hours learnt from the journal), dynamic programming over the SoC
+  with the wear (`plan.ts`), re-made hourly / on new prices / on a SoC drift
+  (`ledger_plans`, migration 082); the field's Auto follows its slot now
+  (`ledgerProcessId`); the Plan view, AI `ledger.plan`. L3 - strategies
+  (cost, self-sufficiency, reserve, peak shaving, sales - `strategies.ts`,
+  each valued in the real money), the selection fixed / propose (a cheaper
+  one through the core's `proposeConfig` - the ledger's AI instance's
+  Config level is the permission), the heating's SG-Ready signal that
+  heating-control follows. L4 - the learning (`learning.ts`): a sample per
+  slot - forecast vs actual (`ledger_samples`, migration 083) -> the PV /
+  wind factors and the consumption by weekday-hour in the forecast, the
+  day's forecast accuracy, the best strategy in hindsight (the selection
+  proposes one best on most recent days). L5 - the AI's daily report: the
+  work type `daily-report` (the package's prompt), the tool
+  `ledger.anomalies` (a PV block / a turbine under its neighbours, low
+  forecast accuracy, batteries under the reserve, curtailment, rooms off
+  their setpoint); the field's per-unit `todayKwh`, its simulated
+  `pvLosses` fault. A source's missing "today" (an API restart) never
+  counts as a new day. Its pure logic (bridge, optimiser, strategies,
+  learning) - `ledger.test.ts`, run by the api's vitest (its config
+  includes `devices/processes/**/*.test.ts` - a package's tests live next
+  to its code).
+- A Library process package may declare an AI manifest - the `ai` block of
+  its `library.json` (as a project plugin's `plugin.json`; kinds - the
+  package's own by default; a project's kind of the same name wins) - its
+  processes get AI instances (2026-10-21: weather-control, energy-grid,
+  energy-field, heating-control, energy-ledger). The plugin context's
+  `proposeConfig(processId, sections, reason)` (`ai/dnpProposals.ts`) - a
+  package's own proposal of its process's config change under the
+  process's AI instance (Auto applies, Confirm - a card, Off - none; a
+  pending identical one not repeated).
+- The energy field's `consumer.subMeters` (2026-10-21): the rooms' /
+  areas' meters (power-meter nodes) - a simulated one gets its `share` of
+  the profile's consumption (`withLoads` - plus the loadProcessIds'
+  electricity), a real one is read; metrics `subMeters[]` (kW, today's kWh
+  and EUR), series `field.meter.<nodeId>.kw`; the Dashboard component
+  `energyField.meter` - its card picture `EnergyMeterAvatar` (2026-11-01: the
+  big meter on the left, the kW now, today's kWh and cost on the right; the
+  chart only in the popup). heating-control's `heatingControl.room` - one room's
+  climate (its fan coil, valve, temperature, humidity, setpoint + / -).
+  Its card picture `HeatingRoomAvatar` (2026-11-01): the fan coil large,
+  under it the setpoint, the heat now, the heat meter today - the controls
+  only in the popup (before - a tiny scaled copy of the whole component).
+- A node's information popup (2026-10-20, X1): `nodes.model` (a key of
+  the node type's Library `models`, null - the first), `latitude` /
+  `longitude` (the map), `photo_media_id` (Media Store scope `node-<id>`)
+  - migration 080; a node type's `library.json` `models[]` - `{ key, name,
+  maker, purpose, specs: [{ label, value }], image (a file in the type's
+  folder), url }` (`getLibraryModels`). Routes `GET /nodes/:id/info` (the
+  node, its type, its model, the photo URL, the position), `PATCH
+  /nodes/:id/details`, `GET | PUT | DELETE /nodes/:id/photo`; the node's
+  Settings edit them. Map tiles through the API (`routes/map.ts` - `GET
+  /map/tiles/:z/:x/:y`, a bounded in-memory cache, `GET /map/attribution`;
+  `.env` `MAP_TILES_URL`, `MAP_TILES_ATTRIBUTION`, `MAP_TILES_USER_AGENT`,
+  `MAP_TILES_CACHE_SIZE` - the browser never calls the tile server). UI core
+  `components/nodeInfo/`: `UnitPopup` (2026-10-22 C - every package's unit
+  popup: tabs Status / Model / Photo / Map, one tab - no switcher; Status -
+  the scene's live picture, a root `<svg>` in a narrow column, the
+  readings and charts on its right - a wide one held
+  by the width, above them below 700 px; `footer` - the controls; no
+  `children` - the node's information only; `className` - on the modal, a
+  scene's colour-variables class, since the modal renders outside the
+  scene, e.g. energy-field's `ef-colors`; big - 2026-10-29: the dialog
+  `.chart-popup` (`style.scss` - the window's width less the modal's
+  margins, as the aquarium's History popup; the weather's chart popup too);
+  `charts` (2026-10-30) - right of the picture (a column 12 % wide, the
+  picture by its width - the charts' height never moves it),
+  under the readings, each `SeriesChart` drawn at its box's real width in
+  pixels and together as tall as the window lets them (`ChartSpace` - the
+  window's height less the margins and everything in the dialog but the
+  charts, measured; each chart its share, at least 160 px) - the dialog
+  fits the window; narrow (under 700 px) - one column, the charts
+  `ChartSize` 220 px, the dialog scrolls; opening without a jump - the
+  charts' room held from the first frame, a chart drawn once its width is
+  known, both measured before the paint, the limits' legend lines counted), `NodeModel` (the Model tab -
+  the model's real picture `models[].image` (a file in the type's folder;
+  the demo's are WebP, at most 640 px), else the type's icon, else the
+  scene's drawing; the data), `TileMap` (slippy tiles around one point, a
+  pin, zoom - no map library), `ModelLink` (a card's model line opening
+  UnitPopup without Status). `components/charts/SeriesChart` (today's
+  series, moved from energy-field) - one chart per key, one under another,
+  each on its own Y axis, `labels` - their names; an array entry - its
+  series on one chart and one axis (`legends`, `colors`; 2026-10-29), the
+  height `height` / the `ChartSize` context / 130; the lower and the upper
+  limit lines at practical values (a multiple of half the decade above
+  the peak +5 %: 53 -> 60, 3.9 -> 4.5).
+- External services' addresses - API config `services` (`.env`
+  `OPEN_METEO_URL`, `ENERGY_CHARTS_URL`, `AWATTAR_URL`), passed to the
+  packages in the plugin context; the data's licences are credited where it
+  is shown.
+- Package routes `/<kind>/:processId/...` are scoped to their process by
+  the access guard (`entityOf` - `:processId`).
+- **`energy-field`** (`devices/processes/energy-field/`): a site's own
+  generation and storage - PV blocks (`pv-inverter` - SMA Sunny Tripower
+  10.0), wind turbines (`wind-turbine` - Braun ANTARIS small ones, Northern
+  Power NPS 100C-24 mid-size), one battery
+  array (`battery-storage` - TESVOLT TS HV 70 + SMA Sunny Tripower Storage
+  60), one consumer (`power-meter` - Janitza UMG 96-PA); items in the config
+  by node, their devices found by type on the node; groups (one level).
+  Models (`model.ts` - pure): PV from radiation and temperature, wind power
+  curve at the hub height with per-turbine gusts, a consumption profile;
+  the battery dispatch by mode - Auto (rules on the grid's price rank),
+  Manual, Island - within SoC bounds and the connection's limits
+  (curtailment, load shed). The site's balance goes to the grid meter's
+  power device. Commands `setMode`, `setManualPower`, `setExport`,
+  `setReserve`, `setEnabled` (patch the config); WEM; metrics for the scene;
+  series `field.*`; AI `energy.field`; the engineer's panel; the user's
+  scene - Dashboard component `energyField.scene` with its card picture
+  (the package's docs/README.md "UI").
+- Node types (`devices/nodes/`): `grid-meter`, `pv-inverter`,
+  `wind-turbine`, `battery-storage`, `power-meter` - each with its
+  reference model's documents in `docs/README.md`; all Modbus TCP, virtual
+  until the device service has a Modbus transport.
+- Plugin context: `processMetrics(id)` - a process's live metrics (a
+  package's AI tool reads its process's state).
+- Coming: `energy-ledger` (the day's journal and the strategy planner,
+  shared by Energy Field and Heating), Heating.
+
+## Key values (2026-10-22)
+
+The figures a person looks for first (power, energy, money, prices,
+percentages) stand out from their text: bold, about a fifth larger, tabular
+lining digits; the unit smaller and regular. `components/KeyValue.jsx`
+(`<KeyValue value decimals unit color title />`) or the classes `.kv` /
+`.kv-unit` (scss/style.scss). Seven-segment digits only for device displays
+and gauges. The standard is also the iot skill `ui-key-values`
+(`iot/.claude/skills/`). Applied in the energy field's scene and popups,
+the heating scene's summaries and popups, the meters, the Ledger's KPIs.
+A labelled reading (a popup's Status row, the Ledger's KPI) -
+`components/StatTile.jsx` (`<StatTile label hint>` - the label small and
+muted, the value `.kv-tile`: semibold tabular digits, its figures as
+KeyValue).
+
+## The packages' UI is linted (2026-10-22)
+
+`devices/eslint.config.mjs` takes apps/ui's `packagesConfig` (the same
+React rules and Prettier options as the core UI; ESLint lints nothing
+outside its config's folder, hence a config there); apps/ui's `npm run
+lint` runs both. The rules: the React hooks' (purity - "now" by
+`hooks/useNow`, never `Date.now()` in a render) and `react/jsx-no-undef`
+(a missing import - the build doesn't catch it).
+
+## Animations that never repaint the page (2026-11-09)
+
+The Dashboard blinked while scrolling (the header's menu button in Chrome's
+phone emulation, all the content on a Galaxy). A trace (CDP, a touch scroll,
+Paint / Layout events) found the whole document repainted ~20-60 times a
+second by four animations, each forcing the page's own layer:
+- the system tick's pulse animated `box-shadow` - now transform and opacity,
+  its glow a static shadow on `::after` whose opacity animates;
+- a turbine's rotor - a CSS rotation of a group inside the SVG (re-laid out
+  every frame) - now its own `<svg>` over the tower, the element turning
+  (`TurbineIcon`; its colour opaque `--ef-ink-solid`, no mask under the blades);
+- the heat pump's and the fan coils' fans - SMIL `<animateTransform>` - now
+  `FanIcon` (heatIcons.jsx): the fan its own turning `<svg>` clipped round by
+  CSS, the grille a still `<svg>` over it, all in % (the icons scale down);
+- the anemometer's sprite - animated `background-position` - now the strip
+  moved by a transform inside a clipping frame.
+The meter's LED blinks by CSS opacity, not SMIL. In a card's picture
+(`.dc-preview`, the scaled copy of a component) the animations inside its
+SVGs are still. Rule: animate only `transform` / `opacity` of an HTML or a
+root `<svg>` element; never SMIL, a transform of an element inside an SVG,
+`background-position` or `box-shadow`. The header writes its shadow class
+only when it changes; the menu button - three whole-pixel bars
+(`.app-burger`), not the scaled icon; the earlier pause of all animations while scrolling
+(a class on `<html>`) restyled the whole page and is gone. Result (6 touch
+scroll gestures, 390 px): the energy scene 488 -> 10 paints (layout 242 ->
+5), the Heating level 502 -> 13, Aquariums 510 -> 19.
+
+## The application shell (2026-11-09)
+Scroll restoration (2026-11-11, `hooks/useScrollRestoration.js`, used by `DefaultLayout.jsx`): the shell scrolls an element, so the browser's own restoration never applies - a new page (PUSH) starts at the top, Back / Forward (POP) returns to the history entry's place, a REPLACE keeps the place. Device-independent by three rules: a scroll event is written to the entry current when it fires (the key switches in a `useLayoutEffect`, before the browser dispatches the scroll its own clamping causes when the old page goes - that clamped value never overwrites the old entry); the place is re-applied as the content grows (a `ResizeObserver` on the scroller's content, up to 10 s), not on a timer; only a real scroll stops it (`wheel`, `touchmove`, `keydown` - not a tap or the back swipe's touch). Places per history entry and address (`<location.key> <pathname><search>` - an entry the router didn't make, a raw `location.hash` change, has the shared key `default`) in sessionStorage `nexusedge.scroll` (the last 60). Packages navigate through `src/navigation.js` `useAppNavigate()` (the router's own - a new entry with its key), never by writing `location.hash` (the demo navigator did - Back from a card it opened landed at the Dashboard's top).
+
+`layout/DefaultLayout.jsx`: the wrapper is the window's height (`100dvh`),
+the header an ordinary block at its top, under it the one scrolling area
+(`.app-scroll` - the page and its footer; a `bleed` route - not scrolling, its
+own parts do). The header is never in a scroll: as a sticky one it was put
+back in place a frame after the compositor scrolled the page and shook a pixel
+on a phone (the menu button, the avatar, its height - the user's screencasts);
+fixing it in place with a measured padding was a patch, not the shape. Its
+shadow follows the scrolling area (`AppHeader` `scroller`); another page starts
+at the area's top; the area's overscroll stays in it (the browser's stretch
+moves the content, never the header); the side menu over a phone's page locks
+the area. Code that scrolls the page uses the area (or `scrollIntoView`), not
+`window`.
+
+## The popups' size (2026-11-08, the user's rule)
+
+A popup with tabs, or with charts / a photo / a map, is the window's size
+whatever its tab - switching tabs never moves its box (`.chart-popup`,
+style.scss: the dialog `100dvh` less its margins, the body scrolls). The room
+goes by priority: the charts (Status), then the photo (Model / Photo), then
+the map (Map) - `useRoomBelow(el, reserve)` (nodeInfo/UnitPopup.jsx) gives an
+element the room from its top to the dialog body's bottom; UnitPopup's tabs
+and the weather's history popup (its charts share it) use it. Not covered: a
+small single popup (a confirmation, a short form - "Operational days") and a
+sub-popup, which is smaller. The aquarium's DashboardModal was already the
+window's size.
+
+## Dashboard cards: frames, the card popup, the viewer's fit (2026-10-22, 2026-10-29)
+
+- **The frame** (`dashboard_cards.frame` jsonb, migrations 085, 100): its
+  parts, each on or off - `top` (the picture's block bordered, the picture
+  padded), `middle` (the line between the picture and the title), `bottom`
+  (the title's block bordered), `fill` (the card's background); top and
+  bottom both - one border round the card; null - by type (a folder all
+  of them, an avatar none). A component card - only `title` (2026-10-30):
+  false - no title over the component (the card popup's "Its title"
+  switch; unset - shown). `cardFrame(card)`, `BlockCard` (Dashboard.jsx)
+  draw the four cases: one border round the card, the picture's block in
+  its own box, the title's block in its own box, no box (the middle line
+  only). The card's caption is centred.
+- **The card popup** (Service -> Config -> Dashboard; +Folder / +Avatar /
+  +Component): wide - the card's preview (`BlockCard`, not linked) on the
+  left (on top when narrow), the form in rows (one column of titles, one of
+  fields), in groups apart: the title, "In" (the folders as a cascade - each
+  select the folders inside the one above it, "- here -" stops there), what
+  it shows (a folder's layout and, for blocks, its "Cards scale" - see
+  below; the component and its parameters); the
+  frame's four switches; the pictures (the source - No / Avatar (an
+  avatar's) / Icon / File, its size; the background, its size and opacity -
+  the sliders in one column); how an avatar opens. A component card - the
+  first group only. Who sees a card - the role's Dashboard tab (the hint
+  under the form).
+- **A folder's cards' scale** (`cards_scale`, migration 103, 2026-11-01;
+  API `cardsScale`, 0.5 - 2, default 1): the cards inside the folder drawn
+  that many times larger - the grid's minimum width (`CARD_MIN_REM` x it,
+  never over the page's width - `min(100%, ...)`: a scale on a phone pushed
+  the cards past its edge, 2026-11-07) and the picture's block (`--dc-scale` on the grid, `PREVIEW_H` x it), so
+  avatars stretched to the block grow too; `dashboardCardWidth(content,
+  rem, scale)` - the card form's preview uses the scale of the card's
+  folder. The top level - the Dashboard's settings (`system_settings`
+  'dashboard' `{cardsScale}`, `GET / PATCH /dashboard-settings` -
+  dashboard.view / dashboard.manage), set by **Config** beside the adds in
+  Service -> Config -> Dashboard.
+- **The config list** (2026-11-01): a level as the Dashboard shows it - the
+  cards (folders, avatars: the type's icon, the card's icon, the title -
+  a folder's opens it, the picture's thumbnail - `CardPreview` at 48 px,
+  the background's, the info, the actions), under them the components; the
+  two ordered apart - `POST /dashboard-cards/:id/move` swaps a card with the
+  nearest one of its own group (the positions stay one sequence).
+- **A page's component on the Dashboard** (2026-11-01): `ComponentView` in
+  full size wraps it in `dc-page` - its top card loses the frame as on its
+  own page (`style.scss`: `.page-content, .dc-page > .card` - no border, no
+  header band, no side padding; the header reads as the title). The scaled
+  copies in the cards' pictures keep the card.
+- **The viewer's fit**: an avatar's `view` (fit-height / fit-width) is the
+  default; with `user_fit` ("Viewer can switch the fit", migration 100) the
+  opened avatar's page shows two buttons right of the breadcrumb (the width
+  / the height) and keeps each viewer's choice per card
+  (`usePersistedState('nexusedge.dashboard', {fit})`). Only there - the
+  levels with folders and avatars are laid out by the width (the user,
+  2026-10-29); whether a component suits the height is the admin's choice.
+- The Dashboard's breadcrumb - `fw-semibold`, its links `link-primary
+  text-decoration-none`.
+
+## The anemometer and the energy scene's pictures (2026-10-22)
+
+`weather-control/ui/anemometer/` - the user's anemometer animation
+(since 2026-10-24: `images/Anemometer_Animation_grey.gif` - the cups dark
+grey, cropped to the cups' turn, 20 % lower - instead of the first ten vector frames
+from the video): 24 frames of one third of a turn in one strip
+(`anemometer-sprite.webp`, README there); `AnemometerIcon` shows them in
+turn by a CSS `steps()` animation at a speed from the wind, still when
+calm. The energy field: the PV panel and the
+turbine redrawn (one height with the pylon and the consumer -
+`GEN_ICON_HEIGHT`), the generation's power larger and close to its icon,
+the flows larger and the side ones centred between their neighbours, the
+battery's charge with one gap all round, the Dashboard picture with the
+money's icon, full labels, centred. (The sun's / wind's widgets - since
+2026-10-24 the shared weather widgets, the next section.)
+
+## The cost accounts, the estate's pictures (2026-10-23)
+
+- energy-ledger `accounts[]` (`accounts.ts`, pure; its README) - who the
+  energy is for: `private` (the owner's), `business`, `tenant` (a let unit -
+  what to re-bill; no invoices): an account's meters (the field's
+  sub-meters) at the slots' purchase prices plus its heat meters (a
+  heating's fan coils, or its whole delivered heat) at that system's cost of
+  heat today; `otherEur` - the rest. In the metrics, in the day's record
+  (`data.accounts`) and the period's sum (`addAccounts`); the Journal's
+  "Who the energy was for" (`AccountsView`).
+- fan-coil Library: the Kampmann TOP model (a hall's air heater -
+  `nodes.model` `kampmann-top`). Dashboard icons for rooms and buildings
+  (cilIndustry, cilRoom, cilBed, cilChild, cilShower, cilWc, cilDoor,
+  cilGarage, cilCouch, cilBriefcase, cilCalculator, cilStorage).
+- The turbine icon: the tower masked out under the rotating blades (the
+  ink colour - CoreUI's body colour - is translucent). The heating's tank:
+  two gauges and its caption below; the lines' gauges ~0.74 of the blocks'
+  gap.
+
+## The weather widgets, heat trends, signed values, summary lines (2026-10-24)
+
+The user's UI rounds of 2026-10-24 over the energy field and the heating
+(iot AGENTS_TO_DO.md, archive 29) - the state they left:
+
+**The weather widgets** - weather-control `ui/WeatherWidgets.jsx`, shared:
+`SunWidget` (radiation, clouds), `WindWidget` (speed, gusts) in the energy
+field, `TemperatureWidget` (outside, in 3 h) on top of the heating scene.
+- One look (`images/fix-weather-widjet.png`): `cardClass` - the scene's
+  card frame, the colours their own `--wx-*`; `WIDGET_PX` 112 high - the
+  picture that high (at most 40 % of the widget's width; on top under
+  `NARROW_PX` 440), on its right one line (a `SummaryLine`, nothing wraps -
+  cut) and the curve in the rest.
+- The pictures cropped to their drawing: `SkyIcon` (sun, partly, cloud,
+  dusk, night - the 3D set, `skyAspect` from `icons.js`), `AnemometerIcon` - the strip
+  `anemometer-sprite.webp` (README there), turning by the wind.
+- The curve (`HourCurve`): the last day and the next (`dayAround` - the
+  forecast keeps a past day, one hourly point past each edge -
+  `CURVE_EDGE_MS` - so it runs edge to edge), "now" dashed in the middle, a
+  light 3 % body between two grey lines; the hours every 6 by the clock in
+  HTML under it (0.8em), an edge label moved inside (CSS `clamp`,
+  `LABEL_DIGIT_EM`).
+- A click - a wide popup: the detailed charts one under another, two days /
+  a week / a month, the next day's forecast shaded after "now". The history:
+  `GET /weather-control/:processId/history?days=N` (at most 31) -
+  Open-Meteo's `past_days` (the model's past, not measurements), nothing
+  stored, reused 30 min in memory (an older one served when a fetch fails).
+
+**A block's summary line** - `src/components/SummaryLine.jsx` (`title`,
+`items` - `{ v }` figures and word strings in order, `color` - the block's,
+`hint`, `children` - muted extras), three classes in `scss/style.scss`:
+`.sum-title` (bold 1.3rem), `.sum-value` (bold 1.5em, tabular), `.sum-text`
+(the words, the unit included). The energy field's Generation and
+Batteries, the weather widgets' line, the heating's Heat pumps (on top of
+the mode's buttons) / Heat storage / Consumers - in the heat's colour (the
+cold's when cooling).
+
+**The energy field's scene**
+- `UnitPower` - a PV block's, a turbine's, a battery's power alike: the
+  figure bold, "kW" small and light grey (no rpm - in the popup);
+  `.ef-unit-power` lives in this scene only, a battery tile's 5 px under it.
+- A battery tile: its power over the chevrons (the state colours), the %
+  and the stored kWh inside the battery (`BatteryIcon figures` - a small
+  pink bolt by the % while charging, dark figures, the fill by the level);
+  the Dashboard avatar keeps the big bolt (`figures` false).
+- `Flow` with no power - the one no-flow sign: three still grey dots where
+  the chevrons run - the four flows between the blocks and the tiles.
+- The grid's prices (2026-10-30, replacing the tariff's gauge on the
+  tower): two `PriceGauge`s under the grid's title - buy and sell now, three
+  parts by the next 24 hours' quarters (`priceLevels.js` - the cheapest
+  quarter, the middle, the dearest), green where the price is good for us
+  (a purchase cheap - left; a sale dear - right), the figure under each in
+  its level's colour; the volts and hertz only in the grid's popup.
+- The middle row: the flows' columns never narrower than their figures
+  (`minmax(max-content, 1fr)`), the centre at least `MID_MIN_PX` (440), the
+  row stacked under `MID_STACK_PX` (1080 px of scene) - nothing overlaps
+  between (`images/bug-electricity-blocks.png`); the wide layout as before.
+  The narrow scene (2026-11-07, the user's phone layout): two columns -
+  the grid and its flow on the right, the ledger across, the supply flow
+  and the consumer on its right (grid areas); the generation's flow at the
+  bottom of its block, the batteries' on top of theirs (`generationFlow` /
+  `batteryFlow` - one element in two places, `.ef-wide-only` /
+  `.ef-narrow-only`); the flows' figures and words smaller
+  (`FLOW_VALUE_NARROW_REM`, `FLOW_WORD_NARROW_REM`), their side slots
+  shared equally; the gaps - the scene's 14px.
+
+**The heating's scene**
+- The supply row (2026-11-07): the electricity from the grid (`GridSupply.jsx` - the weather's own card
+  and curve, `WeatherCard` / `HourCurve` exported: a grid tower, the heat pumps' and the fans' kW, the
+  last day recorded - `heat.electricKw` - and the next by the heating planner's slots' `electricKw`; a
+  curve without `onOpen` is a picture, not a button) on the left, as wide as the weather, the weather on the right with
+  the heat taken from the outdoor air (heating: the heat less the pumps' electricity; cooling - given off:
+  the cold and the electricity; `TemperatureWidget`'s `extra`); one column when narrow. A narrow
+  weather widget's line wraps its parts whole (`.wx-narrow .wx-line`).
+- The water lines' picture (the gauges and the pipes) - its own width at most, narrower with its block
+  (`width: W, maxWidth: 100%`, the svg scaled; a phone cut the right gauge).
+- No own padding; the heat pumps' head: the summary line and the mode on
+  the left, the state and today's figures on the right (stacked on the left
+  under `HEAD_STACK_PX` 720, a container query).
+- A tank's gauges 8 px from it (`TANK_GAUGE_GAP`), the next tank as before.
+- The water lines: the gauges on the left (the left rim on the cards'
+  border line), `HeatTrend` stretched to the right - the heat produced
+  (`heat.heatKw`) above the tanks, used (`heat.consumersKw`) under them, a
+  day / a week, a gap in the history left a gap.
+- `heat.tanksKw` - the tanks' net (+ storing / - giving back) = `heatKw -
+  consumersKw` (both signed by the mode); in the tank popup. (The demo's
+  database got its history back-filled from those two once; elsewhere it
+  starts on the first run.)
+
+**Signed values and the gauges' limits**
+- `SeriesChart signed` - the keys swinging both ways: zero in the middle,
+  the range the same up and down, the zero line dashed (also wherever an
+  unsigned series crosses zero); a gap in the history breaks the line
+  (`GAP_STEPS`). Signed: the field's battery and grid power, `heat.tanksKw`.
+  (The heat pumps' and the consumers' charts stay from zero - one sign per
+  mode.)
+- `RoundGauge` with min < 0 < max marks its zero across the band exactly
+  (`band` - the band's own radius and width). Both ways
+  (`signedLimits(end, warn, err)` in `heatIcons.jsx`): a tank's power, the
+  heat pump's heat (its electricity 0..max), the lines' heat carried.
+- Coloured limits only where they mean something (`waterLimits(mode,
+  supply)`): the supply water (heating 55 / 62 C, cooling 6 / 4 C) - the
+  pump's flow and the lines' supply needle (warm in heating, cold in
+  cooling); a tank's temperatures - red under 5 C, yellow over its `tMaxC`
+  (the process's messages; the heating scale lengthened to show it); the
+  pumps' and the lines' power - beyond the rating either way; COP and the
+  fans as before. None on a tank's power, the return water, the pump's
+  electricity.
+- Every page: `.page-content` 1.5 rem at the bottom.
+
+## AI Assistant: the start by tiles, the topic on the way, the side panel, the AI button (2026-10-24)
+
+The assistant's rework (iot AGENTS_TO_DO.md, archive 30 - stages A-C with
+the user's answers). The state it left:
+
+**The AI's mark** - `components/AiBrainIcon.jsx`: the user's
+`images/ai-brain-2.png` (a brain with circuit lines going out) cropped and
+traced to one path (potrace); the text's colour (currentColor) as every
+other icon, one drawing for every size (it reads at 16 px). In the menu,
+the assistant's avatar (white on the primary colour), the messenger's
+start and the AI buttons.
+
+**Work types** carry `icon` (a CoreUI `cil*` name from
+`components/ai/workTypeIcons.js`) and `start` - the phrase put in the
+message box, "{name}" the subject's label, else the instance's name / "the
+whole system" (the manifests section above). `GET /ai/entities` adds each
+instance's `iconPath` (its package's Library icon) and `quickStart` (the
+whole system's work types offered first - `AI_QUICK_START`).
+
+**The conversation** - `components/ai/AiConversation.jsx`, shared by the
+messenger page and the side panel; `components/ai/useAiEntities.js` reads
+GET /ai/entities once per page load.
+- A new one (not in the panel - `compact`): tiles - "Quick start" (one
+  click puts its phrase in the box), the objects (the system, then the DNP
+  instances by package; their names on the tiles, no group titles), then
+  the object's work types ("Back" first); a work type puts its start phrase
+  in the box, Send is all that is left.
+- The composer: the topic's icon (its title - the connection and the
+  model), the object and the work type in two rows, the message, Send two
+  rows high (a phone and the panel: the selects in a row above).
+- The topic changes on the way - the selects stay free: `PATCH
+  /ai/conversations/:id/topic { instanceKey, workType }` (`ai.use`, your
+  own) moves it to another object / work type - its system prompt,
+  connection and model (`changeTopic`); a `topic` message (migration 086)
+  marks the change - a dashed divider, a note "(The conversation's topic is
+  now: ...)" before the next question for the model. The start phrase fills
+  the box only when it holds nothing of the person's own.
+
+**The messenger page** (`views/ai/AiAssistant.jsx`): the list and the
+conversation; the route's `bleed: true` (`routes.js`) - `DefaultLayout`
+drops the footer and the header's margin, `AppContent` the padding
+(`.page-content.page-bleed`), exactly the window's height; on a phone the
+list hides behind "Conversations". A conversation made on the page gets
+its address without being loaded again (its answer may still stream).
+
+**The subject** (migration 087 - `ai_conversations.subject`):
+`ai/subjects.ts` names a node / device / process / WEM message / Dashboard
+card with its ids and finds its process (the caller's `processId` first);
+`GET /ai/subject` (`ai.use`) - the object (the DNP instance of that process
+when the assistant is on for it, else the whole system), the work type (a
+message - WEM analysis, else status analysis) and the label; `POST
+/ai/conversations { subject }` keeps it - the system prompt says "Subject:
+..." (also after a topic change), the title names it. Only a subject whose
+process the person may see.
+
+**The side panel** - `components/ai/AiPanel.jsx`: `AiPanelProvider` in
+`DefaultLayout`, `useAiPanel().open({ type, id, processId? })`; fixed on
+the right (above the modals, no backdrop - a unit's popup stays seen and
+usable; the modals' focus trap only catches Tab), "Open in AI Assistant";
+its conversations are normal ones.
+
+**The AI button** - `components/ai/AiButton.jsx` (`ai.use`, the assistant
+on anywhere; the colour of the text beside it; `action` - a table row's
+outline button, as high as the row's IconButtons): before every page title
+- `components/PageTitle.jsx` (the mark and the title in one flex line, the
+title at the start; Nodes, Devices, Simulator, Processes, Live Events, Logs,
+Service, Users, Library, Docs; the Energy Field's, the heating's and the
+ledger's scenes on a Dashboard page) - before the title of every unit popup
+(`UnitPopup processId`), in the weather popup, in the rows of Processes,
+Nodes, Devices, the WEM messages and Logs -> Commands / Devices (the record
+itself as the subject's `view` - "why did this switch?"). The Dashboard's
+breadcrumb has none (2026-10-25).
+
+**The subject's page and view** (2026-10-25): the subject type `page` (`{
+type: 'page', page }` - a page's title; opens with "help"); every subject's
+`view` - what the person looks at: the open popup's / the page's active tabs
+and sub-tabs read at the click (`AiPanel` `viewOnScreen`), declared
+(`useAiView`) or given (a log record) - in the system prompt ("the person is
+looking at: ..."). Every conversation also gets today's and tomorrow's day
+notes of the whole site, fresh each turn (`notesForPrompt` - below).
+
+**The mark turns** about its vertical axis every 10 s (0.9 s, a sine's pace -
+`.ai-mark-flip`, every mark at once by the clock's phase) to be noticed -
+only before a page's or a popup's title; still (`AiBrainIcon still`) in the
+side menu, the table rows' actions and the conversation, and with reduced
+motion.
+
+## The energy management: who decides, the day's review and notes, similar days, the AI's day plan (2026-10-25)
+
+The ledger decides on its own, the AI on top (autonomy - the user); the
+Energy Ledger's README has the details.
+- **Who manages what**: the energy field - the plant and its hard limits
+  (`socMinPct` / `socMaxPct`, its mode); the ledger - the strategy and the
+  operating parameters (`strategy.reservePct`, `exportAllowed`,
+  `gridChargeAllowed` over the field's - the field reads them too);
+  `planNow.floorPct` (an outage's slot - the field's `socMinPct`), `loadKw`,
+  `gridKw`. The ledger's commands `setOperating { ..., replan }`, `replan`;
+  the field's `setExport` / `setReserve` are passed on to the ledger. A
+  temporary change ("For") is put back by the process itself (`reverts` in
+  the ledger's / the field's config).
+- **The day's review** (`energy-ledger/review.ts`): when a day closes, what
+  it could have saved at best (every strategy on the day as it was), split
+  into the forecast's and the strategy's parts, the parameters that would
+  have paid, the recommendation; the samples carry `batA`; the record also
+  `dayType`, `prices`. Money everywhere (the review, the strategy cards, the
+  plan's slots) without the optimiser's steering penalties (the import
+  limit, the peak).
+- **The operational days' notes** - the core's `day_notes` (migrations
+  088 -> 090; api `dayNotes.ts`, routes `/processes/:id/day-notes` -
+  processes.view / processes.control; UI `components/dayNotes/DayNotes.jsx`):
+  each note of its process, every panel its own - the energy field's
+  technical (outage, maintenance - "The plant today"), the ledger's logic
+  (holiday, day-off, workday - "Today's operation", with the day's type and
+  description; its `calendar`'s public holidays - `holidaysOf`,
+  `apps/api/src/holidays.ts`, the offline `date-holidays`), a heating's
+  (maintenance, room-closed - "The heating today"); `other` anywhere. The
+  ledger's plan weighs all three (an outage islands the slots -
+  `PlanSlot.gridOff`, `PlanLimits.hardMinPct`; maintenance takes units out -
+  `batteryFactor`, `heatingFactor`; a day off / a working weekend - the
+  consumption's profile), shades the windows on its chart, re-plans on a
+  change. The heating reacts itself (units out, a closed room set back by
+  `closedSetbackK`, no working-hours gains on a day off). The AI writes them
+  through `daynote.propose` (the proposal operation `day-note`, the Control
+  level); changes logged as the command `day-note`. TODO(access rework):
+  who writes which panel's notes.
+- **The similar days** (`energy-ledger/similar.ts`): the nearest recorded
+  days by the sun, wind, temperature, working or not, the prices' level and
+  spread, the season, the best-run first; `strategy.selection` "analog" -
+  each morning and on the notes' change the ledger applies their strategy
+  itself; the AI tool `ledger.similarDays`.
+- **The AI's day plan**: the work type `day-plan` (scheduled, e.g. from
+  06:00 every 2 hours - the AI calendar's repeat `hours`, `every_hours`
+  1..12, migration 089); its `Summary:` line is the day's description over
+  the ledger's own (`metrics.summary`).
+- **The ledger's views**: Plan (the similar days, the windows), Journal (the
+  day's review), **Tenants** (`/energy-ledger/:id/tenants` - the let units'
+  consumption and what they pay over a day / week / month / year / all, the
+  closed days); its card picture `LedgerAvatar`.
+- **The engineer's settings** (Processes -> Settings, staged with '*'):
+  `EnergyFieldSettingsSection` (the groups - `block` generation / batteries
+  - and the assignment, the hard band, the critical states' thresholds),
+  `HeatingSettingsSection` (each block's groups, the auto thresholds, the
+  heat pumps' start order and pause, the tanks' bands and room, the
+  closed-room setback), `LedgerSettingsSection`
+  (the operating and the strategies' parameters, the plan's timing and
+  wear, the calendar; the accounts - JSON for now). The Dashboard - the
+  operator; the process's settings - the engineer.
+
+## The heating: staged starts, the tanks' two exchangers, the unit's own charts (2026-10-29)
+
+- **The heat pumps' starts** (heating-control): a heat pump's `relay` (its
+  operation) follows its stage - the real ones too (they modulate
+  themselves); the switches one by one, `control.pumpStaggerS` (2 s) apart,
+  between the 30 s rounds on the orchestrator's every-second call (stops
+  first, then starts) - the inrush currents never all at once. A running
+  unit is never swapped mid-run; the next by `control.pumpOrder` - `auto`
+  (the least run hours) or `priority` (each unit's `priority`) - the
+  model's `pumpOrder()`. How much and when - the heating planner's slot
+  (below), else the tanks' band and the Ledger's signal.
+- **A tank's two heat exchangers** work at once: `inKw` (from the heat
+  pumps) and `outKw` (to the fan coils), each by size; the scene's two
+  power gauges, the avatar's two arrows, the popup's two curves.
+- **Each unit's own series** (`heat.pump|tank|coil.<nodeId>.*`) - its popup
+  shows it, not the block's sum; the water lines' gauges open `FlowPopup`.
+  A heat pump's: `kw`, `electricKw` (2026-11-11) and `cop` - its popup's first chart draws the heat
+  and the electricity on one axis in the pumps-to-tanks line's colours (`TANK_FLOW_COLORS[0]`,
+  `ELECTRIC_COLOR`). The series started 2026-11-11; the demo's earlier part was filled in once from
+  `kw / cop` (0 where the pump stood).
+- A fan coil's gauge - the heat it gives (kW), not its fan's watts; a unit
+  switched off dimmed. The demo: one 800 l tank more in the hangar and the
+  workshop (30..50 l per kW of the heat pumps; demo 037).
+
+## The heating planner (2026-10-29 - 10-30, P1-P4)
+
+- **`heating-planner`** (`devices/processes/heating-planner/`) - plans the
+  heating systems' heat pumps ahead, all of them together, on the Energy
+  Ledger's plan (its 15-minute slots, prices, planned export - the sun's
+  surplus - and heating signal). For each system and slot: the heat, the
+  units, the rooms' offset - the least money (`model.ts`, pure: the rooms'
+  need from the weather and their `uaKwK` / gains; one store - the tanks'
+  band and, under it, the rooms' comfort margin `comfortK` x
+  `capacityKwhK`; the COP at the store's temperature; the penalties - a
+  start, a unit-hour, over the comfort modulation, the margin held, the
+  signal 1; dynamic programming over the level and the units). The
+  systems in turn, each taking the surplus the earlier left. Made every
+  `replanMinutes`, on a new Ledger plan, a config change, a start.
+- The plan - `heating_plans` (migration 101): PUT / GET
+  `/heating-planner/:id/plan`, a system's slot now - GET `.../now?heating=`.
+- **Executed** by heating-control (`plannerProcessId`): the units and
+  their power (`stageUnits`), the rooms' offset on the setpoints; the band
+  control instead without a fresh plan (2 h) / in the other mode / with
+  the tanks out of their safe range; metrics `plan` (`source` planner /
+  band, `why`), the scene's "by the plan" / "by the band".
+- **The Ledger** (`heatingPlannerProcessId`): the planner's `electricity`
+  is the heating's part of its forecast (each slot's `heatKw`); taken at
+  each Ledger plan - the planner's own replan never triggers one (no loop).
+- UI (P2): `HeatingPlanScene` - the process row's panel and the Dashboard
+  component `heatingPlanner.plan` (KPIs against the band, a system's switch,
+  `PlanChart` - prices and signal, heat planned / need, units, store, the
+  rooms' margin - the plan in words, the systems), the card picture
+  `HeatingPlanAvatar`.
+- **The strategies** (P3, `strategies.ts`): Least cost, Gentle (few starts,
+  low power), Comfort (no margin), The sun (the surplus stored, the tanks
+  hotter) - each planned for each system and valued in the real money
+  (electricity, saving, starts, the rooms' K-h off, the sun's kWh); config
+  `strategy { key, selection fixed / cheapest }`, commands `setStrategy`,
+  `setSelection`; the page's cards.
+- **The AI and the day's notes** (P4): the work type Heating Plan
+  (`heating-plan`, scheduled - the strategy and `comfortK` proposed by
+  config.propose under the AI Config level, the Summary line), the tool
+  `heatingPlanner.plan`, GET `.../summary` (the AI's Summary today over the
+  planner's own `metrics.summary`) on the page; the need with the day's notes
+  (a holiday / day off - no working gains, a working weekend, a closed room
+  set back).
+
+## Energy and heating UI rounds, the weather's scene (2026-10-30)
+
+- **The Energy Ledger's block** (`energy-field/ui/LedgerBlock.jsx`) - the
+  Energy scene's centre and the energy overview's (the mode, the operating
+  switches and their questions, the prices by hour - cheap / middle / dear /
+  now, the price now coloured by its level, today's bought / sold / balance /
+  generated / consumed, self-sufficiency coloured by `selfSufficiencyLevels`).
+- **The heating's avatar and overview**: the avatar per the user's layout
+  (electricity and COP coloured by `copLevels`, heat and the loop's
+  temperature; the tank's % and °C, kWh; the fan coils' heat and the rooms'
+  mean); the overview's outdoors in two floors (the weather, the
+  electricity - each its own flow), the compact fan coil
+  (`FanCoilCompactIcon`), the COP the heat's size.
+- **Popups with charts** (core `UnitPopup` `charts`, `SeriesChart`
+  `ChartSpace`): the window's width, the picture in a narrow column, the
+  charts filling the window's height, opened without a jump (above, the
+  components' paragraph).
+- **Dashboard**: a component card's title may be off (`frame.title`); the
+  card pictures scaled by CSS `zoom` (no shimmering text beside the
+  animations).
+- **The weather's scene** - `weatherControl.panel` (`WeatherScene.jsx`, the
+  package's README): warnings, now and the sun's day, tiles, the widgets,
+  the next 24 hours, the days with the PV's sun and the heating's
+  degree-days; config `scene` - the thresholds.
+- Aquarium's History charts - the same style (a light tint, two grey lines).
+
+## The energy scene: flows, critical states, limits, operating changes (2026-10-25)
+
+- **Flows**: three colours (orange - against us, green - for us, grey - none)
+  and two alarms (`energy-field/alerts.ts`, config `alerts`: red - an error:
+  the connection's import limit, the ledger's peak limit, a unit over its
+  rating; yellow - a warning: the import / the consumption well over the
+  plan's). Each main flow's state in its title; a click opens its popup -
+  the grid, the consumption, the generation (PV and wind, a composite icon)
+  and the batteries together.
+- **Limits on the charts**: `SeriesChart` `limits` (constant or over-the-day
+  dashed lines - red / yellow; one far above the day's values named at the
+  edge) - the grid's import / export / peak limits and the plan's
+  expectation plus the tolerance (`ui/useFlowLimits.js`); `absolute` - a
+  power counted one way: the heat pumps' and the rooms' heat or cold from
+  zero (the pumps' and the lines' gauges too) - only the tanks keep the zero
+  in the middle.
+- **Operating changes** (the grid connection, selling, the reserve -
+  switches, one line): a popup asks Why (optional - the command log and a
+  day note the AI reads), For (until changed / 20 min / 1 h / 4 h / the day's
+  end / other) and whether to adapt the plan (Adapt / Only switch / Cancel).
+- The scene groups its units by the engineer's groups ("Other" for the
+  rest), each battery group with its charge, kWh and power.
+
+## Dashboard cards' pictures, the key values' style (2026-10-25)
+
+- **A card's own pictures** (migrations 091, 092, 100): the picture's
+  source `picture.source` - "none" (no picture), "avatar" (the component's
+  - an avatar card's default), "icon" (from the set - a folder's default),
+  "file" (an uploaded image), its size `imageScalePct` 10..300 (over 100
+  only its middle seen; on an avatar - a factor on its fitted size); a background over the whole top block
+  (`backgroundScalePct` 10..300 - 100 covers it, `backgroundOpacityPct`).
+  The images in the database (`dashboard_card_images`, PNG / JPEG / WebP /
+  GIF up to `DASHBOARD_IMAGE_MAX_BYTES`; an upload up to
+  `DASHBOARD_IMAGE_UPLOAD_MAX_BYTES` over it or over `DASHBOARD_IMAGE_MAX_SIDE`
+  is shrunk by the API - `images.ts` `fitImage`: WebP, alpha kept, the
+  `DASHBOARD_IMAGE_WEBP_QUALITIES` tried in turn; a GIF never), GET / POST / DELETE
+  `/dashboard-cards/:id/images/:slot`; uploaded at once from the card's
+  form. The form's preview is as wide as the card on the Dashboard in this
+  window (`dashboardCardWidth` - the grid's rule, `CARD_MIN_REM` /
+  `CARD_GAP_REM`, from the page's `.page-content` width), so a picture over
+  100 % is cropped the same. Every frame's picture block equally
+  tall (the titles on one line, slanted - `fst-italic`, as `.kv-unit`; the
+  list's rows and the components' section titles alike); the pictures
+  within the rounded corners.
+- **Card pictures with figures**: the ledger's (saved today, paid, the
+  efficiency, the strategy, the self-sufficiency, what the plan saves), the
+  weather's "summary" (its default - temperature and in 3 h, wind, sun and
+  clouds, humidity, rain, today's low / high).
+- **Key values' style** (the user's images/fix-important-values-style-*.png):
+  the figure in its block's colour; every word around it grey (`.sum-text`);
+  a figure's unit grey and slanted (`.kv-unit`, `.sum-unit` - SummaryLine
+  slants the unit the words after a figure start with); the flows' big
+  figures keep their unit in the flow's colour. The skill ui-key-values
+  holds the rule.
+
+## The interface's languages (2026-10-31)
+
+- **i18next + react-i18next**, the English text is the key (`t('Save')`,
+  `keySeparator` / `nsSeparator` off): English needs no file, an
+  untranslated text shows in English. `apps/ui/src/i18n/index.js`:
+  `LANGUAGES` (en, uk, de, es - the site's), `t` (outside a hook),
+  `packageT(ns)` (a package's own), `setLanguage`, `tKey` (marks a text kept
+  in data - e.g. `_nav.jsx`'s names - translated where shown).
+- **A language change loads the page again** (`setLanguage`): the texts a
+  module builds at its start (lists of labels, options, route names) are
+  then in the new language too - a choice made rarely.
+- **Namespaces**: `core` - `apps/ui/src/i18n/locales/<lang>.json`; each
+  package its own - its folder name, `devices/<kind>/<pkg>/ui/locales/<lang>.json`,
+  `plugins/<pkg>/ui/locales/<lang>.json` (a target project's too - the
+  aquarium's five plugins; found at build time like `register.js`); a
+  package file: `const t = packageT('<pkg>')` (or `tr` where `t` is taken);
+  the core's words found too. Words shared by packages live in the core.
+- **Not translated**: user data (names, titles, roles); the server's texts
+  (logs, alerts, API errors, day notes, the plans' reasons) - English for now
+  (the journal's to-do); texts for the AI (the page context it is sent -
+  `String.raw` there, the codemod skips tagged templates); a pure module
+  (e.g. `weatherMath.js`, also the tests') keeps English with a local
+  identity `tKey` and the display translates (`tr(weatherText(code))`).
+  Numbers keep the point in every language (the user's choice); relative
+  times - `Intl.RelativeTimeFormat` in the language.
+- **The choice**: the header's dropdown (`components/header/LanguageSelector.jsx`,
+  as the site's switcher - the current flag and code, the languages with flags); a person's in their profile
+  (`users.language`, migration 102, `PATCH /profile {language}`, applied by
+  AuthGate at sign-in), the guest's (a shared account) only in the browser
+  (localStorage `ne-lang` - the site's key); a first visit - the browser's
+  language. `UI_LANGUAGES` (env) - the offered ones (`/auth/me`
+  `languages`). The header also shows the role acted in beside the avatar
+  (`/auth/me` `contextName` - the context's name, with one role - that role).
+  A phone (below `sm`, 2026-11-07): the header in one row with the menu
+  button - the language and the theme in the user's menu
+  (`AppHeaderDropdown.jsx`; `useLanguageChoice` shared with the selector),
+  the simulation badge left out (the system tick's pulse stays), the
+  notification icons 2rem (`.wem-icon`), no wrap (`.app-header-row`), the
+  menu button without its negative margin (`.app-header-toggler`,
+  scss/style.scss).
+- **The tools** (`scripts/`):
+  - `i18n-wrap.mjs [--dry] [--loose] <dirs>` - the codemod: wraps visible
+    texts in `t(...)` by position (the formatting kept - no prettier
+    needed): JSX text, the read props (title, label, placeholder, hint, ...),
+    string branches, object props (title, label, body, ...), template
+    literals as interpolations (`t('A folder in {{title}}', { title })`);
+    `--loose` - also every other literal the rules call a text. Idempotent
+    (a second run wraps nothing). Run it on new code, then `i18n-check`.
+  - `i18n-text.mjs` - the shared rules telling a text from data (ids,
+    classes, css, svg values and paths, series keys, markup, font stacks).
+  - `i18n-leftovers.mjs [--count] <dirs>` - the English literals left
+    outside `t` (for a person to judge).
+  - `i18n-check.mjs [--write] [--lang ..] [--plugins <dir>]` - every key per
+    namespace against each language (`--write` adds the missing as "").
+  - `i18n-fill.mjs <locales dir> <translations.json>` - writes a
+    translation pass's {lang: {key: text}}.
+- State: the core, every package and the aquarium's plugins - every wrapped
+  text in uk, de, es (`i18n-check`: all translated); ~25 composed fragments
+  ("… kW", "… settings") left as they are.
+
+## The user guide - one source (2026-10-31)
+
+- **Parts** (2026-11-10): this repo holds the core's and its public packages'
+  pages; a private package keeps its own in its repo's `docs/guide/` (the same
+  tree - e.g. nexus-edge-aquarium `docs/guide/modules/aquarium/`, its
+  screenshots and `_screens/screens.json`), merged in by its stack: the UI
+  Dockerfile copies it over the core's `docs/guide`, the api mounts it under
+  `project-docs`, the site's sync-docs adds `GUIDE_PARTS`. The dev server
+  (`make ui-dev`) shows the core's pages only.
+
+- `docs/guide/*.md` (English; `docs/guide/<lang>/*.md` - uk, de, es, the
+  UI's names as the translated UI shows them; front matter values quoted -
+  YAML) - the people's documentation: index, concepts, dashboard, energy,
+  heating, aquarium, ai, users, extending, install; Starlight front matter
+  (`title`, `description`).
+- One source for three readers: the **Docs page** (`views/docs/Docs.jsx`,
+  `/docs` and `/docs/:page` - the pages bundled at build time by
+  `import.meta.glob`, react-markdown + GFM, links between the pages kept in
+  the app, a page without a translation shown in English with a note; every
+  UI Dockerfile copies `docs/guide` - the core's, the template's, the
+  aquarium's, the demo's); the **site's /docs** (nexus-edge-tech
+  `scripts/sync-docs.mjs` before every build / dev run); the **AI's docs
+  search** (the api image copies `docs/` into `docs-core`).
+- **A tree** (2026-10-31, the docs grow deeper): a folder is a section, its
+  `index.md` - the section's page, any depth (e.g. `energy/index.md`,
+  `energy/strategies.md`, `energy/ledger.md`); translations - the same tree
+  under `<lang>/` (a section is never named uk / de / es). A page's place
+  among its siblings - front matter `order` (a translation without one takes
+  the English page's). Docs.jsx: the tree in the list (a section's pages
+  shown while it is open), routes `/docs/*`, links relative to the page as on
+  the site, the sections above as a path.
+- `NOTICE` (2026-10-31) - the copyright, the author, CoreUI (MIT), EdgeX
+  (separate containers).
+
+## An update while a tab is open (2026-10-31)
+
+After a UI rebuild the hashed chunk names change; a tab opened before it
+asked for the old ones and got `index.html` (the SPA fallback) - "Expected a
+JavaScript module ... MIME type text/html", the page fell; during the
+container's restart - 502s. Now: nginx serves `/assets/` with `try_files
+$uri =404` (a hashed file cached for good - immutable) and `index.html` with
+`no-cache`; `src/chunkReload.js` loads the page again once on Vite's
+`vite:preloadError` (not again within 10 s - a real failure then shows).
+- **A page's layout** (2026-10-31, the user): the breadcrumbs (the shared
+  `UpBreadcrumb` - since then styled as the Dashboard's: semibold, links
+  without underline; also the Library's and Service -> Config -> Dashboard's),
+  the title and description, the section's pages (each title a link, its
+  description under it), the page's own text. The site does the same
+  (nexus-edge-tech `src/components/docs/DocsPageTitle.astro` - Starlight's
+  PageTitle overridden).
+- **The tree** (2026-10-31): Getting started; Concepts; The platform
+  (Dashboard; Devices - Nodes, Devices, Simulator; Processes; Logs - Live
+  Events, Logs; Notifications; Configuration - Service (Config, Database,
+  Commands), Users settings (Users, Roles, Guest), Library); the AI
+  Assistant (Conversations, Access levels, Scheduled runs, Connections and
+  MCP); Modules (Energy - Strategies, the Ledger; Heating; Weather; Aquarium -
+  the light, water and CO2, maintenance); Extending; Operations.
+- **Screenshots**: `![caption](screen:<name>)` - `docs/guide/_screens/<name>-light.webp`
+  / `-dark.webp` (one English set; taken by nexus-edge-tech
+  `scripts/capture-docs-screens.mjs` from `_screens/screens.json`); Docs.jsx
+  shows the theme's one (style.scss `.ne-shot`); a folder starting with `_`
+  is never a section.
+
+
+## The tick's load on a small server (2026-11-05)
+
+Measured on the demo's 4-vCPU VPS (iot `PERF_PROD_2026-11-05.md`): ticks of
+1-2 s (most skipped), the API at 20 requests / s with p99 2 s - while the
+CPU was half idle. The cause: a system call there costs ~6x a laptop's
+(Spectre / Retbleed mitigations in a VM), so what is expensive is the
+number of small exchanges between containers, not the work behind them -
+the same on a Raspberry Pi. Rules since then:
+
+- **Fewer round trips, not faster code.** A new process reads what the tick
+  already has (`tickProcesses()`), batches its device reads
+  (`getDeviceValues`), caches reference data by change events
+  (`changeEvents.ts`) - never a request per tick that returns the same thing.
+- **The tick runs at most `ORCHESTRATOR_TICK_CONCURRENCY` (8) process
+  runners at once** (`runLimited.ts`) - all of them together made bursts
+  (a run queue of 14-33 on 4 cores) that slowed every one. 4 was too few on
+  the demo's server: each run got 2-3x faster, but ~24 runs of ~200 ms in
+  four lanes still took ~1.2 s - the tick's length is about
+  (runs x run time) / the limit.
+- **`apiClient.listProcesses()` / `listNodes()` are shared within a tick**
+  (`shared.ts`, `tickShared` - one request per tick); the tick's own read is
+  `fetchProcesses()`.
+- **`getMessageLevels()` is kept until `message_levels` changes**
+  (`cachedRead`; migration 104 adds the table's change trigger - no `id`, so
+  the event is `message_levels.all.changed`), `ORCHESTRATOR_REFERENCE_CACHE_MS`
+  at most.
+- **Device value reads are coalesced** (`valueBatcher.ts`): the asks of
+  processes running together within `ORCHESTRATOR_BATCH_WINDOW_MS`
+  (15 ms) go as one `POST /devices/values`.
+- **A virtual / simulated device's value is the API's cache**
+  (`cacheIsSourceFor` in routes/devices.ts): the batch read, the detail view
+  (EdgeX only for the type and units), the Data Logger and the
+  forbidden-state check all read it there. The batch read caches an EdgeX
+  read for such a device too - an actuator never given an AUTO value was
+  read from EdgeX on every call before.
+- **`PUT /devices/simulate-auto`** looks its devices up in one query and
+  publishes the reading (the cache, the bus) every time; the EdgeX twin is
+  a background sync every `SIMULATED_EDGEX_SYNC_MS` (5 min), each device at
+  a random place in the period. The simulations write hundreds of devices
+  every tick, each EdgeX write two HTTP hops (core-command, then
+  device-service) - on the demo they were ~36 EdgeX commands / s and most of
+  the API's time (p90 4.6 s).
+- **EdgeX core-data does not store events** (`WRITABLE_PERSISTDATA=false`;
+  on a running stack the keeper key `edgex/v4/core-data/Writable/PersistData`)
+  - Nexus Edge never reads them; storing cost ~40 % of a core.
+- The aquarium's light control keeps its templates and the day's plan
+  (DMCTW) until they change (nexus-edge-aquarium, `ctx.cachedRead`).
+- **The lists the tick reads are built in a fixed number of round trips,
+  not N+1** (2026-11-05): `GET /processes` - one SQL for every process's
+  active messages (`processMessages.activeMessagesOf`), one Redis pipeline
+  for status / flags / metrics (`processRegistry.getPublicMany`), one MGET
+  for the heartbeats (`heartbeatControl.processHeartbeatMany`) - it was ~10
+  per process; `GET /nodes` - one MGET (`nodeHeartbeatMany`);
+  `GET /data-logger-controls` - one MGET for every sensor's last-logged time
+  (it was a GET per sensor, ~500 on the demo, every tick). A new per-row
+  live field goes into these batch readers, never as a call per row.
+- **A device's AUTO / MANUAL state** (`dualDevicesModel.getState`) is one
+  MGET, `setActive` - the write and the read back in one pipeline.
+- **`simulate-auto` publishes its readings together** (`publishReadings` -
+  the cache in one Redis pipeline); **`GET /devices?live=false`** - the
+  registry only, without EdgeX's device list and the overdue snapshots (a
+  process mapping devices by node and type - energy-field). Found with the
+  tick stats' `slowestTick` / per-kind `maxMs`: energy-field's 30 s
+  simulation step was the rare 1.5-2 s run.
+- **Periodic steps are the platform's schedule** (`schedule.ts`): a step of
+  `intervalMs` is due once per interval, at the process's own place in it -
+  the slots shifted by a phase from the process id (a multiplicative hash),
+  so processes with the same interval never step in the same tick; the first
+  tick in a new slot runs it, a skipped tick included. The same rule for a
+  kind's registry `intervalMs` (server.ts) and for a periodic part of a
+  runner - `ctx.stepDue(processId, intervalMs, lastAt, now)` in the plugin
+  context (energy-field, heating-control, heating-planner, energy-ledger use
+  it). A process never counts its own interval.
+- **The plugin context** (processPlugins.ts) gives a process the platform's
+  tools instead of its own copies: `apiClient`, `logger`, `onEntityChange`,
+  `tickProcesses()`, `stepDue` (the schedule), `cachedRead(key, tables, fn)`
+  (a reference read kept until a table changes - the aquarium's light keeps
+  its templates and day plan with it; expired keys swept), and
+  `compute(moduleUrl, exportName, args)` - a pure CPU-heavy computation in
+  the platform's worker thread (compute.ts, computeWorker.ts; the heating
+  planner's strategies - they stopped the orchestrator's event loop for up to
+  ~2 s, every process waiting). Plain data in and out (structured clone).
+  `apiClient.asPerson(processId).request(...)` (2026-11-06) - a request made
+  for the person the process acts for (its "Acts as" - see the guard above).
+- **`tickShared` is one read per tick** (`beginTick` in server.ts), not a
+  time window.
+- **The state reports and the AUTO writes are NOT batched** (both tried
+  2026-11-06, reverted): an AUTO write goes on to EdgeX (two HTTP hops), a
+  message sync is a database transaction - in a batch every process waited
+  for the slowest part of all of them, and on the demo's server the ticks got
+  worse (6-29 skipped / min against 0-1). Batch only what is cheap and
+  uniform per item (the value reads); a request with a slow, variable tail
+  stays per caller - fewer requests is not always faster.
+- **`ORCHESTRATOR_TICK_CONCURRENCY` is set per server in `.env`** (a 4-vCPU
+  VPS - 8, a Raspberry Pi 4 - 4-6, an 8-core server - 12-16); the demo's
+  `deploy/scripts/make-env.sh` appends a setting `.env.example` gained to the
+  server's existing `.env` (the existing values never touched), and
+  `deploy.sh` runs again as its new version when syncing changed it.
+- **A step sends its independent requests together** (the readings with the
+  switches, the valves at once, the state reports at once - the heat pumps
+  keep their deliberate staggered queue).
+- **The tick stats report the orchestrator's event loop delay**
+  (`eventLoopDelayMs` - p50 / p99 / max, resolution 20 ms): near the
+  resolution while ticks are long - the time is waiting on the API; well
+  above it - a process computes on the main thread (then a worker thread is
+  the tool). On 2026-11-06: p99 ~30 ms, max ~40 ms - waiting, not computing.
+- **The tick stats name what stops the event loop** (2026-11-06): `gc`
+  (the garbage collector's pauses - count, total, max) and `stalls` (a
+  watchdog timer: a gap over 300 ms is a stall; `suspects` - the process kinds
+  whose runners were running at that moment, counted per stall - the one that
+  computes is among them every time). Locally: GC ~35-80 ms a minute, max
+  5-11 ms, no stalls; on the demo's server stalls of 0.5-2.1 s came with the
+  heating planner and the Energy Ledger running - the energy plan's
+  `planAll` itself takes 13-51 ms (148 slots, 5 strategies), the
+  `/processes` list 115 KB parses in ~1 ms, so the culprit is still to be
+  named by these fields on the server.
+- **Less garbage each tick** (2026-11-06 - on the demo's server the GC took
+  ~0.5 s a minute and paused up to 0.43 s, ~10x the laptop): the Data
+  Logger reads `GET /data-logger-controls?configured=true` (only the
+  devices with a period set - it was all 505 sensors every second); the core
+  packages' local time - `devices/lib/localTime.ts` (`localParts`,
+  `localDate`, `dateFormat` - one Intl.DateTimeFormat per options, kept: a
+  new formatter costs ~9x formatting, and the planners call it for every slot
+  of a two-day plan; it was a copy in four packages, a new formatter every
+  call). A package never creates an Intl.DateTimeFormat in a loop - it uses
+  `dateFormat`. Node's GC flags per server: `API_NODE_OPTIONS` /
+  `ORCHESTRATOR_NODE_OPTIONS` in `.env` (the young generation,
+  `--max-semi-space-size=32`).
+- **A tick waits for its runners within its budget** (2026-11-06,
+  `ORCHESTRATOR_TICK_BUDGET_MS`, 850 ms from the tick's start; `turns.ts`):
+  a run still going then finishes in the background, and the next ticks skip
+  only that process (`inFlight`) - not every process, as the whole-tick skip
+  did before (one slow step cost all of them a turn). It is touched alive
+  when it finishes (`lateAlive`). A process not started before the budget
+  ran out gets its turn next tick; the start order rotates each tick
+  (`rotate`), so it is never the same ones. The tick stats count it per kind
+  - `turns.overran` (past the budget), `turns.busy` (a turn skipped, still
+  running), `turns.deferred` (put off to the next tick).

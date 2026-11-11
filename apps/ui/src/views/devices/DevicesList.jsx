@@ -1,14 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { simulationTint, useHideSimulation } from '../../presentation'
 import {
   CAlert,
   CBadge,
+  CButton,
   CCard,
   CCardBody,
   CCardHeader,
   CCol,
+  CFormCheck,
+  CFormInput,
   CFormSelect,
   CRow,
   CSpinner,
+  CTab,
+  CTabList,
+  CTabs,
   CTable,
   CTableBody,
   CTableDataCell,
@@ -19,12 +26,15 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilCheck, cilLibrary, cilSettings, cilX } from '@coreui/icons'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
+import { deviceSimulators } from '../../deviceTypeRegistry'
 import GroupsConfigModal from '../../components/GroupsConfigModal'
 import IconButton from '../../components/IconButton'
 import ResetFiltersButton from '../../components/ResetFiltersButton'
 import Switch from '../../components/Switch'
 import ExpandAllToggleButton from '../../components/table/ExpandAllToggleButton'
 import ExpandToggleButton from '../../components/table/ExpandToggleButton'
+import LibraryTypeLink from '../../components/table/LibraryTypeLink'
 import { useExpandableRows } from '../../hooks/useExpandableRows'
 import { useNow } from '../../hooks/useNow'
 import { usePagination } from '../../hooks/usePagination'
@@ -38,9 +48,32 @@ import { useNodesLiveState } from '../../api/useLiveNode'
 import RowStatusBadge from '../../components/table/RowStatusBadge'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
-import { formatRelativeTime } from '../../utils/format'
+import { formatRelativeTime, formatSmartDateTime } from '../../utils/format'
+import DeviceMediaTab from './DeviceMediaTab'
 import DeviceSettingsModal from './DeviceSettingsModal'
 import NumericStepper from './NumericStepper'
+import AiButton from '../../components/ai/AiButton'
+import PageTitle from '../../components/PageTitle'
+import { t } from 'src/i18n'
+
+// How long to wait after the last slider/stepper move before actually
+// sending it (DeviceValueEditor's own handleSimulate below) - dragging a
+// range input fires onChange on every pixel step; without this, every one
+// of those would hit the API and the message bus. Same value the old Dev
+// Simulator page used before this control moved here (AGENTS_TO_DO.md,
+// 2026-08-29 "СИМУЛЯЦІЯ").
+const SLIDER_DEBOUNCE_MS = 150
+
+const modeColor = (mode) => {
+  switch (mode) {
+    case 'MANUAL':
+      return 'warning'
+    case 'SERVICE':
+      return 'info'
+    default:
+      return 'success'
+  }
+}
 
 // Registration for usePersistedState (AGENTS_TO_DO.md, 2026-08-01, joined
 // 2026-08-02 by `expandedIds`) - flat variant, same as NodesList.jsx.
@@ -111,7 +144,12 @@ const ValueCell = ({ value }) => {
     )
   }
   if (typeof value === 'number') return <span>{value}</span>
-  if (typeof value === 'object') return <CBadge color="secondary">JSON</CBadge>
+  if (typeof value === 'object')
+    return (
+      <CBadge color="secondary" className="mb-1">
+        JSON
+      </CBadge>
+    )
   return <span>{String(value)}</span>
 }
 
@@ -134,10 +172,6 @@ const formatFieldValue = (value) => {
   }
   return String(value)
 }
-
-// Accepts either an epoch-ms number (readingOrigin) or an ISO string
-// (created_at/updated_at) - both are already Date-constructible as-is.
-const formatDate = (value) => (value ? new Date(value).toLocaleString() : undefined)
 
 // Borderless label/value table, one per side of the expand row (below).
 // Was a flexbox item with a fixed `flex: '0 1 420px'` basis (2026-08-15,
@@ -195,108 +229,282 @@ const KeyValueTable = ({ title, rows }) => (
 // when there's room for two >=320px columns, wraps to one column
 // per row otherwise, and each column claims its own fair share of
 // whatever width is actually available instead of a fixed guess.
-// Under the left "Value" table (AGENTS_TO_DO.md, 2026-08-23) - lets a
-// readOnly device's current value be edited directly from this row when
-// it's effectively simulated (own `simulated` flag, or its node's),
-// instead of needing the separate Dev Simulator page for the same
-// `PUT /devices/:id/simulate` write DevSimulator.jsx already uses.
-// Numeric only, per the user's own spec ("Якщо це число") - Bool/String/
-// JSON values have no editor here yet, not asked for. `editable` (new
-// NumericStepper prop) is what makes the input itself typable here,
-// unlike every other NumericStepper caller's disabled display-only
-// input. `step` is this device's own "personal" step
-// (`capabilities.step`, already an existing per-device field - see
-// devices/standalone/*/edgex-device-profile.yaml's own `properties`) so
-// e.g. a 0-4095 raw light reading steps by a meaningful chunk instead of
-// DevSimulator's own generic step={0.5} fallback; falls back to 1 when a
-// device type hasn't set one.
-const SimulatedValueEditor = ({ device, value, onSimulate }) => (
-  <div className="mt-2">
-    <div
-      className="text-body-secondary text-uppercase fw-semibold mb-1"
-      style={{ fontSize: '0.6875rem', letterSpacing: '0.04em' }}
-    >
-      Simulated value
+
+// Interactive override control (AGENTS_TO_DO.md, 2026-08-29 "СИМУЛЯЦІЯ",
+// Devices page Value tab) - moved in from the old Dev Simulator page
+// (DeviceSimulatorRow there, now Simulator.jsx's own process-scoped
+// page instead - see that file's header comment for the split), same
+// write paths: `onWrite` (PUT /devices/:id, always MANUAL) for a
+// writable device, `onSimulate` (PUT /devices/:id/simulate, debounced)
+// for a readOnly one, `onRelease` (POST /devices/:id/release) to return
+// a MANUAL device to AUTO. Only rendered for `backend: 'virtual'`
+// devices (DeviceDetailRow below) - same scope the old page's own
+// `listDevices().filter(d => d.backend === 'virtual')` already had, a
+// physical device isn't meant to be poked from the UI this way.
+const DeviceValueEditor = ({ device, value, mode, onWrite, onSimulate, onRelease }) => {
+  const can = useCan()
+  const [busy, setBusy] = useState(false)
+  const debounceTimer = useRef(null)
+  useEffect(() => () => clearTimeout(debounceTimer.current), [])
+
+  const handleWrite = async (next) => {
+    setBusy(true)
+    try {
+      await onWrite(next)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const handleSimulate = (next) => {
+    clearTimeout(debounceTimer.current)
+    debounceTimer.current = setTimeout(() => onSimulate(next), SLIDER_DEBOUNCE_MS)
+  }
+  const handleRelease = async () => {
+    setBusy(true)
+    try {
+      await onRelease()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const readOnly = device.capabilities?.readOnly
+  const CustomSimulator = deviceSimulators[device.type]
+  // a sensor's value is simulated, an actuator's written - without that right (access.js) no override
+  if (!can(readOnly ? 'devices.simulate' : 'devices.write', { device: device.id })) return null
+
+  return (
+    <div className="mt-2">
+      <div
+        className="text-body-secondary text-uppercase fw-semibold mb-1"
+        style={{ fontSize: '0.6875rem', letterSpacing: '0.04em' }}
+      >
+        {t('Override')}
+      </div>
+      <div className="d-flex align-items-center gap-2 flex-wrap">
+        {CustomSimulator ? (
+          // Same readOnly branch the generic paths below use - a writable
+          // device's own `.../simulate` call is rejected server-side (400
+          // "not read-only", routes/devices.ts).
+          <CustomSimulator
+            value={value}
+            min={device.capabilities?.min}
+            max={device.capabilities?.max}
+            step={device.capabilities?.step}
+            color={device.capabilities?.color}
+            onChange={readOnly ? handleSimulate : handleWrite}
+          />
+        ) : device.valueType === 'Bool' ? (
+          <CFormCheck
+            checked={value === true}
+            disabled={busy}
+            onChange={(e) => handleWrite(e.target.checked)}
+          />
+        ) : typeof value === 'string' ? (
+          readOnly ? (
+            <span className="text-body-secondary">{value}</span>
+          ) : (
+            <CFormInput
+              size="sm"
+              defaultValue={value ?? ''}
+              disabled={busy}
+              onBlur={(e) => handleWrite(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur()
+              }}
+            />
+          )
+        ) : (
+          <NumericStepper
+            value={value}
+            step={device.capabilities?.step ?? (/^u?int/i.test(device.valueType ?? '') ? 1 : 0.5)}
+            min={device.capabilities?.min}
+            max={device.capabilities?.max}
+            // AGENTS_TO_DO.md 2026-09-14 - this control was rounding a
+            // Float device's own reading to 2 decimals, hiding real
+            // precision (e.g. an aquarium light channel's own Watts
+            // value). An integer device has nothing to gain from extra
+            // decimals; a Float one gets enough to show its own value in
+            // full for any practical reading, without displaying raw
+            // floating-point noise.
+            precision={/^u?int/i.test(device.valueType ?? '') ? 0 : 6}
+            editable
+            busy={busy}
+            onCommit={(next) => (readOnly ? handleSimulate(next) : handleWrite(next))}
+          />
+        )}
+        {!readOnly && (
+          <CButton
+            size="sm"
+            color={mode === 'MANUAL' ? 'warning' : 'secondary'}
+            variant={mode === 'MANUAL' ? undefined : 'outline'}
+            disabled={busy || mode !== 'MANUAL'}
+            onClick={handleRelease}
+          >
+            {busy ? <CSpinner size="sm" /> : t('Auto')}
+          </CButton>
+        )}
+      </div>
     </div>
-    <NumericStepper
-      value={value}
-      step={device.capabilities?.step ?? 1}
-      min={device.capabilities?.min}
-      max={device.capabilities?.max}
-      editable
-      onCommit={onSimulate}
+  )
+}
+
+const ValueTab = ({
+  device,
+  fetched,
+  value,
+  mode,
+  valueAuto,
+  valueManual,
+  expiresAt,
+  effectivelySimulated,
+  onWrite,
+  onSimulate,
+  onRelease,
+}) => (
+  <div>
+    <KeyValueTable
+      title={t('Value')}
+      rows={[
+        { label: t('Value'), value },
+        { label: t('Value type'), value: fetched?.valueType },
+        { label: t('Units'), value: fetched?.units },
+        { label: t('Mode'), value: mode },
+        { label: t('Auto value'), value: valueAuto },
+        { label: t('Manual value'), value: valueManual },
+        // formatRelativeTime (utils/format.js, already used by
+        // NodesList.jsx's own last-heartbeat column) is typed for an
+        // ISO string but really just does `new Date(x)` - an epoch-ms
+        // number (readingOrigin/expiresAt) works identically.
+        {
+          label: t('Last reading'),
+          value: fetched?.readingOrigin ? formatRelativeTime(fetched.readingOrigin) : undefined,
+        },
+        // Same overdue threshold DeviceRow's own row-color check uses
+        // (data_logger_control's periodSeconds * error.
+        // numberSkippedPeriods) - previously only visible indirectly as
+        // the row turning danger-red, not as an actual value (AGENTS_TO_DO.md,
+        // 2026-08-15: "не бачу значення expiration").
+        { label: t('Expires'), value: expiresAt ? formatRelativeTime(expiresAt) : undefined },
+      ]}
+    />
+    {/* A readOnly device's Override only makes sense while it's actually
+        simulated - it writes straight through EdgeX (routes/devices.ts's
+        own PUT .../simulate), and a physical sensor can never really be
+        "overridden" (AGENTS_TO_DO.md, 2026-08-30: "фізично ми на нього
+        впливати не можемо"). A writable device's Override is a real
+        production MANUAL-mode control regardless of simulated state, so
+        stays unconditional here (backend === 'virtual' only, as before). */}
+    {device.backend === 'virtual' && (!device.capabilities?.readOnly || effectivelySimulated) && (
+      <DeviceValueEditor
+        device={device}
+        value={value}
+        mode={mode}
+        onWrite={onWrite}
+        onSimulate={onSimulate}
+        onRelease={onRelease}
+      />
+    )}
+  </div>
+)
+
+// Info tab (AGENTS_TO_DO.md, 2026-08-29 "СИМУЛЯЦІЯ") - the old single
+// "Device" table split into two side-by-side tables by category: registry
+// identity (what this row IS) on the left, EdgeX/simulation wiring +
+// per-feature config blobs on the right. Same CSS Grid two-column layout
+// the old table pair already used (KeyValueTable's own comment explains
+// why grid, not flexbox).
+const InfoTab = ({ device }) => (
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+      gap: '0.5rem 2rem',
+    }}
+  >
+    <KeyValueTable
+      title={t('Identity')}
+      rows={[
+        { label: 'ID', value: device.id },
+        { label: t('Type'), value: device.type },
+        { label: t('Node'), value: device.node_name },
+        { label: t('Backend'), value: device.backend },
+        { label: t('Created'), value: formatSmartDateTime(device.created_at) },
+        { label: t('Updated'), value: formatSmartDateTime(device.updated_at) },
+      ]}
+    />
+    <KeyValueTable
+      title={t('EdgeX & Config')}
+      rows={[
+        { label: t('EdgeX name'), value: device.edgex_device_name },
+        { label: t('EdgeX status'), value: device.edgex?.operatingState },
+        { label: t('Simulated'), value: device.simulated },
+        { label: t('Simulated twin'), value: device.edgex_device_name_simulated },
+        { label: t('Capabilities'), value: device.capabilities },
+        { label: t('Data Logger'), value: device.data_logger_control },
+        { label: t('Heartbeat Control'), value: device.heartbeat_control },
+      ]}
     />
   </div>
 )
 
+const DETAIL_TABS = [
+  { key: 'value', label: t('Value') },
+  { key: 'info', label: t('Info') },
+]
+// Media devices (AGENTS.md section 81) get a Media tab between the two.
+const MEDIA_DETAIL_TABS = [DETAIL_TABS[0], { key: 'media', label: t('Media') }, DETAIL_TABS[1]]
+
+// Detail row (AGENTS_TO_DO.md, 2026-08-02, redesigned 2026-08-15,
+// re-laid-out 2026-08-16, retabbed 2026-08-29 "СИМУЛЯЦІЯ") - Value/Info
+// tabs, same "CTabs/CTabList + conditionally-rendered content, not
+// CTabContent/CTabPanel" idiom LibraryItemDetailRow.jsx already
+// established, so switching tabs never re-fetches or remounts the live
+// value editor mid-edit.
 const DeviceDetailRow = ({
   device,
   fetched,
   value,
+  mode,
+  valueAuto,
+  valueManual,
   expiresAt,
   effectivelySimulated,
+  onWrite,
   onSimulate,
+  onRelease,
 }) => {
-  const dualState = fetched?.dualState
-  const canEditSimulatedValue =
-    effectivelySimulated && device.capabilities?.readOnly && typeof value === 'number'
+  const [activeTab, setActiveTab] = useState('value')
   return (
-    <div
-      className="pt-0 pb-3 px-2"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-        gap: '0.5rem 2rem',
-      }}
-    >
-      <div>
-        <KeyValueTable
-          title="Value"
-          rows={[
-            { label: 'Value', value },
-            { label: 'Value type', value: fetched?.valueType },
-            { label: 'Units', value: fetched?.units },
-            { label: 'Mode', value: dualState?.mode },
-            { label: 'Auto value', value: dualState?.valueAuto },
-            { label: 'Manual value', value: dualState?.valueManual },
-            // formatRelativeTime (utils/format.js, already used by
-            // NodesList.jsx's own last-heartbeat column) is typed for an
-            // ISO string but really just does `new Date(x)` - an epoch-ms
-            // number (readingOrigin/expiresAt) works identically.
-            {
-              label: 'Last reading',
-              value: fetched?.readingOrigin ? formatRelativeTime(fetched.readingOrigin) : undefined,
-            },
-            // Same overdue threshold DeviceRow's own row-color check uses
-            // (data_logger_control's periodSeconds * error.
-            // numberSkippedPeriods) - previously only visible indirectly as
-            // the row turning danger-red, not as an actual value (AGENTS_TO_DO.md,
-            // 2026-08-15: "не бачу значення expiration").
-            { label: 'Expires', value: expiresAt ? formatRelativeTime(expiresAt) : undefined },
-          ]}
+    <div className="pt-0 pb-3 px-2">
+      <CTabs activeItemKey={activeTab} onChange={setActiveTab}>
+        <CTabList variant="tabs" className="mb-3">
+          {(device.capabilities?.media ? MEDIA_DETAIL_TABS : DETAIL_TABS).map((tab) => (
+            <CTab key={tab.key} itemKey={tab.key}>
+              {tab.label}
+            </CTab>
+          ))}
+        </CTabList>
+      </CTabs>
+      {activeTab === 'value' && (
+        <ValueTab
+          device={device}
+          fetched={fetched}
+          value={value}
+          mode={mode}
+          valueAuto={valueAuto}
+          valueManual={valueManual}
+          expiresAt={expiresAt}
+          effectivelySimulated={effectivelySimulated}
+          onWrite={onWrite}
+          onSimulate={onSimulate}
+          onRelease={onRelease}
         />
-        {canEditSimulatedValue && (
-          <SimulatedValueEditor device={device} value={value} onSimulate={onSimulate} />
-        )}
-      </div>
-      <KeyValueTable
-        title="Device"
-        rows={[
-          { label: 'ID', value: device.id },
-          { label: 'Type', value: device.type },
-          { label: 'Node', value: device.node_name },
-          { label: 'Backend', value: device.backend },
-          { label: 'EdgeX name', value: device.edgex_device_name },
-          { label: 'EdgeX status', value: device.edgex?.operatingState },
-          { label: 'Simulated', value: device.simulated },
-          { label: 'Simulated twin', value: device.edgex_device_name_simulated },
-          { label: 'Capabilities', value: device.capabilities },
-          { label: 'Data Logger', value: device.data_logger_control },
-          { label: 'Heartbeat Control', value: device.heartbeat_control },
-          { label: 'Created', value: formatDate(device.created_at) },
-          { label: 'Updated', value: formatDate(device.updated_at) },
-        ]}
-      />
+      )}
+      {activeTab === 'media' && device.capabilities?.media && (
+        <DeviceMediaTab device={device} value={value} effectivelySimulated={effectivelySimulated} />
+      )}
+      {activeTab === 'info' && <InfoTab device={device} />}
     </div>
   )
 }
@@ -312,8 +520,12 @@ const DeviceRow = ({
   onToggleSimulated,
   onOpenSettings,
   onSimulateValue,
+  onWriteValue,
+  onReleaseValue,
   effectivelySimulated,
 }) => {
+  // what this person may do with this device (access.js - the server decides)
+  const can = useCan()
   const [fetched, setFetched] = useState(null)
   const live = useDeviceLiveState(device.id)
   // Still needed even though isOverdue/expiresAt are no longer computed
@@ -344,6 +556,16 @@ const DeviceRow = ({
   }, [device.id])
 
   const value = live.value !== undefined ? live.value : fetched?.value
+  // Mode/Auto/Manual (AGENTS_TO_DO.md, 2026-08-29 "СИМУЛЯЦІЯ", moved in
+  // from the old Dev Simulator page's own DeviceSimulatorRow) - `live`
+  // wins the same way `value` above does, falling back to the one-time
+  // fetch's own `dualState`. A readOnly (sensor) device has no Dual
+  // Devices Model mode at all (AGENTS.md section 6/7) - no fallback to a
+  // misleading "AUTO" here either.
+  const dualState = fetched?.dualState
+  const mode = live.mode ?? dualState?.mode
+  const valueAuto = live.valueAuto ?? dualState?.valueAuto
+  const valueManual = live.valueManual ?? dualState?.valueManual
   // Reading timestamp: prefer a live WebSocket event (freshest, if one
   // has arrived this session) over the one-time fetch's own
   // `readingOrigin` (EdgeX's own reading timestamp - correct even on a
@@ -372,7 +594,8 @@ const DeviceRow = ({
   // precedence ProcessesTable.jsx's own row color already uses.
   // RowStatusBadge (column 1 below) derives its label from this exact
   // value, not a second parallel condition, so the two can't drift.
-  const rowColor = isOverdue ? 'danger' : effectivelySimulated ? 'info' : undefined
+  const hideSimulation = useHideSimulation()
+  const rowColor = isOverdue ? 'danger' : simulationTint(effectivelySimulated, hideSimulation)
   const noBorderWhenExpanded = expanded ? 'border-bottom-0' : undefined
 
   return (
@@ -382,7 +605,9 @@ const DeviceRow = ({
           <RowStatusBadge rowColor={rowColor} />
         </CTableDataCell>
         <CTableDataCell className={noBorderWhenExpanded}>
-          <CBadge color={backendColor(device.backend)}>{device.backend}</CBadge>
+          <CBadge color={backendColor(device.backend)} className="mb-1">
+            {device.backend}
+          </CBadge>
         </CTableDataCell>
         <CTableDataCell className={noBorderWhenExpanded}>
           <DeviceIcon
@@ -396,32 +621,41 @@ const DeviceRow = ({
         </CTableDataCell>
         <CTableDataCell className={noBorderWhenExpanded}>{device.name}</CTableDataCell>
         <CTableDataCell className={noBorderWhenExpanded}>{device.node_name ?? '-'}</CTableDataCell>
-        <CTableDataCell className={noBorderWhenExpanded}>{device.type}</CTableDataCell>
+        <CTableDataCell className={noBorderWhenExpanded}>
+          <LibraryTypeLink kind="device" typeName={device.type} />
+        </CTableDataCell>
         <CTableDataCell className={`text-end ${noBorderWhenExpanded ?? ''}`}>
           <div className="d-flex justify-content-end align-items-center gap-1 flex-nowrap">
-            <IconButton
-              icon={cilSettings}
-              size="sm"
-              center
-              onClick={onOpenSettings}
-              ariaLabel={`${device.name} settings`}
-            />
-            {device.node_id === null && (
-              <Switch
-                checked={device.simulated}
-                onChange={onToggleSimulated}
-                disabled={!device.simulated && !device.edgex_device_name_simulated}
-                activeColor="#e55353"
-                inactiveColor="#d3d3d3"
-                ariaLabel={
-                  device.simulated
-                    ? `${device.name} is simulated - switch to physical`
-                    : device.edgex_device_name_simulated
-                      ? `${device.name} is physical - switch to simulated`
-                      : `${device.name} has no simulated twin provisioned`
-                }
+            <AiButton action subject={{ type: 'device', id: device.id }} label={device.name} />
+            {can('devices.manage', { device: device.id }) && (
+              <IconButton
+                icon={cilSettings}
+                size="sm"
+                center
+                onClick={onOpenSettings}
+                ariaLabel={`${device.name} settings`}
               />
             )}
+            {device.node_id === null &&
+              (!hideSimulation || can('devices.simulate', { device: device.id })) && (
+                <Switch
+                  checked={device.simulated}
+                  onChange={onToggleSimulated}
+                  disabled={
+                    (!device.simulated && !device.edgex_device_name_simulated) ||
+                    !can('devices.simulate', { device: device.id })
+                  }
+                  activeColor="#e55353"
+                  inactiveColor="#d3d3d3"
+                  ariaLabel={
+                    device.simulated
+                      ? t('{{name}} is simulated - switch to physical', { name: device.name })
+                      : device.edgex_device_name_simulated
+                        ? t('{{name}} is physical - switch to simulated', { name: device.name })
+                        : t('{{name}} has no simulated twin provisioned', { name: device.name })
+                  }
+                />
+              )}
             <ExpandToggleButton expanded={expanded} onClick={onToggleExpand} />
           </div>
         </CTableDataCell>
@@ -433,9 +667,14 @@ const DeviceRow = ({
               device={device}
               fetched={fetched}
               value={value}
+              mode={mode}
+              valueAuto={valueAuto}
+              valueManual={valueManual}
               expiresAt={expiresAt}
               effectivelySimulated={effectivelySimulated}
+              onWrite={onWriteValue}
               onSimulate={onSimulateValue}
+              onRelease={onReleaseValue}
             />
           </CTableDataCell>
         </CTableRow>
@@ -465,14 +704,14 @@ const deviceEffectivelySimulated = (device) =>
 // color instead uses its live-updated isOverdue (mount fetch + live
 // push) - marginally fresher, but the two agree within one read/push
 // interval of each other.
-const deviceRowColor = (device) =>
-  device.isOverdue ? 'danger' : deviceEffectivelySimulated(device) ? 'info' : undefined
+const deviceRowColor = (device, hideSimulation = false) =>
+  device.isOverdue ? 'danger' : simulationTint(deviceEffectivelySimulated(device), hideSimulation)
 
 const STATUS_FILTER_OPTIONS = [
-  { value: '', label: 'All statuses' },
+  { value: '', label: t('All statuses') },
   { value: 'ok', label: 'OK' },
-  { value: 'danger', label: 'Error' },
-  { value: 'info', label: 'Simulation' },
+  { value: 'danger', label: t('Error') },
+  { value: 'info', label: t('Simulation') },
 ]
 
 /**
@@ -487,6 +726,7 @@ const STATUS_FILTER_OPTIONS = [
  * covers it).
  */
 const DevicesList = () => {
+  const hideSimulation = useHideSimulation()
   const [devices, setDevices] = useState(null)
   const [deviceGroups, setDeviceGroups] = useState([])
   const [nodes, setNodes] = useState([])
@@ -528,16 +768,20 @@ const DevicesList = () => {
       .then(reloadDevices)
       .catch((err) => setError(err.message))
 
-  // Simulated-value editor (AGENTS_TO_DO.md, 2026-08-23, DeviceDetailRow's
-  // own SimulatedValueEditor) - same PUT /devices/:id/simulate write
-  // DevSimulator.jsx's own handleSimulate uses. No reloadDevices() after -
-  // unlike handleToggleSimulated above (a registry/metadata change with no
-  // live push of its own until section 65 built one), a value write
-  // already lands via the live `device` event useDeviceLiveState
-  // subscribes to, so every open tab (including this row's own) converges
-  // without a refetch.
+  // Value tab's own DeviceValueEditor (AGENTS_TO_DO.md, 2026-08-29
+  // "СИМУЛЯЦІЯ", moved in from the old Dev Simulator page) - three write
+  // paths, same ones that page's own DeviceSimulatorRow used. No
+  // reloadDevices() after any of them - unlike handleToggleSimulated
+  // above (a registry/metadata change with no live push of its own until
+  // section 65 built one), a value/mode write already lands via the live
+  // `device` event useDeviceLiveState subscribes to, so every open tab
+  // (including this row's own) converges without a refetch.
   const handleSimulateValue = (device, value) =>
     api.simulateDevice(device.id, value).catch((err) => setError(err.message))
+  const handleWriteValue = (device, value) =>
+    api.writeDevice(device.id, value).catch((err) => setError(err.message))
+  const handleReleaseValue = (device) =>
+    api.releaseDevice(device.id).catch((err) => setError(err.message))
 
   useEffect(() => {
     reloadDevices()
@@ -589,7 +833,10 @@ const DevicesList = () => {
       (device) => !groupFilter || (device.device_group_ids ?? []).includes(Number(groupFilter)),
     )
     .filter((device) => !nodeFilter || String(device.node_id) === nodeFilter)
-    .filter((device) => !statusFilter || (deviceRowColor(device) || 'ok') === statusFilter)
+    .filter(
+      (device) =>
+        !statusFilter || (deviceRowColor(device, hideSimulation) || 'ok') === statusFilter,
+    )
   const { page, pageSize, pageItems, totalItems, setPage, setPageSize } = usePagination(filtered, {
     pageSize: pageState.pageSize,
     onPageSizeChange: (size) => setPageState({ pageSize: size }),
@@ -605,7 +852,7 @@ const DevicesList = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <strong>Devices</strong>
+        <PageTitle title={t('Devices')} />
       </CCardHeader>
       <CCardBody>
         {error && <CAlert color="danger">{error}</CAlert>}
@@ -618,9 +865,11 @@ const DevicesList = () => {
                   size="sm"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  aria-label="Filter by status"
+                  aria-label={t('Filter by status')}
                 >
-                  {STATUS_FILTER_OPTIONS.map((opt) => (
+                  {STATUS_FILTER_OPTIONS.filter(
+                    (opt) => !hideSimulation || opt.value !== 'info',
+                  ).map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
@@ -633,7 +882,7 @@ const DevicesList = () => {
                   value={groupFilter}
                   onChange={(e) => setGroupFilter(e.target.value)}
                 >
-                  <option value="">All groups</option>
+                  <option value="">{t('All groups')}</option>
                   {deviceGroups.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.name}
@@ -647,7 +896,7 @@ const DevicesList = () => {
                   value={nodeFilter}
                   onChange={(e) => setNodeFilter(e.target.value)}
                 >
-                  <option value="">All nodes</option>
+                  <option value="">{t('All nodes')}</option>
                   {nodes.map((n) => (
                     <option key={n.id} value={n.id}>
                       {n.name}
@@ -660,7 +909,7 @@ const DevicesList = () => {
                   key={searchResetToken}
                   value={search}
                   onSearch={setSearch}
-                  placeholder="Search by name, type..."
+                  placeholder={t('Search by name, type...')}
                 />
               </CCol>
               <CCol className="d-flex justify-content-end gap-2">
@@ -669,7 +918,7 @@ const DevicesList = () => {
                   size="sm"
                   center
                   onClick={() => setConfigVisible(true)}
-                  ariaLabel="Configure Device Groups"
+                  ariaLabel={t('Configure Device Groups')}
                 />
                 <ResetFiltersButton active={hasActiveFilters} onClick={handleResetFilters} />
               </CCol>
@@ -677,24 +926,24 @@ const DevicesList = () => {
             {filtered.length === 0 ? (
               <CAlert color="info">
                 {devices.length === 0
-                  ? 'No devices registered yet.'
-                  : 'No devices match these filters.'}
+                  ? t('No devices registered yet.')
+                  : t('No devices match these filters.')}
               </CAlert>
             ) : (
               <>
                 <CTable responsive>
                   <CTableHead>
                     <CTableRow>
-                      <CTableHeaderCell scope="col">Status</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Backend</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Status')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Backend')}</CTableHeaderCell>
                       <CTableHeaderCell scope="col"></CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Value</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Name</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Node</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">Type</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Value')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Name')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Node')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col">{t('Type')}</CTableHeaderCell>
                       <CTableHeaderCell scope="col" className="text-end">
                         <div className="d-flex justify-content-end align-items-center gap-2">
-                          <span>Actions</span>
+                          <span>{t('Actions')}</span>
                           <ExpandAllToggleButton
                             ids={pageItems.map((device) => device.id)}
                             expandedIds={expandedIds}
@@ -716,6 +965,8 @@ const DevicesList = () => {
                           onToggleSimulated={() => handleToggleSimulated(device)}
                           onOpenSettings={() => setSettingsDevice(device)}
                           onSimulateValue={(value) => handleSimulateValue(device, value)}
+                          onWriteValue={(value) => handleWriteValue(device, value)}
+                          onReleaseValue={() => handleReleaseValue(device)}
                           effectivelySimulated={effectivelySimulated}
                         />
                       )
@@ -737,9 +988,9 @@ const DevicesList = () => {
       <GroupsConfigModal
         visible={configVisible}
         onClose={() => setConfigVisible(false)}
-        title="Device Groups"
-        addLabel="Add Group"
-        namePlaceholder="Group name"
+        title={t('Device Groups')}
+        addLabel={t('Add Group')}
+        namePlaceholder={t('Group name')}
         items={deviceGroups}
         onAdd={async (name) => {
           await api.createDeviceGroup(name)

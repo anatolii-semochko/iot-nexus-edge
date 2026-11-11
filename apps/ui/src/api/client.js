@@ -1,3 +1,4 @@
+import { t } from 'src/i18n'
 /**
  * Devices API client.
  *
@@ -29,19 +30,70 @@ export async function request(path, options = {}) {
   })
   if (!res.ok) {
     const text = await res.text()
-    let message = `API ${options.method ?? 'GET'} ${path} failed: ${res.status} ${text}`
+    let message = t('API {{v0}} {{path}} failed: {{status}} {{text}}', {
+      v0: options.method ?? 'GET',
+      path,
+      status: res.status,
+      text,
+    })
     try {
       const body = JSON.parse(text)
       message = body.reason ?? body.error ?? message
+      // access control (api access/guard.ts): a refusal said in plain words
+      if (res.status === 403 && body.guest) message = t('Sign in to change this.')
+      else if (res.status === 403 && body.permission)
+        message = t("You don't have the permission for this ({{permission}}).", {
+          permission: body.permission,
+        })
     } catch {
       // response wasn't JSON - keep the raw-text message above
     }
-    throw new Error(message)
+    // the HTTP status with it - a caller tells e.g. a conflict (409) apart
+    throw Object.assign(new Error(message), { status: res.status })
   }
   if (res.status === 204) {
     return null
   }
   return res.json()
+}
+
+/**
+ * An AI Assistant answer as it happens (api POST /ai/conversations/:id/
+ * messages/stream - server-sent events over a POST, so not EventSource):
+ * `onEvent(type, data)` - "status" {text}, "message" (a stored message),
+ * "done", "error" {error}. Resolves when the stream ends.
+ */
+export async function streamAiMessage(conversationId, text, onEvent) {
+  const res = await fetch(`${BASE}/ai/conversations/${conversationId}/messages/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  if (!res.ok || !res.body) {
+    let message = t('the assistant failed: {{status}}', { status: res.status })
+    try {
+      message = (await res.json()).error ?? message
+    } catch {
+      // not JSON - keep the status
+    }
+    throw Object.assign(new Error(message), { status: res.status })
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let end
+    while ((end = buffer.indexOf('\n\n')) >= 0) {
+      const block = buffer.slice(0, end)
+      buffer = buffer.slice(end + 2)
+      const type = /^event: (.*)$/m.exec(block)?.[1]
+      const data = /^data: (.*)$/m.exec(block)?.[1]
+      if (type) onEvent(type, data ? JSON.parse(data) : {})
+    }
+  }
 }
 
 export const api = {
@@ -56,6 +108,26 @@ export const api = {
     request(`/nodes/${id}/name`, { method: 'PATCH', body: JSON.stringify({ name }) }),
   setNodeLocation: (id, location) =>
     request(`/nodes/${id}/location`, { method: 'PATCH', body: JSON.stringify({ location }) }),
+  // A node's information popup (AGENTS_TO_DO.md 2026-10-20, X1): its type,
+  // its Library model, the photo, the point on the map; the engineer sets
+  // the model / the point / the photo in the node's Settings.
+  getNodeInfo: (id) => request(`/nodes/${id}/info`),
+  setNodeDetails: (id, details) =>
+    request(`/nodes/${id}/details`, { method: 'PATCH', body: JSON.stringify(details) }),
+  uploadNodePhoto: (id, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request(`/nodes/${id}/photo`, { method: 'PUT', body: formData })
+  },
+  deleteNodePhoto: (id) => request(`/nodes/${id}/photo`, { method: 'DELETE' }),
+  // Plain URLs (for <img src>): a path the API returned (a node's photo),
+  // a map tile (the API's tile proxy, routes/map.ts)
+  apiUrl: (path) => `${BASE}${path}`,
+  mapTileUrl: (z, x, y) => `${BASE}/map/tiles/${z}/${x}/${y}`,
+  getMapAttribution: () => request('/map/attribution'),
+  // Node -> parent Node (AGENTS.md section 87) - null detaches.
+  setNodeParent: (id, parentId) =>
+    request(`/nodes/${id}/parent`, { method: 'PATCH', body: JSON.stringify({ parentId }) }),
   // Partial physical network (AGENTS_TO_DO.md, 2026-08-09/10) - a node
   // switches every attached device's EdgeX redirect at once.
   setNodeSimulated: (id, simulated) =>
@@ -106,18 +178,136 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ value }),
     }),
+  // Media Store (AGENTS.md section 81) - a media device's stored files.
+  listDeviceMedia: (id, { offset = 0, limit = 20, from, to } = {}) => {
+    const params = new URLSearchParams({ offset: String(offset), limit: String(limit) })
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    return request(`/devices/${id}/media?${params}`)
+  },
+  // Plain URL (for <img src>) - the original when `part` is omitted.
+  deviceMediaUrl: (id, mediaId, part) =>
+    `${BASE}/devices/${id}/media/${encodeURIComponent(mediaId)}${part ? `/${encodeURIComponent(part)}` : ''}`,
+  deleteDeviceMedia: (id, mediaId) =>
+    request(`/devices/${id}/media/${encodeURIComponent(mediaId)}`, { method: 'DELETE' }),
+  // A simulated media device's "capture": stores the file and sets it as
+  // the device's value, exactly like a real device upload.
+  simulateDeviceMedia: (id, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request(`/devices/${id}/media/simulate`, { method: 'POST', body: formData })
+  },
   // Processes (AGENTS.md section 10 - orchestration).
   listProcesses: () => request('/processes'),
   setProcessConfig: (id, config) =>
     request(`/processes/${id}/config`, { method: 'PATCH', body: JSON.stringify(config) }),
+  // whom the process acts for (null - none; the people's administrator only)
+  setProcessActsAs: (id, userId) =>
+    request(`/processes/${id}/acts-as`, { method: 'PUT', body: JSON.stringify({ userId }) }),
+  // AI connections (api routes/ai.ts, admin) - no keys come back (`hasKey`);
+  // `apiKey` sent only when changed (null - remove it).
+  listAiConnections: () => request('/ai/connections'),
+  createAiConnection: (data) =>
+    request('/ai/connections', { method: 'POST', body: JSON.stringify(data) }),
+  updateAiConnection: (id, data) =>
+    request(`/ai/connections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteAiConnection: (id) => request(`/ai/connections/${id}`, { method: 'DELETE' }),
+  testAiConnection: (id) => request(`/ai/connections/${id}/test`, { method: 'POST' }),
+  // the assistant's instances (the whole system, the DNP instances): connection, access levels, logs
+  listAiInstances: () => request('/ai/instances'),
+  updateAiInstance: (key, data) =>
+    request(`/ai/instances/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  // AI Assistant conversations (api ai/agent.ts) and their logs (admin)
+  // what the messenger can talk to: the instances the assistant is on for
+  listAiEntities: () => request('/ai/entities'),
+  startAiConversation: (data) =>
+    request('/ai/conversations', { method: 'POST', body: JSON.stringify(data) }),
+  listAiConversations: (query = {}) => request(`/ai/conversations?${new URLSearchParams(query)}`),
+  getAiConversation: (id) => request(`/ai/conversations/${id}`),
+  sendAiMessage: (id, text) =>
+    request(`/ai/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ text }) }),
+  deleteAiConversation: (id) => request(`/ai/conversations/${id}`, { method: 'DELETE' }),
+  // "Show in demo" - an administrator on a demo instance (B2)
+  // the AI button on a thing: the object, work type and label it opens with (2026-10-24)
+  getAiSubject: (subject) =>
+    request(
+      `/ai/subject?${new URLSearchParams(Object.fromEntries(Object.entries(subject).filter(([, v]) => v != null)))}`,
+    ),
+  // another topic on the way - the object and the work type (2026-10-24)
+  setAiConversationTopic: (id, instanceKey, workType) =>
+    request(`/ai/conversations/${id}/topic`, {
+      method: 'PATCH',
+      body: JSON.stringify({ instanceKey, workType }),
+    }),
+  setAiConversationShared: (id, shared) =>
+    request(`/ai/conversations/${id}/shared`, {
+      method: 'PATCH',
+      body: JSON.stringify({ shared }),
+    }),
+  // the AI's tokens by day and kind, with the day limits (Logs -> AI usage)
+  getAiUsage: (days) => request(`/ai/usage?${new URLSearchParams({ days })}`),
+  listAiLogs: ({ page, pageSize }) =>
+    request(`/ai/logs?${new URLSearchParams({ page, pageSize })}`),
+  listAiReports: ({ page, pageSize }) =>
+    request(`/ai/reports?${new URLSearchParams({ page, pageSize })}`),
+  // the agents' proposals (api ai/proposals.ts) - a page; a conversation's: { conversationId }
+  listAiProposals: (params) =>
+    request(
+      `/ai/proposals?${new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== '')),
+      )}`,
+    ),
+  // the calendar (api ai/calendar.ts)
+  listAiSchedules: (instanceKey) =>
+    request(`/ai/schedules?${new URLSearchParams({ instanceKey })}`),
+  createAiSchedule: (data) =>
+    request('/ai/schedules', { method: 'POST', body: JSON.stringify(data) }),
+  updateAiSchedule: (id, data) =>
+    request(`/ai/schedules/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteAiSchedule: (id) => request(`/ai/schedules/${id}`, { method: 'DELETE' }),
+  runAiSchedule: (id) => request(`/ai/schedules/${id}/run`, { method: 'POST' }),
+  decideAiProposal: (id, decision) =>
+    request(`/ai/proposals/${id}/${decision}`, { method: 'POST' }),
+  // MCP access tokens (api ai/mcp.ts) - a new token comes back once, on create
+  listMcpTokens: () => request('/ai/mcp-tokens'),
+  // every MCP tool call (Logs -> MCP calls)
+  listMcpCalls: ({ page, pageSize }) =>
+    request(`/ai/mcp-calls?${new URLSearchParams({ page, pageSize })}`),
+  createMcpToken: (data) =>
+    request('/ai/mcp-tokens', { method: 'POST', body: JSON.stringify(data) }),
+  updateMcpToken: (id, data) =>
+    request(`/ai/mcp-tokens/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteMcpToken: (id) => request(`/ai/mcp-tokens/${id}`, { method: 'DELETE' }),
+  // A one-shot command to a process (a calibration start, a replacement
+  // done, a test) - kept out of its config (api routes/processes.ts).
+  sendProcessCommand: (id, action, params = {}) =>
+    request(`/processes/${id}/commands`, {
+      method: 'POST',
+      body: JSON.stringify({ action, params }),
+    }),
   doProcessAction: (id, action) =>
     request(`/processes/${id}/action`, { method: 'POST', body: JSON.stringify({ action }) }),
+  // Time series (api routes/series.ts): the logged values and their
+  // recording policy - `query` {processId} or {deviceId}; `changes` - any
+  // of {mode, periodS, deadband, maxIntervalS, staleS} (Settings -> Logs).
+  listSeries: (query = {}) => request(`/series?${new URLSearchParams(query)}`),
+  updateSeries: (id, changes) =>
+    request(`/series/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
   // Process management (AGENTS_TO_DO.md, 2026-08-14) - live create/delete,
   // plus which kinds the running orchestrator actually has loaded right
   // now (a row whose kind isn't in this list needs an orchestrator
   // restart before it does anything - see ProcessesList.jsx's own
   // "pending restart" badge).
   createProcess: (data) => request('/processes', { method: 'POST', body: JSON.stringify(data) }),
+  // the Device Registry's writes (api registry.ts): a node with its declared devices, a device
+  getNodeType: (type) => request(`/registry/node-types/${encodeURIComponent(type)}`),
+  createNode: (data) => request('/nodes', { method: 'POST', body: JSON.stringify(data) }),
+  deleteNode: (id) => request(`/nodes/${id}`, { method: 'DELETE' }),
+  createDevice: (data) => request('/devices', { method: 'POST', body: JSON.stringify(data) }),
+  deleteDevice: (id) => request(`/devices/${id}`, { method: 'DELETE' }),
   deleteProcess: (id) => request(`/processes/${id}`, { method: 'DELETE' }),
   getRegisteredProcessKinds: () => request('/processes/registered-kinds'),
   // WEM (AGENTS.md section 22/25) - global dismiss (who/when is recorded
@@ -136,9 +326,20 @@ export const api = {
   // this endpoint. Also reused by the Logs page's processes tab (section
   // 29, `from`/`to` date-range params), which the notification center
   // itself never sets.
-  listProcessMessages: ({ type, scope, processId, search, from, to, page, pageSize }) => {
+  listProcessMessages: ({
+    type,
+    scope,
+    processId,
+    processIds,
+    search,
+    from,
+    to,
+    page,
+    pageSize,
+  }) => {
     const params = new URLSearchParams({ type, scope, page, pageSize })
     if (processId) params.set('processId', processId)
+    if (processIds?.length) params.set('processIds', processIds.join(','))
     if (search) params.set('search', search)
     if (from) params.set('from', from)
     if (to) params.set('to', to)
@@ -148,9 +349,20 @@ export const api = {
   // deviceCommands/sensors, AGENTS_TO_DO.md's 2026-07-27 Device/Node refactor -
   // matches the renamed log_command/log_device tables). The processes tab
   // reuses listProcessMessages above instead of a third function here.
-  listCommandLogs: ({ deviceId, action, actorUserId, search, from, to, page, pageSize }) => {
+  listCommandLogs: ({
+    deviceId,
+    processIds,
+    action,
+    actorUserId,
+    search,
+    from,
+    to,
+    page,
+    pageSize,
+  }) => {
     const params = new URLSearchParams({ page, pageSize })
     if (deviceId) params.set('deviceId', deviceId)
+    if (processIds) params.set('processIds', processIds.join(','))
     if (action) params.set('action', action)
     if (actorUserId) params.set('actorUserId', actorUserId)
     if (search) params.set('search', search)
@@ -198,6 +410,18 @@ export const api = {
   // Tab Groups (AGENTS.md section 22) - an operator's own curated
   // workspace, distinct from Process Groups above; admin-managed, ordered,
   // each one a dynamic tab on the Processes page.
+  // Dashboard cards (routes/dashboardCards.ts) - the Dashboard page's tree
+  listDashboardCards: () => request('/dashboard-cards'),
+  getDashboardSettings: () => request('/dashboard-settings'),
+  updateDashboardSettings: (changes) =>
+    request('/dashboard-settings', { method: 'PATCH', body: JSON.stringify(changes) }),
+  createDashboardCard: (card) =>
+    request('/dashboard-cards', { method: 'POST', body: JSON.stringify(card) }),
+  updateDashboardCard: (id, changes) =>
+    request(`/dashboard-cards/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
+  deleteDashboardCard: (id) => request(`/dashboard-cards/${id}`, { method: 'DELETE' }),
+  moveDashboardCard: (id, direction) =>
+    request(`/dashboard-cards/${id}/move`, { method: 'POST', body: JSON.stringify({ direction }) }),
   listTabGroups: () => request('/tab-groups'),
   createTabGroup: (name) =>
     request('/tab-groups', { method: 'POST', body: JSON.stringify({ name }) }),
@@ -294,12 +518,62 @@ export const api = {
     request(`/library/browse?kind=${kind}${categoryId ? `&categoryId=${categoryId}` : ''}`),
   searchLibrary: (kind, q) => request(`/library/search?kind=${kind}&q=${encodeURIComponent(q)}`),
   syncLibrary: () => request('/library/sync', { method: 'POST' }),
+  // Expanded-row detail (AGENTS_TO_DO.md, 2026-08-27) - read fresh from
+  // disk on every call, not part of the synced catalog itself.
+  getLibraryItemDetail: (id) => request(`/library/items/${encodeURIComponent(id)}/detail`),
+  // Cross-item doc-link navigation (AGENTS_TO_DO.md, 2026-08-27 markdown-
+  // viewer follow-up) - just enough (kind + categoryId) for
+  // LibraryBrowser.jsx to re-navigate to a `library-item://` link's
+  // target before expanding it.
+  getLibraryItemLocation: (id) => request(`/library/items/${encodeURIComponent(id)}/location`),
+  // Type-column deep link (see routes/library.ts's own comment) - resolves
+  // a (kind, typeName) pair straight to its Library item + breadcrumb.
+  getLibraryItemByType: (kind, typeName) =>
+    request(
+      `/library/items/by-type?kind=${encodeURIComponent(kind)}&typeName=${encodeURIComponent(typeName)}`,
+    ),
   // Auth (AGENTS.md section 13 - UI login only, not per-endpoint API
   // authorization).
-  login: (username, password) =>
-    request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  // `account` - a group's link name (accountLink.js)
+  login: (username, password, account) =>
+    request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, ...(account ? { account } : {}) }),
+    }),
   logout: () => request('/auth/logout', { method: 'POST' }),
-  getCurrentUser: () => request('/auth/me'),
+  getCurrentUser: (account) =>
+    request(`/auth/me${account ? `?account=${encodeURIComponent(account)}` : ''}`),
+  // the sign-in page: whether the guest is on ("Continue as a guest") - no guest session started
+  getSignInInfo: async () => {
+    const res = await fetch(`${BASE}/auth/me?signin=1`)
+    const body = await res.json().catch(() => ({}))
+    return { signedIn: res.ok, guestEnabled: Boolean(body.guestEnabled) }
+  },
+  // the guest (Users -> Guest): its account and its conversations' settings
+  getGuest: () => request('/access/guest'),
+  updateGuestSettings: (settings) =>
+    request('/access/guest', { method: 'PUT', body: JSON.stringify(settings) }),
+  // act in another of one's groups (G1) - the session narrowed to it, remembered
+  setAccessContext: (context) =>
+    request('/auth/context', { method: 'POST', body: JSON.stringify({ context }) }),
+  // access management (api routes/access.ts - users.manage): roles as tables object x level
+  getAccessCatalog: () => request('/access/catalog'),
+  // the levels, the system sections and the objects a role's row can name
+  listAccessObjects: () => request('/access/objects'),
+  listRoles: () => request('/access/roles'),
+  // what a role's rights table gives - the actions and the row giving each (before saving)
+  previewRights: (data) =>
+    request('/access/rights/preview', { method: 'POST', body: JSON.stringify(data) }),
+  // `copyOf` - another role's rights, cards and AI tokens
+  createRole: (data) => request('/access/roles', { method: 'POST', body: JSON.stringify(data) }),
+  updateRole: (key, data) =>
+    request(`/access/roles/${encodeURIComponent(key)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteRole: (key) => request(`/access/roles/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+  setUserRoles: (id, roles) =>
+    request(`/access/users/${id}/roles`, { method: 'PUT', body: JSON.stringify({ roles }) }),
   // User management (admin-only server-side - see apps/api/src/routes/users.ts).
   listUsers: () => request('/users'),
   getUser: (id) => request(`/users/${id}`),
@@ -313,4 +587,36 @@ export const api = {
     return request(`/users/${id}/avatar`, { method: 'POST', body: formData })
   },
   deleteAvatar: (id) => request(`/users/${id}/avatar`, { method: 'DELETE' }),
+  // the person's own profile (apps/api/src/routes/users.ts profileRoutes)
+  getProfile: () => request('/profile'),
+  updateProfile: (data) => request('/profile', { method: 'PATCH', body: JSON.stringify(data) }),
+  uploadProfileAvatar: (file) => {
+    const formData = new FormData()
+    formData.append('avatar', file)
+    return request('/profile/avatar', { method: 'POST', body: formData })
+  },
+  deleteProfileAvatar: () => request('/profile/avatar', { method: 'DELETE' }),
+  // Service->Commands (admin-only server-side - see apps/api/src/routes/service.ts).
+  listSystemCommands: () => request('/service/commands'),
+  runSystemCommand: (id) => request(`/service/commands/${id}/run`, { method: 'POST' }),
+  // Service->Database (admin-only server-side - see
+  // apps/api/src/routes/serviceDatabase.ts).
+  getDatabaseStats: () => request('/service/database/stats'),
+  listDatabaseStamps: () => request('/service/database/stamps'),
+  saveDatabaseStamp: (name) =>
+    request('/service/database/stamps', { method: 'POST', body: JSON.stringify({ name }) }),
+  deleteDatabaseStamp: (filename) =>
+    request(`/service/database/stamps/${encodeURIComponent(filename)}`, { method: 'DELETE' }),
+  applyDatabaseStamp: (filename) =>
+    request(`/service/database/stamps/${encodeURIComponent(filename)}/apply`, { method: 'POST' }),
+  uploadDatabaseStamp: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request('/service/database/upload', { method: 'POST', body: formData })
+  },
+  // Clear Logs with a choice (api logCleanup.ts): the units' volumes up to `before`, then the ticked ones cleared
+  getLogVolumes: (before) =>
+    request(`/service/database/logs/volumes${before ? `?${new URLSearchParams({ before })}` : ''}`),
+  clearDatabaseLogs: (data) =>
+    request('/service/database/logs', { method: 'DELETE', body: JSON.stringify(data) }),
 }

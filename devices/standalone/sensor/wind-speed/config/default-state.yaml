@@ -1,0 +1,3 @@
+# Initial value for a `backend: virtual` instance of this device type
+# ("initial.WindSpeed" protocol property) - not meaningful for a physical one.
+WindSpeed: 0

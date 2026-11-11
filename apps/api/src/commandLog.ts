@@ -5,12 +5,14 @@
 // config changes) alongside device writes, and to record WHO issued each
 // command (`actor_user_id`) rather than the previously meaningless-in-
 // practice `source` string (always literally "api") - see migration
-// 1690000000039. The orchestrator IS the "system" user (routes/users.ts's
+// 1690000000039. The orchestrator IS the "orchestrator" user (the former
+// "system" - migration 1690000000094; routes/users.ts's
 // own protected service account) for this purpose, not a separate
 // synthetic actor type - migration 1690000000040 retired that distinction.
 
 import { logger } from "./logger.js";
 import { pool } from "./db.js";
+import { requestContext } from "./requestContext.js";
 
 export type DeviceCommandAction =
   | "write"
@@ -27,7 +29,16 @@ export type DeviceCommandAction =
   // Process management (AGENTS_TO_DO.md, 2026-08-14) - live create/delete
   // of a `processes` row through routes/processes.ts's new POST/DELETE.
   | "create"
-  | "delete";
+  | "delete"
+  // Service->Database (AGENTS_TO_DO.md, 2026-08-30) - the only two Database
+  // actions the user asked to be audited ("Команди SetState, ClearLogs
+  // логаються в LogsCommands"): Save/Download aren't destructive to live
+  // data, so they aren't logged. Both deviceId/processId are absent for
+  // these - a system-wide action, not device/process-scoped.
+  | "set-state"
+  | "clear-logs"
+  // a one-shot process command (routes/processes.ts, migrations/1690000000064) - value {action, params}
+  | "command";
 
 export interface CommandLogEntry {
   // Exactly one of deviceId/processId in practice (device actions vs
@@ -41,16 +52,33 @@ export interface CommandLogEntry {
   value?: unknown;
   source: string;
   actorUserId: number;
+  // the roles the person acted in (2026-10-28) - by default the current request's (requestContext.ts)
+  actedAs?: string | null;
 }
 
 // Best-effort, same principle as messaging.ts's publish() - a logging
 // failure must never break the actual command it's observing.
+//
+// `value` is serialized explicitly (JSON.stringify + ::jsonb) rather than
+// handed to node-pg as-is: pg sends a JS string as raw text, so a string
+// device value like the display's "AUTO" reached the jsonb column
+// unquoted and was rejected as invalid JSON (and a JS array would go out
+// as a Postgres array literal, not JSON). Numbers/booleans/objects
+// already round-tripped - this makes every value type take the same path.
 export async function logCommand(entry: CommandLogEntry): Promise<void> {
   try {
     await pool.query(
-      `INSERT INTO log_command (device_id, process_id, action, value, source, actor_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [entry.deviceId ?? null, entry.processId ?? null, entry.action, entry.value ?? null, entry.source, entry.actorUserId],
+      `INSERT INTO log_command (device_id, process_id, action, value, source, actor_user_id, acted_as)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)`,
+      [
+        entry.deviceId ?? null,
+        entry.processId ?? null,
+        entry.action,
+        entry.value === undefined ? null : JSON.stringify(entry.value),
+        entry.source,
+        entry.actorUserId,
+        entry.actedAs !== undefined ? entry.actedAs : (requestContext()?.actedAs ?? null),
+      ],
     );
   } catch (err) {
     logger.warn({ err, deviceId: entry.deviceId, processId: entry.processId, action: entry.action }, "failed to write log_command entry");
@@ -60,8 +88,9 @@ export async function logCommand(entry: CommandLogEntry): Promise<void> {
 let systemActorUserIdCache: number | null = null;
 
 /**
- * The "system" user's id (routes/users.ts's protected, non-deletable
- * service account, seeded by migration 1690000000009) - every
+ * The "orchestrator" user's id (routes/users.ts's protected, non-deletable
+ * service account, seeded by migration 1690000000009 as "system", renamed by
+ * 1690000000094; the role `system`) - every
  * orchestrator-issued command attributes to this real user row
  * (AGENTS_TO_DO.md, 2026-08-01: "system... Це і є оркестратор"). Cached in
  * memory after the first successful lookup (this id never changes once
@@ -71,9 +100,9 @@ let systemActorUserIdCache: number | null = null;
  */
 export async function getSystemActorUserId(): Promise<number> {
   if (systemActorUserIdCache !== null) return systemActorUserIdCache;
-  const result = await pool.query<{ id: number }>("SELECT id FROM users WHERE username = 'system'");
+  const result = await pool.query<{ id: number }>("SELECT id FROM users WHERE username = 'orchestrator'");
   if (!result.rows[0]) {
-    throw new Error("system user not found");
+    throw new Error("orchestrator user not found");
   }
   systemActorUserIdCache = result.rows[0].id;
   return systemActorUserIdCache;
@@ -103,6 +132,8 @@ export interface CommandLogListItem {
   // (migration 1690000000039's backfill had no way to know which human
   // issued an old write/release/simulate command - only that it was one).
   actor_user: CommandLogActorUser | null;
+  // the roles the person acted in (their names then; null - a service's or an older row)
+  acted_as: string | null;
   created_at: string;
 }
 
@@ -119,18 +150,24 @@ interface CommandLogRawRow {
   actor_display_name: string | null;
   actor_username: string | null;
   actor_avatar_path: string | null;
+  acted_as: string | null;
   created_at: string;
 }
 
 export interface ListCommandLogsParams {
   deviceId?: number;
-  action?: DeviceCommandAction;
+  // only these processes' commands (e.g. one aquarium's - its dashboard's change log)
+  processIds?: number[];
+  // one action or several (e.g. an aquarium's change log: config + command)
+  action?: DeviceCommandAction | DeviceCommandAction[];
   actorUserId?: number;
   search?: string;
   from?: string;
   to?: string;
   page: number;
   pageSize: number;
+  // a person limited to some DNP instances (access/scope.ts): only these processes' / devices' rows
+  visible?: { processIds: number[]; deviceIds: number[]; quietIds?: number[] };
 }
 
 /**
@@ -139,17 +176,30 @@ export interface ListCommandLogsParams {
  * a row targets one or the other, never both.
  */
 export async function listCommandLogs(params: ListCommandLogsParams): Promise<{ items: CommandLogListItem[]; total: number }> {
-  const { deviceId, action, actorUserId, search, from, to, page, pageSize } = params;
+  const { deviceId, processIds, action, actorUserId, search, from, to, page, pageSize, visible } = params;
   const conditions: string[] = [];
   const values: unknown[] = [];
+
+  if (visible) {
+    values.push(visible.processIds, visible.deviceIds);
+    conditions.push(`(l.process_id = ANY($${values.length - 1}) OR l.device_id = ANY($${values.length}))`);
+    if (visible.quietIds?.length) {
+      values.push(visible.quietIds);
+      conditions.push(`(l.process_id IS NULL OR NOT l.process_id = ANY($${values.length}))`);
+    }
+  }
+  if (processIds !== undefined) {
+    values.push(processIds);
+    conditions.push(`l.process_id = ANY($${values.length})`);
+  }
 
   if (deviceId !== undefined) {
     values.push(deviceId);
     conditions.push(`l.device_id = $${values.length}`);
   }
-  if (action) {
-    values.push(action);
-    conditions.push(`l.action = $${values.length}`);
+  if (action && (!Array.isArray(action) || action.length > 0)) {
+    values.push(Array.isArray(action) ? action : [action]);
+    conditions.push(`l.action = ANY($${values.length})`);
   }
   if (actorUserId !== undefined) {
     values.push(actorUserId);
@@ -183,7 +233,7 @@ export async function listCommandLogs(params: ListCommandLogsParams): Promise<{ 
   const [{ rows: items }, { rows: countRows }] = await Promise.all([
     pool.query<CommandLogRawRow>(
       `SELECT l.id, l.device_id, d.name AS device_name, l.process_id, p.name AS process_name,
-              l.action, l.value, l.source, l.created_at,
+              l.action, l.value, l.source, l.acted_as, l.created_at,
               u.id AS actor_user_id, u.display_name AS actor_display_name,
               u.username AS actor_username, u.avatar_path AS actor_avatar_path
        ${FROM_CLAUSE}
@@ -216,6 +266,7 @@ export async function listCommandLogs(params: ListCommandLogsParams): Promise<{ 
             avatar_path: row.actor_avatar_path,
           }
         : null,
+      acted_as: row.acted_as,
       created_at: row.created_at,
     })),
     total: Number(countRows[0].count),

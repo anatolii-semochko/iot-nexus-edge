@@ -19,14 +19,22 @@ import { api } from '../../api/client'
 import { WEM_TYPE_META } from '../../components/header/wemTypeMeta'
 import DateRangeFilter from '../../components/table/DateRangeFilter'
 import IconButton from '../../components/IconButton'
+import MessageLink from '../../components/MessageLink'
 import ResetFiltersButton from '../../components/ResetFiltersButton'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
-import { formatSmartDateTime, localDateTimeToIso, userInitials } from '../../utils/format'
+import {
+  formatSmartDateTime,
+  localDateTimeToIso,
+  userInitials,
+  userTitle,
+} from '../../utils/format'
+import AiButton from '../../components/ai/AiButton'
+import { t, messageText } from 'src/i18n'
 
 const TYPE_OPTIONS = [
-  { key: 'all', label: 'All types' },
+  { key: 'all', label: t('All types') },
   ...Object.entries(WEM_TYPE_META).map(([key, meta]) => ({ key, label: meta.label })),
 ]
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
@@ -97,7 +105,7 @@ const ProcessMessageLogsTab = ({
             value={processId}
             onChange={(e) => onProcessIdChange(e.target.value)}
           >
-            <option value="">All processes</option>
+            <option value="">{t('All processes')}</option>
             {processes.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -110,12 +118,12 @@ const ProcessMessageLogsTab = ({
             key={searchResetToken}
             value={search}
             onSearch={onSearchChange}
-            placeholder="Search by text..."
+            placeholder={t('Search by text...')}
           />
         </CCol>
         <DateRangeFilter from={from} to={to} onFromChange={onFromChange} onToChange={onToChange} />
         <CCol className="d-flex justify-content-end gap-2">
-          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel="Reload" />
+          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel={t('Reload')} />
           <ResetFiltersButton active={hasActiveFilters} onClick={onResetFilters} />
         </CCol>
       </CRow>
@@ -127,18 +135,18 @@ const ProcessMessageLogsTab = ({
           <CSpinner color="primary" />
         </div>
       ) : items.length === 0 ? (
-        <CAlert color="info">No process messages match this filter.</CAlert>
+        <CAlert color="info">{t('No process messages match this filter.')}</CAlert>
       ) : (
         <>
           <CTable responsive>
             <CTableHead>
               <CTableRow>
-                <CTableHeaderCell scope="col">Time</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Group</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Process</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Message</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Time')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Group')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Process')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Message')}</CTableHeaderCell>
                 <CTableHeaderCell scope="col" className="text-end">
-                  Status
+                  {t('Status')}
                 </CTableHeaderCell>
               </CTableRow>
             </CTableHead>
@@ -151,13 +159,23 @@ const ProcessMessageLogsTab = ({
                   <CTableDataCell>{item.group_name}</CTableDataCell>
                   <CTableDataCell>{item.process_name}</CTableDataCell>
                   <CTableDataCell className={`text-${WEM_TYPE_META[item.type].color}`}>
-                    {item.text}
+                    {messageText(item)}
+                    <MessageLink link={item.link} />
                   </CTableDataCell>
-                  <CTableDataCell className="text-end">
+                  <CTableDataCell className="text-end text-nowrap">
+                    <AiButton
+                      action
+                      className="me-2 align-middle"
+                      subject={{ type: 'message', id: item.id, processId: item.process_id }}
+                      label={t('this message')}
+                    />
                     {item.hidden ? (
                       item.hidden_by_user ? (
                         <span
-                          title={`${item.hidden_by_user.display_name ?? item.hidden_by_user.username} · ${formatSmartDateTime(item.hidden_at)}`}
+                          title={userTitle(
+                            item.hidden_by_user,
+                            `read ${formatSmartDateTime(item.hidden_at)}`,
+                          )}
                         >
                           {item.hidden_by_user.avatar_path ? (
                             <CAvatar
@@ -171,10 +189,14 @@ const ProcessMessageLogsTab = ({
                           )}
                         </span>
                       ) : (
-                        <CBadge color="secondary">Read</CBadge>
+                        <CBadge color="secondary" className="mb-1">
+                          {t('Read')}
+                        </CBadge>
                       )
                     ) : (
-                      <CBadge color="info">Unread</CBadge>
+                      <CBadge color="info" className="mb-1">
+                        {t('Unread')}
+                      </CBadge>
                     )}
                   </CTableDataCell>
                 </CTableRow>

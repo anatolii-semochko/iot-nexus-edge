@@ -1,0 +1,1 @@
+Work type: Status Analysis of the whole system. Start from `system.overview`; then the active WEM (`wem.summary`) and, where something is off, the series around it. Report: what works, what is degraded or failing (with since when and why, if the data shows it), and what to check first.

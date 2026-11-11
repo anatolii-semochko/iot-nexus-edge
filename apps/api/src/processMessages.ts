@@ -17,6 +17,9 @@ export interface ProcessMessage {
   level: number;
   code: string;
   text: string;
+  subject: string | null;
+  link: string | null;
+  i18n: MessageI18n | null;
   hidden: boolean;
   hidden_by: number | null;
   hidden_at: string | null;
@@ -29,7 +32,23 @@ export interface MessageInput {
   code: string;
   level: number;
   text: string;
+  // what part of the process's domain it is about (migrations/1690000000063) - null / absent: the process as a whole
+  subject?: string | null;
+  // an in-app path the message points to (migrations/1690000000072 - a scheduled AI run's conversation) - null / absent: none
+  link?: string | null;
+  // the text in the interface's language (migrations/1690000000106): the English template and its values
+  i18n?: MessageI18n | null;
 }
+
+/** A message's text for the UI to translate: `template` - the English with {{placeholders}}, `ns` - the
+ * translations' package (absent - the platform's, "core"). */
+export interface MessageI18n {
+  ns?: string;
+  template: string;
+  params?: Record<string, string | number | null>;
+}
+
+const i18nJson = (entry: MessageInput): string | null => (entry.i18n?.template ? JSON.stringify(entry.i18n) : null);
 
 // See `syncActiveMessages`'s `autoResolve` param below.
 export type AutoResolveMode = "always" | "when-hidden" | "never";
@@ -117,9 +136,12 @@ export async function syncActiveMessages(
       code: string;
       level: number;
       text: string;
+      subject: string | null;
+      link: string | null;
+      i18n: MessageI18n | null;
       hidden: boolean;
     }>(
-      `SELECT id, code, level, text, hidden FROM log_messages WHERE process_id = $1 AND type = $2 AND resolved_at IS NULL`,
+      `SELECT id, code, level, text, subject, link, i18n, hidden FROM log_messages WHERE process_id = $1 AND type = $2 AND resolved_at IS NULL`,
       [processId, type],
     );
     const activeByCode = new Map(active.map((row) => [row.code, row]));
@@ -128,19 +150,31 @@ export async function syncActiveMessages(
     for (const entry of entries) {
       const existing = activeByCode.get(entry.code);
       if (existing) {
-        if (existing.level !== entry.level || existing.text !== entry.text) {
-          await client.query(`UPDATE log_messages SET level = $1, text = $2, updated_at = now() WHERE id = $3`, [
+        const subject = entry.subject ?? null;
+        const link = entry.link ?? null;
+        const i18n = i18nJson(entry);
+        if (
+          existing.level !== entry.level ||
+          existing.text !== entry.text ||
+          existing.subject !== subject ||
+          existing.link !== link ||
+          (existing.i18n ? JSON.stringify(existing.i18n) : null) !== i18n
+        ) {
+          await client.query(`UPDATE log_messages SET level = $1, text = $2, subject = $3, link = $4, i18n = $5, updated_at = now() WHERE id = $6`, [
             entry.level,
             entry.text,
+            subject,
+            link,
+            i18n,
             existing.id,
           ]);
           changed = true;
         }
       } else {
         await client.query(
-          `INSERT INTO log_messages (process_id, type, level, code, text)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [processId, type, entry.level, entry.code, entry.text],
+          `INSERT INTO log_messages (process_id, type, level, code, text, subject, link, i18n)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [processId, type, entry.level, entry.code, entry.text, entry.subject ?? null, entry.link ?? null, i18nJson(entry)],
         );
         changed = true;
         newEntryCount += 1;
@@ -165,7 +199,7 @@ export async function syncActiveMessages(
   }
 
   if (newEntryCount > 0) {
-    await bumpUnreadCount(type, newEntryCount);
+    await bumpUnreadCount(type, newEntryCount, processId);
   }
 
   if (changed) {
@@ -178,6 +212,31 @@ export async function syncActiveMessages(
   // always check rather than reason about which specific diffs could have
   // newly created the process's first-ever active row.
   await maybeFlagForDashboard(processId);
+}
+
+/**
+ * Events (nexus-edge-aquarium AGENTS_TO_DO.md 2026-10-15): one-shot
+ * reports a process only wants in the log - "5 ml dosed", "water change
+ * done" - never in its active WEM list. A process doing its routine work
+ * would otherwise fill its row (and the Processes page) with messages
+ * that say nothing is wrong. Written as `type: "message"` rows already
+ * resolved: the Logs (New / All) and the notification center's unread
+ * counter see them, the process's active list and the Dashboard tab
+ * don't. Idempotent per code - a code already logged for the process is
+ * skipped, so a producer re-sending its event is harmless.
+ */
+export async function logEvents(processId: number, entries: MessageInput[]): Promise<void> {
+  let inserted = 0;
+  for (const entry of entries) {
+    const result = await pool.query(
+      `INSERT INTO log_messages (process_id, type, level, code, text, subject, link, i18n, resolved_at)
+       SELECT $1, 'message', $2, $3, $4, $5, $6, $7, now()
+       WHERE NOT EXISTS (SELECT 1 FROM log_messages WHERE process_id = $1 AND type = 'message' AND code = $3)`,
+      [processId, entry.level, entry.code, entry.text, entry.subject ?? null, entry.link ?? null, i18nJson(entry)],
+    );
+    inserted += result.rowCount ?? 0;
+  }
+  if (inserted > 0) await bumpUnreadCount("message", inserted, processId);
 }
 
 // True the moment a process has *any* active (unresolved) entry, of any
@@ -219,11 +278,15 @@ export async function listActiveMessages(processId: number): Promise<ProcessMess
     `SELECT * FROM log_messages WHERE process_id = $1 AND resolved_at IS NULL AND hidden = false`,
     [processId],
   );
-  // `created_at` comes back from `pg` as a Date, not the `string` its own
-  // type says (no custom type parser is registered for timestamptz) - a
-  // plain `.localeCompare` here throws the moment two active entries tie
-  // on type+level and this tiebreak actually runs, which single-message
-  // testing never exercises. Comparing via `Date` works for either shape.
+  return sortActive(rows);
+}
+
+// `created_at` comes back from `pg` as a Date, not the `string` its own
+// type says (no custom type parser is registered for timestamptz) - a
+// plain `.localeCompare` here throws the moment two active entries tie
+// on type+level and this tiebreak actually runs, which single-message
+// testing never exercises. Comparing via `Date` works for either shape.
+function sortActive(rows: ProcessMessage[]): ProcessMessage[] {
   return rows.sort(
     (a, b) =>
       TYPE_RANK[a.type] - TYPE_RANK[b.type] ||
@@ -232,17 +295,44 @@ export async function listActiveMessages(processId: number): Promise<ProcessMess
   );
 }
 
+/**
+ * listActiveMessages + hasActiveEntries for many processes in ONE query
+ * (GET /processes, every orchestrator tick - iot PERF_PROD_2026-11-05.md:
+ * two queries per process before). `messages` - active, not hidden, sorted
+ * as listActiveMessages; `hasActive` - any active entry, hidden included.
+ */
+export async function activeMessagesOf(processIds: number[]): Promise<Map<number, { messages: ProcessMessage[]; hasActive: boolean }>> {
+  const out = new Map<number, { messages: ProcessMessage[]; hasActive: boolean }>();
+  for (const id of processIds) out.set(id, { messages: [], hasActive: false });
+  if (processIds.length === 0) return out;
+  const { rows } = await pool.query<ProcessMessage>(
+    `SELECT * FROM log_messages WHERE process_id = ANY($1::int[]) AND resolved_at IS NULL`,
+    [processIds],
+  );
+  for (const row of rows) {
+    const entry = out.get(row.process_id);
+    if (!entry) continue;
+    entry.hasActive = true;
+    if (!row.hidden) entry.messages.push(row);
+  }
+  for (const entry of out.values()) sortActive(entry.messages);
+  return out;
+}
+
 // Trimmed to what the bus's public-state broadcast actually needs
 // (AGENTS.md section 24) - `process_id` is redundant (it's already the key
 // this list is nested under) and `resolved_at` is always null for an
 // active list by construction, so neither belongs on the wire.
 function toPublicMessages(messages: ProcessMessage[]): ProcessPublicMessage[] {
-  return messages.map(({ id, type, level, code, text, hidden, created_at, updated_at }) => ({
+  return messages.map(({ id, type, level, code, text, subject, link, i18n, hidden, created_at, updated_at }) => ({
     id,
     type,
     level,
     code,
     text,
+    subject,
+    link,
+    i18n,
     hidden,
     created_at,
     updated_at,
@@ -280,7 +370,7 @@ export async function setHidden(messageId: number, hidden: boolean, userId: numb
   const row = rows[0];
   if (!row) return; // already at this state - no-op, same principle as setCritical/setWarning
 
-  await bumpUnreadCount(row.type, hidden ? -1 : 1);
+  await bumpUnreadCount(row.type, hidden ? -1 : 1, row.process_id);
   processStateEvents.emit("urgent", { reason: "read", messageId, source: "api" });
 
   const activeMessages = await listActiveMessages(row.process_id);
@@ -300,6 +390,9 @@ const UNREAD_COUNT_TYPES: MessageType[] = ["message", "warning", "error"];
 function unreadCountKey(type: MessageType): string {
   return `wem:unread:${type}`;
 }
+// the same counts per process (2026-10-28 - a person limited to some processes sees only theirs; the
+// messaging gateway sums their processes'): one Redis hash, a field per "<process id>:<type>"
+const UNREAD_BY_PROCESS_KEY = "wem:unread:by-process";
 
 /** Recomputes every counter from Postgres - call once at boot. Redis is
  * ephemeral (a restart, a flushed cache) while Postgres is the source of
@@ -312,6 +405,26 @@ export async function initUnreadCounts(): Promise<void> {
   await Promise.all(
     UNREAD_COUNT_TYPES.map((type) => redis.set(unreadCountKey(type), counts.get(type) ?? "0")),
   );
+  const perProcess = await pool.query<{ process_id: number; type: MessageType; count: string }>(
+    `SELECT process_id, type, COUNT(*) FROM log_messages WHERE hidden = false GROUP BY process_id, type`,
+  );
+  await redis.del(UNREAD_BY_PROCESS_KEY);
+  if (perProcess.rows.length)
+    await redis.hset(UNREAD_BY_PROCESS_KEY, Object.fromEntries(perProcess.rows.map((r) => [`${r.process_id}:${r.type}`, r.count])));
+}
+
+/** Unread counts per process - {id: [message, warning, error]}, only the processes with any. */
+export async function getUnreadByProcess(): Promise<Record<string, number[]>> {
+  const all = await redis.hgetall(UNREAD_BY_PROCESS_KEY);
+  const out: Record<string, number[]> = {};
+  for (const [field, value] of Object.entries(all)) {
+    const [id, type] = field.split(":");
+    const n = Number(value) || 0;
+    const i = UNREAD_COUNT_TYPES.indexOf(type as MessageType);
+    if (n <= 0 || i < 0) continue;
+    (out[id] ??= [0, 0, 0])[i] = n;
+  }
+  return out;
 }
 
 export async function getUnreadCounts(): Promise<Record<MessageType, number>> {
@@ -323,8 +436,9 @@ export async function getUnreadCounts(): Promise<Record<MessageType, number>> {
   return counts;
 }
 
-async function bumpUnreadCount(type: MessageType, delta: number): Promise<void> {
+async function bumpUnreadCount(type: MessageType, delta: number, processId: number): Promise<void> {
   await redis.incrby(unreadCountKey(type), delta);
+  await redis.hincrby(UNREAD_BY_PROCESS_KEY, `${processId}:${type}`, delta);
 }
 
 export interface ProcessMessageListItem extends ProcessMessage {
@@ -338,6 +452,7 @@ export interface ProcessMessageListItem extends ProcessMessage {
     display_name: string | null;
     username: string;
     avatar_path: string | null;
+    roles: string[];
   } | null;
 }
 
@@ -353,6 +468,7 @@ export interface ListProcessMessagesParams {
   type: MessageType | "all";
   scope: MessageScope;
   processId?: number;
+  processIds?: number[];
   search?: string;
   // Inclusive ISO timestamp bounds - added for the Logs page's processes
   // tab (AGENTS.md section 29); the notification center popup never sets
@@ -374,7 +490,7 @@ export interface ListProcessMessagesParams {
 export async function listProcessMessages(
   params: ListProcessMessagesParams,
 ): Promise<{ items: ProcessMessageListItem[]; total: number }> {
-  const { type, scope, processId, search, from, to, page, pageSize } = params;
+  const { type, scope, processId, processIds, search, from, to, page, pageSize } = params;
   const conditions: string[] = [];
   const values: unknown[] = [];
 
@@ -383,6 +499,12 @@ export async function listProcessMessages(
     conditions.push(`pm.type = $${values.length}`);
   }
   if (scope === "new") conditions.push("pm.hidden = false");
+  // several processes at once - e.g. a target project's dashboard showing
+  // the messages of one group of equipment (AGENTS.md section 87)
+  if (processIds !== undefined) {
+    values.push(processIds);
+    conditions.push(`pm.process_id = ANY($${values.length}::int[])`);
+  }
   if (processId !== undefined) {
     values.push(processId);
     conditions.push(`pm.process_id = $${values.length}`);
@@ -413,12 +535,14 @@ export async function listProcessMessages(
         hidden_by_display_name: string | null;
         hidden_by_username: string | null;
         hidden_by_avatar_path: string | null;
+        hidden_by_roles: string[] | null;
       }
     >(
       `SELECT pm.*, p.name AS process_name, g.name AS group_name,
               u.display_name AS hidden_by_display_name,
               u.username AS hidden_by_username,
-              u.avatar_path AS hidden_by_avatar_path
+              u.avatar_path AS hidden_by_avatar_path,
+              u.roles AS hidden_by_roles
        FROM log_messages pm
        JOIN processes p ON p.id = pm.process_id
        JOIN process_groups g ON g.id = p.group_id
@@ -432,7 +556,7 @@ export async function listProcessMessages(
   ]);
 
   return {
-    items: items.map(({ hidden_by_display_name, hidden_by_username, hidden_by_avatar_path, ...row }) => ({
+    items: items.map(({ hidden_by_display_name, hidden_by_username, hidden_by_avatar_path, hidden_by_roles, ...row }) => ({
       ...row,
       hidden_by_user:
         row.hidden_by !== null
@@ -441,6 +565,7 @@ export async function listProcessMessages(
               display_name: hidden_by_display_name,
               username: hidden_by_username as string,
               avatar_path: hidden_by_avatar_path,
+              roles: hidden_by_roles ?? [],
             }
           : null,
     })),

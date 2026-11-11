@@ -37,6 +37,10 @@ export interface ProcessPublicMessage {
   level: number;
   code: string;
   text: string;
+  subject: string | null;
+  link: string | null;
+  // the text in the interface's language (processMessages.MessageI18n)
+  i18n: { ns?: string; template: string; params?: Record<string, string | number | null> } | null;
   hidden: boolean;
   created_at: string;
   updated_at: string;
@@ -106,6 +110,29 @@ export async function setWarning(processId: number, warning: boolean, source: st
 
   await touch(processId, { warning: String(warning) });
   processStateEvents.emit("urgent", { reason: "warning", processId, source });
+}
+
+/** status / critical / warning / metrics of many processes in one Redis round trip (GET /processes). */
+export async function getPublicMany(
+  processIds: number[],
+): Promise<Map<number, { status: ProcessStatus; critical: boolean; warning: boolean; metrics: ProcessMetrics | undefined }>> {
+  const out = new Map<number, { status: ProcessStatus; critical: boolean; warning: boolean; metrics: ProcessMetrics | undefined }>();
+  if (processIds.length === 0) return out;
+  const pipe = redis.pipeline();
+  for (const id of processIds) pipe.hmget(key(id), "status", "critical", "warning", "metrics");
+  const results = (await pipe.exec()) ?? [];
+  processIds.forEach((id, i) => {
+    const [err, values] = results[i] ?? [null, null];
+    if (err) throw err;
+    const [status, critical, warning, metrics] = (values as (string | null)[] | null) ?? [];
+    out.set(id, {
+      status: status === "off" ? "off" : "on",
+      critical: critical === "true",
+      warning: warning === "true",
+      metrics: metrics ? (JSON.parse(metrics) as ProcessMetrics) : undefined,
+    });
+  });
+  return out;
 }
 
 export async function getMetrics(processId: number): Promise<ProcessMetrics | undefined> {

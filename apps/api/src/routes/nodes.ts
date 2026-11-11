@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
+import { scopeFilter } from "../access/scope.js";
 import { requireAuth } from "../auth.js";
 import { logCommand } from "../commandLog.js";
 import { pool } from "../db.js";
@@ -17,6 +18,12 @@ interface NodeRow {
   health: string;
   last_heartbeat_at: string | null;
   group_id: number | null;
+  // Node -> parent Node (section 87) - the base node this one is attached
+  // to (e.g. an aquarium's Aquarium Control), by id; null = autonomous.
+  parent_id: number | null;
+  parent_name: string | null;
+  // node.yaml's own `parents:` - node types this type may attach to.
+  parent_types: string[] | null;
   heartbeat_control: HeartbeatControlConfig;
   // Library Catalog icon (AGENTS_TO_DO.md, 2026-08-23) - same `library_items`
   // join DevicesList.jsx's own icon column already reads for Devices
@@ -48,6 +55,10 @@ async function withLiveHeartbeat(node: NodeRow) {
     heartbeatControl.getNodeHeartbeatStopped(node.id),
     heartbeatControl.getNodeLastSeenAt(node.id),
   ]);
+  return withHeartbeat(node, heartbeatStopped, heartbeatLastSeenAt);
+}
+
+function withHeartbeat(node: NodeRow, heartbeatStopped: boolean, heartbeatLastSeenAt: string | null) {
   // AGENTS_TO_DO.md, 2026-08-15 - `heartbeatStopped` above is the "monitoring
   // paused" toggle, not a staleness result (see heartbeatControl.ts's own
   // doc comment) - it never flips on a real disconnect. `heartbeatStale` is
@@ -98,7 +109,7 @@ async function publishNodeState(node: Awaited<ReturnType<typeof withLiveHeartbea
 // route itself was fixed to allow it - this field has to encode the
 // exact same condition as the write path, not a looser proxy for it.
 const SELECT_NODE = `
-  SELECT n.*, g.name AS group_name, li.icon_path,
+  SELECT n.*, g.name AS group_name, li.icon_path, li.parent_types, parent.name AS parent_name,
     NOT EXISTS(
       SELECT 1 FROM devices d
       WHERE d.node_id = n.id AND d.backend = 'physical' AND d.edgex_device_name_simulated IS NULL
@@ -106,6 +117,7 @@ const SELECT_NODE = `
   FROM nodes n
   LEFT JOIN node_groups g ON g.id = n.group_id
   LEFT JOIN library_items li ON li.type_name = n.type AND li.kind = 'node'
+  LEFT JOIN nodes parent ON parent.id = n.parent_id
 `;
 
 async function findNode(id: string) {
@@ -118,9 +130,14 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 export async function nodeRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/nodes", async () => {
+  app.get("/nodes", async (request) => {
     const result = await pool.query<NodeRow>(`${SELECT_NODE} ORDER BY n.name`);
-    return Promise.all(result.rows.map(withLiveHeartbeat));
+    // a person limited to some DNP instances sees only theirs (access/scope.ts)
+    const scope = await scopeFilter(request, "nodes.view");
+    // the heartbeat state of all of them in one MGET - read every orchestrator tick
+    const nodes = result.rows.filter((n) => !scope || scope.node(n.id));
+    const beats = await heartbeatControl.nodeHeartbeatMany(nodes.map((n) => n.id));
+    return nodes.map((node) => withHeartbeat(node, beats.get(node.id)!.stopped, beats.get(node.id)!.lastSeenAt));
   });
 
   app.get<{ Params: { id: string } }>("/nodes/:id", async (request, reply) => {
@@ -159,6 +176,43 @@ export async function nodeRoutes(app: FastifyInstance): Promise<void> {
       const node = await withLiveHeartbeat(await findNode(request.params.id));
       await publishNodeState(node, "node-group-changed");
       return node;
+    },
+  );
+
+  // Node -> parent Node (section 87). Validated here, not in the UI: the
+  // parent must exist, its type must be one of this node type's own
+  // node.yaml `parents:` (a type with no `parents:` list attaches to
+  // nothing), and the chain must not loop back to this node.
+  app.patch<{ Params: { id: string }; Body: { parentId: number | null } }>(
+    "/nodes/:id/parent",
+    async (request, reply) => {
+      const node = await findNode(request.params.id);
+      if (!node) return reply.code(404).send({ error: "node not found" });
+      const parentId = request.body.parentId;
+      if (parentId !== null) {
+        const parent = await findNode(String(parentId));
+        if (!parent) return reply.code(400).send({ error: "parent node not found" });
+        const allowed: string[] = node.parent_types ?? [];
+        if (!allowed.includes(parent.type)) {
+          return reply.code(400).send({ error: `node type ${node.type} cannot attach to node type ${parent.type}` });
+        }
+        const loop = await pool.query(
+          `WITH RECURSIVE chain(id, parent_id) AS (
+             SELECT id, parent_id FROM nodes WHERE id = $1
+             UNION SELECT n.id, n.parent_id FROM nodes n JOIN chain c ON n.id = c.parent_id
+           )
+           SELECT 1 FROM chain WHERE id = $2`,
+          [parentId, node.id],
+        );
+        if (loop.rows.length > 0) return reply.code(400).send({ error: "attaching would create a loop" });
+      }
+      await pool.query("UPDATE nodes SET parent_id = $1, updated_at = now() WHERE id = $2", [
+        parentId,
+        node.id,
+      ]);
+      const updated = await withLiveHeartbeat(await findNode(request.params.id));
+      await publishNodeState(updated, "node-parent-changed");
+      return updated;
     },
   );
 
@@ -219,6 +273,16 @@ export async function nodeRoutes(app: FastifyInstance): Promise<void> {
         [request.body.simulated, request.params.id],
       );
       if (!result.rows[0]) return reply.code(404).send({ error: "node not found" });
+      // No auto-activation of attached simulation processes here anymore
+      // (2026-08-29, reversed from an earlier design) - a simulation
+      // process's own ON/OFF is exclusively operator-controlled (the
+      // Simulator page's own switch, POST /processes/:id/action), fully
+      // independent of this toggle. Whether it's actually producing data
+      // right now is a live COMBINATION of that switch and this node's own
+      // `simulated` flag (simulationTarget.ts's isSimulationTargetSimulated,
+      // read fresh by both the orchestrator's runner and the Simulator
+      // page's Active/Sleep label) - never a second write to the same
+      // Redis status the switch owns.
       const updated = await withLiveHeartbeat(await findNode(request.params.id));
       await publishNodeState(updated, request.body.simulated ? "node-simulated-on" : "node-simulated-off");
       return updated;

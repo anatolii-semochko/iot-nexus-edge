@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useSelector } from 'react-redux'
 import {
   CAlert,
   CCard,
@@ -19,6 +20,9 @@ import LiveBadge from '../devices/LiveBadge'
 import DashboardTab from './DashboardTab'
 import ProcessesTable from './ProcessesTable'
 import SettingsTab from './SettingsTab'
+import PageTitle from '../../components/PageTitle'
+import { canEverywhere } from '../../access'
+import { t as tr } from 'src/i18n'
 
 // Registration for usePersistedState (AGENTS.md section 22) - a separate,
 // independent registration from the older 'nexusedge.processes' key
@@ -85,7 +89,12 @@ const ProcessesList = () => {
   const [searchResetToken, setSearchResetToken] = useState(0)
   const [error, setError] = useState(null)
   const [pageState, setPageState] = usePersistedState('nexusedge.processesPage', PERSISTED_DEFAULTS)
-  const { activeTab, expandedIds } = pageState
+  const access = useSelector((state) => state.access)
+  const systemSettings =
+    canEverywhere(access, 'processes.manage') || canEverywhere(access, 'settings.config')
+  const { activeTab: savedTab, expandedIds } = pageState
+  // a remembered Settings tab the role no longer opens - All
+  const activeTab = savedTab === 'settings' && !systemSettings ? 'all' : savedTab
   const setExpandedIds = (ids) => setPageState({ expandedIds: ids })
   const setActiveTab = (key) => setPageState({ activeTab: key })
 
@@ -101,7 +110,9 @@ const ProcessesList = () => {
     api
       .listProcesses()
       .then((all) => {
-        setProcesses(all)
+        // Simulation processes live only on the Simulator page
+        // (AGENTS_TO_DO.md, 2026-10-10) - none of this page's tabs show them.
+        setProcesses(all.filter((p) => p.type !== 'simulation'))
         setError(null)
       })
       .catch((err) => setError(err.message))
@@ -175,12 +186,13 @@ const ProcessesList = () => {
   }
 
   const tabDefs = [
-    { key: 'dashboard', label: 'Dashboard' },
-    { key: 'all', label: 'All' },
+    { key: 'dashboard', label: tr('Dashboard') },
+    { key: 'all', label: tr('All') },
     ...tabGroups.map((group) => ({ key: `tg:${group.id}`, label: group.name })),
-    { key: 'controllable', label: 'Controllable' },
-    { key: 'permanent', label: 'Permanent' },
-    { key: 'settings', label: 'Settings' },
+    { key: 'controllable', label: tr('Controllable') },
+    { key: 'permanent', label: tr('Permanent') },
+    // the system's process / tab / message groups and levels - Configure everywhere (2026-10-28), else hidden
+    ...(systemSettings ? [{ key: 'settings', label: tr('Settings') }] : []),
   ]
 
   const commonTableProps = (tabKey) => ({
@@ -241,7 +253,7 @@ const ProcessesList = () => {
       )
     }
     const emptyMessage = activeTab.startsWith('tg:')
-      ? 'No processes are in this tab group yet.'
+      ? tr('No processes are in this tab group yet.')
       : undefined
     return (
       <ProcessesTable
@@ -271,7 +283,12 @@ const ProcessesList = () => {
         </CToaster>
       )}
       <CCardHeader>
-        <strong>Processes</strong> <LiveBadge />
+        {/* Flex, not just LiveBadge's own align-middle (AGENTS_TO_DO.md,
+            2026-08-30) - see Simulator.jsx's own identical comment. */}
+        <div className="d-flex align-items-center gap-2">
+          <PageTitle title={tr('Processes')} />
+          <LiveBadge />
+        </div>
       </CCardHeader>
       <CCardBody>
         <CTabs activeItemKey={activeTab} onChange={setActiveTab}>

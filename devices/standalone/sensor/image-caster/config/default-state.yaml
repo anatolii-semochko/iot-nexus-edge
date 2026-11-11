@@ -1,0 +1,4 @@
+# Initial value for a `backend: virtual` instance of this device type: no
+# image yet. A simulated instance gets real values from the UI's file
+# upload (POST /devices/:id/media/simulate).
+Image: ""

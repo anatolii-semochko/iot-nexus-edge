@@ -2,14 +2,30 @@ import React, { useEffect, useState } from 'react'
 import { CCard, CCardBody, CCardHeader, CTab, CTabList, CTabs } from '@coreui/react'
 import { api } from '../../api/client'
 import { usePersistedState } from '../../hooks/usePersistedState'
+import AiLogsTab from './AiLogsTab'
+import AiProposalsTab from './AiProposalsTab'
+import AiReportsTab from './AiReportsTab'
+import AiUsageTab from './AiUsageTab'
+import McpCallsTab from './McpCallsTab'
 import CommandLogsTab from './CommandLogsTab'
 import DeviceLogsTab from './DeviceLogsTab'
 import ProcessMessageLogsTab from './ProcessMessageLogsTab'
+import PageTitle from '../../components/PageTitle'
+import { t as tr } from 'src/i18n'
 
 const TAB_DEFS = [
-  { key: 'commands', label: 'Commands' },
-  { key: 'devices', label: 'Devices' },
-  { key: 'processes', label: 'Messages' },
+  { key: 'commands', label: tr('Commands') },
+  { key: 'devices', label: tr('Devices') },
+  { key: 'processes', label: tr('Messages') },
+  // the AI Assistant's conversations and its reports to the developers (2026-10-17)
+  { key: 'ai', label: 'AI' },
+  { key: 'aiReports', label: tr('AI Reports') },
+  // what the agents proposed to change, Accept / Reject (stage 6)
+  { key: 'aiProposals', label: tr('AI Proposals') },
+  // the tokens by day - guests, schedules, people - against the limits (the user, 2026-11-10)
+  { key: 'aiUsage', label: tr('AI usage') },
+  // every tool an MCP client called (its service account, the input, an error)
+  { key: 'mcpCalls', label: tr('MCP calls') },
 ]
 
 // Registration for usePersistedState (AGENTS_TO_DO.md, 2026-08-01) -
@@ -116,7 +132,7 @@ const LogsList = () => {
   return (
     <CCard className="mb-4">
       <CCardHeader>
-        <strong>Logs</strong>
+        <PageTitle title={tr('Logs')} />
       </CCardHeader>
       <CCardBody>
         <CTabs activeItemKey={activeTab} onChange={setActiveTab}>
@@ -171,6 +187,11 @@ const LogsList = () => {
             onResetFilters={() => resetTab('processes')}
           />
         )}
+        {activeTab === 'ai' && <AiLogsTab />}
+        {activeTab === 'aiReports' && <AiReportsTab />}
+        {activeTab === 'aiProposals' && <AiProposalsTab />}
+        {activeTab === 'aiUsage' && <AiUsageTab />}
+        {activeTab === 'mcpCalls' && <McpCallsTab />}
       </CCardBody>
     </CCard>
   )

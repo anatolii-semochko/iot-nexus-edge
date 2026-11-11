@@ -10,6 +10,7 @@ import {
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
 import { cilArrowBottom, cilArrowTop, cilCheck, cilPencil, cilTrash, cilX } from '@coreui/icons'
+import { t } from 'src/i18n'
 
 /**
  * Generic "manage a named list" body - add one, inline-rename one, delete
@@ -32,7 +33,7 @@ import { cilArrowBottom, cilArrowTop, cilCheck, cilPencil, cilTrash, cilX } from
  */
 const NamedListManager = ({
   addLabel,
-  namePlaceholder = 'Name',
+  namePlaceholder = t('Name'),
   items,
   onAdd,
   onRename,
@@ -146,7 +147,7 @@ const NamedListManager = ({
       </CForm>
       <CListGroup>
         {items.length === 0 && (
-          <CListGroupItem className="text-body-secondary">Nothing here yet.</CListGroupItem>
+          <CListGroupItem className="text-body-secondary">{t('Nothing here yet.')}</CListGroupItem>
         )}
         {items.map((item, index) => (
           <CListGroupItem key={item.id} className="d-flex align-items-center gap-2">
@@ -158,7 +159,7 @@ const NamedListManager = ({
                   variant="ghost"
                   disabled={busy || index === 0}
                   onClick={() => move(index, -1)}
-                  aria-label="Move up"
+                  aria-label={t('Move up')}
                   style={{ padding: '0.1rem 0.3rem' }}
                 >
                   <CIcon icon={cilArrowTop} size="sm" />
@@ -169,7 +170,7 @@ const NamedListManager = ({
                   variant="ghost"
                   disabled={busy || index === items.length - 1}
                   onClick={() => move(index, 1)}
-                  aria-label="Move down"
+                  aria-label={t('Move down')}
                   style={{ padding: '0.1rem 0.3rem' }}
                 >
                   <CIcon icon={cilArrowBottom} size="sm" />
@@ -191,7 +192,7 @@ const NamedListManager = ({
                   variant="ghost"
                   disabled={busy || !editingName.trim()}
                   onClick={saveEditing}
-                  aria-label="Save"
+                  aria-label={t('Save')}
                 >
                   <CIcon icon={cilCheck} />
                 </CButton>
@@ -201,7 +202,7 @@ const NamedListManager = ({
                   variant="ghost"
                   disabled={busy}
                   onClick={cancelEditing}
-                  aria-label="Cancel"
+                  aria-label={t('Cancel')}
                 >
                   <CIcon icon={cilX} />
                 </CButton>
@@ -215,7 +216,7 @@ const NamedListManager = ({
                   variant="ghost"
                   disabled={busy}
                   onClick={() => startEditing(item)}
-                  aria-label="Rename"
+                  aria-label={t('Rename')}
                 >
                   <CIcon icon={cilPencil} />
                 </CButton>
@@ -225,7 +226,7 @@ const NamedListManager = ({
                   variant="ghost"
                   disabled={busy || item.deletable === false}
                   onClick={() => handleDelete(item.id)}
-                  aria-label="Delete"
+                  aria-label={t('Delete')}
                 >
                   {busy ? <CSpinner size="sm" /> : <CIcon icon={cilTrash} />}
                 </CButton>

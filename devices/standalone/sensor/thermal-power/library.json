@@ -1,0 +1,5 @@
+{
+  "id": "device-thermal-power",
+  "name": "Thermal Power",
+  "description": "Thermal power measurement - single Float32 reading (kW), read-only; the heat a circuit delivers (+) or takes away (- when cooling)."
+}

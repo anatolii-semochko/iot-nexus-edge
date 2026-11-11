@@ -1,0 +1,22 @@
+# Source of truth for this device type's EdgeX-facing shape. The copy
+# actually loaded by apps/device-service lives at apps/device-service/res/profiles/
+# NexusEdge-TimedOutput.yaml - kept in sync by hand (AGENTS.md section 7). Identical content.
+apiVersion: "v2"
+name: "NexusEdge-TimedOutput"
+manufacturer: "NexusEdge"
+model: "timed-output"
+labels:
+  - "actuator"
+description: "Output that turns itself off - a command is an on-window in milliseconds, the node ends it on its own"
+
+deviceResources:
+  - name: "WindowMs"
+    isHidden: false
+    description: "Output that turns itself off - a command is an on-window in milliseconds, the node ends it on its own"
+    properties:
+      valueType: "Uint32"
+      readWrite: "RW"
+      units: "ms"
+      defaultValue: "0"
+
+deviceCommands: []

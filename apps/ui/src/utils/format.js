@@ -1,3 +1,4 @@
+import i18n, { t } from 'src/i18n'
 /**
  * Timestamp display helpers (AGENTS.md section 12). All inputs are the raw
  * ISO strings Postgres/Fastify already return (e.g. `last_heartbeat_at`,
@@ -25,19 +26,21 @@ const RELATIVE_UNITS = [
 // for every future timestamp regardless of distance, which a naive
 // diffMs < 0 check would otherwise produce.
 export function formatRelativeTime(iso) {
-  if (!iso) return 'never'
+  if (!iso) return t('never')
   const diffMs = Date.now() - new Date(iso).getTime()
   const future = diffMs < 0
   const absMs = Math.abs(diffMs)
-  if (absMs < RELATIVE_UNITS[RELATIVE_UNITS.length - 1][1]) return 'just now'
+  if (absMs < RELATIVE_UNITS[RELATIVE_UNITS.length - 1][1]) return t('just now')
   for (const [unit, unitMs] of RELATIVE_UNITS) {
     const count = Math.floor(absMs / unitMs)
+    // "in 5 minutes" / "5 minutes ago" in the interface's language
     if (count >= 1)
-      return future
-        ? `in ${count} ${unit}${count > 1 ? 's' : ''}`
-        : `${count} ${unit}${count > 1 ? 's' : ''} ago`
+      return new Intl.RelativeTimeFormat(i18n.resolvedLanguage, { numeric: 'always' }).format(
+        future ? count : -count,
+        unit,
+      )
   }
-  return 'just now'
+  return t('just now')
 }
 
 // No heartbeat ever received (`iso` nullish) counts as stale - a device/node
@@ -58,24 +61,37 @@ const sameDay = (a, b) =>
 // first; a relative "N minutes ago" (formatRelativeTime above) is right for
 // a single "last updated" field but reads badly on a long list where every
 // row needs its own reference point, not "ago" repeated down the column.
-export function formatSmartDateTime(iso) {
-  if (!iso) return '-'
+// `numeric` - the date in digits (20.10.2026, 10/20/2026 - the locale's order): a narrow screen's lists.
+// smartDateTimeParts - the same as [day, time], for a cell that puts them one under the other.
+const smartParts = (iso, numeric) => {
   const date = new Date(iso)
   const now = new Date()
   const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-
-  if (sameDay(date, now)) return `Today, ${time}`
-
+  if (sameDay(date, now)) return { when: 'today', time }
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
-  if (sameDay(date, yesterday)) return `Yesterday, ${time}`
+  if (sameDay(date, yesterday)) return { when: 'yesterday', time }
+  const day = date.toLocaleDateString(
+    undefined,
+    numeric
+      ? { year: 'numeric', month: '2-digit', day: '2-digit' }
+      : { year: 'numeric', month: 'short', day: 'numeric' },
+  )
+  return { day, time }
+}
 
-  const datePart = date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-  return `${datePart}, ${time}`
+export function smartDateTimeParts(iso, { numeric = false } = {}) {
+  if (!iso) return ['-', '']
+  const { when, day, time } = smartParts(iso, numeric)
+  return [when === 'today' ? t('Today') : when === 'yesterday' ? t('Yesterday') : day, time]
+}
+
+export function formatSmartDateTime(iso, { numeric = false } = {}) {
+  if (!iso) return '-'
+  const { when, day, time } = smartParts(iso, numeric)
+  if (when === 'today') return t('Today, {{time}}', { time })
+  if (when === 'yesterday') return t('Yesterday, {{time}}', { time })
+  return `${day}, ${time}`
 }
 
 // Converts a native <input type="datetime-local"> value (local time, no
@@ -92,11 +108,44 @@ export function localDateTimeToIso(value) {
 // section 25, and the Logs page's processes tab, section 29) - `user` is
 // `{display_name, username}`, falling back to username when no display
 // name is set.
+// Service->Database's size chart/table (AGENTS_TO_DO.md, 2026-08-30) - the
+// one place table/category byte counts get turned into a human string.
+export function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return '-'
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let value = bytes / 1024
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+  return `${value.toFixed(value < 10 ? 2 : 1)} ${units[unitIndex]}`
+}
+
 export function userInitials(user) {
+  // words' first letters or digits - "Claude (test)" -> "CT", not "C("
   return (user.display_name ?? user.username)
     .split(/\s+/)
-    .map((part) => part[0])
+    .map((part) => part.match(/[\p{L}\p{N}]/u)?.[0])
+    .filter(Boolean)
     .slice(0, 2)
     .join('')
     .toUpperCase()
+}
+
+// Role names as people read them (roles are the users table's own,
+// AGENTS.md section 13); an account without a role is a plain user.
+const ROLE_LABELS = { admin: t('Administrator') }
+export function userRoleLabel(user) {
+  const roles = user.roles ?? []
+  return roles.length > 0 ? roles.map((r) => ROLE_LABELS[r] ?? r).join(', ') : t('User')
+}
+
+// An avatar's tooltip (2026-10-11): the role and the name, e.g.
+// "Administrator Anatolii Semochko". `suffix` - extra context after it
+// (when, what for).
+export function userTitle(user, suffix) {
+  const title = `${userRoleLabel(user)} ${user.display_name ?? user.username}`
+  return suffix ? `${title} · ${suffix}` : title
 }

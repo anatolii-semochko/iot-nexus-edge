@@ -5,16 +5,31 @@ import { useProcessLiveState } from '../../api/useLiveProcess'
 import { wemBadgeClass } from '../../utils/wem'
 import NumericStepper from '../devices/NumericStepper'
 import ResourceLevelsChart, { MAX_SAMPLES, ResourceLevelsChartLegend } from './ResourceLevelsChart'
+import { t } from 'src/i18n'
 
 const METRIC_ROWS = [
   { key: 'cpu', warnKey: 'cpuWarnMax', maxKey: 'cpuMax', label: 'CPU', unit: '%', stepperMax: 100 },
   { key: 'ram', warnKey: 'ramWarnMax', maxKey: 'ramMax', label: 'RAM', unit: '%', stepperMax: 100 },
-  { key: 'disk', warnKey: 'diskWarnMax', maxKey: 'diskMax', label: 'Disk', unit: '%', stepperMax: 100 },
+  {
+    key: 'disk',
+    warnKey: 'diskWarnMax',
+    maxKey: 'diskMax',
+    label: t('Disk'),
+    unit: '%',
+    stepperMax: 100,
+  },
   // Celsius, not a percentage like the three above - readTempCelsius
   // (resourceMonitor.ts) is absent (not 0) on hosts with no readable
   // thermal zone, e.g. a dev machine without container access to host
   // sysfs, so `value` here can be `undefined` same as the others.
-  { key: 'temp', warnKey: 'tempWarnMax', maxKey: 'tempMax', label: 'Temp', unit: '°C', stepperMax: 150 },
+  {
+    key: 'temp',
+    warnKey: 'tempWarnMax',
+    maxKey: 'tempMax',
+    label: t('Temp'),
+    unit: '°C',
+    stepperMax: 150,
+  },
 ]
 
 // A threshold of 0 (or unset) disables that check - same rule as the
@@ -56,15 +71,16 @@ const zoneFor = (value, warnMax, errorMax) => {
  * it's re-expanded (matching the user's own framing: "дані приходять,
  * коли компонента відкрита").
  */
-const ResourceMonitorPanel = ({ process, onConfigChange }) => {
+/**
+ * The live CPU / RAM / disk history (a rolling MAX_SAMPLES window, from the
+ * live state) - the panel and the Dashboard avatar (ResourceMonitorAvatar)
+ * draw it. Returns {metrics, history}.
+ */
+export const useResourceHistory = (process) => {
   const live = useProcessLiveState(process.id)
   const metrics = live.metrics ?? process.metrics
   // Initial window - computed once, at mount, straight from the useState
-  // initializer, not a separate effect that resets on `process.id` change:
-  // this panel only ever mounts fresh per expand (ProcessesTable.jsx's
-  // `{expanded && Panel && ...}` unmounts it on collapse), so `process.id`
-  // never actually changes under a live instance - an effect to "reset on
-  // process.id change" would be dead code that never re-fires.
+  // initializer (the panel / avatar mounts fresh per process).
   const [history, setHistory] = useState(() => (process.metrics ? [process.metrics] : []))
 
   // Appends each live event as it arrives, accumulating a rolling window -
@@ -79,6 +95,11 @@ const ResourceMonitorPanel = ({ process, onConfigChange }) => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHistory((prev) => [...prev, live.metrics].slice(-MAX_SAMPLES))
   }, [live.metrics])
+  return { metrics, history }
+}
+
+const ResourceMonitorPanel = ({ process, onConfigChange }) => {
+  const { metrics, history } = useResourceHistory(process)
 
   const handleCommit = async (field, value) => {
     const result = await api.setProcessConfig(process.id, { [field]: value })
@@ -108,7 +129,10 @@ const ResourceMonitorPanel = ({ process, onConfigChange }) => {
                 </div>
               </CCol>
               <CCol xs="auto">
-                <div className="text-body-secondary small">Warning Max{unit}</div>
+                <div className="text-body-secondary small">
+                  {t('Warning Max')}
+                  {unit}
+                </div>
                 <NumericStepper
                   value={process.config[warnKey] ?? 0}
                   step={1}
@@ -118,7 +142,10 @@ const ResourceMonitorPanel = ({ process, onConfigChange }) => {
                 />
               </CCol>
               <CCol xs="auto">
-                <div className="text-body-secondary small">Error Max{unit}</div>
+                <div className="text-body-secondary small">
+                  {t('Error Max')}
+                  {unit}
+                </div>
                 <NumericStepper
                   value={process.config[maxKey] ?? 0}
                   step={1}
@@ -130,6 +157,58 @@ const ResourceMonitorPanel = ({ process, onConfigChange }) => {
             </CRow>
           )
         })}
+        <CRow className="align-items-center g-4">
+          <CCol xs="auto" style={{ width: '6.5rem' }} />
+          <CCol xs="auto">
+            <div
+              className="text-body-secondary small"
+              title={t(
+                "A raised warning / error holds until its metric falls this far below the threshold (% or °C) - a value hovering at a threshold doesn't raise a new message on every crossing",
+              )}
+            >
+              {t('Hysteresis')}
+            </div>
+            <NumericStepper
+              value={process.config.hysteresis ?? 0}
+              step={1}
+              min={0}
+              max={20}
+              onCommit={(v) => handleCommit('hysteresis', v)}
+            />
+          </CCol>
+          <CCol xs="auto">
+            <div
+              className="text-body-secondary small"
+              title="...and holds this long after the metric fell below - a value swinging under load doesn't raise a new message on every swing"
+            >
+              {t('Hold, s')}
+            </div>
+            <NumericStepper
+              value={process.config.holdSeconds ?? 0}
+              step={10}
+              min={0}
+              max={600}
+              onCommit={(v) => handleCommit('holdSeconds', v)}
+            />
+          </CCol>
+          <CCol xs="auto">
+            <div
+              className="text-body-secondary small"
+              title={t(
+                'A warning / error is raised only once its metric has been over the threshold this long - a short spike (a build, a nightly job) raises nothing',
+              )}
+            >
+              {t('Raise after, s')}
+            </div>
+            <NumericStepper
+              value={process.config.raiseSeconds ?? 30}
+              step={10}
+              min={0}
+              max={600}
+              onCommit={(v) => handleCommit('raiseSeconds', v)}
+            />
+          </CCol>
+        </CRow>
       </div>
       <div className="flex-grow-1 d-flex flex-column mb-2">
         <ResourceLevelsChartLegend />

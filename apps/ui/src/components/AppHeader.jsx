@@ -16,8 +16,15 @@
  * )
  */
 
+import { useHideSimulation } from '../presentation'
 import React, { useEffect, useRef } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
+import { useMenu } from './useMenu'
+import { Link } from 'react-router-dom'
+import BrandMark from './BrandMark'
+import { HOME_HOST, homeUrl } from '../homeSite'
+import { PROJECT_NAME } from '../projectName'
+import { MESSAGES_PAGE, pageShown } from '../access'
 import {
   CBadge,
   CContainer,
@@ -31,12 +38,15 @@ import {
   useColorModes,
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
-import { cilContrast, cilMenu, cilMoon, cilSun } from '@coreui/icons'
+import { cilContrast, cilMoon, cilSun } from '@coreui/icons'
 
 import { useAnyNodeSimulated } from '../api/useLiveNode'
+import { SIMULATION_BADGE } from '../appEnv'
 import { AppHeaderDropdown } from './header/index'
 import NotificationCenter from './header/NotificationCenter'
 import SystemTickIndicator from './header/SystemTickIndicator'
+import LanguageSelector from './header/LanguageSelector'
+import { useTranslation } from 'react-i18next'
 
 /**
  * AppHeader functional component
@@ -49,56 +59,106 @@ import SystemTickIndicator from './header/SystemTickIndicator'
  *
  * @returns {React.ReactElement} Header component with navigation and controls
  */
-const AppHeader = () => {
+const AppHeader = ({ bleed = false, scroller = null }) => {
   const headerRef = useRef()
   const { colorMode, setColorMode } = useColorModes('coreui-free-react-admin-template-theme')
+  const { t, i18n } = useTranslation()
 
   const dispatch = useDispatch()
   const sidebarShow = useSelector((state) => state.sidebarShow)
   const anyNodeSimulated = useAnyNodeSimulated()
+  const hideSimulation = useHideSimulation()
+  // no menu (only the Dashboard) - no menu button; the messages - when the role shows them
+  const { hidden: noMenu } = useMenu()
+  const showMessages = pageShown(
+    useSelector((state) => state.access),
+    MESSAGES_PAGE,
+  )
 
+  // the shadow once the content under it is scrolled (DefaultLayout's scrolling area) - written only
+  // when it changes
   useEffect(() => {
+    if (!scroller) return undefined
+    let shadow = null
     const handleScroll = () => {
-      headerRef.current &&
-        headerRef.current.classList.toggle('shadow-sm', document.documentElement.scrollTop > 0)
+      const next = scroller.scrollTop > 0
+      if (next === shadow || !headerRef.current) return
+      shadow = next
+      headerRef.current.classList.toggle('shadow-sm', next)
     }
-
-    document.addEventListener('scroll', handleScroll)
-    return () => document.removeEventListener('scroll', handleScroll)
-  }, [])
+    handleScroll()
+    scroller.addEventListener('scroll', handleScroll, { passive: true })
+    return () => scroller.removeEventListener('scroll', handleScroll)
+  }, [scroller])
 
   return (
-    <CHeader position="sticky" className="mb-4 p-0" ref={headerRef}>
-      <CContainer className="border-bottom px-4" fluid>
-        <CHeaderToggler
-          onClick={() => dispatch({ type: 'set', sidebarShow: !sidebarShow })}
-          style={{ marginInlineStart: '-14px' }}
-        >
-          <CIcon icon={cilMenu} size="lg" />
-        </CHeaderToggler>
+    <CHeader className="p-0 flex-shrink-0" ref={headerRef}>
+      <CContainer className="border-bottom px-2 px-sm-3 px-md-4 app-header-row" fluid>
+        {noMenu &&
+          // no menu - the brand (else in the sidebar)
+          // the project's website when it has one (homeSite.js), else the app's start
+          (HOME_HOST ? (
+            <a
+              href={homeUrl(i18n.resolvedLanguage)}
+              title={HOME_HOST}
+              className="d-flex align-items-center text-decoration-none text-body fw-semibold"
+            >
+              <BrandMark size={28} className="me-2" />
+              {PROJECT_NAME}
+            </a>
+          ) : (
+            <Link
+              to="/"
+              className="d-flex align-items-center text-decoration-none text-body fw-semibold"
+            >
+              <BrandMark size={28} className="me-2" />
+              {PROJECT_NAME}
+            </Link>
+          ))}
+        {!noMenu && (
+          <CHeaderToggler
+            onClick={() => dispatch({ type: 'set', sidebarShow: !sidebarShow })}
+            className="app-header-toggler"
+          >
+            {/* three whole-pixel bars, not the 512-unit icon scaled to 20 px - its lines fell on fractions
+                of a pixel and shimmered and jumped while the page scrolled (the user's screencast 2026-11-09) */}
+            <span className="app-burger" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+          </CHeaderToggler>
+        )}
         <CHeaderNav className="ms-auto">
-          {anyNodeSimulated && (
-            <li className="nav-item d-flex align-items-center py-1 me-3">
+          {anyNodeSimulated && !hideSimulation && SIMULATION_BADGE !== 'hide' && (
+            // a phone - left out (the pulse instead; 2026-11-07)
+            <li className="nav-item d-none d-sm-flex align-items-center py-1 me-1 me-sm-3">
+              {/* hide / show / blink - the stack's SIMULATION_BADGE (appEnv.js); by default it blinks only
+                  in production, where a node left in simulation is a problem worth attention. */}
               <CBadge
                 color="primary"
-                className="wem-blink-ring rounded-pill px-3 py-2 me-2"
+                className={`${SIMULATION_BADGE === 'blink' ? 'wem-blink-ring ' : ''}rounded-pill px-3 py-2 me-2`}
                 role="status"
-                title="At least one node is in simulation mode"
+                title={t('At least one node is in simulation mode')}
               >
-                Simulation
+                {t('Simulation')}
               </CBadge>
             </li>
           )}
           <li className="nav-item d-flex align-items-center py-1 me-3">
             <SystemTickIndicator />
           </li>
-          <li className="nav-item d-flex align-items-center py-1">
-            <NotificationCenter />
-          </li>
-          <li className="nav-item py-1">
+          {showMessages && (
+            <li className="nav-item d-flex align-items-center py-1">
+              <NotificationCenter />
+            </li>
+          )}
+          <li className="nav-item py-1 d-none d-sm-block">
             <div className="vr h-100 mx-2 text-body text-opacity-75"></div>
           </li>
-          <CDropdown variant="nav-item" placement="bottom-end">
+          <LanguageSelector />
+          {/* a phone - in the user's menu (AppHeaderDropdown.jsx) */}
+          <CDropdown variant="nav-item" placement="bottom-end" className="d-none d-sm-block">
             <CDropdownToggle caret={false}>
               {colorMode === 'dark' ? (
                 <CIcon icon={cilMoon} size="lg" />
@@ -116,7 +176,7 @@ const AppHeader = () => {
                 type="button"
                 onClick={() => setColorMode('light')}
               >
-                <CIcon className="me-2" icon={cilSun} size="lg" /> Light
+                <CIcon className="me-2" icon={cilSun} size="lg" /> {t('Light')}
               </CDropdownItem>
               <CDropdownItem
                 active={colorMode === 'dark'}
@@ -125,7 +185,7 @@ const AppHeader = () => {
                 type="button"
                 onClick={() => setColorMode('dark')}
               >
-                <CIcon className="me-2" icon={cilMoon} size="lg" /> Dark
+                <CIcon className="me-2" icon={cilMoon} size="lg" /> {t('Dark')}
               </CDropdownItem>
               <CDropdownItem
                 active={colorMode === 'auto'}
@@ -134,11 +194,11 @@ const AppHeader = () => {
                 type="button"
                 onClick={() => setColorMode('auto')}
               >
-                <CIcon className="me-2" icon={cilContrast} size="lg" /> Auto
+                <CIcon className="me-2" icon={cilContrast} size="lg" /> {t('Auto')}
               </CDropdownItem>
             </CDropdownMenu>
           </CDropdown>
-          <li className="nav-item py-1">
+          <li className="nav-item py-1 d-none d-sm-block">
             <div className="vr h-100 mx-2 text-body text-opacity-75"></div>
           </li>
           <AppHeaderDropdown />

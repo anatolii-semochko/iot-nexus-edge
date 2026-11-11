@@ -20,9 +20,15 @@ import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { usePagination } from '../../hooks/usePagination'
 import DataLoggerEditModal from './DataLoggerEditModal'
+import { t } from 'src/i18n'
 
 const formatThreshold = (threshold) =>
-  threshold ? `${threshold.numberSkippedPeriods} period(s) → level ${threshold.level}` : 'off'
+  threshold
+    ? t('{{numberSkippedPeriods}} period(s) → level {{level}}', {
+        numberSkippedPeriods: threshold.numberSkippedPeriods,
+        level: threshold.level,
+      })
+    : 'off'
 
 const formatPeriod = (periodSeconds) => (periodSeconds === null ? '—' : `${periodSeconds}s`)
 
@@ -92,27 +98,31 @@ const DataLoggerPanel = () => {
           <Switch
             checked={settings.errorWarningEnabled}
             onChange={(next) => handleToggleSetting('errorWarningEnabled', next)}
-            ariaLabel="Toggle overdue-value warning/error messages"
+            ariaLabel={t('Toggle overdue-value warning/error messages')}
           />
           <span className="small text-body-secondary">
-            Warning/error messages for overdue values
+            {t('Warning/error messages for overdue values')}
           </span>
         </CCol>
         <CCol xs="auto" className="d-flex align-items-center gap-2">
           <Switch
             checked={settings.tickLoggingEnabled}
             onChange={(next) => handleToggleSetting('tickLoggingEnabled', next)}
-            ariaLabel="Toggle tick-resolution logging"
+            ariaLabel={t('Toggle tick-resolution logging')}
           />
           <span className="small text-body-secondary">
-            Log every tick (1s) for devices configured that fast
+            {t('Log every tick (1s) for devices configured that fast')}
           </span>
         </CCol>
       </CRow>
 
       <CRow className="mb-3 g-2 align-items-center">
         <CCol xs="auto">
-          <TableSearchInput value={search} onSearch={setSearch} placeholder="Search by name..." />
+          <TableSearchInput
+            value={search}
+            onSearch={setSearch}
+            placeholder={t('Search by name...')}
+          />
         </CCol>
         <CCol className="d-flex justify-content-end">
           <ResetFiltersButton active={Boolean(search)} onClick={resetFilters} />
@@ -121,18 +131,18 @@ const DataLoggerPanel = () => {
 
       {pageItems.length === 0 ? (
         <CAlert color="info">
-          {entries.length === 0 ? 'No devices to log yet.' : 'No devices match this filter.'}
+          {entries.length === 0 ? t('No devices to log yet.') : t('No devices match this filter.')}
         </CAlert>
       ) : (
         <>
           <CTable hover responsive small>
             <CTableHead>
               <CTableRow>
-                <CTableHeaderCell>Name</CTableHeaderCell>
-                <CTableHeaderCell>Period</CTableHeaderCell>
-                <CTableHeaderCell>Warning</CTableHeaderCell>
-                <CTableHeaderCell>Error</CTableHeaderCell>
-                <CTableHeaderCell className="text-end">Actions</CTableHeaderCell>
+                <CTableHeaderCell>{t('Name')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Period')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Warning')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Error')}</CTableHeaderCell>
+                <CTableHeaderCell className="text-end">{t('Actions')}</CTableHeaderCell>
               </CTableRow>
             </CTableHead>
             <CTableBody>
@@ -152,7 +162,7 @@ const DataLoggerPanel = () => {
                         icon={cilSettings}
                         size="sm"
                         center
-                        ariaLabel={`Edit data logging for ${entry.name}`}
+                        ariaLabel={t('Edit data logging for {{name}}', { name: entry.name })}
                         onClick={() => setEditing(entry)}
                       />
                       <Switch
@@ -161,8 +171,8 @@ const DataLoggerPanel = () => {
                         onChange={(next) => handleToggleWriteEnabled(entry, next)}
                         ariaLabel={
                           entry.dataLoggerControl.writeEnabled
-                            ? `Ignore ${entry.name}`
-                            : `Write ${entry.name}`
+                            ? t('Ignore {{name}}', { name: entry.name })
+                            : t('Write {{name}}', { name: entry.name })
                         }
                       />
                     </div>

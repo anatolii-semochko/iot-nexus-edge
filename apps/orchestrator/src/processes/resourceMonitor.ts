@@ -115,10 +115,7 @@ function readTempCelsius(): number | undefined {
 // A threshold of 0 (or simply unset) means "don't check this metric" - per
 // metric, independently, not an all-or-nothing gate on the whole tick like
 // temperature-monitor's min/max. `undefined` and `0` are deliberately
-// treated the same here.
-function exceeds(value: number, threshold: number | undefined): boolean {
-  return threshold !== undefined && threshold !== 0 && value > threshold;
-}
+// treated the same here (`over` in runResourceMonitor).
 
 const METRICS = [
   { key: "cpu", label: "CPU", unit: "%" },
@@ -127,8 +124,64 @@ const METRICS = [
   { key: "temp", label: "Temp", unit: "°C" },
 ] as const;
 
+// Hysteresis (2026-10-19): a metric hovering at a threshold (a host's CPU
+// temperature swinging 69-91 C within seconds under load) used to raise
+// and resolve its warning tick after tick - every re-raise a NEW message
+// row (587 in a day on the demo). A level already raised now holds:
+// - until the value falls `hysteresis` units (config, % or C - the
+//   metric's own) below its threshold, and
+// - `holdSeconds` (config) longer - it clears only after that long below
+//   continuously (error still wins over warning while raised - an
+//   escalation and back raises the warning once more, not every tick).
+// Per process: each raised level's last moment over (an orchestrator
+// restart starts clean - the plain threshold, at worst one more row).
+// A message's text - it follows the current value every tick; a held level
+// (back below its threshold, not cleared yet) says so.
+function describeLevel(label: string, unit: string, value: number, kind: string, threshold: number | undefined): string {
+  return value > (threshold ?? 0)
+    ? `${label} at ${value.toFixed(1)}${unit} exceeds ${kind} threshold ${threshold}${unit}`
+    : `${label} back at ${value.toFixed(1)}${unit}, below ${kind} threshold ${threshold}${unit} - clears once it stays there`;
+}
+
+const raisedAt = new Map<number, Map<string, number>>();
+// Raise after (2026-11-07): a level is raised only once its metric has been over the threshold
+// `raiseSeconds` (config) continuously - the server's CPU over 70 % for a few seconds (a build, the nightly
+// jobs) raised a warning up to 17 times an hour. Each level's first moment over, not raised yet.
+const overSince = new Map<number, Map<string, number>>();
+const DEFAULT_RAISE_S = 30;
+
 export async function runResourceMonitor(process: ProcessRecord): Promise<void> {
   const { cpuMax, ramMax, diskMax, tempMax, cpuWarnMax, ramWarnMax, diskWarnMax, tempWarnMax } = process.config;
+  const hysteresis = Math.max(0, process.config.hysteresis ?? 0);
+  const holdMs = Math.max(0, process.config.holdSeconds ?? 0) * 1000;
+  const raiseMs = Math.max(0, process.config.raiseSeconds ?? DEFAULT_RAISE_S) * 1000;
+  const before = raisedAt.get(process.id) ?? new Map<string, number>();
+  const now = new Map<string, number>();
+  const pendingBefore = overSince.get(process.id) ?? new Map<string, number>();
+  const pending = new Map<string, number>();
+  const tick = Date.now();
+  // over a threshold - or, raised before, not yet below it by `hysteresis`
+  // for `holdSeconds`
+  const over = (code: string, value: number, threshold: number | undefined): boolean => {
+    if (threshold === undefined || threshold === 0) return false;
+    const last = before.get(code);
+    if (value > (last !== undefined ? threshold - hysteresis : threshold)) {
+      if (last === undefined) {
+        const since = pendingBefore.get(code) ?? tick;
+        if (tick - since < raiseMs) {
+          pending.set(code, since);
+          return false;
+        }
+      }
+      now.set(code, tick);
+      return true;
+    }
+    if (last !== undefined && tick - last < holdMs) {
+      now.set(code, last);
+      return true;
+    }
+    return false;
+  };
 
   const cpu = readCpuPercent();
   const ram = readRamPercent();
@@ -154,18 +207,18 @@ export async function runResourceMonitor(process: ProcessRecord): Promise<void> 
   const warnMaxByKey = { cpu: cpuWarnMax, ram: ramWarnMax, disk: diskWarnMax, temp: tempWarnMax };
 
   const critical =
-    exceeds(cpu, cpuMax) ||
-    exceeds(ram, ramMax) ||
-    exceeds(disk, diskMax) ||
-    (temp !== undefined && exceeds(temp, tempMax));
+    over("cpu_error", cpu, cpuMax) ||
+    over("ram_error", ram, ramMax) ||
+    over("disk_error", disk, diskMax) ||
+    (temp !== undefined && over("temp_error", temp, tempMax));
   // Only reported once it's not already critical - error takes precedence
   // over warning (a red row, not a yellow one, once past the error max).
   const warning =
     !critical &&
-    (exceeds(cpu, cpuWarnMax) ||
-      exceeds(ram, ramWarnMax) ||
-      exceeds(disk, diskWarnMax) ||
-      (temp !== undefined && exceeds(temp, tempWarnMax)));
+    (over("cpu_warning", cpu, cpuWarnMax) ||
+      over("ram_warning", ram, ramWarnMax) ||
+      over("disk_warning", disk, diskWarnMax) ||
+      (temp !== undefined && over("temp_warning", temp, tempWarnMax)));
 
   await apiClient.setCritical(process.id, critical);
   await apiClient.setWarning(process.id, warning);
@@ -180,22 +233,15 @@ export async function runResourceMonitor(process: ProcessRecord): Promise<void> 
   for (const { key, label, unit } of METRICS) {
     const value = values[key];
     if (value === undefined) continue;
-    if (exceeds(value, maxByKey[key])) {
-      errorEntries.push({
-        code: `${key}_error`,
-        level: 1,
-        text: `${label} at ${value.toFixed(1)}${unit} exceeds error threshold ${maxByKey[key]}${unit}`,
-      });
-    } else if (exceeds(value, warnMaxByKey[key])) {
-      warningEntries.push({
-        code: `${key}_warning`,
-        level: 1,
-        text: `${label} at ${value.toFixed(1)}${unit} exceeds warning threshold ${warnMaxByKey[key]}${unit}`,
-      });
+    if (over(`${key}_error`, value, maxByKey[key])) {
+      errorEntries.push({ code: `${key}_error`, level: 1, text: describeLevel(label, unit, value, "error", maxByKey[key]) });
+    } else if (over(`${key}_warning`, value, warnMaxByKey[key])) {
+      warningEntries.push({ code: `${key}_warning`, level: 1, text: describeLevel(label, unit, value, "warning", warnMaxByKey[key]) });
     }
   }
-  await apiClient.syncMessages(process.id, "error", errorEntries);
-  await apiClient.syncMessages(process.id, "warning", warningEntries);
+  // its own hysteresis and hold - no settling on top (apiClient.ts)
+  await apiClient.syncMessages(process.id, "error", errorEntries, undefined, { clearAfterMs: 0 });
+  await apiClient.syncMessages(process.id, "warning", warningEntries, undefined, { clearAfterMs: 0 });
 
   // Disk-only addition on top of the generic error/warning above: a
   // `message` notice (AGENTS.md section 22 - dismissible via the UI's X,
@@ -214,18 +260,20 @@ export async function runResourceMonitor(process: ProcessRecord): Promise<void> 
   // even after Disk drops back down, per rule 1 ("message: visible until
   // the user closes it"), which plain `"always"` would violate.
   const messageEntries: MessageInput[] = [];
-  if (exceeds(disk, diskMax)) {
+  if (over("disk_error", disk, diskMax)) {
     messageEntries.push({
       code: "disk_error_notice",
       level: 1,
-      text: `Disk at ${disk.toFixed(1)}% exceeds error threshold ${diskMax}%`,
+      text: describeLevel("Disk", "%", disk, "error", diskMax),
     });
-  } else if (exceeds(disk, diskWarnMax)) {
+  } else if (over("disk_warning", disk, diskWarnMax)) {
     messageEntries.push({
       code: "disk_warning_notice",
       level: 1,
-      text: `Disk at ${disk.toFixed(1)}% exceeds warning threshold ${diskWarnMax}%`,
+      text: describeLevel("Disk", "%", disk, "warning", diskWarnMax),
     });
   }
   await apiClient.syncMessages(process.id, "message", messageEntries, "when-hidden");
+  raisedAt.set(process.id, now);
+  overSince.set(process.id, pending);
 }

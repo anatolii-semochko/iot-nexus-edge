@@ -1,0 +1,22 @@
+# Copy of devices/standalone/sensor/frequency/edgex-device-profile.yaml (the
+# source of truth) - kept in sync by hand (AGENTS.md section 7).
+name: "NexusEdge-Frequency"
+manufacturer: "NexusEdge"
+model: "frequency"
+labels:
+  - "sensor"
+description: "Frequency measurement - atomic device, one Float32 value"
+
+deviceResources:
+  - name: "Frequency"
+    isHidden: false
+    description: "Frequency measurement reading"
+    properties:
+      valueType: "Float32"
+      # RW at the EdgeX level although read-only for the platform - the
+      # simulate endpoints (and a physical write) push readings through
+      # core-command (same as ../pressure).
+      readWrite: "RW"
+      units: "Hz"
+
+deviceCommands: []

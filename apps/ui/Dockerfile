@@ -13,6 +13,8 @@ COPY apps/ui apps/ui
 # AGENTS.md section 7) that apps/ui imports directly via the 'devices/'
 # alias in vite.config.mjs - needs to be present in the build context too.
 COPY devices devices
+# the user guide - the Docs page renders it (docs/guide, one source with the site and the AI)
+COPY docs/guide docs/guide
 # UI branding (extension points design, AGENTS_TO_DO.md 2026-07-29 "Фаза В") -
 # defaults to "NexusEdge" for this repo's own build; a target project's
 # own apps/ui/Dockerfile passes its own name as a build arg. Read by
@@ -21,6 +23,21 @@ COPY devices devices
 # process.env var at build time.
 ARG VITE_PROJECT_NAME="Nexus Edge"
 ENV VITE_PROJECT_NAME=$VITE_PROJECT_NAME
+# Deployment environment (AGENTS_TO_DO.md 2026-09-25) - the stack's own
+# NODE_ENV, passed by docker-compose as a build arg and read by
+# src/appEnv.js (e.g. the header's Simulation badge blinks only in
+# production). Defaults to production when not passed.
+ARG VITE_NODE_ENV=production
+ENV VITE_NODE_ENV=$VITE_NODE_ENV
+# The header's Simulation badge (appEnv.js): hide / show / blink; empty - blink in production, show otherwise.
+ARG VITE_SIMULATION_BADGE=
+ENV VITE_SIMULATION_BADGE=$VITE_SIMULATION_BADGE
+# The project's own website (homeSite.js, 2026-11-01) - optional: the logo and the user menu link
+# to it, in the interface's language when the site has it (VITE_HOME_LANGS). Empty - no link.
+ARG VITE_HOME_URL=
+ENV VITE_HOME_URL=$VITE_HOME_URL
+ARG VITE_HOME_LANGS=
+ENV VITE_HOME_LANGS=$VITE_HOME_LANGS
 RUN pnpm --filter @nexus-edge/ui build
 
 FROM nginx:1.27-alpine AS runtime

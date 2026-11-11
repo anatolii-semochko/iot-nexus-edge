@@ -2,14 +2,23 @@ import Fastify, { type FastifyInstance } from "fastify";
 
 import { apiClient, type ProcessRecord } from "./apiClient.js";
 import { config } from "./config.js";
+import { startBusSubscription } from "./busEvents.js";
 import { logger } from "./logger.js";
 import { loadProcessPlugins } from "./processPlugins.js";
+import { runAiAssistant } from "./processes/aiAssistant.js";
 import { runDataLogger } from "./processes/dataLogger.js";
 import { runHeartbeatControl } from "./processes/heartbeatControl.js";
 import { runHeartbeatControlTest } from "./processes/heartbeatControlTest.js";
 import { runResourceMonitor } from "./processes/resourceMonitor.js";
+import { dispatchDeviceEvent, processLockedRun } from "./processDispatch.js";
+import { runLimited } from "./runLimited.js";
+import { awaitWithin, rotate } from "./turns.js";
+import { stepDue } from "./schedule.js";
+import { beginTick, setTickShared } from "./shared.js";
+import { setTickProcesses } from "./tickProcesses.js";
 import { processRegistry } from "./processRegistry.js";
 import { TICK_INTERVAL_MS } from "./tickInterval.js";
+import { tickStats } from "./tickStats.js";
 
 // Built-in process kinds (AGENTS.md section 10) - registered through the
 // same processRegistry a target-project plugin would use (extension
@@ -26,9 +35,51 @@ function registerBuiltinProcessKinds(): void {
   processRegistry.register("heartbeat-control", runHeartbeatControl);
   processRegistry.register("heartbeat-control-test", runHeartbeatControlTest);
   processRegistry.register("data-logger", runDataLogger);
+  processRegistry.register("ai-assistant", runAiAssistant, { intervalMs: config.aiCalendarIntervalMs });
 }
 
+// Re-entrancy guard (AGENTS_TO_DO.md, 2026-08-29) - setInterval below
+// fires every TICK_INTERVAL_MS regardless of whether the previous
+// tick()'s own async work has finished; without this flag, any tick
+// slower than 1s (plausible under real load, e.g. a busy Raspberry Pi)
+// lets the NEXT interval firing start a second, fully overlapping tick
+// on top of the first - found live as a genuine, self-compounding
+// snowball: ~500 req/s sustained against apps/api (measured directly
+// off its own request logs) where the design intends ~1/s, container
+// CPU pinned, growing worse over the container's own uptime. Every
+// process runner below fires concurrently (Promise.all), so N
+// overlapping ticks means N times the API traffic, not N+1.
+let tickInProgress = false;
+// when each process's runner last ran (its kind's `intervalMs`)
+const lastRunAt = new Map<number, number>();
+// a process's tick run still going (it overran an earlier tick's budget) - it skips its turns until done
+const inFlight = new Set<number>();
+// the processes whose run finished after its tick ended - touched alive with the next tick's heartbeats
+const lateAlive: number[] = [];
+// the ticks' count - the start order rotates by it (turns.ts)
+let turnCount = 0;
+// when the tick in progress started (performance.now) - its budget counts from it
+let tickStartedAt = 0;
+
 async function tick(): Promise<void> {
+  if (tickInProgress) {
+    logger.warn("tick: previous tick still running - skipping this interval firing");
+    tickStats.skipped();
+    return;
+  }
+  tickInProgress = true;
+  const started = performance.now();
+  tickStartedAt = started;
+  try {
+    await tickBody();
+  } finally {
+    tickInProgress = false;
+    const window = tickStats.tick(performance.now() - started);
+    if (window) logger.info({ tickStats: window }, "tick load (last window)");
+  }
+}
+
+async function tickBody(): Promise<void> {
   // Fire-and-forget, not awaited - a slow/failed publish must never delay
   // this tick's actual process runners below (AGENTS_TO_DO.md, 2026-08-01:
   // purely a cosmetic "system is alive" signal, see apiClient.tick()).
@@ -36,11 +87,16 @@ async function tick(): Promise<void> {
 
   let processes: ProcessRecord[];
   try {
-    processes = await apiClient.listProcesses();
+    beginTick();
+    processes = await setTickShared("processes", apiClient.fetchProcesses());
   } catch (err) {
     logger.warn({ err }, "failed to list processes");
     return;
   }
+  // The runners, the plugins and the event dispatcher (processDispatch.ts)
+  // read the list the tick just fetched (tickProcesses.ts) - one list call
+  // per second, not one per runner or event.
+  setTickProcesses(processes);
 
   // Heartbeating Control (AGENTS.md) - every process id whose runner
   // completed *without throwing* this tick, collected here and touched
@@ -48,17 +104,70 @@ async function tick(): Promise<void> {
   // per process per second.
   const alive: number[] = [];
 
-  await Promise.all(
-    processes.map(async (process) => {
+  // the runs that finished after an earlier tick's budget - alive too
+  alive.push(...lateAlive.splice(0));
+  // at most config.tickConcurrency runners at once (iot PERF_PROD_2026-11-05.md); the tick waits for them
+  // within its budget only (turns.ts) - the start order rotating each tick
+  // counted from the tick's start - the list read and the heartbeats' touch fit in the interval too
+  const deadline = tickStartedAt + config.tickBudgetMs;
+  turnCount += 1;
+  await runLimited(
+    rotate(processes, turnCount),
+    config.tickConcurrency,
+    async (process) => {
       const runner = processRegistry.get(process.kind);
       if (!runner) return;
-      try {
-        await runner(process);
-        alive.push(process.id);
-      } catch (err) {
-        logger.warn({ err, processId: process.id, kind: process.kind }, "process tick failed");
+      // its previous turn still runs - only this process waits, not the tick
+      if (inFlight.has(process.id)) {
+        tickStats.turn(process.kind, "busy");
+        return;
       }
-    }),
+      // a kind with its own interval runs once per interval, at the process's own place in it (schedule.ts)
+      const intervalMs = processRegistry.hooks(process.kind)?.intervalMs ?? 0;
+      const now = Date.now();
+      if (intervalMs > TICK_INTERVAL_MS && !stepDue(process.id, intervalMs, lastRunAt.get(process.id), now)) {
+        alive.push(process.id); // not run this tick by design - still alive
+        return;
+      }
+      // the budget spent before its start - its turn is next tick (the rotation keeps it fair)
+      const left = deadline - performance.now();
+      if (left <= 0) {
+        tickStats.turn(process.kind, "deferred");
+        return;
+      }
+      lastRunAt.set(process.id, now);
+      inFlight.add(process.id);
+      const runStarted = performance.now();
+      const run = processLockedRun(process.id, async () => {
+        tickStats.runStarted(process.id, process.kind);
+        try {
+          await runner(process);
+        } finally {
+          tickStats.runEnded(process.id);
+        }
+      })
+        .then(
+          () => {
+            tickStats.kind(process.kind, performance.now() - runStarted);
+            return true;
+          },
+          (err) => {
+            logger.warn({ err, processId: process.id, kind: process.kind }, "process tick failed");
+            return false;
+          },
+        )
+        .finally(() => inFlight.delete(process.id));
+      const within = await awaitWithin(run, left);
+      if (within.done) {
+        if (within.value) alive.push(process.id);
+        return;
+      }
+      // past the budget - it finishes in the background; alive with the next tick's heartbeats
+      tickStats.turn(process.kind, "overran");
+      void run.then((ok) => {
+        if (ok) lateAlive.push(process.id);
+      });
+    },
   );
 
   if (alive.length > 0) {
@@ -85,7 +194,11 @@ export async function startOrchestrator(): Promise<FastifyInstance> {
     void tick();
   }, TICK_INTERVAL_MS);
 
-  const app = Fastify({ logger: true });
+  // Event-driven hooks (AGENTS.md section 80) and change events
+  // (changeEvents.ts), alongside the tick.
+  startBusSubscription(dispatchDeviceEvent);
+
+  const app = Fastify({ logger: { level: config.logLevel } });
   app.get("/health", async () => ({ status: "ok", service: "orchestrator" }));
   // AGENTS_TO_DO.md, 2026-08-14 process management - lets apps/api (and,
   // through it, the UI) tell a `processes` row whose kind was just added
@@ -94,6 +207,8 @@ export async function startOrchestrator(): Promise<FastifyInstance> {
   // loadProcessPlugins() above run once at startup, not on a timer - a
   // kind copied in after that needs a restart before it shows up here).
   app.get("/process-kinds", async () => ({ kinds: processRegistry.list() }));
+  // the tick load of the last full window (tickStats.ts)
+  app.get("/tick-stats", async () => tickStats.last() ?? { pending: true });
   await app.listen({ port: config.port, host: config.host });
   return app;
 }

@@ -5,6 +5,7 @@ import { api } from '../../api/client'
 import { useProcessesLiveState } from '../../api/useLiveProcess'
 import IconButton from '../../components/IconButton'
 import ProcessesTable from './ProcessesTable'
+import { t } from 'src/i18n'
 
 /**
  * Dashboard tab (AGENTS.md section 22/24) - every process that has *ever*
@@ -106,7 +107,7 @@ const DashboardTab = ({
             center
             disabled={hasActiveWem}
             onClick={() => handleRemove(process)}
-            ariaLabel="Remove from Dashboard"
+            ariaLabel={t('Remove from Dashboard')}
           />
         )
       }}

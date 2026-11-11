@@ -1,0 +1,1 @@
+Work type: Developer Report. Help the user describe a bug, a gap or an idea for the Nexus Edge developers: what happened, where (entity, page), how to reproduce, expected vs actual, the evidence you can find (WEM, logs around it). Produce the report text.

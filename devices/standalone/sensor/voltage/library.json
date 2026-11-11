@@ -1,0 +1,5 @@
+{
+  "id": "device-voltage",
+  "name": "Voltage",
+  "description": "Voltage measurement - single Float32 reading (V), read-only: a grid phase, a DC bus, a battery pack."
+}

@@ -1,5 +1,6 @@
 import React from 'react'
 import { useSystemTick } from '../../api/useSystemTick'
+import { t } from 'src/i18n'
 
 /**
  * Small green header dot, left of the Notification icons (AGENTS_TO_DO.md,
@@ -20,8 +21,8 @@ const SystemTickIndicator = () => {
       key={tickCount}
       className="system-tick-dot system-tick-pulse"
       role="status"
-      aria-label="System tick"
-      title="System tick"
+      aria-label={t('System tick')}
+      title={t('System tick')}
     />
   )
 }

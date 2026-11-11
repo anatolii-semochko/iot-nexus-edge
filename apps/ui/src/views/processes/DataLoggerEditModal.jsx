@@ -14,6 +14,7 @@ import {
 } from '@coreui/react'
 import { api } from '../../api/client'
 import { formatMessageLevel } from '../../utils/messageLevel'
+import { t } from 'src/i18n'
 
 const LEVEL_OPTIONS = [1, 2, 3, 4]
 
@@ -24,13 +25,16 @@ const LEVEL_OPTIONS = [1, 2, 3, 4]
 // loaded yet, or if a row is missing.
 const levelOptionLabel = (type, level, messageLevels) => {
   const row = messageLevels?.find((r) => r.type === type && r.level === level)
-  if (!row) return `Level ${level}`
-  return `Level ${level} - ${formatMessageLevel({
-    type,
-    mode: row.mode,
-    beepCount: row.beep_count,
-    repeatSeconds: row.repeat_seconds,
-  })}`
+  if (!row) return t('Level {{level}}', { level })
+  return t('Level {{level}} - {{formatMessageLevel}}', {
+    level,
+    formatMessageLevel: formatMessageLevel({
+      type,
+      mode: row.mode,
+      beepCount: row.beep_count,
+      repeatSeconds: row.repeat_seconds,
+    }),
+  })
 }
 
 // One threshold row (warning or error) - same shape as
@@ -79,7 +83,7 @@ const ThresholdRow = ({ type, label, value, onChange, messageLevels }) => {
             )
           }
         >
-          <option value="">Off (not monitored)</option>
+          <option value="">{t('Off (not monitored)')}</option>
           {LEVEL_OPTIONS.map((level) => (
             <option key={level} value={level}>
               {levelOptionLabel(type, level, messageLevels)}
@@ -128,13 +132,15 @@ const DataLoggerEditModal = ({ entry, onClose, onSaved }) => {
   return (
     <CModal visible onClose={onClose}>
       <CModalHeader>
-        <CModalTitle>Data logging - {entry.name}</CModalTitle>
+        <CModalTitle>
+          {t('Data logging -')} {entry.name}
+        </CModalTitle>
       </CModalHeader>
       <CModalBody>
         {saveError && <CAlert color="danger">{saveError}</CAlert>}
         <CRow className="align-items-center g-2 mb-3">
           <CCol xs="3">
-            <div className="text-body-secondary small">Period (s)</div>
+            <div className="text-body-secondary small">{t('Period (s)')}</div>
           </CCol>
           <CCol xs="9">
             <CFormInput
@@ -152,14 +158,14 @@ const DataLoggerEditModal = ({ entry, onClose, onSaved }) => {
         </CRow>
         <ThresholdRow
           type="warning"
-          label="Warning"
+          label={t('Warning')}
           value={warning}
           onChange={setWarning}
           messageLevels={messageLevels}
         />
         <ThresholdRow
           type="error"
-          label="Error"
+          label={t('Error')}
           value={error_}
           onChange={setError_}
           messageLevels={messageLevels}
@@ -167,10 +173,10 @@ const DataLoggerEditModal = ({ entry, onClose, onSaved }) => {
       </CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="outline" onClick={onClose} disabled={saving}>
-          Cancel
+          {t('Cancel')}
         </CButton>
         <CButton color="primary" onClick={handleSave} disabled={saving}>
-          Save
+          {t('Save')}
         </CButton>
       </CModalFooter>
     </CModal>

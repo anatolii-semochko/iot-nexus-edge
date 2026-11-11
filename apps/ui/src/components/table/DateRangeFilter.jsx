@@ -1,5 +1,6 @@
 import React from 'react'
 import { CCol, CFormInput } from '@coreui/react'
+import { t } from 'src/i18n'
 
 /**
  * From/To datetime-range filter - two native <input type="datetime-local">
@@ -19,7 +20,7 @@ const DateRangeFilter = ({ from, to, onFromChange, onToChange }) => (
         style={{ width: '13em' }}
         value={from}
         onChange={(e) => onFromChange(e.target.value)}
-        aria-label="From"
+        aria-label={t('From')}
       />
     </CCol>
     <CCol xs="auto">
@@ -29,7 +30,7 @@ const DateRangeFilter = ({ from, to, onFromChange, onToChange }) => (
         style={{ width: '13em' }}
         value={to}
         onChange={(e) => onToChange(e.target.value)}
-        aria-label="To"
+        aria-label={t('To')}
       />
     </CCol>
   </>

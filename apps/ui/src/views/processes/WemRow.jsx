@@ -1,6 +1,8 @@
 import React from 'react'
 import { api } from '../../api/client'
 import { wemBadgeClass } from '../../utils/wem'
+import MessageLink from '../../components/MessageLink'
+import { t, messageText } from 'src/i18n'
 
 /**
  * WEM (Warnings/Errors/Messages) list (AGENTS.md section 22) - rendered as
@@ -30,20 +32,21 @@ const WemRow = ({ messages }) => {
   }
 
   return (
-    <div className="px-3 pb-2">
+    <div className="mb-2">
       {messages.map((message, index) => (
         <div
           key={message.id}
           className={`d-flex align-items-center justify-content-between px-3 py-2 mb-1 ${wemBadgeClass(message.type)}`}
         >
           <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>
-            {index + 1}. {message.text}
+            {index + 1}. {messageText(message)}
+            <MessageLink link={message.link} />
           </span>
           {message.type === 'message' && (
             <button
               type="button"
               className="btn-close"
-              aria-label="Dismiss"
+              aria-label={t('Dismiss')}
               onClick={() => handleDismiss(message.id)}
             />
           )}

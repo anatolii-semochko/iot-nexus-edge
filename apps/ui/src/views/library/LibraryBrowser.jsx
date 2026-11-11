@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   CAlert,
   CBadge,
@@ -29,13 +30,23 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilLibrary, cilReload } from '@coreui/icons'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
+import ExpandToggleButton from '../../components/table/ExpandToggleButton'
 import TableSearchInput from '../../components/table/TableSearchInput'
-import upIcon from '../../assets/images/up.png'
+import { useExpandableRows } from '../../hooks/useExpandableRows'
+import Breadcrumb from '../../components/UpBreadcrumb'
+import AddRegistryModal from './AddRegistryModal'
+
+// the add button's text per catalog kind - one key each, so a language puts its own word order
+const ADD_LABEL = { node: 'Add node', device: 'Add device', process: 'Add process' }
+import LibraryItemDetailRow from './LibraryItemDetailRow'
+import PageTitle from '../../components/PageTitle'
+import { t } from 'src/i18n'
 
 const KINDS = [
-  { value: 'device', label: 'Devices' },
-  { value: 'node', label: 'Nodes' },
-  { value: 'process', label: 'Processes' },
+  { value: 'device', label: t('Devices') },
+  { value: 'node', label: t('Nodes') },
+  { value: 'process', label: t('Processes') },
 ]
 
 // Process management (AGENTS_TO_DO.md, 2026-08-14) - a process-kind
@@ -73,7 +84,7 @@ const AddProcessModal = ({ item, visible, onClose, onCreated }) => {
     try {
       config = configText.trim() ? JSON.parse(configText) : {}
     } catch {
-      setError('Config must be valid JSON.')
+      setError(t('Config must be valid JSON.'))
       return
     }
     setBusy(true)
@@ -98,18 +109,20 @@ const AddProcessModal = ({ item, visible, onClose, onCreated }) => {
   return (
     <CModal visible={visible} onClose={onClose}>
       <CModalHeader>
-        <CModalTitle>Add process - {item?.name}</CModalTitle>
+        <CModalTitle>
+          {t('Add process -')} {item?.name}
+        </CModalTitle>
       </CModalHeader>
       <CModalBody>
         {error && <CAlert color="danger">{error}</CAlert>}
         <div className="mb-3">
-          <CFormLabel>Name</CFormLabel>
+          <CFormLabel>{t('Name')}</CFormLabel>
           <CFormInput value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
         </div>
         <div className="mb-3">
-          <CFormLabel>Group</CFormLabel>
+          <CFormLabel>{t('Group')}</CFormLabel>
           <CFormSelect value={groupId} onChange={(e) => setGroupId(e.target.value)} disabled={busy}>
-            <option value="">Select a group...</option>
+            <option value="">{t('Select a group...')}</option>
             {(groups ?? []).map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
@@ -118,14 +131,14 @@ const AddProcessModal = ({ item, visible, onClose, onCreated }) => {
           </CFormSelect>
         </div>
         <div className="mb-3">
-          <CFormLabel>Type</CFormLabel>
+          <CFormLabel>{t('Type')}</CFormLabel>
           <CFormSelect value={type} onChange={(e) => setType(e.target.value)} disabled={busy}>
-            <option value="controllable">Controllable</option>
-            <option value="permanent">Permanent</option>
+            <option value="controllable">{t('Controllable')}</option>
+            <option value="permanent">{t('Permanent')}</option>
           </CFormSelect>
         </div>
         <div className="mb-3">
-          <CFormLabel>Device id (optional)</CFormLabel>
+          <CFormLabel>{t('Device id (optional)')}</CFormLabel>
           <CFormInput
             value={deviceId}
             onChange={(e) => setDeviceId(e.target.value)}
@@ -152,69 +165,15 @@ const AddProcessModal = ({ item, visible, onClose, onCreated }) => {
       </CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="outline" onClick={onClose} disabled={busy}>
-          Cancel
+          {t('Cancel')}
         </CButton>
         <CButton color="primary" onClick={handleSubmit} disabled={busy || !name || !groupId}>
-          {busy ? <CSpinner size="sm" /> : 'Create'}
+          {busy ? <CSpinner size="sm" /> : t('Create')}
         </CButton>
       </CModalFooter>
     </CModal>
   )
 }
-
-// Breadcrumb strip (AGENTS_TO_DO.md, 2026-08-01 discussion) - modeled on
-// sevenstime-backoffice's web-interface/src/views/base-elements/
-// Categories.js: the up-arrow image (copied verbatim, same asset) plus a
-// "Root / Cat1 / Cat2" clickable path. Unlike that reference, this is
-// read-only navigation only - no add/edit/delete category forms, since
-// the Library Catalog's categories are managed by moving folders in git,
-// not through this UI.
-const Breadcrumb = ({ trail, onNavigate }) => (
-  <div className="mb-2 d-flex align-items-center">
-    <img
-      src={upIcon}
-      alt="Up"
-      onClick={trail.length ? () => onNavigate(trail[trail.length - 2]?.id ?? null) : undefined}
-      style={{
-        opacity: trail.length ? 1 : 0.4,
-        cursor: trail.length ? 'pointer' : 'default',
-        width: 20,
-        height: 20,
-      }}
-    />
-    <div className="ms-2">
-      <a
-        href="#"
-        className={trail.length ? 'link-primary' : ''}
-        onClick={(e) => {
-          e.preventDefault()
-          onNavigate(null)
-        }}
-      >
-        Root
-      </a>
-      {trail.map((crumb, i) => (
-        <span key={crumb.id}>
-          {' / '}
-          {i === trail.length - 1 ? (
-            <span>{crumb.name}</span>
-          ) : (
-            <a
-              href="#"
-              className="link-primary"
-              onClick={(e) => {
-                e.preventDefault()
-                onNavigate(crumb.id)
-              }}
-            >
-              {crumb.name}
-            </a>
-          )}
-        </span>
-      ))}
-    </div>
-  </div>
-)
 
 const iconUrl = (iconPath) => (iconPath ? `/api${iconPath}` : null)
 
@@ -233,7 +192,21 @@ const RowIcon = ({ iconPath }) => {
  * with its own breadcrumb-driven browse state.
  */
 const LibraryBrowser = () => {
-  const [kind, setKind] = useState('device')
+  // adding nodes / devices / processes and syncing - by the person's rights (access.js)
+  const can = useCan()
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Type-column deep link (AGENTS_TO_DO.md, 2026-08-30) - a Devices/Nodes/
+  // ProcessesTable row's "link" cell opens #/library?kind=X&type=Y in a
+  // new tab. Read once on mount (a later in-page kind switch clears these,
+  // see handleKindChange) rather than kept in sync with the URL bar - this
+  // page has never round-tripped its browse state through the URL before,
+  // and doing that for every click/search here would be unrelated scope.
+  const [kind, setKind] = useState(() => {
+    const fromUrl = searchParams.get('kind')
+    return KINDS.some((k) => k.value === fromUrl) ? fromUrl : 'device'
+  })
+  const [typeFilter, setTypeFilter] = useState(() => searchParams.get('type'))
+  const [filteredItem, setFilteredItem] = useState(null)
   const [categoryId, setCategoryId] = useState(null)
   const [breadcrumb, setBreadcrumb] = useState([])
   const [children, setChildren] = useState(null)
@@ -243,7 +216,18 @@ const LibraryBrowser = () => {
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState(null)
   const [addProcessItem, setAddProcessItem] = useState(null)
+  // a node / device type's "Add node" / "Add device" (AddRegistryModal.jsx)
+  const [addRegistryItem, setAddRegistryItem] = useState(null)
   const [createdMessage, setCreatedMessage] = useState(null)
+  const [expandedIds, setExpandedIds] = useState([])
+  const { isExpanded, toggleOne } = useExpandableRows(expandedIds, setExpandedIds)
+  // A `library-item://<id>` doc link (LibraryItemDetailRow.jsx's own
+  // Documentation tab) may point at an item in a different kind/category
+  // than whatever's currently browsed - this holds the target id between
+  // "re-navigate there" and "its row actually showed up in `children`",
+  // since that's a separate async fetch (AGENTS_TO_DO.md, 2026-08-27
+  // "markdown-viewer" follow-up).
+  const [pendingExpandId, setPendingExpandId] = useState(null)
 
   const loadBrowse = (nextKind, nextCategoryId) => {
     setError(null)
@@ -257,12 +241,31 @@ const LibraryBrowser = () => {
   }
 
   useEffect(() => {
+    // Skipped while a type-filter deep link is active - that mode fetches
+    // its own single item below instead of a category listing.
+    if (typeFilter) return
     // Fetching on kind/categoryId change, not deriving state from props -
     // same accepted pattern as ResourceMonitorPanel.jsx's own history
     // accumulation.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadBrowse(kind, categoryId)
-  }, [kind, categoryId])
+  }, [kind, categoryId, typeFilter])
+
+  useEffect(() => {
+    if (!typeFilter) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFilteredItem(null)
+      return
+    }
+    setError(null)
+    api
+      .getLibraryItemByType(kind, typeFilter)
+      .then(setFilteredItem)
+      .catch((err) => {
+        setError(err.message)
+        setFilteredItem(null)
+      })
+  }, [kind, typeFilter])
 
   useEffect(() => {
     if (!search) {
@@ -283,18 +286,72 @@ const LibraryBrowser = () => {
     setKind(nextKind)
     setCategoryId(null)
     setSearch('')
+    setExpandedIds([])
+    if (typeFilter) {
+      setTypeFilter(null)
+      setSearchParams({}, { replace: true })
+    }
+  }
+
+  // Exits the type-filter deep-link view back into normal category
+  // browsing, landing on the filtered item's own category rather than the
+  // tree root.
+  const handleClearTypeFilter = () => {
+    setTypeFilter(null)
+    setSearchParams({}, { replace: true })
+    const trail = filteredItem?.breadcrumb ?? []
+    setCategoryId(trail.length ? trail[trail.length - 1].id : null)
   }
 
   const handleNavigate = (nextCategoryId) => {
     setCategoryId(nextCategoryId)
+    setExpandedIds([])
   }
+
+  // A doc link's target item may live under a different kind and/or
+  // category than what's on screen - look up where it actually is, then
+  // navigate there; the effect below finishes the job (expand + scroll)
+  // once that navigation's own `children` fetch lands.
+  const handleNavigateToItem = async (id) => {
+    setError(null)
+    try {
+      const location = await api.getLibraryItemLocation(id)
+      setSearch('')
+      setKind(location.kind)
+      setCategoryId(location.categoryId)
+      setExpandedIds([])
+      setPendingExpandId(id)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  useEffect(() => {
+    if (!pendingExpandId || !children) return
+    if (!children.some((c) => c.type === 'item' && c.id === pendingExpandId)) return
+    // Reacting to `children` finishing its own fetch (an external
+    // system, from this effect's point of view) - same accepted pattern
+    // as this file's own kind/categoryId-driven loadBrowse effect above.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExpandedIds([pendingExpandId])
+    document.getElementById(`library-row-${pendingExpandId}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
+    setPendingExpandId(null)
+  }, [children, pendingExpandId])
 
   const handleSync = async () => {
     setSyncing(true)
     setSyncMessage(null)
     try {
       const result = await api.syncLibrary()
-      setSyncMessage(`Synced: ${result.categories} categories, ${result.items} items.`)
+      setSyncMessage(
+        t('Synced: {{categories}} categories, {{items}} items.', {
+          categories: result.categories,
+          items: result.items,
+        }),
+      )
       loadBrowse(kind, categoryId)
     } catch (err) {
       setError(err.message)
@@ -304,15 +361,29 @@ const LibraryBrowser = () => {
   }
 
   const showingSearch = Boolean(search)
-  const rows = showingSearch ? searchResults : children
+  const rows = typeFilter
+    ? filteredItem
+      ? [filteredItem.item]
+      : error
+        ? []
+        : null
+    : showingSearch
+      ? searchResults
+      : children
 
   return (
     <CCard className="mb-4">
       <CCardHeader className="d-flex justify-content-between align-items-center">
-        <strong>Library</strong>
-        <CButton color="secondary" variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
+        <PageTitle title={t('Library')} />
+        <CButton
+          color="secondary"
+          variant="outline"
+          size="sm"
+          onClick={handleSync}
+          disabled={syncing || !can('library.manage')}
+        >
           <CIcon icon={cilReload} className="me-1" />
-          {syncing ? 'Syncing...' : 'Sync'}
+          {syncing ? t('Syncing...') : t('Sync')}
         </CButton>
       </CCardHeader>
       <CCardBody>
@@ -323,106 +394,171 @@ const LibraryBrowser = () => {
           </CAlert>
         )}
 
-        <CRow className="mb-3 g-2 align-items-center">
-          <CCol xs="auto">
-            <CButtonGroup size="sm">
-              {KINDS.map((k) => (
-                <CButton
-                  key={k.value}
-                  color="primary"
-                  variant={kind === k.value ? undefined : 'outline'}
-                  onClick={() => handleKindChange(k.value)}
-                >
-                  {k.label}
-                </CButton>
-              ))}
-            </CButtonGroup>
-          </CCol>
-          <CCol xs="auto">
-            <TableSearchInput
-              value={search}
-              onSearch={setSearch}
-              placeholder={`Search ${kind === 'device' ? 'devices' : kind === 'node' ? 'nodes' : 'processes'} by name or description...`}
-            />
-          </CCol>
-        </CRow>
+        {typeFilter ? (
+          <CAlert color="info" className="d-flex justify-content-between align-items-center">
+            <span>
+              {t('Showing only')} <strong>{typeFilter}</strong>.
+            </span>
+            <CButton size="sm" color="info" variant="outline" onClick={handleClearTypeFilter}>
+              {t('Clear filter')}
+            </CButton>
+          </CAlert>
+        ) : (
+          <>
+            <CRow className="mb-3 g-2 align-items-center">
+              <CCol xs="auto">
+                <CButtonGroup size="sm">
+                  {KINDS.map((k) => (
+                    <CButton
+                      key={k.value}
+                      color="primary"
+                      variant={kind === k.value ? undefined : 'outline'}
+                      onClick={() => handleKindChange(k.value)}
+                    >
+                      {k.label}
+                    </CButton>
+                  ))}
+                </CButtonGroup>
+              </CCol>
+              <CCol xs="auto">
+                <TableSearchInput
+                  value={search}
+                  onSearch={setSearch}
+                  placeholder={t('Search {{v0}} by name or description...', {
+                    v0: kind === 'device' ? 'devices' : kind === 'node' ? 'nodes' : 'processes',
+                  })}
+                />
+              </CCol>
+            </CRow>
 
-        {!showingSearch && <Breadcrumb trail={breadcrumb} onNavigate={handleNavigate} />}
+            {!showingSearch && <Breadcrumb trail={breadcrumb} onNavigate={handleNavigate} />}
+          </>
+        )}
 
         {!rows ? (
           <CSpinner size="sm" />
         ) : rows.length === 0 ? (
-          <CAlert color="info">{showingSearch ? 'No matches.' : 'Nothing here yet.'}</CAlert>
+          <CAlert color="info">{showingSearch ? t('No matches.') : t('Nothing here yet.')}</CAlert>
         ) : (
-          <CTable hover responsive>
+          <CTable responsive>
             <CTableHead>
               <CTableRow>
                 <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
-                <CTableHeaderCell>Name</CTableHeaderCell>
-                <CTableHeaderCell>Description</CTableHeaderCell>
-                <CTableHeaderCell>Used in project</CTableHeaderCell>
-                {kind === 'process' && <CTableHeaderCell></CTableHeaderCell>}
+                <CTableHeaderCell>{t('Name')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Description')}</CTableHeaderCell>
+                <CTableHeaderCell>{t('Used in project')}</CTableHeaderCell>
+                <CTableHeaderCell></CTableHeaderCell>
+                <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
               </CTableRow>
             </CTableHead>
             <CTableBody>
-              {rows.map((row) => (
-                <CTableRow key={`${row.type ?? 'item'}:${row.id}`}>
-                  <CTableDataCell>
-                    <RowIcon iconPath={row.iconPath} />
-                  </CTableDataCell>
-                  <CTableDataCell>
-                    {row.type === 'category' ? (
-                      <a
-                        href="#"
-                        className="link-primary"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          handleNavigate(row.id)
-                        }}
+              {rows.map((row) => {
+                const expandedRow = row.type === 'item' && isExpanded(row.id)
+                const columnCount = 6
+                return (
+                  <React.Fragment key={`${row.type ?? 'item'}:${row.id}`}>
+                    <CTableRow id={row.type === 'item' ? `library-row-${row.id}` : undefined}>
+                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                        <RowIcon iconPath={row.iconPath} />
+                      </CTableDataCell>
+                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                        {/* the folders - blue, no underline; the folders and the DNPs bold (2026-10-16, as Service -> Config -> Dashboard) */}
+                        {row.type === 'category' ? (
+                          <a
+                            href="#"
+                            className="link-primary fw-semibold text-decoration-none"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              handleNavigate(row.id)
+                            }}
+                          >
+                            {row.name}
+                          </a>
+                        ) : (
+                          <span className="fw-semibold">{row.name}</span>
+                        )}
+                      </CTableDataCell>
+                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                        {row.description ?? '-'}
+                      </CTableDataCell>
+                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                        {row.type === 'category' ? (
+                          '-'
+                        ) : row.usedInProject ? (
+                          <CBadge color="success" className="mb-1">
+                            {t('Used')}
+                          </CBadge>
+                        ) : (
+                          <CBadge color="secondary" className="mb-1">
+                            {t('Not used')}
+                          </CBadge>
+                        )}
+                      </CTableDataCell>
+                      <CTableDataCell
+                        className={`text-nowrap ${expandedRow ? 'border-bottom-0' : ''}`}
                       >
-                        {row.name}
-                      </a>
-                    ) : (
-                      row.name
+                        {row.type === 'item' &&
+                          can(`${kind === 'process' ? 'processes' : `${kind}s`}.manage`) && (
+                            <CButton
+                              size="sm"
+                              color="primary"
+                              variant="outline"
+                              onClick={() =>
+                                kind === 'process'
+                                  ? setAddProcessItem(row)
+                                  : setAddRegistryItem(row)
+                              }
+                            >
+                              {ADD_LABEL[kind] ? t(ADD_LABEL[kind]) : `${t('Add')} ${kind}`}
+                            </CButton>
+                          )}
+                      </CTableDataCell>
+                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
+                        {row.type === 'item' && (
+                          <ExpandToggleButton
+                            expanded={expandedRow}
+                            onClick={() => toggleOne(row.id)}
+                          />
+                        )}
+                      </CTableDataCell>
+                    </CTableRow>
+                    {expandedRow && (
+                      <CTableRow>
+                        <CTableDataCell colSpan={columnCount} className="p-0">
+                          <LibraryItemDetailRow
+                            row={row}
+                            kind={kind}
+                            onNavigateToItem={handleNavigateToItem}
+                          />
+                        </CTableDataCell>
+                      </CTableRow>
                     )}
-                  </CTableDataCell>
-                  <CTableDataCell>{row.description ?? '-'}</CTableDataCell>
-                  <CTableDataCell>
-                    {row.type === 'category' ? (
-                      '-'
-                    ) : row.usedInProject ? (
-                      <CBadge color="success">Used</CBadge>
-                    ) : (
-                      <CBadge color="secondary">Not used</CBadge>
-                    )}
-                  </CTableDataCell>
-                  {kind === 'process' && (
-                    <CTableDataCell>
-                      {row.type === 'item' && (
-                        <CButton
-                          size="sm"
-                          color="primary"
-                          variant="outline"
-                          onClick={() => setAddProcessItem(row)}
-                        >
-                          Add process
-                        </CButton>
-                      )}
-                    </CTableDataCell>
-                  )}
-                </CTableRow>
-              ))}
+                  </React.Fragment>
+                )
+              })}
             </CTableBody>
           </CTable>
         )}
       </CCardBody>
 
+      {addRegistryItem && (
+        <AddRegistryModal
+          kind={kind}
+          item={addRegistryItem}
+          onClose={() => setAddRegistryItem(null)}
+          onCreated={setCreatedMessage}
+        />
+      )}
       <AddProcessModal
         item={addProcessItem}
         visible={Boolean(addProcessItem)}
         onClose={() => setAddProcessItem(null)}
         onCreated={() =>
-          setCreatedMessage(`Process "${addProcessItem?.name}" created - see the Processes page.`)
+          setCreatedMessage(
+            t('Process "{{name}}" created - see the Processes page.', {
+              name: addProcessItem?.name,
+            }),
+          )
         }
       />
       {createdMessage && (

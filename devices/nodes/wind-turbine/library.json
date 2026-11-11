@@ -1,0 +1,84 @@
+{
+  "id": "node-wind-turbine",
+  "name": "Wind Turbine",
+  "description": "A wind turbine with its inverter - reference models Braun ANTARIS 3.5 / 6.5 kW (small, Germany) and Northern Power Systems NPS 100C-24 (95 kW, mid-size). Power, yield, rotor speed, an on / off (brake) switch. Used by energy-field.",
+  "models": [
+    {
+      "key": "nps-100c-24",
+      "name": "NPS 100C-24",
+      "maker": "Northern Power Systems, USA",
+      "image": "model-nps-100c.webp",
+      "purpose": "Mid-size wind turbine for farms and businesses - direct drive, permanent-magnet generator.",
+      "specs": [
+        {
+          "label": "Rated power",
+          "value": "95 kW"
+        },
+        {
+          "label": "Rotor",
+          "value": "24.4 m, 3 blades"
+        },
+        {
+          "label": "Hub height",
+          "value": "30 / 37 m"
+        },
+        {
+          "label": "Cut-in / rated / cut-out",
+          "value": "3 / ~12 / 25 m/s"
+        },
+        {
+          "label": "Rotor speed",
+          "value": "variable, up to 59 rpm"
+        },
+        {
+          "label": "Drive",
+          "value": "direct, no gearbox"
+        }
+      ]
+    },
+    {
+      "key": "antaris-6-5",
+      "name": "ANTARIS 6.5 kW",
+      "maker": "Braun Windturbinen GmbH, Germany",
+      "image": "model-antaris.webp",
+      "purpose": "Small wind turbine - direct drive, permanent-magnet generator.",
+      "specs": [
+        {
+          "label": "Rated power",
+          "value": "6.5 kW"
+        },
+        {
+          "label": "Rotor",
+          "value": "5.3 m, 3 blades"
+        },
+        {
+          "label": "Cut-in / cut-out",
+          "value": "2 / 15 m/s"
+        }
+      ],
+      "url": "https://braun-windturbinen.com/en/products/antaris-small-wind-turbines/"
+    },
+    {
+      "key": "antaris-3-5",
+      "name": "ANTARIS 3.5 kW",
+      "maker": "Braun Windturbinen GmbH, Germany",
+      "image": "model-antaris.webp",
+      "purpose": "Small wind turbine - direct drive, permanent-magnet generator.",
+      "specs": [
+        {
+          "label": "Rated power",
+          "value": "3.7 kW at 420 rpm"
+        },
+        {
+          "label": "Rotor",
+          "value": "3.5 m (9.6 m²), 3 blades"
+        },
+        {
+          "label": "Cut-in / cut-out",
+          "value": "2 / 15 m/s"
+        }
+      ],
+      "url": "https://braun-windturbinen.com/en/products/antaris-small-wind-turbines/antaris-3-5-kw/"
+    }
+  ]
+}

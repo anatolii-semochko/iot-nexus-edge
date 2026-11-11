@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 
 import { pool } from "../db.js";
-import { syncLibrary } from "../libraryCatalog.js";
+import { getLibraryItemDetail, syncLibrary } from "../libraryCatalog.js";
 
 type Kind = "device" | "node" | "process";
 
@@ -109,6 +109,79 @@ export async function libraryRoutes(app: FastifyInstance): Promise<void> {
         })),
       ],
     };
+  });
+
+  // Expanded-row detail (AGENTS_TO_DO.md, 2026-08-27) - README/CHANGELOG
+  // prose, EdgeX profile specs, and cross-linked compatibility, read
+  // fresh from disk on every call rather than synced into Postgres (see
+  // getLibraryItemDetail's own doc comment for why). `id` is the DN's
+  // own library.json id, same identity everything else in this route
+  // file already keys on.
+  app.get<{ Params: { id: string } }>("/library/items/:id/detail", async (request, reply) => {
+    const { rows } = await pool.query<{ folder_path: string; kind: Kind; type_name: string }>(
+      `SELECT folder_path, kind, type_name FROM library_items WHERE id = $1`,
+      [request.params.id],
+    );
+    if (!rows[0]) return reply.code(404).send({ error: "not found" });
+    return getLibraryItemDetail(rows[0].folder_path, rows[0].kind, rows[0].type_name);
+  });
+
+  // Type-column deep link (AGENTS_TO_DO.md, 2026-08-30) - resolves a
+  // Node/Device/Process row's own type/kind column (type_name in Library
+  // terms) straight to its Library item, for the "link" cell opened in a
+  // new tab from DevicesList/NodesList/ProcessesTable. Same row shape as
+  // /library/browse's own item rows (plus breadcrumb) so LibraryBrowser.jsx
+  // can render it without a second round trip - unlike /location, which
+  // only resolves an id to a place to browse, this resolves a (kind,
+  // typeName) pair straight to the item itself since the caller never had
+  // a library_items.id to begin with, only the type name shown in the row.
+  app.get<{ Querystring: { kind: Kind; typeName?: string } }>("/library/items/by-type", async (request, reply) => {
+    const { kind, typeName } = request.query;
+    if (kind !== "device" && kind !== "node" && kind !== "process") {
+      return reply.code(400).send({ error: "kind must be 'device', 'node', or 'process'" });
+    }
+    if (!typeName) return reply.code(400).send({ error: "typeName is required" });
+
+    const [used, { rows }] = await Promise.all([
+      usedTypeNames(kind),
+      pool.query<ItemRow>(
+        `SELECT id, category_id, kind, name, description, icon_path, type_name, supports FROM library_items
+         WHERE kind = $1 AND type_name = $2 LIMIT 1`,
+        [kind, typeName],
+      ),
+    ]);
+    if (!rows[0]) return reply.code(404).send({ error: "not found" });
+    const item = rows[0];
+
+    return {
+      breadcrumb: await breadcrumbFor(item.category_id),
+      item: {
+        type: "item" as const,
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        iconPath: item.icon_path,
+        typeName: item.type_name,
+        supports: item.supports,
+        usedInProject: used.has(item.type_name),
+      },
+    };
+  });
+
+  // Cross-item doc-link navigation (AGENTS_TO_DO.md, 2026-08-27 markdown-
+  // viewer follow-up) - the Documentation tab's `library-item://<id>`
+  // links (rewritten server-side by libraryCatalog.ts's own
+  // rewriteDocLinks) resolve to a target item that may live in a
+  // different kind/category than whatever's currently browsed; this is
+  // just enough for LibraryBrowser.jsx to re-navigate there (`kind` +
+  // `categoryId`) before expanding it, not a full item payload.
+  app.get<{ Params: { id: string } }>("/library/items/:id/location", async (request, reply) => {
+    const { rows } = await pool.query<{ kind: Kind; category_id: number | null }>(
+      `SELECT kind, category_id FROM library_items WHERE id = $1`,
+      [request.params.id],
+    );
+    if (!rows[0]) return reply.code(404).send({ error: "not found" });
+    return { kind: rows[0].kind, categoryId: rows[0].category_id };
   });
 
   // Flat, cross-category search by name/description (AGENTS_TO_DO.md: "для

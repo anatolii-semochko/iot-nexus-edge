@@ -17,7 +17,9 @@ import {
   CTabs,
 } from '@coreui/react'
 import { api } from '../../api/client'
+import { useCan } from '../../access'
 import { processSettingsSections, processSettingsConfigFields } from '../../processTypeRegistry'
+import { t } from 'src/i18n'
 
 // One checkbox section - fetches this process's current membership in
 // `items` (Tab Groups or Message Casting Groups, whichever `entity`
@@ -26,6 +28,42 @@ import { processSettingsSections, processSettingsConfigFields } from '../../proc
 // sections at once (AGENTS.md section 22 - Tab Groups and Message
 // Casting Groups are independent entities, but both edited from the
 // same popup).
+/**
+ * Whom the process acts for (iot AGENTS_TO_DO.md 2026-11-06): its requests made "as the person" get
+ * that person's rights and author what it records (e.g. a maintenance process doing a technician's
+ * work). The people's administrator only; the people - active accounts, not the services' or the guest.
+ */
+const ActsAsSection = ({ value, onChange, busy }) => {
+  const [people, setPeople] = useState(null)
+  useEffect(() => {
+    api
+      .listUsers()
+      .then((users) => setPeople(users.filter((u) => u.active && !u.service && !u.guest)))
+      .catch(() => setPeople([]))
+  }, [])
+  return (
+    <div className="mb-3">
+      <div className="fw-semibold mb-1">{t('Acts as')}</div>
+      <CFormSelect
+        size="sm"
+        disabled={busy || !people}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+      >
+        <option value="">{t('No one - the process acts as itself')}</option>
+        {(people ?? []).map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.display_name || u.username} ({u.username})
+          </option>
+        ))}
+      </CFormSelect>
+      <div className="small text-body-secondary mt-1">
+        {t("What it does on a person's behalf - with that person's rights, recorded as theirs.")}
+      </div>
+    </div>
+  )
+}
+
 const GroupCheckboxSection = ({ title, items, fetchSelected, selectedIds, onChange, busy }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -77,7 +115,7 @@ const GroupCheckboxSection = ({ title, items, fetchSelected, selectedIds, onChan
       {loading ? (
         <CSpinner size="sm" />
       ) : items.length === 0 ? (
-        <div className="text-body-secondary">Nothing here yet - add some in Settings.</div>
+        <div className="text-body-secondary">{t('Nothing here yet - add some in Settings.')}</div>
       ) : (
         items.map((item) => (
           <CFormCheck
@@ -150,9 +188,23 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
   const ExtraSection = process && processSettingsSections[process.kind]
   const extraConfigField = process && processSettingsConfigFields[process.kind]
   const settingsTabs = ExtraSection?.settingsTabs
+  // Tab Groups are a Processes-page navigation concept (dynamic tabs on
+  // that page's own Dashboard/All/Controllable/etc strip) - meaningless
+  // for a `simulation`-type process, which only ever appears on the
+  // Simulator page's own flat, tab-less list (AGENTS_TO_DO.md, 2026-08-29:
+  // "Tabs видали, Message Casting Groups залиш"). Message Casting Groups
+  // stays for every process type - it's how a simulation process's own
+  // error casting (setCritical/syncMessages) actually gets routed.
+  const isSimulation = process?.type === 'simulation'
+  const can = useCan()
+  const canActsAs = !isSimulation && can('users.manage')
+  // undefined - not edited (the process's own value)
+  const [actsAsEdit, setActsAs] = useState(undefined)
+  const actsAs = actsAsEdit === undefined ? (process?.acts_as_user_id ?? null) : actsAsEdit
 
   const handleClose = () => {
     extraConfigRef.current = null
+    setActsAs(undefined)
     setActiveSettingsTab('system')
     onClose()
   }
@@ -161,10 +213,17 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
     setBusy(true)
     setError(null)
     try {
-      const writes = [
-        api.setProcessTabGroups(process.id, [...selectedTabGroupIds]),
-        api.setProcessMessageGroups(process.id, [...selectedMessageGroupIds]),
-      ]
+      const writes = [api.setProcessMessageGroups(process.id, [...selectedMessageGroupIds])]
+      // No tab-group write for a simulation process - the section above is
+      // never shown to edit it, so `selectedTabGroupIds` would otherwise
+      // always be the empty Set it starts as, silently wiping out any
+      // existing membership on every save.
+      if (!isSimulation) {
+        writes.push(api.setProcessTabGroups(process.id, [...selectedTabGroupIds]))
+      }
+      if (canActsAs && actsAs !== (process.acts_as_user_id ?? null)) {
+        writes.push(api.setProcessActsAs(process.id, actsAs))
+      }
       if (ExtraSection && extraConfigField === '*') {
         writes.push(api.setProcessConfig(process.id, extraConfigRef.current ?? {}))
       } else if (ExtraSection && extraConfigField) {
@@ -186,16 +245,19 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
 
   const groupSections = (
     <>
+      {canActsAs && <ActsAsSection value={actsAs} onChange={setActsAs} busy={busy} />}
+      {!isSimulation && (
+        <GroupCheckboxSection
+          title={t('Tabs')}
+          items={tabGroups}
+          fetchSelected={() => api.getProcessTabGroups(process.id)}
+          selectedIds={selectedTabGroupIds}
+          onChange={setSelectedTabGroupIds}
+          busy={busy}
+        />
+      )}
       <GroupCheckboxSection
-        title="Tabs"
-        items={tabGroups}
-        fetchSelected={() => api.getProcessTabGroups(process.id)}
-        selectedIds={selectedTabGroupIds}
-        onChange={setSelectedTabGroupIds}
-        busy={busy}
-      />
-      <GroupCheckboxSection
-        title="Message Casting Groups"
+        title={t('Message Casting Groups')}
         items={messageGroups}
         fetchSelected={() => api.getProcessMessageGroups(process.id)}
         selectedIds={selectedMessageGroupIds}
@@ -208,7 +270,9 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
   return (
     <CModal visible={visible} onClose={handleClose} size="lg">
       <CModalHeader>
-        <CModalTitle>{process?.name} settings</CModalTitle>
+        <CModalTitle>
+          {process?.name} {t('settings')}
+        </CModalTitle>
       </CModalHeader>
       <CModalBody>
         {error && <CAlert color="danger">{error}</CAlert>}
@@ -222,7 +286,7 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
           <>
             <CTabs activeItemKey={activeSettingsTab} onChange={setActiveSettingsTab}>
               <CTabList variant="tabs" className="mb-3">
-                <CTab itemKey="system">System</CTab>
+                <CTab itemKey="system">{t('System')}</CTab>
                 {settingsTabs.map((label) => (
                   <CTab key={label} itemKey={label.toLowerCase()}>
                     {label}
@@ -247,7 +311,26 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
             </div>
           </>
         )}
-        {visible && process && !settingsTabs && (
+        {visible && process && !settingsTabs && isSimulation && (
+          // Side by side (AGENTS_TO_DO.md, 2026-08-30) - Message Casting
+          // Groups left, the kind's own config form right. Scoped to
+          // `isSimulation` specifically, not every non-tabbed ExtraSection
+          // kind (e.g. WeatherZonesSection/AnnunciatorSlotsSection) - those
+          // still stack top-to-bottom as before, unaffected.
+          <CRow>
+            <CCol md={6}>{groupSections}</CCol>
+            <CCol md={6}>
+              {ExtraSection && (
+                <ExtraSection
+                  process={process}
+                  groups={messageGroups}
+                  extraConfigRef={extraConfigRef}
+                />
+              )}
+            </CCol>
+          </CRow>
+        )}
+        {visible && process && !settingsTabs && !isSimulation && (
           <>
             {groupSections}
             {ExtraSection && (
@@ -262,10 +345,10 @@ const ProcessSettingsModal = ({ visible, onClose, process, tabGroups, messageGro
       </CModalBody>
       <CModalFooter>
         <CButton color="secondary" variant="outline" onClick={handleClose} disabled={busy}>
-          Cancel
+          {t('Cancel')}
         </CButton>
         <CButton color="success" onClick={handleSave} disabled={busy}>
-          {busy ? <CSpinner size="sm" /> : 'Save'}
+          {busy ? <CSpinner size="sm" /> : t('Save')}
         </CButton>
       </CModalFooter>
     </CModal>

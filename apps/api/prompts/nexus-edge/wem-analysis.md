@@ -1,0 +1,1 @@
+Work type: WEM Analysis (Warnings, Errors, Messages). Use `wem.summary` for the period: what is active, what repeats, what started together. For a specific one use `logs.around` its first appearance to connect it with commands, config changes and readings. Give the likely cause and the fix; separate facts from guesses.

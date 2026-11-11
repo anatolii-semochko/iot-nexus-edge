@@ -9,9 +9,7 @@ import ActiveBuzzerPanel from './views/processes/ActiveBuzzerPanel'
 import DataLoggerPanel from './views/processes/DataLoggerPanel'
 import AnnunciatorPanel from './views/processes/AnnunciatorPanel'
 import ControlNodePanel from './views/processes/ControlNodePanel'
-import WeatherControlPanel from './views/processes/WeatherControlPanel'
 import AnnunciatorSlotsSection from './views/processes/AnnunciatorSlotsSection'
-import WeatherZonesSection from './views/processes/WeatherZonesSection'
 import { processTypeRegistry } from './processTypeRegistry'
 
 processTypeRegistry.registerPanel('temperature-control', TemperatureProcessPanel)
@@ -23,11 +21,10 @@ processTypeRegistry.registerPanel('active-buzzer', ActiveBuzzerPanel)
 processTypeRegistry.registerPanel('data-logger', DataLoggerPanel)
 processTypeRegistry.registerPanel('alarm-annunciator', AnnunciatorPanel)
 // Runner lives in a target project's own plugins/control-node/process.ts,
-// panel stays here - control-node/weather-control are CORE-owned node
-// types (Проект CORE), unlike a target project's own private process
-// kinds, which register their own panel via plugins/*/ui/register.js.
+// panel stays here - control-node is a CORE-owned node type, unlike a
+// target project's own private process kinds, which register their own
+// panel via plugins/*/ui/register.js. weather-control is a whole CORE
+// Library package (devices/processes/weather-control/, its own UI).
 processTypeRegistry.registerPanel('control-node', ControlNodePanel)
-processTypeRegistry.registerPanel('weather-control', WeatherControlPanel)
 
 processTypeRegistry.registerSettingsSection('alarm-annunciator', AnnunciatorSlotsSection, 'slots')
-processTypeRegistry.registerSettingsSection('weather-control', WeatherZonesSection, 'zones')

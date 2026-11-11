@@ -17,9 +17,25 @@
 
 name: __SLUG__
 
+# Container logs (json-file) are capped per service: max-size per file, max-file
+# files kept (.env DOCKER_LOG_MAX_SIZE / DOCKER_LOG_MAX_FILE). Unbounded, the
+# stacks' logs reached 43 GB in two weeks on a dev machine (2026-11-07).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+    max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
 services:
   postgres:
-    image: postgres:16-alpine
+    logging: *logging
+    # TimescaleDB (PostgreSQL 16 + the time-series extension, arm64 too -
+    # nexus-edge AGENTS.md "Time series"): the device / value logs as
+    # hypertables with continuous aggregates. The library is preloaded
+    # here, not by the image's initdb config, so an existing PG16 data
+    # volume works as it is.
+    image: timescale/timescaledb:2.17.2-pg16
+    command: ["postgres", "-c", "shared_preload_libraries=timescaledb"]
     container_name: __SLUG__-postgres
     restart: unless-stopped
     environment:
@@ -34,6 +50,7 @@ services:
       - __SLUG__-network
 
   redis:
+    logging: *logging
     image: redis:7-alpine
     container_name: __SLUG__-redis
     restart: unless-stopped
@@ -41,6 +58,7 @@ services:
       - __SLUG__-network
 
   rabbitmq:
+    logging: *logging
     image: rabbitmq:4-management-alpine
     container_name: __SLUG__-rabbitmq
     restart: unless-stopped
@@ -51,6 +69,7 @@ services:
       - __SLUG__-network
 
   orchestrator:
+    logging: *logging
     build:
       context: ${NEXUS_EDGE_SOURCE_PATH}
       dockerfile: apps/orchestrator/Dockerfile
@@ -58,6 +77,10 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      # Host timezone (.env TZ) - "now" (minute of day, day of week/
+      # month/year) is computed in it; without it the container runs
+      # in UTC and light output shifts by the host's UTC offset.
+      TZ: ${TZ:?set TZ in .env to the host timezone}
       # Extension points (extension points design, nexus-edge AGENTS_TO_DO.md
       # 2026-07-29) - processPlugins.ts scans this for this project's
       # own process kinds (plugins/<name>/process.ts). Empty plugins/ at
@@ -75,6 +98,7 @@ services:
       - __SLUG__-network
 
   api:
+    logging: *logging
     build:
       context: ${NEXUS_EDGE_SOURCE_PATH}
       dockerfile: apps/api/Dockerfile
@@ -82,10 +106,20 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      # Host timezone (.env TZ) - "now" (minute of day, day of week/
+      # month/year) is computed in it; without it the container runs
+      # in UTC and light output shifts by the host's UTC offset.
+      TZ: ${TZ:?set TZ in .env to the host timezone}
       # Extension points (extension points design, nexus-edge AGENTS_TO_DO.md
       # 2026-07-28) - apiPlugins.ts scans this in addition to the
       # Library (devices/, baked into the nexus-edge image).
       EXTRA_API_PLUGINS_DIR: /workspace/plugins
+      # This project's own Postgres migrations (nexus-edge
+      # apps/api/src/extraMigrations.ts) - each applied once (table
+      # extra_migrations) when the api starts - they come with a
+      # deployment (an admin can also run POST /dnp/migrations/apply).
+      # Replaces the one-off migrate-extra container (2026-10-16).
+      EXTRA_MIGRATIONS_DIR: /workspace/migrations-extra
       # Live-debugged 2026-08-14 in nexus-edge's own docker-compose.yml
       # (same comment there, in full) - Node's default libuv threadpool (4
       # threads) queues DNS lookups behind other I/O; under this service's
@@ -100,53 +134,18 @@ services:
       - "${API_PORT}:${API_PORT}"
     volumes:
       - api-avatars:${AVATAR_UPLOAD_DIR}
+      # Media Store (AGENTS.md section 81) - device media, e.g. camera frames.
+      - api-media:${MEDIA_DIR}
       - ./plugins:/workspace/plugins:ro
-    networks:
-      - __SLUG__-network
-
-  # One-off: applies this project's own private Postgres seeds
-  # (migrations/*.sql) after nexus-edge's own migrations (run by the api
-  # service's startup command) have created the devices/nodes tables.
-  # Deliberately plain psql, not a second node-pg-migrate instance -
-  # fine for a handful of seed files, not an evolving migration history;
-  # reconsider if that changes. Empty migrations/ at generation time is
-  # fine - loops over zero files.
-  migrate-extra:
-    image: postgres:16-alpine
-    container_name: __SLUG__-migrate-extra
-    depends_on:
-      - postgres
-    environment:
-      PGHOST: postgres
-      PGPORT: "5432"
-      PGDATABASE: ${POSTGRES_DB}
-      PGUSER: ${POSTGRES_USER}
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - ./migrations:/migrations:ro
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        set -e
-        for i in $$(seq 1 30); do
-          if psql -c "select 1 from devices limit 1" >/dev/null 2>&1; then
-            echo "devices table ready, applying private seeds"
-            for f in /migrations/*.sql; do
-              [ -e "$$f" ] || continue
-              echo "applying $$f"
-              psql -v ON_ERROR_STOP=1 -f "$$f"
-            done
-            exit 0
-          fi
-          echo "waiting for nexus-edge's own migrations to create devices table ($$i/30)"
-          sleep 2
-        done
-        echo "timed out waiting for devices table" >&2
-        exit 1
+      - ./migrations:/workspace/migrations-extra:ro
+      # the project's documentation the AI Assistant searches (nexus-edge
+      # apps/api/src/ai/docs.ts, source "project")
+      - ./README.md:/workspace/project-docs/README.md:ro
     networks:
       - __SLUG__-network
 
   messaging-gateway:
+    logging: *logging
     build:
       context: ${NEXUS_EDGE_SOURCE_PATH}
       dockerfile: apps/messaging-gateway/Dockerfile
@@ -167,6 +166,7 @@ services:
   # NEXUS_EDGE_SOURCE_PATH be an arbitrary path, not just a sibling
   # directory.
   ui:
+    logging: *logging
     build:
       context: .
       dockerfile: apps/ui/Dockerfile
@@ -174,6 +174,10 @@ services:
         nexus-edge: ${NEXUS_EDGE_SOURCE_PATH}
       args:
         VITE_PROJECT_NAME: ${PROJECT_NAME}
+        VITE_NODE_ENV: ${NODE_ENV:-production}
+        VITE_SIMULATION_BADGE: ${SIMULATION_BADGE:-}
+        VITE_HOME_URL: ${HOME_URL:-}
+        VITE_HOME_LANGS: ${HOME_LANGS:-}
     container_name: __SLUG__-ui
     restart: unless-stopped
     env_file: .env
@@ -191,3 +195,4 @@ networks:
 volumes:
   postgres-data:
   api-avatars:
+  api-media:

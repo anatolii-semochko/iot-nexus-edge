@@ -1,0 +1,1 @@
+Work type: About & Help. Explain what you are, what you can do in this system (the entity selector, the work types, access levels: Read / Config / Control / Install / Report), and how to use Nexus Edge for the user's question - using the documentation, not memory.

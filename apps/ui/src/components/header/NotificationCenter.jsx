@@ -4,6 +4,7 @@ import CIcon from '@coreui/icons-react'
 import { useProcessesLiveState, useUnreadCounts } from '../../api/useLiveProcess'
 import NotificationCenterModal from './NotificationCenterModal'
 import { WEM_TYPE_META } from './wemTypeMeta'
+import { t } from 'src/i18n'
 
 /**
  * The three header notification icons (AGENTS.md section 25) - messages/
@@ -54,8 +55,7 @@ const NotificationCenter = () => {
             onClick={() => setOpenType(type)}
           >
             <span
-              className={`d-inline-flex align-items-center justify-content-center rounded-circle ${blink ? `bg-${meta.color} wem-blink-ring` : ''}`}
-              style={{ width: '2.25rem', height: '2.25rem' }}
+              className={`wem-icon d-inline-flex align-items-center justify-content-center rounded-circle ${blink ? `bg-${meta.color} wem-blink-ring` : ''}`}
             >
               <CIcon icon={meta.icon} size="lg" className={iconColorClass} />
             </span>
@@ -67,7 +67,9 @@ const NotificationCenter = () => {
                 style={{ fontSize: '0.55rem' }}
               >
                 {unread > 99 ? '99+' : unread}
-                <span className="visually-hidden">unread {meta.label.toLowerCase()}</span>
+                <span className="visually-hidden">
+                  {t('unread')} {meta.label.toLowerCase()}
+                </span>
               </CBadge>
             )}
           </button>

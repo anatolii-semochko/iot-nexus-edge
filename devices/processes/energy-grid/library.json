@@ -1,0 +1,10 @@
+{
+  "id": "process-energy-grid",
+  "name": "Energy Grid",
+  "description": "The site's connection to the public grid: its meter (grid-meter - phases, frequency, power in / out, registers), the purchase price (time-of-use tariff zones or the day-ahead market plus surcharge - a dynamic tariff), the sale price (fixed or market), today's account, supply quality and limits (WEM). Day-ahead prices from Energy-Charts (aWATTar fallback). The Energy Field and Heating packages depend on it.",
+  "ai": {
+    "scheduledTypes": [
+      "status-analysis"
+    ]
+  }
+}

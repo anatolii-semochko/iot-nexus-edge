@@ -1,0 +1,14 @@
+nodeType: power-meter
+description: >
+  A three-phase power meter on a feeder - what a consumer (a building, a
+  distribution board, the whole site) draws. Reference model Janitza UMG
+  96-PA (Janitza electronics GmbH, Germany; Modbus RTU, Ethernet / Modbus
+  TCP option, a MID-certified variant for billing). Reports the active
+  power and the energy register. In `energy-field` - the site's
+  consumption (simulated - a consumption profile by the time of day and
+  the weekday).
+bus:
+  type: modbus-tcp
+supports:
+  - power
+  - energy

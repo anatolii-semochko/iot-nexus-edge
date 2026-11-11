@@ -1,0 +1,5 @@
+{
+  "id": "device-power",
+  "name": "Power",
+  "description": "Active power measurement - single Float32 reading (kW), read-only; signed where a point flows both ways (e.g. + import / - export at the grid connection)."
+}

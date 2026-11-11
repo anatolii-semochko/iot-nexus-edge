@@ -1,5 +1,6 @@
 import React from 'react'
 import { CFormSelect, CPagination, CPaginationItem } from '@coreui/react'
+import { t } from 'src/i18n'
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50]
 
@@ -37,7 +38,7 @@ const TablePagination = ({
   return (
     <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3">
       <div className="d-flex align-items-center gap-2">
-        <span className="text-body-secondary small">Show</span>
+        <span className="text-body-secondary small">{t('Show')}</span>
         <CFormSelect
           size="sm"
           style={{ width: 'auto' }}
@@ -51,11 +52,11 @@ const TablePagination = ({
           ))}
         </CFormSelect>
         <span className="text-body-secondary small">
-          {rangeStart}-{rangeEnd} of {totalItems}
+          {rangeStart}-{rangeEnd} {t('of')} {totalItems}
         </span>
       </div>
       {totalPages > 1 && (
-        <CPagination size="sm" aria-label="Table pages" className="mb-0">
+        <CPagination size="sm" aria-label={t('Table pages')} className="mb-0">
           <CPaginationItem disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
             &laquo;
           </CPaginationItem>

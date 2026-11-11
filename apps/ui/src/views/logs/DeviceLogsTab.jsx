@@ -21,6 +21,8 @@ import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
 import { formatSmartDateTime, localDateTimeToIso } from '../../utils/format'
+import AiButton from '../../components/ai/AiButton'
+import { t } from 'src/i18n'
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
@@ -81,7 +83,7 @@ const DeviceLogsTab = ({
             value={deviceId}
             onChange={(e) => onDeviceIdChange(e.target.value)}
           >
-            <option value="">All devices</option>
+            <option value="">{t('All devices')}</option>
             {devices.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -94,12 +96,12 @@ const DeviceLogsTab = ({
             key={searchResetToken}
             value={search}
             onSearch={onSearchChange}
-            placeholder="Search by device..."
+            placeholder={t('Search by device...')}
           />
         </CCol>
         <DateRangeFilter from={from} to={to} onFromChange={onFromChange} onToChange={onToChange} />
         <CCol className="d-flex justify-content-end gap-2">
-          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel="Reload" />
+          <IconButton icon={cilReload} size="sm" center onClick={reload} ariaLabel={t('Reload')} />
           <ResetFiltersButton active={hasActiveFilters} onClick={onResetFilters} />
         </CCol>
       </CRow>
@@ -111,16 +113,19 @@ const DeviceLogsTab = ({
           <CSpinner color="primary" />
         </div>
       ) : items.length === 0 ? (
-        <CAlert color="info" className={'mt-3'}>No device logs match this filter.</CAlert>
+        <CAlert color="info" className={'mt-3'}>
+          {t('No device logs match this filter.')}
+        </CAlert>
       ) : (
         <>
           <CTable responsive>
             <CTableHead>
               <CTableRow>
-                <CTableHeaderCell scope="col">Time</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Device</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Value</CTableHeaderCell>
-                <CTableHeaderCell scope="col">Source</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Time')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Device')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Value')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col">{t('Source')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col" />
               </CTableRow>
             </CTableHead>
             <CTableBody>
@@ -132,6 +137,28 @@ const DeviceLogsTab = ({
                   <CTableDataCell>{item.device_name ?? `#${item.device_id ?? '?'}`}</CTableDataCell>
                   <CTableDataCell>{formatValue(item.value)}</CTableDataCell>
                   <CTableDataCell>{item.source}</CTableDataCell>
+                  <CTableDataCell className="text-end text-nowrap">
+                    {/* the AI on the device, the record itself told (the user, 2026-10-25) */}
+                    {item.device_id && (
+                      <AiButton
+                        action
+                        className="align-middle"
+                        subject={{
+                          type: 'device',
+                          id: item.device_id,
+                          view: t(
+                            'the device log record: {{toISOString}}, value {{String}}, source {{source}}',
+                            {
+                              toISOString: new Date(item.created_at).toISOString(),
+                              String: String(formatValue(item.value) ?? ''),
+                              source: item.source,
+                            },
+                          ).slice(0, 300),
+                        }}
+                        label={t('this record')}
+                      />
+                    )}
+                  </CTableDataCell>
                 </CTableRow>
               ))}
             </CTableBody>

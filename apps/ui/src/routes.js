@@ -14,14 +14,16 @@
  */
 
 import React from 'react'
+import { t } from 'src/i18n'
 
 const Dashboard = React.lazy(() => import('./views/dashboard/Dashboard'))
+const AiAssistant = React.lazy(() => import('./views/ai/AiAssistant'))
 const Docs = React.lazy(() => import('./views/docs/Docs'))
 
 // Devices
 const NodesList = React.lazy(() => import('./views/devices/NodesList'))
 const DevicesList = React.lazy(() => import('./views/devices/DevicesList'))
-const DevSimulator = React.lazy(() => import('./views/devices/DevSimulator'))
+const Simulator = React.lazy(() => import('./views/devices/Simulator'))
 
 // Library
 const LibraryBrowser = React.lazy(() => import('./views/library/LibraryBrowser'))
@@ -34,7 +36,10 @@ const LiveEvents = React.lazy(() => import('./views/logs/LiveEvents'))
 const LogsList = React.lazy(() => import('./views/logs/LogsList'))
 
 // Users
-const UsersList = React.lazy(() => import('./views/users/UsersList'))
+const UsersPage = React.lazy(() => import('./views/users/UsersPage'))
+
+// Service
+const Service = React.lazy(() => import('./views/service/Service'))
 
 /**
  * Array of route configuration objects
@@ -54,17 +59,30 @@ const UsersList = React.lazy(() => import('./views/users/UsersList'))
  * { path: '/base', name: 'Base', element: Cards, exact: true }
  */
 export const routes = [
-  { path: '/', exact: true, name: 'Home' },
-  { path: '/dashboard', name: 'Dashboard', element: Dashboard },
-  { path: '/docs', name: 'Docs', element: Docs },
-  { path: '/nodes', name: 'Nodes', element: NodesList },
-  { path: '/devices', name: 'Devices', element: DevicesList, exact: true },
-  { path: '/dev-simulator', name: 'Dev Simulator', element: DevSimulator },
-  { path: '/library', name: 'Library', element: LibraryBrowser },
-  { path: '/processes', name: 'Processes', element: ProcessesList },
-  { path: '/live-events', name: 'Live Events', element: LiveEvents },
-  { path: '/logs', name: 'Logs', element: LogsList },
-  { path: '/users', name: 'Users', element: UsersList },
+  { path: '/', exact: true, name: t('Home') },
+  { path: '/dashboard', name: t('Dashboard'), element: Dashboard },
+  // a card of the Dashboard's tree (a folder or a component on the whole page)
+  { path: '/dashboard/:cardId', name: t('Dashboard'), element: Dashboard },
+  // the AI Assistant's messenger (2026-10-17)
+  { path: '/ai-assistant', name: t('AI Assistant'), element: AiAssistant, bleed: true },
+  // a conversation opened by link (a scheduled run's warning, the calendar)
+  {
+    path: '/ai-assistant/:conversationId',
+    name: t('AI Assistant'),
+    element: AiAssistant,
+    bleed: true,
+  },
+  { path: '/docs', name: t('Docs'), element: Docs },
+  { path: '/docs/*', name: t('Docs'), element: Docs },
+  { path: '/nodes', name: t('Nodes'), element: NodesList },
+  { path: '/devices', name: t('Devices'), element: DevicesList, exact: true },
+  { path: '/simulator', name: t('Simulator'), element: Simulator },
+  { path: '/library', name: t('Library'), element: LibraryBrowser },
+  { path: '/processes', name: t('Processes'), element: ProcessesList },
+  { path: '/live-events', name: t('Live Events'), element: LiveEvents },
+  { path: '/logs', name: t('Logs'), element: LogsList },
+  { path: '/users', name: t('Users'), element: UsersPage },
+  { path: '/service', name: t('Service'), element: Service },
 ]
 
 export default routes

@@ -120,6 +120,25 @@ export async function publishReading(deviceId: number, value: unknown, source: s
 }
 
 /**
+ * publishReading for many devices at once (PUT /devices/simulate-auto): the
+ * cache in one Redis pipeline, not a SET each - a simulation publishes
+ * hundreds of readings at a time (iot PERF_PROD_2026-11-05.md); the bus
+ * events as before.
+ */
+export async function publishReadings(items: { deviceId: number; value: unknown }[], source: string): Promise<void> {
+  if (items.length === 0) return;
+  const timestamp = new Date().toISOString();
+  try {
+    const pipe = redis.pipeline();
+    for (const { deviceId, value } of items) pipe.set(`state:${deviceId}`, encode({ value, updatedAt: timestamp, source }));
+    await pipe.exec();
+  } catch (err) {
+    logger.warn({ err, devices: items.length }, "failed to refresh state cache");
+  }
+  await Promise.all(items.map(({ deviceId, value }) => publishDeviceEvent({ domain: "device", entityId: deviceId, value, timestamp, source })));
+}
+
+/**
  * Reads back what publishReading() above last wrote into the `state:*`
  * cache - the only way to get a value for a Device with no EdgeX/hardware
  * backend at all (e.g. `light-level`, AGENTS.md section 66), since
@@ -140,12 +159,12 @@ export async function getReading(
 
 export async function getState(deviceId: number): Promise<DeviceState> {
   const k = keysFor(deviceId);
-  const [mode, rawAuto, rawManual] = await Promise.all([
-    redis.get(k.mode),
-    redis.get(k.valueAuto),
-    redis.get(k.valueManual),
-  ]);
+  // one MGET, not three GETs (iot PERF_PROD_2026-11-05.md - every round trip counts)
+  const [mode, rawAuto, rawManual] = await redis.mget(k.mode, k.valueAuto, k.valueManual);
+  return stateOf(mode, rawAuto, rawManual);
+}
 
+function stateOf(mode: string | null, rawAuto: string | null, rawManual: string | null): DeviceState {
   const resolvedMode: Mode = mode === "MANUAL" ? "MANUAL" : "AUTO";
   const valueAuto = decode(rawAuto);
   const valueManual = decode(rawManual);
@@ -164,8 +183,12 @@ export async function getState(deviceId: number): Promise<DeviceState> {
  * computing what it would set automatically, so that value can take over
  * immediately once the device is released back to AUTO. */
 export async function setActive(deviceId: number, value: unknown): Promise<DeviceState> {
-  await redis.set(keysFor(deviceId).valueAuto, encode(value));
-  const state = await getState(deviceId);
+  // the write and the state read back in one round trip (a pipeline)
+  const k = keysFor(deviceId);
+  const results = (await redis.pipeline().set(k.valueAuto, encode(value)).mget(k.mode, k.valueAuto, k.valueManual).exec()) ?? [];
+  for (const [err] of results) if (err) throw err;
+  const [mode, rawAuto, rawManual] = (results[1]?.[1] as (string | null)[] | undefined) ?? [null, null, null];
+  const state = stateOf(mode, rawAuto, rawManual);
   await publishState(deviceId, state, "api");
   return state;
 }
@@ -231,4 +254,49 @@ export async function systemMode(deviceIds: number[]): Promise<Mode | "SERVICE">
 
   if (hasManual && hasAuto) return "SERVICE";
   return hasManual ? "MANUAL" : "AUTO";
+}
+
+/**
+ * Batch read (AGENTS.md section 88) - many devices' cached readings and
+ * Dual Devices Model states in ONE Redis round trip (MGET), for
+ * POST /devices/values. `readings` = what publishReading()/cacheReading()
+ * last wrote (`state:{id}`, with its time); `states` = getState() per
+ * device. Order follows `deviceIds`.
+ */
+export async function getCachedBatch(deviceIds: number[]): Promise<{
+  readings: ({ value: unknown; updatedAt: string; source: string } | null)[];
+  states: DeviceState[];
+}> {
+  if (deviceIds.length === 0) return { readings: [], states: [] };
+  const keys = deviceIds.flatMap((id) => {
+    const k = keysFor(id);
+    return [`state:${id}`, k.mode, k.valueAuto, k.valueManual];
+  });
+  const raw = await redis.mget(...keys);
+  const readings: ({ value: unknown; updatedAt: string; source: string } | null)[] = [];
+  const states: DeviceState[] = [];
+  for (let i = 0; i < deviceIds.length; i++) {
+    const [reading, mode, rawAuto, rawManual] = raw.slice(i * 4, i * 4 + 4);
+    const decoded = decode(reading ?? null);
+    readings.push(typeof decoded === "object" && decoded !== null ? (decoded as { value: unknown; updatedAt: string; source: string }) : null);
+    const resolvedMode: Mode = mode === "MANUAL" ? "MANUAL" : "AUTO";
+    const valueAuto = decode(rawAuto ?? null);
+    const valueManual = decode(rawManual ?? null);
+    states.push({ mode: resolvedMode, valueAuto, valueManual, active: resolvedMode === "MANUAL" ? valueManual : valueAuto });
+  }
+  return { readings, states };
+}
+
+/**
+ * Caches a reading taken live from EdgeX (the batch read's fallback for
+ * a physical sensor whose cached value was too old) - `state:{id}` only,
+ * no bus event: a batch read is a process polling, not a change worth
+ * pushing to every client.
+ */
+export async function cacheReading(deviceId: number, value: unknown, originMs: number, source: string): Promise<void> {
+  try {
+    await redis.set(`state:${deviceId}`, encode({ value, updatedAt: new Date(originMs).toISOString(), source }));
+  } catch (err) {
+    logger.warn({ err, deviceId }, "failed to refresh state cache");
+  }
 }

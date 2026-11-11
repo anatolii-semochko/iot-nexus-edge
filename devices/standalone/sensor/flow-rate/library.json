@@ -1,0 +1,5 @@
+{
+  "id": "device-flow-rate",
+  "name": "Flow Rate",
+  "description": "Volume flow measurement - single Float32 reading (l/min), read-only; the water flow in a heating / cooling circuit."
+}

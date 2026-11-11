@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 
+import { scopeFilter } from "../access/scope.js";
 import { requireAuth } from "../auth.js";
 import * as dualDevicesModel from "../dualDevicesModel.js";
 import { pool } from "../db.js";
@@ -7,6 +8,8 @@ import { getSystemActorUserId, logCommand } from "../commandLog.js";
 import { logReading } from "../deviceLog.js";
 import * as dataLoggerControl from "../dataLoggerControl.js";
 import { EdgeXError, listEdgeXDevices, readValue, writeValue, type EdgeXDeviceStatus } from "../edgex.js";
+import { entityChanges, type EntityChange } from "../entityChanges.js";
+import { config } from "../config.js";
 import { publishDeviceEvent } from "../messaging.js";
 import { devicesNeededFor, validateWrite, type ForbiddenRule } from "../validator.js";
 
@@ -40,6 +43,11 @@ interface DeviceCapabilities {
   // disabled), reserved for a future real hardware-address concept.
   color?: string;
   physicalId?: string;
+  // Media device (AGENTS.md section 81) - its value is a Media Store id
+  // (e.g. an image-caster's latest frame), not a displayable scalar. The
+  // UI shows a preview and, when simulated, a file upload instead of a
+  // value input.
+  media?: boolean;
 }
 
 interface DeviceRow {
@@ -159,6 +167,13 @@ const SELECT_DEVICE_WITH_NODE = `
 async function publishDeviceReading(
   device: { id: number; data_logger_control: dataLoggerControl.DataLoggerControlConfig },
   readingOriginMs: number | null,
+  // `undefined` (distinct from a legitimate `null` reading) means "this
+  // call has no reading to report" - a transient read failure, not "the
+  // device's value is null" - same `value?: unknown` optionality
+  // `DeviceEventEnvelope` already documents for metadata-only events,
+  // reused here for the identical reason: omitting the key entirely lets
+  // `useLiveDevice.js`'s own `'value' in event` merge leave the client's
+  // last known-good value untouched instead of clobbering it.
   value: unknown,
   source: string,
 ): Promise<{ isOverdue: boolean; expiresAt: number | null }> {
@@ -167,7 +182,7 @@ async function publishDeviceReading(
     publishDeviceEvent({
       domain: "device",
       entityId: device.id,
-      value,
+      ...(value !== undefined ? { value } : {}),
       isOverdue: result.isOverdue,
       expiresAt: result.expiresAt,
       timestamp: new Date().toISOString(),
@@ -179,6 +194,37 @@ async function publishDeviceReading(
     dataLoggerControl.setOverdueSnapshot(device.id, result.isOverdue, result.expiresAt),
   ]);
   return result;
+}
+
+/**
+ * The Device(s) whose CURRENTLY active EdgeX registration (resolveEdgexName)
+ * is `edgexDeviceName` - what an event or upload arriving from the gateway
+ * under that EdgeX name belongs to. Usually exactly one.
+ */
+export async function findActiveDevicesByEdgexName(edgexDeviceName: string): Promise<DeviceRowWithNode[]> {
+  const result = await pool.query<DeviceRowWithNode>(
+    `${SELECT_DEVICE_WITH_NODE} WHERE d.edgex_device_name = $1 OR d.edgex_device_name_simulated = $1`,
+    [edgexDeviceName],
+  );
+  return result.rows.filter((row) => resolveEdgexName(row) === edgexDeviceName);
+}
+
+/**
+ * A device's own push (AGENTS.md section 80), delivered by
+ * edgexPushBridge.ts from EdgeX's message bus - takes exactly the same
+ * path an ordinary read does (publishDeviceReading: live `device` event on
+ * nexus.events + overdue snapshot), so the UI and every orchestrator
+ * process see a pushed value the same way they see a polled one.
+ *
+ * Only delivered to a Device whose CURRENTLY active EdgeX registration is
+ * the one that pushed (resolveEdgexName) - a node switched to simulated
+ * mode must not have its UI/processes fed by the physical twin it was
+ * redirected away from, and vice versa.
+ */
+export async function publishPushedReading(edgexDeviceName: string, readingOriginMs: number, value: unknown): Promise<number> {
+  const targets = await findActiveDevicesByEdgexName(edgexDeviceName);
+  await Promise.all(targets.map((row) => publishDeviceReading(row, readingOriginMs, value, "device-push")));
+  return targets.length;
 }
 
 /**
@@ -208,8 +254,14 @@ async function publishDeviceMetadata(deviceId: number, source: string): Promise<
 export async function deviceRoutes(app: FastifyInstance): Promise<void> {
   // List view: registry metadata plus EdgeX admin/operating state, fetched
   // once for every device.
-  app.get("/devices", async () => {
-    const result = await pool.query<DeviceListRow>(`${SELECT_DEVICE_LIST_BASE} GROUP BY d.id, n.name, n.simulated, li.icon_path ORDER BY d.name`);
+  app.get<{ Querystring: { live?: string } }>("/devices", async (request) => {
+    const all = await pool.query<DeviceListRow>(`${SELECT_DEVICE_LIST_BASE} GROUP BY d.id, n.name, n.simulated, li.icon_path ORDER BY d.name`);
+    // a person limited to some DNP instances sees only theirs (access/scope.ts)
+    const scope = await scopeFilter(request, "devices.view");
+    const result = { rows: all.rows.filter((d) => !scope || scope.device(d.id)) };
+    // `?live=false` - the registry only, without EdgeX's live status and the overdue snapshots (a process
+    // mapping its devices by node and type needs no more - iot PERF_PROD_2026-11-05.md)
+    if (request.query.live === "false") return result.rows;
 
     let edgexByName = new Map<string, EdgeXDeviceStatus>();
     try {
@@ -234,6 +286,68 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
         isOverdue: overdue?.isOverdue ?? false,
       };
     });
+  });
+
+  // Batch read (AGENTS.md section 88) - the current values of many devices
+  // in one call, for orchestrator processes that read a dozen devices a
+  // tick (one GET /devices/:id each = one EdgeX core-command round trip
+  // each). Served from the cache wherever the cache IS the source:
+  // - an actuator (not readOnly): its Dual Devices Model active value -
+  //   what was commanded (AUTO or a manual override);
+  // - a sensor on a virtual EdgeX device (a virtual backend or a node's
+  //   simulated twin) or with no EdgeX backend: the cached reading - every
+  //   write to it goes through publishReading();
+  // - a PHYSICAL sensor: the cached reading while younger than `maxAgeMs`
+  //   (config deviceValuesMaxAgeMs), else a live EdgeX read, which is then
+  //   cached for the next caller.
+  // A cache miss falls back to EdgeX too. Unknown ids are left out.
+  // Response: { values: { [id]: { value, at, source } } } - `at` = ms of
+  // the reading (null for a commanded value), `source` = state | cache |
+  // edgex | error.
+  app.post<{ Body: { ids: number[]; maxAgeMs?: number } }>("/devices/values", async (request, reply) => {
+    const ids = Array.isArray(request.body?.ids) ? request.body.ids.map(Number).filter(Number.isFinite) : [];
+    if (ids.length === 0) return reply.code(400).send({ error: "ids (number[]) required" });
+    const maxAgeMs = request.body.maxAgeMs ?? config.deviceValuesMaxAgeMs;
+    const rows = (await pool.query<DeviceRowWithNode>(`${SELECT_DEVICE_WITH_NODE} WHERE d.id = ANY($1::int[])`, [ids])).rows;
+    const { readings, states } = await dualDevicesModel.getCachedBatch(rows.map((r) => r.id));
+    const now = Date.now();
+    const values: Record<number, { value: unknown; at: number | null; source: string }> = {};
+    await Promise.all(
+      rows.map(async (row, i) => {
+        const caps = row.capabilities;
+        const state = states[i];
+        if (!caps.readOnly && state.active !== undefined) {
+          values[row.id] = { value: state.active, at: null, source: "state" };
+          return;
+        }
+        const resolved = resolveEdgexName(row);
+        const cached = readings[i];
+        const cachedAt = cached ? Date.parse(cached.updatedAt) : null;
+        const cacheIsSource = cacheIsSourceFor(row, resolved);
+        if (cached && (cacheIsSource || (cachedAt !== null && now - cachedAt <= maxAgeMs))) {
+          values[row.id] = { value: cached.value, at: cachedAt, source: "cache" };
+          return;
+        }
+        if (!resolved || !caps.edgexResource) {
+          values[row.id] = { value: null, at: null, source: "error" };
+          return;
+        }
+        try {
+          const reading = await readValue(resolved, caps.edgexResource);
+          const at = Math.floor(reading.origin / 1e6);
+          values[row.id] = { value: reading.value, at, source: "edgex" };
+          // a sensor's reading is cached for the next caller; so is any device whose cache is the source
+          // (a virtual / simulated one: its EdgeX value changes only through this API's own writes) - an
+          // actuator never given an AUTO value was otherwise read from EdgeX on every call, each tick
+          // (iot PERF_PROD_2026-11-05.md: 32 demo devices, ~40 EdgeX reads / s)
+          if (caps.readOnly || cacheIsSource) await dualDevicesModel.cacheReading(row.id, reading.value, at, "batch-read");
+        } catch (err) {
+          app.log.warn({ err, device: row.name }, "batch read: EdgeX read failed");
+          values[row.id] = { value: null, at: null, source: "error" };
+        }
+      }),
+    );
+    return { values };
   });
 
   // Detail view: registry metadata, the device's live value (read straight
@@ -266,6 +380,17 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     if (resolvedEdgexName && device.capabilities.edgexResource) {
       const edgexDeviceName = resolvedEdgexName;
       const edgexResource = device.capabilities.edgexResource;
+      // Tracks a genuine read failure separately from `value` staying at
+      // its `null` default - a transient EdgeX hiccup must never broadcast
+      // `value: null` over the live socket (AGENTS_TO_DO.md 2026-09-14,
+      // "значення... зникає... раз в секунду і перемальовується"): every
+      // OTHER caller of `publishDeviceReading` always has a real reading,
+      // so this was the one path capable of clobbering an already-good
+      // live value with a false "no reading" on every client watching
+      // this device, at whatever cadence something re-polls this route
+      // (a 1s Data Logger interval reproduces this as a steady blink).
+      // See `publishDeviceReading`'s own updated comment for the fix.
+      let readFailed = false;
       try {
         const reading = await readValue(edgexDeviceName, edgexResource);
         value = reading.value;
@@ -277,6 +402,17 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
         readingOrigin = Math.floor(reading.origin / 1e6);
       } catch (err) {
         app.log.warn({ err, device: device.name }, "failed to read device value");
+        readFailed = true;
+      }
+      // a virtual / simulated device: EdgeX gives the type and the units, the value is the cache's (its
+      // EdgeX twin is synced only every SIMULATED_EDGEX_SYNC_MS - simulate-auto)
+      if (cacheIsSourceFor(device, resolvedEdgexName)) {
+        const cached = await dualDevicesModel.getReading(device.id);
+        if (cached) {
+          value = cached.value;
+          readingOrigin = Date.parse(cached.updatedAt);
+          readFailed = false;
+        }
       }
       // A pure sensor (readOnly) has no AUTO/MANUAL mode at all - no
       // dualState, rather than defaulting to a misleading "AUTO".
@@ -287,7 +423,12 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
           app.log.warn({ err, device: device.name }, "failed to read Dual Devices Model state");
         }
       }
-      ({ isOverdue, expiresAt } = await publishDeviceReading(device, readingOrigin, value, "device-read"));
+      ({ isOverdue, expiresAt } = await publishDeviceReading(
+        device,
+        readingOrigin,
+        readFailed ? undefined : value,
+        "device-read",
+      ));
     } else if (device.capabilities.readOnly) {
       // No EdgeX/hardware backend at all (e.g. `light-level`, AGENTS.md
       // section 66) - the only way such a Device's value ever changes is
@@ -382,6 +523,74 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // Orchestrator-driven equivalent of .../simulate above, same "auto" vs
+  // bare-route split as .../auto below: a `simulation`-type process (a
+  // readOnly Device WITH an EdgeX profile, AGENTS_TO_DO.md 2026-08-29,
+  // e.g. aquarium's light-power-actual) needs to push a computed value
+  // every tick the same way .../simulate does, but has no user session to
+  // authenticate with or attribute a logCommand entry to - unlike a
+  // human's Dev Simulator action, a process re-asserting its own computed
+  // reading isn't a "command" worth auditing (same reasoning .../reading's
+  // own comment gives for not calling logCommand either).
+  app.put<{ Params: { id: string }; Body: { value: unknown } }>(
+    "/devices/:id/simulate-auto",
+    async (request, reply) => {
+      const { value } = request.body;
+      if (value === undefined) {
+        return reply.code(400).send({ error: "request body must include a 'value'" });
+      }
+
+      const device = await requireEdgeXDevice(request.params.id, reply);
+      if (!device) return;
+
+      if (!device.capabilities.readOnly) {
+        return reply
+          .code(400)
+          .send({ error: `device '${device.name}' is not read-only`, hint: "use PUT /devices/:id/auto instead" });
+      }
+
+      if (edgexSyncDue(device.id) && !(await writeOrReject(reply, device.resolvedEdgexName, device.capabilities.edgexResource, value))) return;
+      await dualDevicesModel.publishReading(device.id, value, "process");
+      return { status: "ok" };
+    },
+  );
+
+  // The same for several devices in ONE request (nexus-edge-aquarium
+  // AGENTS_TO_DO.md 2026-10-16, the Raspberry budget): a simulation
+  // publishes its readings together - one HTTP round trip, the EdgeX
+  // writes in parallel. Each item answers for itself ({id, ok, error?});
+  // one failing item doesn't fail the others.
+  app.put<{ Body: { values: { id: number; value: unknown }[] } }>("/devices/simulate-auto", async (request, reply) => {
+    const values = request.body?.values;
+    if (!Array.isArray(values)) return reply.code(400).send({ error: "request body must include 'values' - [{id, value}]" });
+    // the devices in one query, not one per value (iot PERF_PROD_2026-11-05.md)
+    const ids = values.map((v) => Number(v?.id)).filter(Number.isFinite);
+    const byId = new Map(
+      (await pool.query<DeviceRowWithNode>(`${SELECT_DEVICE_WITH_NODE} WHERE d.id = ANY($1::int[])`, [ids])).rows.map((r) => [r.id, r]),
+    );
+    // the readings published together after the checks (one Redis pipeline - publishReadings)
+    const published: { deviceId: number; value: unknown }[] = [];
+    const results = await Promise.all(
+      values.map(async ({ id, value }) => {
+        try {
+          if (value === undefined) return { id, ok: false, error: "no value" };
+          const device = byId.get(Number(id));
+          if (!device) return { id, ok: false, error: "device not found" };
+          const edgexName = resolveEdgexName(device);
+          if (!edgexName || !device.capabilities.edgexResource) return { id, ok: false, error: "device is not backed by EdgeX" };
+          if (!device.capabilities.readOnly) return { id, ok: false, error: "device is not read-only" };
+          if (edgexSyncDue(device.id)) await writeValue(edgexName, device.capabilities.edgexResource, value);
+          published.push({ deviceId: device.id, value });
+          return { id, ok: true };
+        } catch (err) {
+          return { id, ok: false, error: err instanceof Error ? err.message : String(err) };
+        }
+      }),
+    );
+    await dualDevicesModel.publishReadings(published, "process");
+    return { results };
+  });
+
   // Orchestrator-driven equivalent of the write path above: records
   // valueAuto, but only reaches EdgeX if the device is currently in AUTO
   // mode (a manual override keeps winning until released). Called every
@@ -389,16 +598,19 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
   // a target project's own temperature-control - the base platform's own
   // copy was removed in the 2026-07-29 "chistiy proekt" decision).
   app.put<{ Params: { id: string }; Body: { value: unknown } }>("/devices/:id/auto", async (request, reply) => {
-    const { value } = request.body;
-    if (value === undefined) {
-      return reply.code(400).send({ error: "request body must include a 'value'" });
-    }
+    const { code, body } = await applyAuto(request.params.id, request.body?.value, app.log);
+    return reply.code(code).send(body);
+  });
 
-    const device = await requireEdgeXDevice(request.params.id, reply);
-    if (!device) return;
-
+  // Orchestrator-driven: a device's AUTO value recorded, and written to EdgeX
+  // while the device is in AUTO (a manual override keeps winning until released).
+  async function applyAuto(id: string, value: unknown, log: FastifyBaseLogger): Promise<{ code: number; body: unknown }> {
+    const reply = replyCapture();
+    if (value === undefined) return { code: 400, body: { error: "request body must include a 'value'" } };
+    const device = await requireEdgeXDevice(id, reply);
+    if (!device) return reply.result();
     if (device.capabilities.readOnly) {
-      return reply.code(400).send({ error: `device '${device.name}' is read-only - it has no AUTO/MANUAL mode` });
+      return { code: 400, body: { error: `device '${device.name}' is read-only - it has no AUTO/MANUAL mode` } };
     }
 
     // A control-loop process re-asserts its computed output every tick by
@@ -411,22 +623,21 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     // dropped this exact "log every tick" behavior for log_device in the
     // 2026-07-27 refactor. The reassertion write/publish below still runs
     // every tick regardless - only the audit log entry is suppressed.
+    // ... and only as the device type's audit policy says (auditPolicyOf)
     const previousState = await dualDevicesModel.getState(device.id);
-    if (JSON.stringify(previousState.valueAuto) !== JSON.stringify(value)) {
+    if (auditable(await auditPolicyOf(device.type), previousState.valueAuto, value)) {
       await logCommand({ deviceId: device.id, action: "auto", value, source: "api", actorUserId: await getSystemActorUserId() });
     }
 
-    const forbidden = await checkForbidden(device, value, app.log);
-    if (!forbidden.ok) {
-      return reply.code(409).send({ error: "forbidden state", reason: forbidden.reason });
-    }
+    const forbidden = await checkForbidden(device, value, log);
+    if (!forbidden.ok) return { code: 409, body: { error: "forbidden state", reason: forbidden.reason } };
 
     const state = await dualDevicesModel.setActive(device.id, value);
-    if (state.mode === "AUTO") {
-      if (!(await writeOrReject(reply, device.resolvedEdgexName, device.capabilities.edgexResource, value))) return;
+    if (state.mode === "AUTO" && !(await writeOrReject(reply, device.resolvedEdgexName, device.capabilities.edgexResource, value))) {
+      return reply.result();
     }
-    return { status: "ok", state };
-  });
+    return { code: 200, body: { status: "ok", state } };
+  }
 
   // Orchestrator-driven write for a readOnly device with no EdgeX backend
   // at all - e.g. `light-level` (devices/standalone/sensor/light-level),
@@ -515,7 +726,11 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: `device '${device.name}' has no EdgeX resource to read` });
     }
 
-    const reading = await readValue(resolvedEdgexName, device.capabilities.edgexResource);
+    // a virtual / simulated device - its cached reading (as the detail view above), no EdgeX round trip
+    const cached = cacheIsSourceFor(device, resolvedEdgexName) ? await dualDevicesModel.getReading(device.id) : null;
+    const reading = cached
+      ? { value: cached.value, origin: Date.parse(cached.updatedAt) * 1e6 }
+      : await readValue(resolvedEdgexName, device.capabilities.edgexResource);
     await logReading({ deviceId: device.id, value: reading.value, source: "data-logger" });
     await dataLoggerControl.touchLastLoggedAt(device.id);
     // AGENTS.md section 62 - this is the orchestrator's own periodic
@@ -634,6 +849,11 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
         [request.body.simulated, request.params.id],
       );
       if (!result.rows[0]) return reply.code(404).send({ error: "device not found" });
+      // No auto-activation of an attached simulation process here anymore
+      // (2026-08-29, reversed from an earlier design) - same reasoning as
+      // routes/nodes.ts's own PATCH /:id/simulated: a simulation process's
+      // ON/OFF is exclusively operator-controlled, never written by this
+      // route.
       await publishDeviceMetadata(result.rows[0].id, "device-simulated-changed");
       return findDeviceListRow(request.params.id);
     },
@@ -712,11 +932,66 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
   });
 }
 
-interface DeviceRowWithNode extends DeviceRow {
+export interface DeviceRowWithNode extends DeviceRow {
   node_simulated: boolean | null;
 }
 
-async function findDevice(id: string): Promise<DeviceRowWithNode | undefined> {
+// A device type's audit policy for process-written AUTO values (Library
+// `library.json` auditAuto, migrations/1690000000059): read from the
+// catalog once, dropped when a Library item changes (entityChanges.ts).
+let auditPolicies: { byType: Map<string, string> } | null = null;
+entityChanges.on("change", (change: EntityChange) => {
+  if (change.table === "library_items" || change.op === "resync") auditPolicies = null;
+});
+
+async function auditPolicyOf(type: string): Promise<string> {
+  if (!auditPolicies) {
+    const rows = (
+      await pool.query<{ type_name: string; audit_auto: string }>(
+        "SELECT type_name, audit_auto FROM library_items WHERE kind = 'device' AND audit_auto IS NOT NULL",
+      )
+    ).rows;
+    auditPolicies = { byType: new Map(rows.map((r) => [r.type_name, r.audit_auto])) };
+  }
+  return auditPolicies.byType.get(type) ?? "change";
+}
+
+// on / non-zero vs off / zero / empty
+const isOn = (v: unknown) => v !== null && v !== undefined && v !== false && v !== 0 && v !== "0" && v !== "" && v !== "false";
+
+/** Whether an AUTO write from `previous` to `value` gets a log_command row under `policy`. */
+function auditable(policy: string, previous: unknown, value: unknown): boolean {
+  if (policy === "never") return false;
+  if (policy === "transition") return isOn(previous) !== isOn(value);
+  return JSON.stringify(previous) !== JSON.stringify(value);
+}
+
+// The device's value lives in this API's cache, not behind EdgeX: a virtual
+// device or a node's simulated twin - every write to it goes through this
+// API (the batch read's rule above, the detail view, the Data Logger).
+function cacheIsSourceFor(row: { backend?: string | null; edgex_device_name_simulated: string | null }, resolved: string | null): boolean {
+  return !resolved || resolved === row.edgex_device_name_simulated || row.backend === "virtual";
+}
+
+// A simulated reading's EdgeX write is due (config.simulatedEdgexSyncMs) -
+// the reading itself is published every time (simulate-auto above).
+// A device seen for the first time gets a random place in the period, so
+// the hundreds of simulated devices don't all come due in the same second.
+const lastEdgexSync = new Map<number, number>();
+function edgexSyncDue(deviceId: number): boolean {
+  const now = Date.now();
+  const period = config.simulatedEdgexSyncMs;
+  const last = lastEdgexSync.get(deviceId);
+  if (last === undefined) {
+    lastEdgexSync.set(deviceId, now - Math.random() * period);
+    return period <= 0;
+  }
+  if (now - last < period) return false;
+  lastEdgexSync.set(deviceId, now);
+  return true;
+}
+
+export async function findDevice(id: string): Promise<DeviceRowWithNode | undefined> {
   const result = await pool.query<DeviceRowWithNode>(`${SELECT_DEVICE_WITH_NODE} WHERE d.id = $1`, [id]);
   return result.rows[0];
 }
@@ -724,6 +999,7 @@ async function findDevice(id: string): Promise<DeviceRowWithNode | undefined> {
 function isUniqueViolation(err: unknown): boolean {
   return err instanceof Error && "code" in err && (err as { code: string }).code === "23505";
 }
+
 
 async function findDeviceListRow(id: string): Promise<DeviceListRow | undefined> {
   const result = await pool.query<DeviceListRow>(
@@ -753,6 +1029,22 @@ async function findNode(id: number): Promise<NodeRow | undefined> {
  * request, not a Devices API failure. Returns false (having already sent
  * the reply) on rejection, true on success.
  */
+// A reply stand-in for the helpers that answer through `reply.code(...).send(...)` (requireEdgeXDevice,
+// writeOrReject) when the caller collects the answer itself (applyAuto - one item of a batch).
+function replyCapture() {
+  let result: { code: number; body: unknown } = { code: 200, body: undefined };
+  return {
+    code(statusCode: number) {
+      return {
+        send(payload: unknown) {
+          result = { code: statusCode, body: payload };
+        },
+      };
+    },
+    result: () => result,
+  };
+}
+
 async function writeOrReject(
   reply: { code: (statusCode: number) => { send: (payload: unknown) => void } },
   edgexDeviceName: string,
@@ -776,7 +1068,7 @@ async function writeOrReject(
   }
 }
 
-async function requireEdgeXDevice(
+export async function requireEdgeXDevice(
   id: string,
   reply: { code: (statusCode: number) => { send: (payload: unknown) => void } },
 ): Promise<(DeviceRowWithNode & { resolvedEdgexName: string }) | undefined> {
@@ -828,6 +1120,11 @@ async function checkForbidden(
       const otherEdgexResource = other.capabilities.edgexResource;
       currentValues[name] = await dualDevicesModel.resolveActiveValue(other.id, async () => {
         try {
+          // a virtual / simulated device - its cached reading, as every other reader of it
+          if (cacheIsSourceFor(other, otherResolvedName)) {
+            const cached = await dualDevicesModel.getReading(other.id);
+            if (cached) return cached.value;
+          }
           return (await readValue(otherEdgexDeviceName, otherEdgexResource)).value;
         } catch (err) {
           log.warn({ err, device: name }, "Model State Validator: failed to read current value");

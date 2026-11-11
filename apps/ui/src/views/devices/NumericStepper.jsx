@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { CButton, CFormInput } from '@coreui/react'
+import { CButton, CFormInput, CInputGroup } from '@coreui/react'
 
-const format = (n) => Number(n).toFixed(2)
+const format = (n, precision) => Number(n).toFixed(precision)
 
 // Standard press-and-hold spinner behavior: a quick click steps once: hold
 // past HOLD_DELAY_MS and it starts stepping by itself every
@@ -30,7 +30,37 @@ const REPEAT_INTERVAL_MS = 50
  * write philosophy as the buttons, just via keyboard instead of a click.
  * Every other caller leaves this at its default `false` and is
  * unaffected.
+ *
+ * `incrementDisabled` (AGENTS_TO_DO.md 2026-09-07 - Light Profiles'
+ * Power stepper) - disables just the "+" button/hold-repeat, leaving
+ * "-" and the text input (when `editable`) usable. For a caller whose
+ * effective ceiling isn't a single fixed `max` number but a dynamic
+ * constraint (e.g. "refuse any increase while some OTHER value is
+ * already saturated") - the caller's own `onCommit` can still silently
+ * refuse an increase typed directly into the text field, but the "+"
+ * button itself should read as genuinely disabled (grayed out), not
+ * just silently no-op on click - direct user instruction: no error
+ * banner for this, only disable the button.
+ *
+ * `precision` (AGENTS_TO_DO.md 2026-09-14 - DevicesList.jsx's own
+ * Override control was showing an aquarium Watts reading rounded to 2
+ * decimals, hiding real precision the caller wanted to see in full) -
+ * decimal places for both display and commit/step rounding. Defaults
+ * to 2, preserving every existing caller's own behavior unchanged;
+ * DevicesList.jsx's own numeric Override passes a higher value.
+ *
+ * Rendered as one Bootstrap input group (AGENTS_TO_DO.md 2026-09-25) -
+ * "-", the value and "+" read as a single joined control instead of
+ * three separately bordered pieces. `flex-nowrap` keeps the buttons from
+ * wrapping under the input in a narrow column, and the input's own fixed
+ * `flex` basis stops input-group's default `flex: 1 1 auto` from
+ * stretching it across the whole row in a block-level parent.
+ * The buttons' resting border borrows the input's own border color
+ * (`STEP_BUTTON_STYLE`), so the joined group reads as one outline instead
+ * of a dark-bordered pair around a light one; hover/active states keep
+ * the outline-secondary look.
  */
+const STEP_BUTTON_STYLE = { '--cui-btn-border-color': 'var(--cui-border-color)' }
 const NumericStepper = ({
   value,
   step = 1,
@@ -39,6 +69,8 @@ const NumericStepper = ({
   disabled = false,
   busy = false,
   editable = false,
+  incrementDisabled = false,
+  precision = 2,
   onCommit,
 }) => {
   const current = Number(value ?? 0)
@@ -50,11 +82,11 @@ const NumericStepper = ({
   // Compiler-era lint rules reject for a plain setState call like this
   // one (same rule already noted elsewhere in this codebase - see e.g.
   // ProcessSettingsModal.jsx's own comments on the same class of rule).
-  const [text, setText] = useState(() => format(current))
+  const [text, setText] = useState(() => format(current, precision))
   const [syncedCurrent, setSyncedCurrent] = useState(current)
   if (current !== syncedCurrent) {
     setSyncedCurrent(current)
-    setText(format(current))
+    setText(format(current, precision))
   }
 
   // The value a held-down repeat continues from - can't read the `value`
@@ -113,7 +145,7 @@ const NumericStepper = ({
   // commits every tick for as long as the button stays held.
   const doStep = (direction) => {
     const stepped = runningValueRef.current + direction * step
-    const clamped = Number(format(Math.min(max, Math.max(min, stepped))))
+    const clamped = Number(format(Math.min(max, Math.max(min, stepped)), precision))
     if (clamped === runningValueRef.current) return false
     runningValueRef.current = clamped
     onCommit(clamped)
@@ -130,16 +162,16 @@ const NumericStepper = ({
   const commitText = () => {
     const parsed = Number(text)
     if (!Number.isFinite(parsed)) {
-      setText(format(current))
+      setText(format(current, precision))
       return
     }
-    const clamped = Number(format(Math.min(max, Math.max(min, parsed))))
-    setText(format(clamped))
+    const clamped = Number(format(Math.min(max, Math.max(min, parsed)), precision))
+    setText(format(clamped, precision))
     if (clamped !== current) onCommit(clamped)
   }
 
   const startHold = (direction) => {
-    if (disabled || busy) return
+    if (disabled || busy || (direction > 0 && incrementDisabled)) return
     // Clears any still-running hold before starting a new one - belt and
     // braces alongside the window listener above, so an interval can never
     // be orphaned by a fresh pointerdown overwriting its ref.
@@ -167,11 +199,12 @@ const NumericStepper = ({
   }
 
   return (
-    <div className="d-flex align-items-center gap-1">
+    <CInputGroup size="sm" className="flex-nowrap w-auto">
       <CButton
         size="sm"
         variant="outline"
         color="secondary"
+        style={STEP_BUTTON_STYLE}
         disabled={disabled || busy}
         onPointerDown={() => startHold(-1)}
         onPointerUp={stopHold}
@@ -182,8 +215,8 @@ const NumericStepper = ({
       </CButton>
       <CFormInput
         size="sm"
-        style={{ width: '4rem' }}
-        value={editable ? text : format(current)}
+        style={{ flex: '0 0 4rem' }}
+        value={editable ? text : format(current, precision)}
         disabled={disabled || !editable}
         readOnly={!editable}
         onChange={editable ? (e) => setText(e.target.value) : undefined}
@@ -200,7 +233,8 @@ const NumericStepper = ({
         size="sm"
         variant="outline"
         color="secondary"
-        disabled={disabled || busy}
+        style={STEP_BUTTON_STYLE}
+        disabled={disabled || busy || incrementDisabled}
         onPointerDown={() => startHold(1)}
         onPointerUp={stopHold}
         onPointerLeave={stopHold}
@@ -208,7 +242,7 @@ const NumericStepper = ({
       >
         +
       </CButton>
-    </div>
+    </CInputGroup>
   )
 }
 

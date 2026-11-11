@@ -19,8 +19,18 @@
 
 name: nexus-edge
 
+# Container logs (json-file) are capped per service: max-size per file, max-file
+# files kept (.env DOCKER_LOG_MAX_SIZE / DOCKER_LOG_MAX_FILE). Unbounded, the
+# stacks' logs reached 43 GB in two weeks on a dev machine (2026-11-07).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+    max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
 services:
   edgex-postgres:
+    logging: *logging
     container_name: edgex-postgres
     hostname: edgex-postgres
     image: postgres:16.3-alpine
@@ -39,6 +49,7 @@ services:
       - nexus-edge-network
 
   edgex-mqtt-broker:
+    logging: *logging
     container_name: edgex-mqtt-broker
     hostname: edgex-mqtt-broker
     image: eclipse-mosquitto:2.0.22
@@ -54,7 +65,32 @@ services:
     networks:
       - nexus-edge-network
 
+  # Device broker (AGENTS.md section 79) - MQTT for network nodes, served
+  # by device-service's MQTT transport. Separate from edgex-mqtt-broker
+  # above (EdgeX's internal bus). Published on all interfaces on purpose:
+  # nodes on the LAN connect to it. Anonymous until the platform-wide
+  # authorization task - LAN only.
+  device-mqtt-broker:
+    logging: *logging
+    container_name: nexus-edge-device-mqtt-broker
+    hostname: device-mqtt-broker
+    image: eclipse-mosquitto:2.0.22
+    restart: unless-stopped
+    read_only: true
+    # The image's own "mosquitto" user - running as it skips the
+    # entrypoint's chown of /mosquitto, which fails on a read-only root.
+    user: "1883:1883"
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./config/device-mqtt-broker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    ports:
+      - "${DEVICE_MQTT_HOST_PORT}:1883"
+    networks:
+      - nexus-edge-network
+
   edgex-core-common-config-bootstrapper:
+    logging: *logging
     container_name: edgex-core-common-config-bootstrapper
     hostname: edgex-core-common-config-bootstrapper
     image: edgexfoundry/core-common-config-bootstrapper:4.0.2
@@ -82,6 +118,7 @@ services:
       - nexus-edge-network
 
   edgex-core-keeper:
+    logging: *logging
     container_name: edgex-core-keeper
     hostname: edgex-core-keeper
     image: edgexfoundry/core-keeper:4.0.2
@@ -95,6 +132,11 @@ services:
         condition: service_started
         required: true
     environment:
+      # EdgeX's own log level (.env EDGEX_LOG_LEVEL): at INFO core-command alone
+      # writes a line per command ("Using registry for URL..."). Applied when the
+      # stack is first created; on a running one - keeper key
+      # edgex/v4/<service>/Writable/LogLevel.
+      WRITABLE_LOGLEVEL: ${EDGEX_LOG_LEVEL:-WARN}
       DATABASE_HOST: edgex-postgres
       EDGEX_SECURITY_SECRET_STORE: "false"
       MESSAGEBUS_AUTHMODE: none
@@ -110,6 +152,7 @@ services:
       - nexus-edge-network
 
   edgex-core-metadata:
+    logging: *logging
     container_name: edgex-core-metadata
     hostname: edgex-core-metadata
     image: edgexfoundry/core-metadata:4.0.2
@@ -129,6 +172,11 @@ services:
         condition: service_started
         required: true
     environment:
+      # EdgeX's own log level (.env EDGEX_LOG_LEVEL): at INFO core-command alone
+      # writes a line per command ("Using registry for URL..."). Applied when the
+      # stack is first created; on a running one - keeper key
+      # edgex/v4/<service>/Writable/LogLevel.
+      WRITABLE_LOGLEVEL: ${EDGEX_LOG_LEVEL:-WARN}
       EDGEX_SECURITY_SECRET_STORE: "false"
       SERVICE_HOST: edgex-core-metadata
     ports:
@@ -137,6 +185,7 @@ services:
       - nexus-edge-network
 
   edgex-core-data:
+    logging: *logging
     container_name: edgex-core-data
     hostname: edgex-core-data
     image: edgexfoundry/core-data:4.0.2
@@ -159,14 +208,25 @@ services:
         condition: service_started
         required: true
     environment:
+      # EdgeX's own log level (.env EDGEX_LOG_LEVEL): at INFO core-command alone
+      # writes a line per command ("Using registry for URL..."). Applied when the
+      # stack is first created; on a running one - keeper key
+      # edgex/v4/<service>/Writable/LogLevel.
+      WRITABLE_LOGLEVEL: ${EDGEX_LOG_LEVEL:-WARN}
       EDGEX_SECURITY_SECRET_STORE: "false"
       SERVICE_HOST: edgex-core-data
+      # Nexus Edge keeps its own history and reads values live (core-command) or from its cache - EdgeX's
+      # stored events are never read; storing every one cost ~40 % of a core on a small server
+      # (iot PERF_PROD_2026-11-05.md). Applied by the bootstrap on a fresh stack only - on a running
+      # one: keeper key edgex/v4/core-data/Writable/PersistData = false.
+      WRITABLE_PERSISTDATA: "false"
     ports:
       - "127.0.0.1:59880:59880"
     networks:
       - nexus-edge-network
 
   edgex-core-command:
+    logging: *logging
     container_name: edgex-core-command
     hostname: edgex-core-command
     image: edgexfoundry/core-command:4.0.2
@@ -192,6 +252,11 @@ services:
         condition: service_started
         required: true
     environment:
+      # EdgeX's own log level (.env EDGEX_LOG_LEVEL): at INFO core-command alone
+      # writes a line per command ("Using registry for URL..."). Applied when the
+      # stack is first created; on a running one - keeper key
+      # edgex/v4/<service>/Writable/LogLevel.
+      WRITABLE_LOGLEVEL: ${EDGEX_LOG_LEVEL:-WARN}
       EDGEX_SECURITY_SECRET_STORE: "false"
       EXTERNALMQTT_URL: tcp://edgex-mqtt-broker:1883
       SERVICE_HOST: edgex-core-command
@@ -206,6 +271,7 @@ services:
   # No official EdgeX device service exists for CAN, so this is our own code
   # rather than a vendored image (see AGENTS.md section 5).
   device-service:
+    logging: *logging
     container_name: nexus-edge-device-service
     build:
       context: .
@@ -230,6 +296,17 @@ services:
     environment:
       EDGEX_SECURITY_SECRET_STORE: "false"
       SERVICE_HOST: device-service
+      # MQTT transport (network nodes, AGENTS.md section 79). Unset
+      # DEVICE_MQTT_BROKER_URL = transport not registered at all.
+      DEVICE_MQTT_BROKER_URL: tcp://device-mqtt-broker:1883
+      DEVICE_MQTT_TOPIC_ROOT: ${DEVICE_MQTT_TOPIC_ROOT}
+      DEVICE_MQTT_CLIENT_ID: ${DEVICE_MQTT_CLIENT_ID}
+      # Media devices (AGENTS.md section 81): frames are uploaded to the
+      # Devices API's Media Store; the device's value becomes the returned id.
+      DEVICE_MEDIA_UPLOAD_URL: http://api:${API_PORT}/media/edgex
+      DEVICE_MEDIA_UPLOAD_TIMEOUT_SECONDS: ${DEVICE_MEDIA_UPLOAD_TIMEOUT_SECONDS}
+      # the Devices API accepts the internal services by this token (access/guard.ts)
+      SERVICE_API_TOKEN: ${SERVICE_API_TOKEN}
     ports:
       - "127.0.0.1:59999:59999"
     networks:

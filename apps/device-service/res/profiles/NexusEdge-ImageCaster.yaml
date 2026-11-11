@@ -1,0 +1,32 @@
+# Loaded copy of devices/standalone/sensor/image-caster/edgex-device-profile.yaml
+# (source of truth) - kept in sync by hand (AGENTS.md section 7).
+name: "NexusEdge-ImageCaster"
+manufacturer: "NexusEdge"
+model: "image-caster"
+labels:
+  - "sensor"
+  - "media"
+description: >
+  Sends an image on its own - atomic device, one String value: the
+  image's Media Store id
+
+deviceResources:
+  - name: "Image"
+    isHidden: false
+    description: "Media Store id of the latest image the device sent"
+    properties:
+      valueType: "String"
+      # RW at the EdgeX/core-command level for the same reason as every
+      # other read-only sensor in this library (see ../temperature's
+      # profile comment) - the Devices API's capabilities.readOnly is what
+      # enforces "no ordinary command surface"; the media simulate path
+      # needs to write the id through core-command.
+      readWrite: "RW"
+    attributes:
+      # MQTT transport (AGENTS.md section 81): the state payload is the
+      # image file itself - uploaded to the Media Store, whose id becomes
+      # this resource's value.
+      mqttPayload: "media"
+      mediaExtension: "jpg"
+
+deviceCommands: []

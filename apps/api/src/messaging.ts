@@ -73,6 +73,20 @@ export interface NodeEventEnvelope {
   source: string;
 }
 
+// A watched row changed (entityChanges.ts - migrations/1690000000062):
+// `domain` - its table (`processes`, `nodes`, `devices`, `series`, a
+// plugin's own); `entityId` - its id, null for "anything may have
+// changed" (`op` resync - notifications were missed); routing key
+// `<table>.<id|all>.changed`. Carries no row - a consumer re-reads what it
+// cached.
+export interface ChangeEventEnvelope {
+  domain: string;
+  entityId: number | null;
+  op: "insert" | "update" | "delete" | "resync";
+  timestamp: string;
+  source: string;
+}
+
 const connection = amqp.connect([config.rabbitmq.url]);
 connection.on("connect", () => logger.info("connected to RabbitMQ"));
 connection.on("disconnect", (params) => logger.warn({ err: params.err }, "disconnected from RabbitMQ"));
@@ -102,4 +116,8 @@ export function publishDeviceEvent(envelope: DeviceEventEnvelope): Promise<void>
 
 export function publishNodeEvent(envelope: NodeEventEnvelope): Promise<void> {
   return publish(`node.${envelope.entityId}.updated`, envelope);
+}
+
+export function publishChangeEvent(envelope: ChangeEventEnvelope): Promise<void> {
+  return publish(`${envelope.domain}.${envelope.entityId ?? "all"}.changed`, envelope);
 }

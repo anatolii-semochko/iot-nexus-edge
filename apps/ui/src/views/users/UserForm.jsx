@@ -19,14 +19,18 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilCheck, cilX } from '@coreui/icons'
 import { api } from '../../api/client'
+import SearchChecklist from '../../components/SearchChecklist'
+import { AiTokensInput, parseAiTokens } from './AiTokens'
+import { t } from 'src/i18n'
 
 const AVATAR_SIZE = '4rem'
 
 /**
- * Create/edit modal (AGENTS.md section 13). `roles` only ever has one
- * meaningful value today ('admin') - a single checkbox, not a generic
- * multi-select, until a second role actually exists server-side
- * (ALLOWED_ROLES in apps/api/src/routes/users.ts).
+ * Create/edit modal (AGENTS.md section 13). Roles - the ones the person
+ * acts as (one at a time - the header's menu; what each allows - Users ->
+ * Roles; 2026-10-27). A new person starts as a viewer. The AI's tokens a day (AiTokens.jsx). An internal service's
+ * account (orchestrator, simulator, AI agent - the role `system`) and the
+ * guest sign in with no password; a service's access is fixed.
  *
  * The avatar field is deliberately NOT wired to live PUT/DELETE calls on
  * every change - it used to upload/remove immediately, which meant
@@ -38,13 +42,20 @@ const AVATAR_SIZE = '4rem'
  * have an avatar picked before it exists - the upload just waits for
  * `createUser`'s response to hand back the new id.
  */
-const UserForm = ({ user, onClose, onSaved }) => {
+const UserForm = ({ user, roles, onClose, onSaved }) => {
   const isEdit = Boolean(user)
   const [username, setUsername] = useState(user?.username ?? '')
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
+  const [email, setEmail] = useState(user?.email ?? '')
   const [password, setPassword] = useState('')
-  const [isAdminRole, setIsAdminRole] = useState(user?.roles.includes('admin') ?? false)
+  const [roleKeys, setRoleKeys] = useState(user?.roleKeys ?? ['viewer'])
   const [active, setActive] = useState(user?.active ?? true)
+  const [aiTokens, setAiTokens] = useState(user?.ai_daily_tokens ?? '')
+  // an internal service's account - its access fixed; an MCP client's account (user.mcp) - no password
+  // either, but its roles set here like a person's (the full roles refused - api ai/mcp.ts)
+  const service = Boolean(user?.service) && !user?.mcp
+  const mcp = Boolean(user?.mcp)
+  const noPassword = service || mcp || Boolean(user?.guest)
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarObjectUrl, setAvatarObjectUrl] = useState(null)
   const [avatarRemoved, setAvatarRemoved] = useState(false)
@@ -85,13 +96,15 @@ const UserForm = ({ user, onClose, onSaved }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const aiDailyTokens = parseAiTokens(aiTokens)
+    if (aiDailyTokens === undefined)
+      return setError(t('AI tokens a day: empty, 0 or a whole number'))
     setBusy(true)
     setError(null)
     try {
-      const roles = isAdminRole ? ['admin'] : []
       let userId = user?.id
       if (isEdit) {
-        const body = { display_name: displayName, roles, active }
+        const body = { display_name: displayName, email, active, ai_daily_tokens: aiDailyTokens }
         if (password) body.password = password
         await api.updateUser(user.id, body)
       } else {
@@ -99,11 +112,13 @@ const UserForm = ({ user, onClose, onSaved }) => {
           username,
           password,
           display_name: displayName,
-          roles,
+          email,
           active,
+          ai_daily_tokens: aiDailyTokens,
         })
         userId = created.id
       }
+      if (!service) await api.setUserRoles(userId, roleKeys)
 
       if (avatarFile) {
         await api.uploadAvatar(userId, avatarFile)
@@ -122,14 +137,16 @@ const UserForm = ({ user, onClose, onSaved }) => {
   return (
     <CModal visible onClose={onClose}>
       <CModalHeader>
-        <CModalTitle>{isEdit ? `Edit ${user.username}` : 'Add user'}</CModalTitle>
+        <CModalTitle>
+          {isEdit ? t('Edit {{username}}', { username: user.username }) : t('Add user')}
+        </CModalTitle>
       </CModalHeader>
       <CForm onSubmit={handleSubmit}>
         <CModalBody>
           {error && <CAlert color="danger">{error}</CAlert>}
           <CRow className="mb-3">
             <CCol>
-              <CFormLabel>Username</CFormLabel>
+              <CFormLabel>{t('Username')}</CFormLabel>
               <CFormInput
                 value={username}
                 disabled={isEdit}
@@ -140,48 +157,84 @@ const UserForm = ({ user, onClose, onSaved }) => {
           </CRow>
           <CRow className="mb-3">
             <CCol>
-              <CFormLabel>Display name</CFormLabel>
+              <CFormLabel>{t('Display name')}</CFormLabel>
               <CFormInput value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             </CCol>
           </CRow>
           <CRow className="mb-3">
             <CCol>
-              <CFormLabel>
-                {isEdit ? 'New password (leave blank to keep current)' : 'Password'}
-              </CFormLabel>
-              <CFormInput
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required={!isEdit}
+              <CFormLabel>{t('Email')}</CFormLabel>
+              <CFormInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </CCol>
+          </CRow>
+          {!noPassword && (
+            <CRow className="mb-3">
+              <CCol>
+                <CFormLabel>
+                  {isEdit ? t('New password (leave blank to keep current)') : t('Password')}
+                </CFormLabel>
+                <CFormInput
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required={!isEdit}
+                />
+              </CCol>
+            </CRow>
+          )}
+          <div className="mb-3">
+            <CFormLabel>{t('Roles')}</CFormLabel>
+            {service ? (
+              <div className="small text-body-secondary">
+                {roleKeys.map((k) => roles.find((r) => r.key === k)?.name ?? k).join(', ')} - an
+                internal service&apos;s account, fixed.
+              </div>
+            ) : (
+              <SearchChecklist
+                id="user-roles"
+                items={roles
+                  .filter((r) => !r.service && !(mcp && r.full))
+                  .map((r) => ({ key: r.key, label: r.name, detail: r.key }))}
+                selected={roleKeys}
+                onToggle={(k) =>
+                  setRoleKeys((ks) => (ks.includes(k) ? ks.filter((x) => x !== k) : [...ks, k]))
+                }
+                disabled={busy}
+                maxHeight="10rem"
+              />
+            )}
+            <div className="form-text">
+              {t(
+                'Several - the person switches between them in the menu; none - signs in, sees nothing.',
+              )}
+            </div>
+          </div>
+          <CRow className="mb-3">
+            <CCol sm={6}>
+              <AiTokensInput
+                id="user-ai-tokens"
+                value={aiTokens}
+                onChange={setAiTokens}
+                disabled={busy}
               />
             </CCol>
           </CRow>
           <CRow className="mb-3">
             <CCol>
               <CFormCheck
-                label="Admin role"
-                checked={isAdminRole}
-                onChange={(e) => setIsAdminRole(e.target.checked)}
-              />
-            </CCol>
-          </CRow>
-          <CRow className="mb-3">
-            <CCol>
-              <CFormCheck
-                label="Active"
+                label={t('Active')}
                 checked={active}
                 disabled={!canDeactivate}
                 onChange={(e) => setActive(e.target.checked)}
               />
               {!canDeactivate && (
-                <div className="form-text">This account can never be deactivated.</div>
+                <div className="form-text">{t('This account can never be deactivated.')}</div>
               )}
             </CCol>
           </CRow>
           <CRow className="mb-3">
             <CCol>
-              <CFormLabel>Avatar</CFormLabel>
+              <CFormLabel>{t('Avatar')}</CFormLabel>
               <div className="d-flex align-items-center gap-3">
                 <div
                   className="position-relative"
@@ -233,10 +286,10 @@ const UserForm = ({ user, onClose, onSaved }) => {
                       className="mt-1 p-0"
                       onClick={handleRemoveAvatarLocal}
                     >
-                      Remove avatar
+                      {t('Remove avatar')}
                     </CButton>
                   )}
-                  <div className="form-text">Applied when you Save.</div>
+                  <div className="form-text">{t('Applied when you Save.')}</div>
                 </div>
               </div>
             </CCol>
@@ -244,10 +297,10 @@ const UserForm = ({ user, onClose, onSaved }) => {
         </CModalBody>
         <CModalFooter>
           <CButton color="secondary" variant="outline" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </CButton>
           <CButton type="submit" color="primary" disabled={busy}>
-            {busy ? <CSpinner size="sm" /> : 'Save'}
+            {busy ? <CSpinner size="sm" /> : t('Save')}
           </CButton>
         </CModalFooter>
       </CForm>

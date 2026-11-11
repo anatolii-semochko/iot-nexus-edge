@@ -1,0 +1,17 @@
+nodeType: wind-turbine
+description: >
+  A wind turbine (horizontal axis, permanent-magnet generator) with its
+  grid inverter. Reference models: small - Braun Windturbinen ANTARIS 3.5 kW
+  (rotor 3.5 m, rated 3.7 kW at 420 rpm, cut-in 2 m/s, cut-out 15 m/s) and
+  ANTARIS 6.5 kW (rotor 5.3 m); mid-size - Northern Power Systems
+  NPS 100C-24 (95 kW, rotor 24.4 m, cut-in 3 m/s, cut-out 25 m/s). Reports
+  its power, its yield register and the rotor speed; switched on / off
+  (off - braked). Driven by the `energy-field` process (simulated - the
+  power curve from the forecast's wind speed at the hub height).
+bus:
+  type: modbus-tcp
+supports:
+  - power
+  - energy
+  - rotational-speed
+  - relay

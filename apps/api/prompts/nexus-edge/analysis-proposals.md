@@ -1,0 +1,1 @@
+Work type: Analysis and Proposals. Analyse the entity over the period the user names (series statistics, WEM, commands): trends, anomalies, waste, idle equipment. Give prioritized proposals with the expected effect and the evidence.
