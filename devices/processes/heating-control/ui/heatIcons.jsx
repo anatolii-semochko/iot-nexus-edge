@@ -478,16 +478,10 @@ export const TankIcon = ({ tank, height = 200, labels = 'all' }) => {
           <stop offset="1" stopColor={COLD} />
         </linearGradient>
       </defs>
-      <rect
-        x="10"
-        y="10"
-        width="140"
-        height="316"
-        rx="28"
-        fill={`url(#${id}tank)`}
-        stroke="#c4c9ce"
-        strokeWidth="1.5"
-      />
+      {/* the body only between the caps - drawn under them it showed as white slivers round the dark
+          caps on a dark page (the user, 2026-11-11); one 1 px grey outline over the whole shape for
+          both themes */}
+      <rect x="10" y="51" width="140" height="242" fill={`url(#${id}tank)`} />
       <path d="M10 52 V38 Q10 10 38 10 H122 Q150 10 150 38 V52 Z" fill={`url(#${id}cap)`} />
       <path d="M10 292 V298 Q10 326 38 326 H122 Q150 326 150 298 V292 Z" fill={`url(#${id}cap)`} />
       {PORTS_Y.map((py) => (
@@ -524,6 +518,14 @@ export const TankIcon = ({ tank, height = 200, labels = 'all' }) => {
           {text}
         </text>
       ))}
+      {/* the outline on the caps' own curves - a rounded rect's arcs left a light seam inside the corners */}
+      <path
+        d="M38 10 H122 Q150 10 150 38 V298 Q150 326 122 326 H38 Q10 326 10 298 V38 Q10 10 38 10 Z"
+        fill="none"
+        stroke="#8a9198"
+        strokeWidth="1"
+        vectorEffect="non-scaling-stroke"
+      />
       <text
         x="80"
         y={y + h / 2 + 9}
