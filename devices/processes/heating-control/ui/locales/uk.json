@@ -239,6 +239,7 @@
   "{{v0}} to the rooms {{toFixed}} kW": "{{v0}} до кімнат {{toFixed}} kW",
   "{{v0}} {{toFixed}} kW (big) / electricity {{toFixed2}} kW (small, magenta){{v3}}": "{{v0}} {{toFixed}} kW (велика) / електрика {{toFixed2}} kW (мала, пурпурна){{v3}}",
   "{{v0}}, kW": "{{v0}}, kW",
+  "{{what}} and electricity, kW": "{{what}} і електрика, kW",
   "{{what}} and the electricity, kW": "{{what}} і електрика, kW",
   "{{what}} in from the heat pumps": "{{what}} від теплових помп",
   "{{what}} out to the fan coils": "{{what}} до фанкойлів",

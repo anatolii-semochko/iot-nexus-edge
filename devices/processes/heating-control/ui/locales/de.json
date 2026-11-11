@@ -239,6 +239,7 @@
   "{{v0}} to the rooms {{toFixed}} kW": "{{v0}} zu den Räumen {{toFixed}} kW",
   "{{v0}} {{toFixed}} kW (big) / electricity {{toFixed2}} kW (small, magenta){{v3}}": "{{v0}} {{toFixed}} kW (groß) / Strom {{toFixed2}} kW (klein, magenta){{v3}}",
   "{{v0}}, kW": "{{v0}}, kW",
+  "{{what}} and electricity, kW": "{{what}} und Strom, kW",
   "{{what}} and the electricity, kW": "{{what}} und Strom, kW",
   "{{what}} in from the heat pumps": "{{what}} von den Wärmepumpen",
   "{{what}} out to the fan coils": "{{what}} zu den Gebläsekonvektoren",

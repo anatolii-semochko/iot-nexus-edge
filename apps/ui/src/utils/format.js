@@ -61,24 +61,37 @@ const sameDay = (a, b) =>
 // first; a relative "N minutes ago" (formatRelativeTime above) is right for
 // a single "last updated" field but reads badly on a long list where every
 // row needs its own reference point, not "ago" repeated down the column.
-export function formatSmartDateTime(iso) {
-  if (!iso) return '-'
+// `numeric` - the date in digits (20.10.2026, 10/20/2026 - the locale's order): a narrow screen's lists.
+// smartDateTimeParts - the same as [day, time], for a cell that puts them one under the other.
+const smartParts = (iso, numeric) => {
   const date = new Date(iso)
   const now = new Date()
   const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-
-  if (sameDay(date, now)) return t('Today, {{time}}', { time })
-
+  if (sameDay(date, now)) return { when: 'today', time }
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
-  if (sameDay(date, yesterday)) return t('Yesterday, {{time}}', { time })
+  if (sameDay(date, yesterday)) return { when: 'yesterday', time }
+  const day = date.toLocaleDateString(
+    undefined,
+    numeric
+      ? { year: 'numeric', month: '2-digit', day: '2-digit' }
+      : { year: 'numeric', month: 'short', day: 'numeric' },
+  )
+  return { day, time }
+}
 
-  const datePart = date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-  return `${datePart}, ${time}`
+export function smartDateTimeParts(iso, { numeric = false } = {}) {
+  if (!iso) return ['-', '']
+  const { when, day, time } = smartParts(iso, numeric)
+  return [when === 'today' ? t('Today') : when === 'yesterday' ? t('Yesterday') : day, time]
+}
+
+export function formatSmartDateTime(iso, { numeric = false } = {}) {
+  if (!iso) return '-'
+  const { when, day, time } = smartParts(iso, numeric)
+  if (when === 'today') return t('Today, {{time}}', { time })
+  if (when === 'yesterday') return t('Yesterday, {{time}}', { time })
+  return `${day}, ${time}`
 }
 
 // Converts a native <input type="datetime-local"> value (local time, no

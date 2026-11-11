@@ -18,6 +18,8 @@ const t = packageT('heating-control')
 const Stat = StatTile
 // a tank's two curves (both ways the same in heating and cooling): in - amber, out - teal
 export const TANK_FLOW_COLORS = ['#f08c00', '#0ca678']
+// the heating's electricity beside a heat curve (the heat pumps -> tanks line, a heat pump's own chart)
+export const ELECTRIC_COLOR = '#b8329e'
 
 const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
   const { kind, nodeId } = popup
@@ -87,14 +89,17 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
           absolute={[unitKey('kw'), unitKey('inKw'), unitKey('outKw')]}
           keys={
             kind === 'pump'
-              ? [unitKey('kw'), unitKey('cop')]
+              ? [[unitKey('kw'), unitKey('electricKw')], unitKey('cop')]
               : kind === 'tank'
                 ? [[unitKey('inKw'), unitKey('outKw')], unitKey('pct')]
                 : [unitKey('kw'), unitKey('roomC')]
           }
           labels={
             kind === 'pump'
-              ? [t('{{v0}}, kW', { v0: cooling ? 'Cold' : 'Heat' }), cooling ? 'EER' : 'COP']
+              ? [
+                  t('{{what}} and electricity, kW', { what: cooling ? t('Cold') : t('Heat') }),
+                  cooling ? 'EER' : 'COP',
+                ]
               : kind === 'tank'
                 ? [
                     t('{{v0}} in and out, kW', {
@@ -110,9 +115,19 @@ const HeatingPopup = ({ popup, process, m, control, send, onClose }) => {
                   ]
           }
           legends={
-            kind === 'tank' ? [[t('in - from the heat pumps'), t('out - to the fan coils')]] : []
+            kind === 'tank'
+              ? [[t('in - from the heat pumps'), t('out - to the fan coils')]]
+              : kind === 'pump'
+                ? [[(cooling ? t('Cold') : t('Heat')).toLowerCase(), t('electricity')]]
+                : []
           }
-          colors={kind === 'tank' ? [TANK_FLOW_COLORS] : []}
+          colors={
+            kind === 'tank'
+              ? [TANK_FLOW_COLORS]
+              : kind === 'pump'
+                ? [[TANK_FLOW_COLORS[0], ELECTRIC_COLOR]]
+                : []
+          }
           limits={
             kind === 'coil' && x.setpointC != null
               ? {
@@ -256,12 +271,12 @@ export const FlowPopup = ({ flow, process, m, onClose }) => {
                     t('{{toLowerCase}} to the tanks', {
                       toLowerCase: what.toLowerCase(),
                     }),
-                    'electricity',
+                    t('electricity'),
                   ],
                 ]
               : []
           }
-          colors={pumps ? [[TANK_FLOW_COLORS[0], '#b8329e']] : [TANK_FLOW_COLORS[1]]}
+          colors={pumps ? [[TANK_FLOW_COLORS[0], ELECTRIC_COLOR]] : [TANK_FLOW_COLORS[1]]}
         />
       }
       title={pumps ? t('From the heat pumps to the tanks') : t('From the tanks to the rooms')}

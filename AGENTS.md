@@ -2311,7 +2311,9 @@ Today/Yesterday/date + time-to-the-minute, new alongside the existing
 `formatDateTime` (full locale string, too wide for a dense feed) and
 `formatRelativeTime` ("N minutes ago", right for one last-updated field,
 reads badly repeated down a whole column where every row needs its own
-reference point).
+reference point). `{ numeric: true }` (2026-11-11) - the date in the locale's
+digits (20.10.2026) for a narrow screen's list; `smartDateTimeParts` - the same
+as `[day, time]`, for a cell that puts the time under the day.
 
 ### Cosmetic revision pass (after first ship)
 
@@ -9531,6 +9533,10 @@ Energy Ledger's README has the details.
   power gauges, the avatar's two arrows, the popup's two curves.
 - **Each unit's own series** (`heat.pump|tank|coil.<nodeId>.*`) - its popup
   shows it, not the block's sum; the water lines' gauges open `FlowPopup`.
+  A heat pump's: `kw`, `electricKw` (2026-11-11) and `cop` - its popup's first chart draws the heat
+  and the electricity on one axis in the pumps-to-tanks line's colours (`TANK_FLOW_COLORS[0]`,
+  `ELECTRIC_COLOR`). The series started 2026-11-11; the demo's earlier part was filled in once from
+  `kw / cop` (0 where the pump stood).
 - A fan coil's gauge - the heat it gives (kW), not its fan's watts; a unit
   switched off dimmed. The demo: one 800 l tank more in the hangar and the
   workshop (30..50 l per kW of the heat pumps; demo 037).

@@ -938,5 +938,6 @@
   "External AI clients (Claude Code, Claude Desktop, other agents) use the assistant's tools over the Model Context Protocol. Each token has its own service account: its roles say what it may read and change, the levels - whether a change applies at once or waits for a person. Every call - Logs -> MCP calls.": "Зовнішні ШІ-клієнти (Claude Code, Claude Desktop, інші агенти) користуються інструментами асистента через Model Context Protocol. У кожного токена свій сервісний обліковий запис: його ролі визначають, що він може читати й змінювати, рівні - чи зміна застосовується одразу, чи чекає на людину. Кожен виклик - у Журнали -> Виклики MCP.",
   "Add node": "Додати вузол",
   "Add device": "Додати пристрій",
-  "Add process": "Додати процес"
+  "Add process": "Додати процес",
+  "Yesterday": "Вчора"
 }

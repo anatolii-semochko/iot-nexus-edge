@@ -668,10 +668,11 @@ export default function registerHeatingControl(register: any, { apiClient, logge
     if (outdoorC !== null) values["heat.outdoorC"] = r(outdoorC, 1);
     if (cop !== null) values["heat.cop"] = r(cop, 2);
     if (fullKwh > 0) values["heat.tankPct"] = r((storedKwh / fullKwh) * 100, 1);
-    // each unit's own (its popup's charts, 2026-10-29): a heat pump's heat and COP, a tank's heat in /
+    // each unit's own (its popup's charts, 2026-10-29): a heat pump's heat, electricity (2026-11-11) and COP, a tank's heat in /
     // out and charge, a fan coil's heat and its room
     for (const x of pumpView) {
       values[`heat.pump.${x.item.nodeId}.kw`] = r(x.heatKw, 3);
+      values[`heat.pump.${x.item.nodeId}.electricKw`] = r(x.electricKw, 3);
       if (x.cop !== null) values[`heat.pump.${x.item.nodeId}.cop`] = r(x.cop, 2);
     }
     for (const x of tankView) {
@@ -701,6 +702,7 @@ export default function registerHeatingControl(register: any, { apiClient, logge
           { valueKey: "heat.tanksOutKw", name: "Tanks - heat out (to the fan coils)", unit: "kW", kind: "gauge", mode: "period", periodS: 300 },
           ...pumps.flatMap((u) => [
             { valueKey: `heat.pump.${u.nodeId}.kw`, name: `${u.name} - heat (+ heat / - cold)`, unit: "kW", kind: "gauge", mode: "period", periodS: 300 },
+            { valueKey: `heat.pump.${u.nodeId}.electricKw`, name: `${u.name} - electricity`, unit: "kW", kind: "gauge", mode: "period", periodS: 300 },
             { valueKey: `heat.pump.${u.nodeId}.cop`, name: `${u.name} - COP / EER`, unit: "", kind: "gauge", mode: "period", periodS: 300 },
           ]),
           ...tanks.flatMap((u) => [
