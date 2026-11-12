@@ -6068,11 +6068,11 @@ Nexus Edge" - the product, the same in every installation (the old
 
 **The brand and the project's website (2026-11-01)** - the logo is the
 Nexus Edge mark ("Nexus node", the same as nexus-edge.tech), rendered in
-3D (`iot/images/logo/make_logo_3d.py`, Blender): `components/
-BrandMark.jsx`, two tones - light nodes on dark grounds (the sidebar,
-always), dark nodes on light ones (the header's brand follows the theme,
-`.brand-mark-on-light/-dark` in style.scss). The favicon is the site's
-flat mark; the old chip logo is gone. Optional `VITE_HOME_URL` /
+3D: `components/BrandMark.jsx` - one image (`assets/brand/mark-3d.png`, since
+2026-11-12: the yellow hub, three blue nodes, white connectors - reads on a
+light and a dark ground alike; rendered by iot `images/dashboard/v2/
+make_folder_renders.py` scene `logo-single`). The favicon (`public/
+favicon.svg`, `.ico`, `assets/img/favicon.png`) - the same mark. Optional `VITE_HOME_URL` /
 `VITE_HOME_LANGS` build args (from `HOME_URL` / `HOME_LANGS` in the
 project's `.env`; `src/homeSite.js`): set - the brand links to that site
 in the interface's language (`<url><lang>/` when the language is in

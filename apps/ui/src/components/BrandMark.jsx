@@ -1,33 +1,14 @@
 import React from 'react'
 
-import markOnDark from '../assets/brand/mark-3d-light.png'
-import markOnLight from '../assets/brand/mark-3d-dark.png'
+import mark from '../assets/brand/mark-3d.png'
 
 /**
- * The Nexus Edge mark ("Nexus node", the site's logo - 2026-11-01), rendered in 3D
- * (iot/images/logo/make_logo_3d.py). Light nodes on a dark ground, dark nodes on a light one:
- * `ground` - "dark" (the sidebar - always dark) or "theme" (follows the interface's theme).
+ * The Nexus Edge mark ("Nexus node", the site's logo), rendered in 3D (iot/images/dashboard/v2
+ * make_folder_renders.py, scene `logo-single`): the yellow hub, three blue nodes, white connectors
+ * darkening to their ends - one image for a light and a dark ground alike (2026-11-12).
  */
-const BrandMark = ({ size, ground = 'theme', className = '' }) =>
-  ground === 'dark' ? (
-    <img src={markOnDark} alt="" width={size} height={size} className={className} />
-  ) : (
-    <>
-      <img
-        src={markOnLight}
-        alt=""
-        width={size}
-        height={size}
-        className={`brand-mark-on-light ${className}`}
-      />
-      <img
-        src={markOnDark}
-        alt=""
-        width={size}
-        height={size}
-        className={`brand-mark-on-dark ${className}`}
-      />
-    </>
-  )
+const BrandMark = ({ size, className = '' }) => (
+  <img src={mark} alt="" width={size} height={size} className={className} />
+)
 
 export default BrandMark
