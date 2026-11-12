@@ -9733,7 +9733,9 @@ Energy Ledger's README has the details.
   screenshots and `_screens/screens.json`), merged in by its stack: the UI
   Dockerfile copies it over the core's `docs/guide`, the api mounts it under
   `project-docs`, the site's sync-docs adds `GUIDE_PARTS`. The dev server
-  (`make ui-dev`) shows the core's pages only.
+  (`make ui-dev`) lays the part over the core's too (2026-11-12): `UI_GUIDE_PART_DIR` (its docs/guide)
+  -> the Vite alias `guide-part/`, globbed after the core's pages and screens in `Docs.jsx`; unset - the
+  empty `src/views/docs/guide-part-none/`.
 
 - `docs/guide/*.md` (English; `docs/guide/<lang>/*.md` - uk, de, es, the
   UI's names as the translated UI shows them; front matter values quoted -

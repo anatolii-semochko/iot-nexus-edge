@@ -15,20 +15,23 @@ import { t } from 'src/i18n'
  * place among its siblings - its front matter `order`. A page not yet translated shows in English.
  * Routes: /docs (the guide's index), /docs/<path> ("energy", "energy/strategies").
  */
-const FILES = import.meta.glob('../../../../../docs/guide/**/*.md', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-})
+// the core's pages, then a target project's guide part over them (`guide-part/` - vite.config.mjs
+// UI_GUIDE_PART_DIR, for the dev server; an image copies the part into docs/guide itself)
+const FILES = {
+  ...import.meta.glob('../../../../../docs/guide/**/*.md', { query: '?raw', import: 'default', eager: true }),
+  ...import.meta.glob('guide-part/**/*.md', { query: '?raw', import: 'default', eager: true }),
+}
+// a file's path inside its guide
+const guidePath = (file) => (file.includes('/docs/guide/') ? file.split('/docs/guide/')[1] : file.split('guide-part/')[1])
 const LOCALES = ['uk', 'de', 'es']
 // the guide's screenshots - one English set, a light and a dark one each (docs/guide/_screens/<name>-<theme>.webp,
 // taken by nexus-edge-tech scripts/capture-docs-screens.mjs); a page writes ![caption](screen:<name>)
 const SHOTS = Object.fromEntries(
   Object.entries(
-    import.meta.glob('../../../../../docs/guide/_screens/*.webp', {
-      eager: true,
-      import: 'default',
-    }),
+    {
+      ...import.meta.glob('../../../../../docs/guide/_screens/*.webp', { eager: true, import: 'default' }),
+      ...import.meta.glob('guide-part/_screens/*.webp', { eager: true, import: 'default' }),
+    },
   ).map(([file, url]) => [file.match(/([^/]+)\.webp$/)[1], url]),
 )
 
@@ -47,7 +50,7 @@ const parse = (raw) => {
 // { lang: { id: page } } - the id: the path without ".md", a folder's index - the folder ("" - the root)
 const PAGES = {}
 for (const [file, raw] of Object.entries(FILES)) {
-  const rel = file.split('/docs/guide/')[1]
+  const rel = guidePath(file)
   if (!rel) continue
   const parts = rel.replace(/\.md$/, '').split('/')
   const lang = LOCALES.includes(parts[0]) && parts.length > 1 ? parts.shift() : 'en'

@@ -20,6 +20,11 @@ const pluginRoots = () => {
   }
 }
 const devProxy = process.env.UI_DEV_PROXY
+// A target project's own guide pages for `pnpm dev` (2026-11-12): UI_GUIDE_PART_DIR - its docs/guide (the
+// aquarium's), laid over the core's as its Dockerfile copies it; unset - an empty folder (no part)
+const guidePartDir = process.env.UI_GUIDE_PART_DIR
+  ? fs.realpathSync(path.resolve(process.env.UI_GUIDE_PART_DIR))
+  : path.resolve(__dirname, 'src/views/docs/guide-part-none')
 
 export default defineConfig(() => {
   return {
@@ -58,6 +63,7 @@ export default defineConfig(() => {
           find: 'plugins/',
           replacement: `${pluginsDir}/`,
         },
+        { find: 'guide-part/', replacement: `${guidePartDir}/` },
         // devices/ lives outside apps/ui's own package, so plain Node
         // resolution (walking up node_modules from the importing file)
         // would never find react there - pin it to apps/ui's own copy so
@@ -100,7 +106,7 @@ export default defineConfig(() => {
     },
     server: {
       port: Number(process.env.UI_DEV_PORT ?? 3000),
-      fs: { allow: [path.resolve(__dirname, '../..'), pluginsDir, ...pluginRoots()] },
+      fs: { allow: [path.resolve(__dirname, '../..'), pluginsDir, ...pluginRoots(), guidePartDir] },
       proxy: devProxy
         ? {
             '/api': { target: devProxy, changeOrigin: true },
