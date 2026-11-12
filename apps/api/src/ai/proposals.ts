@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { aiAgentUserId } from "./agentAccess.js";
 import { logger } from "../logger.js";
 import { createProcess, giveProcessCommand, type NewProcess, ProcessWriteError, switchProcess, writeProcessConfig } from "../processWrites.js";
 import { createDevice, createNode, type NewDevice, type NewNode, RegistryError } from "../registry.js";
@@ -57,8 +58,9 @@ export interface ProposalOrigin {
   instance: Instance;
   conversationId?: number | null;
   mcpTokenId?: number | null;
-  // an MCP service account: its roles must allow the change on the object, and it is the author of what
-  // applies on Auto (absent - the built-in assistant: its instance's levels, `ai-agent` the author)
+  // the agent's account: its roles must allow the change on the object (an MCP service account, or the
+  // built-in assistant's `ai-agent` - migration 110); `actorUserId` - the author of what applies on Auto
+  // (absent - `ai-agent`)
   principal?: Principal | null;
   actorUserId?: number | null;
 }
@@ -154,15 +156,6 @@ const toProposal = (r: ProposalRow): Proposal => ({
   decidedAt: r.decided_at?.toISOString() ?? null,
 });
 
-let aiAgentUserIdCache: number | null = null;
-/** The `ai-agent` user's id (migration 067) - the author of what an agent applies on Auto. */
-async function aiAgentUserId(): Promise<number> {
-  if (aiAgentUserIdCache !== null) return aiAgentUserIdCache;
-  const row = (await pool.query<{ id: number }>("SELECT id FROM users WHERE username = 'ai-agent'")).rows[0];
-  if (!row) throw new Error("the ai-agent user not found");
-  aiAgentUserIdCache = row.id;
-  return aiAgentUserIdCache;
-}
 
 export async function getProposal(id: number): Promise<Proposal | null> {
   const row = (await pool.query<ProposalRow>(`${SELECT} WHERE a.id = $1`, [id])).rows[0];
@@ -217,7 +210,8 @@ export async function proposalOwner(id: number): Promise<number | null> {
 export async function propose(input: ProposalInput, origin: ProposalOrigin): Promise<Proposal> {
   const level: Level = origin.instance.access[input.access];
   if (level === "off") throw new ProcessWriteError(`${origin.instance.name}: ${input.access} is off`, 403);
-  if (origin.principal && !(await principalAllows(origin.principal, input.operation, input.processId)))
+  // (a people's roles change - never applied by an agent: a person with users.manage decides it)
+  if (origin.principal && input.operation !== "roles" && !(await principalAllows(origin.principal, input.operation, input.processId)))
     throw new ProcessWriteError(`${origin.instance.name}: its roles don't allow ${input.operation}${input.processId !== null ? ` on process ${input.processId}` : ""}`, 403);
   const id = (
     await pool.query<{ id: number }>(

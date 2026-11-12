@@ -8163,7 +8163,16 @@ chronology (AI Assistant).
 
 - `ai-agent` - a protected account (migration 067; routes/users.ts
   `PROTECTED_USERNAMES`), the author of what an agent applies on its own
-  (an Auto access level); its password is random, never stored. What a
+  (an Auto access level); its password is random, never stored. Its rights
+  (2026-11-12, migration 110) - its own roles, like an MCP account's: the
+  role "AI Assistant" (`ai-assistant`, built in, every object configured, no
+  system section), narrowed on Users -> Roles or replaced on the account
+  (Users - `agent: true`; never `admin` / `system` - routes/access.ts). The
+  built-in assistant runs with its principal (`ai/agentAccess.ts`
+  `aiAgentPrincipal`): reads what the roles see (`principalScope`), proposes
+  what they allow on the object (`principalAllows`), its instance's levels cut
+  to Off where they hold nothing (`cutAccess`, shared with MCP).
+  `access.propose` refuses an agent's own account (`ai-agent`, any MCP one). What a
   person accepts is that person's; the orchestrator (the calendar's runs) -
   `system`; the simulation - `simulator`.
 
@@ -8306,8 +8315,8 @@ it is used.
   `GET /ai/mcp-calls`. UI: Service -> Config -> AI -> MCP access
   (`AiMcpAccess.jsx`: the account, its roles, the levels inline, the
   `claude mcp add --transport http ...` command).
-- Still the built-in assistant's way: `ai-agent` is the author of what an
-  instance applies on Auto (next - through a role of its own, as here).
+- The built-in assistant the same way since 2026-11-12: `ai-agent`'s roles
+  (see "Authors and accounts"), `ai-agent` the author on Auto.
 
 ### The agent, conversations, logs
 
