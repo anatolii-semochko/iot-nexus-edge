@@ -31,6 +31,14 @@ Jeder Bereich jeder Instanz hat eine Stufe:
 - **Auto** - er wendet die Änderung selbst an, als Konto `ai-agent`; jede
   Änderung wird mit Urheber protokolliert.
 
+Welche Objekte der Assistent überhaupt lesen und ändern darf, legen die Rollen
+seines Kontos `ai-agent` fest - standardmäßig die Rolle **AI Assistant** (alle
+Objekte, einschließlich der Konfiguration). Soll er einen Teil der Anlage nicht
+anfassen, schränken Sie diese Rolle unter Benutzer -> Rollen ein oder geben dem
+Konto unter Benutzer andere Rollen. Eine Rolle mit allen Rechten
+(Administrator, System service) ist für ihn gesperrt. Die Stufen oben regeln,
+wie er innerhalb dessen handelt, was die Rollen erlauben.
+
 Ein MCP-Client hat seine Stufen am eigenen Token und seine Rechte aus den Rollen
 seines eigenen Kontos (Verbindungen und MCP).
 

@@ -28,6 +28,13 @@ Each area of each instance has a level:
 - **Auto** - it applies the change itself, as the `ai-agent` account; every
   change is logged with its author.
 
+Which objects the assistant may read and change at all is set by the roles of
+its account `ai-agent` - by default the role **AI Assistant** (every object,
+configuration included). Narrow that role in Users -> Roles, or give the
+account other roles in Users, to keep the assistant away from a part of the
+site; a role with every right (Administrator, System service) is refused. The
+levels above then say how it acts on what the roles allow.
+
 An MCP client has its levels on its own token and its rights from its own
 account's roles (Connections and MCP).
 
