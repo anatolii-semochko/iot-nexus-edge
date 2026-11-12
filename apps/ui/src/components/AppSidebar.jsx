@@ -80,7 +80,7 @@ const AppSidebar = () => {
           title={HOME_HOST || undefined}
           className="text-decoration-none d-flex align-items-center"
         >
-          <BrandMark size={32} ground="dark" className="me-2" />
+          <BrandMark size={32} className="me-2" />
           <span className="sidebar-brand-full fw-semibold fs-5 lh-1">{PROJECT_NAME}</span>
         </CSidebarBrand>
         <CCloseButton

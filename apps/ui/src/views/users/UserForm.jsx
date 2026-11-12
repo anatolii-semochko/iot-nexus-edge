@@ -51,11 +51,12 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
   const [roleKeys, setRoleKeys] = useState(user?.roleKeys ?? ['viewer'])
   const [active, setActive] = useState(user?.active ?? true)
   const [aiTokens, setAiTokens] = useState(user?.ai_daily_tokens ?? '')
-  // an internal service's account - its access fixed; an MCP client's account (user.mcp) - no password
-  // either, but its roles set here like a person's (the full roles refused - api ai/mcp.ts)
-  const service = Boolean(user?.service) && !user?.mcp
-  const mcp = Boolean(user?.mcp)
-  const noPassword = service || mcp || Boolean(user?.guest)
+  // an internal service's account - its access fixed; an agent's account - an MCP client's (user.mcp) or the
+  // built-in AI Assistant's (user.agent, ai-agent) - no password either, but its roles set here like a
+  // person's (the full roles refused - api routes/access.ts)
+  const agentAccount = Boolean(user?.mcp) || Boolean(user?.agent)
+  const service = Boolean(user?.service) && !agentAccount
+  const noPassword = service || agentAccount || Boolean(user?.guest)
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarObjectUrl, setAvatarObjectUrl] = useState(null)
   const [avatarRemoved, setAvatarRemoved] = useState(false)
@@ -193,7 +194,7 @@ const UserForm = ({ user, roles, onClose, onSaved }) => {
               <SearchChecklist
                 id="user-roles"
                 items={roles
-                  .filter((r) => !r.service && !(mcp && r.full))
+                  .filter((r) => !r.service && !(agentAccount && r.full))
                   .map((r) => ({ key: r.key, label: r.name, detail: r.key }))}
                 selected={roleKeys}
                 onToggle={(k) =>

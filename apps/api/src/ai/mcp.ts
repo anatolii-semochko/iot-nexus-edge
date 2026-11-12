@@ -7,10 +7,11 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 
 import { pool } from "../db.js";
 import { logger } from "../logger.js";
-import { can, FULL_ROLES, invalidatePrincipals, principalOf, type Principal } from "../access/principal.js";
+import { FULL_ROLES, invalidatePrincipals, principalOf, type Principal } from "../access/principal.js";
 import { ProcessWriteError } from "../processWrites.js";
 import { getInstance, type Instance, type Level, NEXUS_EDGE_KEY } from "./instances.js";
 import { runTool, toolAllowed, ToolError, toolContracts } from "./tools.js";
+import { cutAccess } from "./agentAccess.js";
 
 // The MCP server (Nexus Edge AI Assistant, stage 3 - nexus-edge-aquarium
 // AGENTS_TO_DO.md 2026-10-17): the resource gateway (tools.ts) served over
@@ -163,14 +164,6 @@ export async function deleteMcpToken(id: number): Promise<boolean> {
   return true;
 }
 
-// the permission a level needs somewhere for the level to be on at all
-const LEVEL_PERMISSIONS: Record<"read" | keyof McpLevels, string[]> = {
-  read: ["processes.view", "nodes.view", "devices.view"],
-  config: ["processes.config"],
-  control: ["processes.control"],
-  install: ["processes.manage", "nodes.manage", "devices.manage"],
-};
-
 interface McpAccess {
   instance: Instance;
   tokenId: number;
@@ -192,13 +185,11 @@ async function accessOfToken(header: string | undefined): Promise<McpAccess | nu
   const principal = await principalOf(row.user_id);
   const base = await getInstance(NEXUS_EDGE_KEY);
   if (!principal || !base) return null;
-  const has = (level: keyof typeof LEVEL_PERMISSIONS) => LEVEL_PERMISSIONS[level].some((perm) => can(principal, perm));
   const levels = levelsOf(row.levels);
-  const cut = (level: keyof McpLevels): Level => (has(level) ? levels[level] : "off");
   const instance: Instance = {
     ...base,
     name: `${row.name} (MCP)`,
-    access: { read: has("read"), config: cut("config"), control: cut("control"), install: cut("install"), report: false },
+    access: cutAccess({ read: true, config: levels.config, control: levels.control, install: levels.install, report: false }, principal),
   };
   return { instance, tokenId: row.id, principal };
 }

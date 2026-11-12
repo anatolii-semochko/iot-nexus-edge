@@ -70,6 +70,8 @@ function publicUser(user: UserRow, forGuest = false) {
     service: SERVICE_USERNAMES.has(user.username) || user.kind === "service",
     // an MCP client's account - its roles here, its token in Service -> Config -> AI -> MCP access
     mcp: user.kind === "service",
+    // the built-in AI Assistant's account - its roles here too (migration 110), no password
+    agent: user.username === "ai-agent",
     guest: user.username === "guest",
   };
 }

@@ -25,7 +25,10 @@ interface RoleRow {
   ai_daily_tokens: number | null;
 }
 
-const SERVICE_USERNAMES = ["orchestrator", "simulator", "ai-agent"];
+// the services whose role is fixed (`system`); `ai-agent` - its roles set like an MCP account's
+// (migration 110), never one holding everything
+const FIXED_SERVICE_USERNAMES = ["orchestrator", "simulator"];
+const AGENT_USERNAME = "ai-agent";
 
 const toRole = (r: RoleRow, members: number[]) => ({
   key: r.key,
@@ -114,8 +117,12 @@ async function roleFields(body: RoleInput, current: RoleRow | null): Promise<Fie
 /** A role's members replaced - a problem's text, or null. */
 async function saveMembers(key: string, userIds: number[]): Promise<string | null> {
   if (SERVICE_ROLES.has(key)) return "a service role's members are fixed";
-  const services = (await pool.query<{ id: number }>("SELECT id FROM users WHERE username = ANY($1)", [SERVICE_USERNAMES])).rows.map((r) => r.id);
+  const services = (await pool.query<{ id: number }>("SELECT id FROM users WHERE username = ANY($1)", [FIXED_SERVICE_USERNAMES])).rows.map((r) => r.id);
   if (userIds.some((id) => services.includes(id))) return "an internal service's account has its own role only";
+  if (FULL_ROLES.has(key)) {
+    const agents = (await pool.query<{ id: number }>("SELECT id FROM users WHERE username = $1 OR kind = 'service'", [AGENT_USERNAME])).rows.map((r) => r.id);
+    if (userIds.some((id) => agents.includes(id))) return "an agent's account can't hold a role with every right (admin, system)";
+  }
   if (key === "admin") {
     const admin = (await pool.query<{ id: number }>("SELECT id FROM users WHERE username = 'admin'")).rows[0];
     if (admin && !userIds.includes(admin.id)) return "the admin account keeps its administrator role";
@@ -279,7 +286,8 @@ export async function accessRoutes(app: FastifyInstance): Promise<void> {
     const keys = request.body?.roles;
     if (!Array.isArray(keys) || !keys.every((k) => typeof k === "string")) return bad(reply, "roles: a list of role keys");
     // an MCP client's account never holds every right (it would manage users, decide proposals)
-    if (user.kind === "service" && (keys as string[]).some((k) => FULL_ROLES.has(k))) return bad(reply, "an MCP account can't hold a role with every right (admin, system)");
+    if ((user.kind === "service" || user.username === AGENT_USERNAME) && (keys as string[]).some((k) => FULL_ROLES.has(k)))
+      return bad(reply, "an agent's account can't hold a role with every right (admin, system)");
     const problem = await rolesProblem(user.username, keys as string[]);
     if (problem) return bad(reply, problem);
     await setUserRoles(id, [...new Set(keys as string[])]);
@@ -305,7 +313,8 @@ export async function rolesProblem(username: string, keys: string[]): Promise<st
   const known = new Set((await pool.query<{ key: string }>("SELECT key FROM roles")).rows.map((r) => r.key));
   const unknown = keys.filter((k) => !known.has(k));
   if (unknown.length) return `unknown role ${unknown.join(", ")}`;
-  if (SERVICE_USERNAMES.includes(username)) return "an internal service's account has its own role only";
+  if (FIXED_SERVICE_USERNAMES.includes(username)) return "an internal service's account has its own role only";
+  if (username === AGENT_USERNAME && keys.some((k) => FULL_ROLES.has(k))) return "an agent's account can't hold a role with every right (admin, system)";
   if (keys.some((k) => SERVICE_ROLES.has(k))) return "a service role is the internal services' own - not a person's";
   if (username === "admin" && !keys.includes("admin")) return "the admin account keeps its administrator role";
   return null;

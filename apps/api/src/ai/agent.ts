@@ -9,6 +9,7 @@ import { can, principalOf } from "../access/principal.js";
 import { guestSettings } from "../access/guestSettings.js";
 import { guestInstruction, reportInstruction, systemPromptFor } from "./prompts.js";
 import { runTool, toolAllowed, ToolError, toolContracts } from "./tools.js";
+import { aiAgentPrincipal, cutAccess } from "./agentAccess.js";
 import type { Subject } from "./subjects.js";
 import type { ChatMessage, ChatToolSpec, ToolCall } from "./vision.js";
 
@@ -324,7 +325,12 @@ export async function sendMessage(conversationId: number, text: string, onEvent:
   const owner = conversation.createdBy !== null ? await principalOf(conversation.createdBy) : null;
   const readOnly = owner !== null && !can(owner, "ai.decide");
   const accountLimit = owner?.aiDailyTokens ?? null;
-  const contracts = toolContracts().filter((t) => toolAllowed(t.access, instance) && (!readOnly || t.access === "read"));
+  // the assistant acts through its own account's roles (`ai-agent`, migration 110): it reads what they
+  // see, proposes what they allow on the object; its instance's levels off where they hold nothing
+  const agent = await aiAgentPrincipal();
+  if (!agent) throw new AgentError("the AI Assistant's account (ai-agent) is switched off");
+  const acting: Instance = { ...instance, access: cutAccess(instance.access, agent) };
+  const contracts = toolContracts().filter((t) => toolAllowed(t.access, acting) && (!readOnly || t.access === "read"));
   const specs: ChatToolSpec[] = contracts.map((t) => ({ name: toolName(t.name), description: t.description, input: t.input }));
   const byName = new Map(contracts.map((t) => [toolName(t.name), t.name]));
 
@@ -395,7 +401,7 @@ export async function sendMessage(conversationId: number, text: string, onEvent:
         let isError = false;
         try {
           if (!name) throw new ToolError(`no tool "${call.name}"`);
-          content = (await runTool(name, call.input, { instance, conversationId })).text;
+          content = (await runTool(name, call.input, { instance: acting, conversationId, principal: agent })).text;
         } catch (err) {
           isError = true;
           content = err instanceof ToolError ? err.message : "the tool failed";

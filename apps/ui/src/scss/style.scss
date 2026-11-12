@@ -507,18 +507,6 @@ body {
   }
 }
 
-// the brand mark's two tones (components/BrandMark.jsx) - the one for the current theme's ground
-.brand-mark-on-dark {
-  display: none;
-}
-[data-coreui-theme='dark'] {
-  .brand-mark-on-light {
-    display: none;
-  }
-  .brand-mark-on-dark {
-    display: inline;
-  }
-}
 
 // a phone (the first user's Samsung, 2026-11-07):
 // - a card's header with a row of controls wraps instead of widening the page (Live Events' "Clear" pushed

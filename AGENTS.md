@@ -6068,11 +6068,11 @@ Nexus Edge" - the product, the same in every installation (the old
 
 **The brand and the project's website (2026-11-01)** - the logo is the
 Nexus Edge mark ("Nexus node", the same as nexus-edge.tech), rendered in
-3D (`iot/images/logo/make_logo_3d.py`, Blender): `components/
-BrandMark.jsx`, two tones - light nodes on dark grounds (the sidebar,
-always), dark nodes on light ones (the header's brand follows the theme,
-`.brand-mark-on-light/-dark` in style.scss). The favicon is the site's
-flat mark; the old chip logo is gone. Optional `VITE_HOME_URL` /
+3D: `components/BrandMark.jsx` - one image (`assets/brand/mark-3d.png`, since
+2026-11-12: the yellow hub, three blue nodes, white connectors - reads on a
+light and a dark ground alike; rendered by iot `images/dashboard/v2/
+make_folder_renders.py` scene `logo-single`). The favicon (`public/
+favicon.svg`, `.ico`, `assets/img/favicon.png`) - the same mark. Optional `VITE_HOME_URL` /
 `VITE_HOME_LANGS` build args (from `HOME_URL` / `HOME_LANGS` in the
 project's `.env`; `src/homeSite.js`): set - the brand links to that site
 in the interface's language (`<url><lang>/` when the language is in
@@ -8163,7 +8163,16 @@ chronology (AI Assistant).
 
 - `ai-agent` - a protected account (migration 067; routes/users.ts
   `PROTECTED_USERNAMES`), the author of what an agent applies on its own
-  (an Auto access level); its password is random, never stored. What a
+  (an Auto access level); its password is random, never stored. Its rights
+  (2026-11-12, migration 110) - its own roles, like an MCP account's: the
+  role "AI Assistant" (`ai-assistant`, built in, every object configured, no
+  system section), narrowed on Users -> Roles or replaced on the account
+  (Users - `agent: true`; never `admin` / `system` - routes/access.ts). The
+  built-in assistant runs with its principal (`ai/agentAccess.ts`
+  `aiAgentPrincipal`): reads what the roles see (`principalScope`), proposes
+  what they allow on the object (`principalAllows`), its instance's levels cut
+  to Off where they hold nothing (`cutAccess`, shared with MCP).
+  `access.propose` refuses an agent's own account (`ai-agent`, any MCP one). What a
   person accepts is that person's; the orchestrator (the calendar's runs) -
   `system`; the simulation - `simulator`.
 
@@ -8306,8 +8315,8 @@ it is used.
   `GET /ai/mcp-calls`. UI: Service -> Config -> AI -> MCP access
   (`AiMcpAccess.jsx`: the account, its roles, the levels inline, the
   `claude mcp add --transport http ...` command).
-- Still the built-in assistant's way: `ai-agent` is the author of what an
-  instance applies on Auto (next - through a role of its own, as here).
+- The built-in assistant the same way since 2026-11-12: `ai-agent`'s roles
+  (see "Authors and accounts"), `ai-agent` the author on Auto.
 
 ### The agent, conversations, logs
 
@@ -9733,7 +9742,9 @@ Energy Ledger's README has the details.
   screenshots and `_screens/screens.json`), merged in by its stack: the UI
   Dockerfile copies it over the core's `docs/guide`, the api mounts it under
   `project-docs`, the site's sync-docs adds `GUIDE_PARTS`. The dev server
-  (`make ui-dev`) shows the core's pages only.
+  (`make ui-dev`) lays the part over the core's too (2026-11-12): `UI_GUIDE_PART_DIR` (its docs/guide)
+  -> the Vite alias `guide-part/`, globbed after the core's pages and screens in `Docs.jsx`; unset - the
+  empty `src/views/docs/guide-part-none/`.
 
 - `docs/guide/*.md` (English; `docs/guide/<lang>/*.md` - uk, de, es, the
   UI's names as the translated UI shows them; front matter values quoted -

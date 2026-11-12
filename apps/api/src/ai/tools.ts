@@ -920,6 +920,9 @@ registerTool({
   async run(input, ctx) {
     wholeSystemOnly(ctx);
     const person = await personOf(input.user as string);
+    // never an agent's own account (the assistant's, an MCP client's) - no agent widens an agent's rights
+    const kind = (await pool.query<{ kind: string }>("SELECT kind FROM users WHERE id = $1", [person.id])).rows[0]?.kind;
+    if (person.username === "ai-agent" || kind === "service") throw new ToolError("an agent's account - its roles are a person's to set (Users)");
     // a role by its key or its name, any case
     const roleRows = (await pool.query<{ key: string; name: string }>("SELECT key, name FROM roles")).rows;
     const roleOf = (x: string) => roleRows.find((r) => r.key === x || r.name.toLowerCase() === x.toLowerCase())?.key ?? x;

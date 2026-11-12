@@ -31,6 +31,13 @@ Cada área de cada instancia tiene un nivel:
 - **Auto** - aplica el cambio él mismo, como la cuenta `ai-agent`; cada
   cambio queda registrado con su autor.
 
+Qué objetos puede leer y cambiar el asistente lo deciden los roles de su cuenta
+`ai-agent`: por defecto, el rol **AI Assistant** (todos los objetos, también su
+configuración). Para que no toque una parte de la instalación, restrinja ese rol
+en Usuarios -> Roles o asigne otros roles a la cuenta en Usuarios. Un rol con
+todos los permisos (Administrator, System service) no se le puede dar. Los
+niveles de arriba indican cómo actúa dentro de lo que los roles permiten.
+
 Un cliente MCP tiene sus niveles en su propio token y sus permisos en los roles
 de su propia cuenta (Conexiones y MCP).
 
