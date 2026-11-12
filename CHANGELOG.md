@@ -3,7 +3,7 @@
 The notable changes of Nexus Edge, newest first. The dated decisions behind
 them - `docs/DEVELOPMENT_LOG.md`; how everything works - `AGENTS.md`.
 
-## 1.0.0 - the first public release (unreleased - dated when tagged)
+## 1.0.0 - the first public release (2026-11-12)
 
 The open core of the platform, as the public demo runs it.
 
