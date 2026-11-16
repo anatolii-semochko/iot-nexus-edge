@@ -331,6 +331,7 @@ export default async function weatherControlApi(app: any, ctx: any): Promise<voi
   );
 
   registerAiTool?.({
+    processKind: "weather-control",
     name: "weather.forecast",
     description:
       "The weather forecast of a weather-control process (Open-Meteo): the place, when fetched, hour by hour for the next `hours` (temperature C, humidity %, pressure hPa, cloud cover %, precipitation mm, solar radiation W/m2, wind m/s and direction, gusts) and the days (sunrise / sunset, min / max temperature, precipitation, radiation, max wind).",
@@ -345,8 +346,9 @@ export default async function weatherControlApi(app: any, ctx: any): Promise<voi
     async run(input: Record<string, unknown>, toolCtx: { instance: { processId: number | null } }) {
       let processId = typeof input.processId === "number" ? input.processId : toolCtx.instance.processId;
       if (processId === null) {
-        const { rows } = await pool.query("SELECT id FROM processes WHERE kind = 'weather-control' ORDER BY id");
-        if (rows.length !== 1) throw new Error(`processId is required - a weather-control process (there are ${rows.length})`);
+        const { rows } = await pool.query("SELECT id, name FROM processes WHERE kind = 'weather-control' ORDER BY id");
+        if (rows.length !== 1)
+          throw new Error(`processId is required - a weather-control process: ${rows.map((r) => `${r.id} ${r.name}`).join(", ") || "none"}`);
         processId = rows[0].id as number;
       }
       const { status, ...f } = await forecastOf(processId);

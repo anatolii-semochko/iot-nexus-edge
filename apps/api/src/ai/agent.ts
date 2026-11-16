@@ -418,11 +418,11 @@ export async function sendMessage(conversationId: number, text: string, onEvent:
       tokensOut,
     ]);
   }
-  // a guest's off-topic question is not kept (the guest's settings): this turn's messages go - the
-  // conversation too when nothing else is left (the tokens stay counted - the budget)
+  // a guest's off-topic question is not kept (the guest's settings): this turn's messages go (the
+  // tokens stay counted - the budget). The conversation stays even when empty - the guest's browser
+  // goes on in it; an empty guest conversation is removed by the history cleanup (maintenance.ts)
   if (offTopic && (await guestSettings()).relevantOnly && stored.length) {
     await pool.query("DELETE FROM ai_messages WHERE conversation_id = $1 AND id >= $2", [conversationId, stored[0].id]);
-    await pool.query("DELETE FROM ai_conversations c WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM ai_messages m WHERE m.conversation_id = c.id)", [conversationId]);
   }
   return stored;
 }

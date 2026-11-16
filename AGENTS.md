@@ -8194,8 +8194,15 @@ chronology (AI Assistant).
   schema) and Anthropic (`anthropicClient.ts`, the Messages API over fetch;
   tool_use / tool_result, a turn's results in one user message). A chat
   call's timeout - `AI_CHAT_TIMEOUT_MS` (90 s); image analysis -
-  `AI_REQUEST_TIMEOUT_MS`. A model's failure reaches the user as
-  "<connection>: <reason>" (502).
+  `AI_REQUEST_TIMEOUT_MS`. A call failed in transit (a dropped connection,
+  429, 5xx) is retried `AI_MAX_RETRIES` times (2). A model's failure
+  reaches the user as "<connection>: <reason>" (502).
+- A DNP's tool declares its `processKind`: a processId of another kind (the
+  model passing the Heating Planner's id to the weather tool) or none from
+  another kind's instance is dropped - the tool picks its own process (the
+  only one, else its error names them); a DNP tool's error reaches the model
+  as is (2026-11-16 - the planner's runs got "the tool failed" four times
+  a run).
 - Routes (admin): `GET /ai/connections` (+ `secretsAvailable`), `POST`,
   `PATCH /:id` (`apiKey` absent - kept, null / "" - removed), `DELETE
   /:id`, `POST /:id/test`. UI: Service -> Config -> AI (`AiConfigTab.jsx` -
@@ -8806,11 +8813,25 @@ plan and the decisions - iot `AGENTS_TO_DO.md` (B1).
 - The nightly maintenance (`maintenance.ts`, each job once a day at its
   local time by the calendar's rule; the last day in `system_settings`):
   `GUEST_CLEANUP_AT` - the guests' conversations past the guest's kept days
-  and the ended sessions removed; `LOG_RETENTION_DAYS` at
+  and the ended sessions removed (and, a day later, a guest conversation
+  its off-topic turns left empty); `LOG_RETENTION_DAYS` at
   `LOG_RETENTION_AT` - every unit's logs older than that
-  (`logCleanup.clearLogsOlderThan`, the shared conversations kept); and at start
-  the TimescaleDB retention of the raw `samples` (`SAMPLES_RETENTION_DAYS`,
-  0 - forever; the aggregates stay).
+  (`logCleanup.clearLogsOlderThan`). Kept by it (the user, 2026-11-16): a
+  person's own commands (`log_command` by a person's account, not the
+  orchestrator's / simulator's), the AI reports and decided proposals, the
+  shared conversations; of the AI conversations it clears only the
+  calendar's runs - a person's are kept `AI_CONVERSATION_RETENTION_DAYS`
+  (0 - forever), the guests' by Users -> Guest. The API's error-level log
+  lines go to the table `api_errors` too (`errorLog.ts`, migration 111 -
+  they outlive a deploy's new container), kept `API_ERROR_RETENTION_DAYS`
+  (30). At start - the TimescaleDB retention of the raw `samples`
+  (`SAMPLES_RETENTION_DAYS`, 0 - forever; the aggregates stay).
+- The server's nightly backups (nexus-edge-tech `deploy/scripts/backup.sh`:
+  every night's kept `BACKUP_KEEP_DAYS`, a week's first `BACKUP_KEEP_WEEKS`
+  weeks, a month's first `BACKUP_KEEP_MONTHS` months; `BACKUP_REMOTE` - a
+  mirror off the server) are listed read only in Service -> Database
+  (`GET /service/database/backups`, `service.view`; the folder mounted at
+  `BACKUP_LIST_DIR`, empty - the section hidden).
 - The AI's help (B1.4; roles since 2026-10-27): `access.explain` (a
   person's roles with their rows, the role acted in, what they hold
   everywhere / where; for a permission - held now or not and which of

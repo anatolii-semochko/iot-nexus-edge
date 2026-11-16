@@ -37,6 +37,7 @@ export function createAnthropicClient(
     endpoint: string | null;
     timeoutMs: number;
     chatTimeoutMs: number;
+    maxRetries: number;
     maxOutputTokens: number;
   },
 ): AiClient {
@@ -45,16 +46,30 @@ export function createAnthropicClient(
     body: object,
     timeoutMs = options.timeoutMs,
   ): Promise<MessagesAnswer> => {
-    const res = await fetch(`${base}/v1/messages`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": options.apiKey ?? "",
-        "anthropic-version": API_VERSION,
-      },
-      body: JSON.stringify({ model: connection.model, ...body }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    // a dropped connection, 429 and 5xx are tried again (maxRetries) with a growing pause
+    let res!: Response;
+    for (let attempt = 0; ; attempt++) {
+      const last = attempt >= options.maxRetries;
+      try {
+        res = await fetch(`${base}/v1/messages`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": options.apiKey ?? "",
+            "anthropic-version": API_VERSION,
+          },
+          body: JSON.stringify({ model: connection.model, ...body }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      } catch (err) {
+        // a timeout is not retried - the call already took its whole time
+        if (last || (err instanceof Error && err.name === "TimeoutError")) throw err;
+        await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+        continue;
+      }
+      if (last || !(res.status === 429 || res.status >= 500)) break;
+      await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+    }
     const text = await res.text();
     if (!res.ok)
       throw new Error(

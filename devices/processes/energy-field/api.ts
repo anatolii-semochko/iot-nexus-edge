@@ -166,6 +166,7 @@ export default async function energyFieldApi(_app: any, ctx: any): Promise<void>
   registerConfigSchema?.("energy-field", CONFIG_SCHEMA);
 
   registerAiTool?.({
+    processKind: "energy-field",
     name: "energy.field",
     description:
       "The energy field now (an energy-field process): the mode (auto / manual / island) and its current decision, the totals (PV, wind, consumption, battery + discharge / - charge, grid + import / - export, curtailed, the array's SoC), the price now and its rank in the day ahead, the weather it runs on, the groups (each a set of units: its PV blocks' and turbines' count and generation - a group is not a block), every PV block / turbine / battery (power, state, SoC), today's energy (PV, wind, consumption, charge / discharge, import / export, curtailed, self-sufficiency %). Changes go through the process's commands (setMode, setManualPower, setExport, setReserve, setEnabled) - propose them with the control tool.",
@@ -180,8 +181,9 @@ export default async function energyFieldApi(_app: any, ctx: any): Promise<void>
     async run(input: Record<string, unknown>, toolCtx: { instance: { processId: number | null } }) {
       let processId = typeof input.processId === "number" ? input.processId : toolCtx.instance.processId;
       if (processId === null) {
-        const { rows } = await pool.query("SELECT id FROM processes WHERE kind = 'energy-field' ORDER BY id");
-        if (rows.length !== 1) throw new Error(`processId is required - an energy-field process (there are ${rows.length})`);
+        const { rows } = await pool.query("SELECT id, name FROM processes WHERE kind = 'energy-field' ORDER BY id");
+        if (rows.length !== 1)
+          throw new Error(`processId is required - an energy-field process: ${rows.map((r) => `${r.id} ${r.name}`).join(", ") || "none"}`);
         processId = rows[0].id as number;
       }
       const { rows } = await pool.query("SELECT id, name FROM processes WHERE id = $1 AND kind = 'energy-field'", [processId]);

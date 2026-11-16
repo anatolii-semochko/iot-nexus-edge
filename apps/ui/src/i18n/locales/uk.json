@@ -939,5 +939,14 @@
   "Add node": "Додати вузол",
   "Add device": "Додати пристрій",
   "Add process": "Додати процес",
-  "Yesterday": "Вчора"
+  "Yesterday": "Вчора",
+  "nightly": "щонічна",
+  "weekly": "щотижнева",
+  "monthly": "щомісячна",
+  "Server backups": "Резервні копії сервера",
+  "No backups yet.": "Резервних копій ще немає.",
+  "Made": "Створено",
+  "Kept as": "Зберігається як",
+  "Photos": "Фото",
+  "Every night the server saves the whole database (the configuration, the history, the AI conversations) and the uploaded photos. Kept: every night - {{days}} days, the first of a week - {{weeks}} weeks, the first of a month - {{months}} months. Read only here: a backup is restored on the server.": "Щоночі сервер зберігає всю базу даних (конфігурацію, історію, розмови з ШІ) і завантажені фото. Щонічні копії зберігаються {{days}} днів, перша копія тижня - {{weeks}} тижнів, перша копія місяця - {{months}} місяців. Тут їх видно лише для перегляду: відновлюють копію на сервері."
 }

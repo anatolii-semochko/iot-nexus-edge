@@ -10,6 +10,7 @@ import { loadApiPlugins } from "./apiPlugins.js";
 import { config } from "./config.js";
 import { startEdgexPushBridge } from "./edgexPushBridge.js";
 import { registerAccessGuard } from "./access/guard.js";
+import { logStreams } from "./logger.js";
 import { startMaintenance } from "./maintenance.js";
 import { recoverInterruptedRuns } from "./ai/calendar.js";
 import { importEnvConnection } from "./ai/connections.js";
@@ -60,7 +61,7 @@ import { profileRoutes, userDirectoryRoutes, userRoutes } from "./routes/users.j
  * unchanged) is now just a one-line caller of this function.
  */
 export async function startApiServer(): Promise<FastifyInstance> {
-  const app = Fastify({ logger: { level: config.logLevel }, disableRequestLogging: config.requestLog !== "all" });
+  const app = Fastify({ logger: { level: config.logLevel, stream: logStreams() }, disableRequestLogging: config.requestLog !== "all" });
   if (config.requestLog !== "all") {
     // only the failed requests (config.requestLog)
     app.addHook("onResponse", async (request, reply) => {

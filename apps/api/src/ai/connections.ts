@@ -104,6 +104,7 @@ function clientOf(row: ConnectionRow): AiClient {
     endpoint: row.endpoint,
     timeoutMs: config.ai.requestTimeoutMs,
     chatTimeoutMs: config.ai.chatTimeoutMs,
+    maxRetries: config.ai.maxRetries,
     maxOutputTokens: row.max_output_tokens ?? config.ai.defaultMaxOutputTokens,
   };
   const info = { id: row.id, name: row.name, type: row.type, model: row.model };

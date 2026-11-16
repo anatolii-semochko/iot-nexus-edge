@@ -1,3 +1,4 @@
+import { config } from "./config.js";
 import { pool } from "./db.js";
 import { instanceUnits } from "./dnpInstances.js";
 import { initUnreadCounts } from "./processMessages.js";
@@ -107,7 +108,20 @@ export async function logVolumes(before: string | null): Promise<LogUnit[]> {
 }
 
 /** Deletes the logs of `keys` up to `before` (null - all) - the rows deleted per table. */
-export async function clearLogs(before: string | null, keys: string[], options: { keepShared?: boolean } = {}): Promise<Record<string, number>> {
+// the nightly retention's options: `keepShared` - the shared conversations (ai routes - "Share"; migration
+// 094); `scheduledOnly` - of the AI conversations only the calendar's runs (a person's / a guest's have their
+// own spans - clearLogsOlderThan); `keepManual` - a person's own commands (log_command by an account of a
+// person - not a service's, the orchestrator's or the simulator's) are records, not noise
+interface ClearOptions {
+  keepShared?: boolean;
+  scheduledOnly?: boolean;
+  keepManual?: boolean;
+}
+
+// the accounts whose commands are machine work, not a person's records (routes/access.ts - the fixed services)
+const MACHINE_ACCOUNTS = ["orchestrator", "simulator"];
+
+export async function clearLogs(before: string | null, keys: string[], options: ClearOptions = {}): Promise<Record<string, number>> {
   const cutoff = cutoffOf(before);
   const map = await instanceUnits();
   const chosen = new Set(keys);
@@ -128,8 +142,9 @@ export async function clearLogs(before: string | null, keys: string[], options: 
       `DELETE FROM log_command WHERE ${time} AND (process_id = ANY($2) OR (process_id IS NULL AND device_id = ANY($3))
          OR ($4 AND ((process_id IS NULL AND device_id IS NULL)
            OR (process_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM processes p WHERE p.id = process_id))
-           OR (process_id IS NULL AND device_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.id = device_id)))))`,
-      [cutoff, processIds, deviceIds, system],
+           OR (process_id IS NULL AND device_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.id = device_id)))))
+         AND NOT ($5 AND actor_user_id IS NOT NULL AND EXISTS (SELECT 1 FROM users u WHERE u.id = actor_user_id AND u.kind = 'person' AND NOT (u.username = ANY($6))))`,
+      [cutoff, processIds, deviceIds, system, options.keepManual ?? false, MACHINE_ACCOUNTS],
     );
     await run(
       "log_device",
@@ -143,12 +158,11 @@ export async function clearLogs(before: string | null, keys: string[], options: 
          OR ($3 AND (process_id IS NULL OR NOT EXISTS (SELECT 1 FROM processes p WHERE p.id = process_id))))`,
       [cutoff, processIds, system],
     );
-    // `keepShared` - the nightly retention keeps the shared conversations (ai routes - "Share"; migration 094)
     if (chosen.has("ai-messenger"))
       await run(
         "ai_conversations",
-        `DELETE FROM ai_conversations WHERE ($1::timestamptz IS NULL OR updated_at < $1) AND NOT ($2 AND shared)`,
-        [cutoff, options.keepShared ?? false],
+        `DELETE FROM ai_conversations WHERE ($1::timestamptz IS NULL OR updated_at < $1) AND NOT ($2 AND shared) AND (NOT $3 OR scheduled)`,
+        [cutoff, options.keepShared ?? false, options.scheduledOnly ?? false],
       );
     if (chosen.has("ai-reports")) await run("ai_reports", `DELETE FROM ai_reports WHERE ${time}`, [cutoff]);
     if (chosen.has("ai-proposals")) await run("ai_proposals", `DELETE FROM ai_proposals WHERE status <> 'pending' AND ${time}`, [cutoff]);
@@ -167,9 +181,27 @@ export async function clearLogs(before: string | null, keys: string[], options: 
   return deleted;
 }
 
-/** Everything older than `days` days - every unit (the nightly retention, maintenance.ts). */
+const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+
+/**
+ * The nightly retention (maintenance.ts): the logs older than `days` days - every unit; of the AI
+ * conversations only the calendar's runs; the AI reports and the decided proposals stay (small, the
+ * history of what the assistant found and changed), as do a person's own commands. A person's
+ * conversations - AI_CONVERSATION_RETENTION_DAYS (0 - kept; the guests' - Users -> Guest); the API's
+ * errors - API_ERROR_RETENTION_DAYS.
+ */
 export async function clearLogsOlderThan(days: number): Promise<Record<string, number>> {
   const map = await instanceUnits();
-  const keys = [...PERMANENT.map((p) => p.key), ...map.units.keys()];
-  return clearLogs(new Date(Date.now() - days * 86_400_000).toISOString(), keys, { keepShared: true });
+  const keys = [...PERMANENT.map((p) => p.key).filter((k) => k !== "ai-reports" && k !== "ai-proposals"), ...map.units.keys()];
+  const deleted = await clearLogs(ago(days), keys, { keepShared: true, scheduledOnly: true, keepManual: true });
+  if (config.aiConversationRetentionDays > 0) {
+    const r = await pool.query("DELETE FROM ai_conversations WHERE NOT scheduled AND NOT shared AND guest_session IS NULL AND updated_at < $1", [
+      ago(config.aiConversationRetentionDays),
+    ]);
+    deleted.ai_conversations = (deleted.ai_conversations ?? 0) + (r.rowCount ?? 0);
+  }
+  if (config.apiErrorRetentionDays > 0) {
+    deleted.api_errors = (await pool.query("DELETE FROM api_errors WHERE created_at < $1", [ago(config.apiErrorRetentionDays)])).rowCount ?? 0;
+  }
+  return deleted;
 }

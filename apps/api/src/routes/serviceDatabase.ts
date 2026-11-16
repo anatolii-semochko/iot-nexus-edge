@@ -1,5 +1,7 @@
 import type { MultipartFile } from "@fastify/multipart";
 import type { FastifyInstance } from "fastify";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 import { requireAdmin } from "../auth.js";
 import { clearLogs, logVolumes } from "../logCleanup.js";
@@ -83,6 +85,33 @@ export async function serviceDatabaseRoutes(app: FastifyInstance): Promise<void>
         ...Object.entries(logSizes).map(([name, bytes]) => ({ name, bytes, category: "logs" as const })),
       ],
     };
+  });
+
+  // the server's nightly backups (read only - restoring one is the operator's, deploy README): a night's
+  // set - the database dump and the media / avatars archives - with the kinds it is kept as
+  app.get("/service/database/backups", async () => {
+    const { dir, keepDays, keepWeeks, keepMonths } = config.backups;
+    const keep = { days: keepDays, weeks: keepWeeks, months: keepMonths };
+    if (!dir) return { enabled: false, keep, backups: [] };
+    const sets = new Map<string, { at: string; kinds: Set<string>; parts: Record<string, number> }>();
+    const NAME = /^demo-(db|api-media|api-avatars)_(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})\.(dump|tgz)$/;
+    for (const [kind, sub] of [["daily", ""], ["weekly", "weekly"], ["monthly", "monthly"]] as const) {
+      const folder = path.join(dir, sub);
+      const names = await fs.readdir(folder).catch(() => [] as string[]);
+      for (const name of names) {
+        const m = NAME.exec(name);
+        if (!m) continue;
+        const stamp = `${m[2]}_${m[3]}${m[4]}`;
+        const set = sets.get(stamp) ?? { at: `${m[2]}T${m[3]}:${m[4]}`, kinds: new Set<string>(), parts: {} };
+        set.kinds.add(kind);
+        set.parts[m[1] === "db" ? "database" : m[1] === "api-media" ? "media" : "avatars"] = (await fs.stat(path.join(folder, name))).size;
+        sets.set(stamp, set);
+      }
+    }
+    const backups = [...sets.values()]
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .map((b) => ({ at: b.at, kinds: [...b.kinds], ...b.parts }));
+    return { enabled: true, keep, backups };
   });
 
   app.get("/service/database/stamps", async () => {

@@ -137,6 +137,7 @@ export default async function heatingPlannerApi(app: any, ctx: any): Promise<voi
       .map((x: any) => ({ from: new Date(x.from).toISOString(), to: new Date(x.end).toISOString(), units: x.units, heatKwh: Math.round(x.heatKwh * 10) / 10, avgBuyCtKwh: Math.round((x.ct / x.n) * 10) / 10, maxRoomOffsetK: Math.round(x.maxRoomOffsetK * 100) / 100 }));
 
   registerAiTool?.({
+    processKind: "heating-planner",
     name: "heatingPlanner.plan",
     description:
       "The heating planner's plan (heating-planner): for every 15-minute slot of the Energy Ledger's plan and each heating system - the rooms' need, the heat pumps' heat and units, their electricity, the store (the tanks and the rooms' comfort margin), the tanks' temperature, the rooms off their setpoint, the price and the Ledger's signal. Its sums - the electricity against the band control (the same need made when needed), the saving; every strategy compared the same hours ahead (Least cost `cost`, Gentle `gentle` - few starts and low power, Comfort `comfort` - no comfort margin, The sun `sun` - the surplus stored as heat): the electricity, the saving, the starts, the rooms' K-h off, the sun's kWh; the strategy followed and the choice (fixed / cheapest); each system's steps (runs of the same units: from, to, the heat, the price, the rooms). The heatings follow their slot (else their tanks' band). Change the strategy with config.propose on this planner's `strategy` ({ key, selection }); the comfort margin `comfortK` (K), the comfortable modulation `comfortModulation` too. `slots: true` - every slot too.",
@@ -150,9 +151,10 @@ export default async function heatingPlannerApi(app: any, ctx: any): Promise<voi
     },
     async run(input: Record<string, unknown>, toolCtx: { instance: { processId: number | null } }) {
       let processId = typeof input.processId === "number" ? input.processId : toolCtx.instance.processId;
-      if (processId === null || !(await plannerOf(processId))) {
-        const { rows } = await pool.query("SELECT id FROM processes WHERE kind = 'heating-planner' ORDER BY id");
-        if (rows.length !== 1) throw new Error(`processId is required - a heating-planner process (there are ${rows.length})`);
+      if (processId === null) {
+        const { rows } = await pool.query("SELECT id, name FROM processes WHERE kind = 'heating-planner' ORDER BY id");
+        if (rows.length !== 1)
+          throw new Error(`processId is required - a heating-planner process: ${rows.map((r) => `${r.id} ${r.name}`).join(", ") || "none"}`);
         processId = rows[0].id as number;
       }
       const plan = await planOf(processId);

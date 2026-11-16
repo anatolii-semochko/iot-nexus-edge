@@ -24,6 +24,7 @@ export function createOpenAiClient(
     endpoint: string | null;
     timeoutMs: number;
     chatTimeoutMs: number;
+    maxRetries: number;
     maxOutputTokens: number;
   },
 ): AiClient {
@@ -32,7 +33,8 @@ export function createOpenAiClient(
     apiKey: options.apiKey ?? "not-needed",
     ...(options.endpoint ? { baseURL: options.endpoint } : {}),
     timeout: options.timeoutMs,
-    maxRetries: 0,
+    // the SDK retries a dropped connection, 408 / 409 / 429 and 5xx with a backoff
+    maxRetries: options.maxRetries,
   });
   const usageOf = (u: OpenAI.Completions.CompletionUsage | undefined) =>
     u

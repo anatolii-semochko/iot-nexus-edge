@@ -127,6 +127,18 @@ export const config = {
   // retention policy; 0 - forever - the hourly / daily aggregates stay).
   logRetentionDays: Number(process.env.LOG_RETENTION_DAYS ?? 0),
   logRetentionAt: process.env.LOG_RETENTION_AT ?? "03:30",
+  // a person's AI conversations (0 - kept; the calendar's runs go with the logs, the guests' - Users -> Guest)
+  aiConversationRetentionDays: Number(process.env.AI_CONVERSATION_RETENTION_DAYS ?? 0),
+  // the server's nightly backups (nexus-edge-tech deploy/scripts/backup.sh) listed in Service -> Database:
+  // their folder mounted read only (empty - not shown) and how long each kind is kept (days / weeks / months)
+  backups: {
+    dir: process.env.BACKUP_LIST_DIR ?? "",
+    keepDays: Number(process.env.BACKUP_KEEP_DAYS ?? 14),
+    keepWeeks: Number(process.env.BACKUP_KEEP_WEEKS ?? 13),
+    keepMonths: Number(process.env.BACKUP_KEEP_MONTHS ?? 12),
+  },
+  // the API's errors in the database (errorLog.ts; 0 - kept)
+  apiErrorRetentionDays: Number(process.env.API_ERROR_RETENTION_DAYS ?? 30),
   samplesRetentionDays: Number(process.env.SAMPLES_RETENTION_DAYS ?? 0),
   // AI layer (AGENTS.md section 82; connections - ai/connections.ts,
   // Service -> Config -> AI). No connection = AI unavailable: consumers
@@ -142,6 +154,8 @@ export const config = {
     requestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS ?? 25000),
     // one model call of a conversation (the agent) - a long context with tool results takes longer
     chatTimeoutMs: Number(process.env.AI_CHAT_TIMEOUT_MS ?? 90000),
+    // retries of a model call that failed in transit (a dropped connection, 429, 5xx)
+    maxRetries: Number(process.env.AI_MAX_RETRIES ?? 2),
     // an answer's tokens when the connection sets no limit of its own
     defaultMaxOutputTokens: Number(process.env.AI_MAX_OUTPUT_TOKENS ?? 2048),
     // the core's prompt packs (ai/prompts.ts) - relative to the api's working directory

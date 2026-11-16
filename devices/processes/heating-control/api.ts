@@ -133,6 +133,7 @@ export default async function heatingControlApi(_app: any, ctx: any): Promise<vo
   registerConfigSchema?.("heating-control", CONFIG_SCHEMA);
 
   registerAiTool?.({
+    processKind: "heating-control",
     name: "heating.status",
     description:
       "The heating / cooling now (a heating-control process): the mode (heating / cooling, auto or set by hand), the outdoor temperature and its trend, the totals (heat pumps' heat + / cold -, electricity, COP / EER, the consumers' heat, the tanks' stored heat kWh and %), the water lines between the blocks (warm / cold C, kW), every heat pump / tank / fan coil (state, temperatures, power, the room's temperature, humidity and setpoint), today's account (heat, cold, delivered, electricity; the cost and the baselines - direct electric heating, heat pumps without tanks). Changes go through the process's commands (setMode, setSetpoint, setEnabled) - propose them with the control tool.",
@@ -147,8 +148,9 @@ export default async function heatingControlApi(_app: any, ctx: any): Promise<vo
     async run(input: Record<string, unknown>, toolCtx: { instance: { processId: number | null } }) {
       let processId = typeof input.processId === "number" ? input.processId : toolCtx.instance.processId;
       if (processId === null) {
-        const { rows } = await pool.query("SELECT id FROM processes WHERE kind = 'heating-control' ORDER BY id");
-        if (rows.length !== 1) throw new Error(`processId is required - a heating-control process (there are ${rows.length})`);
+        const { rows } = await pool.query("SELECT id, name FROM processes WHERE kind = 'heating-control' ORDER BY id");
+        if (rows.length !== 1)
+          throw new Error(`processId is required - a heating-control process: ${rows.map((r) => `${r.id} ${r.name}`).join(", ") || "none"}`);
         processId = rows[0].id as number;
       }
       const { rows } = await pool.query("SELECT id, name FROM processes WHERE id = $1 AND kind = 'heating-control'", [processId]);

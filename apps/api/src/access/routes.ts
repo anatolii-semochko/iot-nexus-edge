@@ -103,6 +103,7 @@ const EXACT: Record<string, RoutePermission> = {
   "GET /service/database/download": "service.database.backup",
   "GET /service/database/download-logs": "service.database.backup",
   "GET /service/database/stamps": "service.view",
+  "GET /service/database/backups": "service.view",
   "POST /service/database/stamps": "service.database.backup",
   "DELETE /service/database/stamps/:filename": "service.database.backup",
   "POST /service/database/stamps/:filename/apply": "service.database.restore",

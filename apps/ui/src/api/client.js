@@ -602,6 +602,7 @@ export const api = {
   // Service->Database (admin-only server-side - see
   // apps/api/src/routes/serviceDatabase.ts).
   getDatabaseStats: () => request('/service/database/stats'),
+  listDatabaseBackups: () => request('/service/database/backups'),
   listDatabaseStamps: () => request('/service/database/stamps'),
   saveDatabaseStamp: (name) =>
     request('/service/database/stamps', { method: 'POST', body: JSON.stringify({ name }) }),

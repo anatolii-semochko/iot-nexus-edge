@@ -939,5 +939,14 @@
   "Add node": "Knoten hinzufügen",
   "Add device": "Gerät hinzufügen",
   "Add process": "Prozess hinzufügen",
-  "Yesterday": "Gestern"
+  "Yesterday": "Gestern",
+  "nightly": "nächtlich",
+  "weekly": "wöchentlich",
+  "monthly": "monatlich",
+  "Server backups": "Server-Sicherungen",
+  "No backups yet.": "Noch keine Sicherungen.",
+  "Made": "Erstellt",
+  "Kept as": "Aufbewahrt als",
+  "Photos": "Fotos",
+  "Every night the server saves the whole database (the configuration, the history, the AI conversations) and the uploaded photos. Kept: every night - {{days}} days, the first of a week - {{weeks}} weeks, the first of a month - {{months}} months. Read only here: a backup is restored on the server.": "Jede Nacht sichert der Server die ganze Datenbank (Konfiguration, Verlauf, KI-Gespräche) und die hochgeladenen Fotos. Nächtliche Sicherungen bleiben {{days}} Tage, die erste einer Woche {{weeks}} Wochen, die erste eines Monats {{months}} Monate. Hier nur zur Ansicht: Wiederhergestellt wird eine Sicherung auf dem Server."
 }

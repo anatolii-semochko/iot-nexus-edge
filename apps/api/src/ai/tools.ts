@@ -46,6 +46,10 @@ export interface Tool {
   description: string;
   input: Record<string, unknown>; // JSON Schema (an object)
   access: ToolAccess;
+  // a DNP's tool: the process kind it reads. Asked without processId from another kind's instance (the
+  // Heating Planner reading the weather), it gets no process of the instance - its own fallback (the only
+  // process of its kind) applies, not the asking instance's process of a different kind
+  processKind?: string;
   run(input: Record<string, unknown>, ctx: ToolContext): Promise<unknown>;
 }
 
@@ -93,7 +97,24 @@ export async function runTool(name: string, input: unknown, ctx: ToolContext): P
     const scope = await principalScope(ctx);
     if (scope && !scope.process(args.processId)) throw new ToolError(`process ${args.processId}: not visible to ${ctx.instance.name}`);
   }
-  const result = await entry.tool.run(args, ctx);
+  // the process a DNP tool would read - the given one, else the instance's: of another kind (a model
+  // passing the planner's id to the weather tool) it is dropped - the tool's own fallback picks its process
+  const kind = entry.tool.processKind;
+  let runCtx = ctx;
+  const target = typeof args.processId === "number" ? args.processId : ctx.instance.processId;
+  if (kind && target !== null) {
+    const found = (await pool.query<{ kind: string }>("SELECT kind FROM processes WHERE id = $1", [target])).rows[0]?.kind;
+    if (found !== kind) {
+      delete args.processId;
+      runCtx = { ...ctx, instance: { ...ctx.instance, processId: null } };
+    }
+  }
+  // a DNP tool's own error says what the model should ask instead (the processes there are, a missing
+  // value) - passed on, not hidden as "the tool failed"
+  const result = await entry.tool.run(args, runCtx).catch((err: unknown) => {
+    if (kind && err instanceof Error && !(err instanceof ToolError)) throw new ToolError(err.message);
+    throw err;
+  });
   const text = JSON.stringify(result);
   const max = config.ai.toolMaxChars;
   return text.length > max ? { text: `${text.slice(0, max)} ...[cut - narrow the request]`, truncated: true } : { text, truncated: false };
@@ -239,7 +260,11 @@ registerTool({
     const processId = processOf(input, ctx);
     if (processId === null) throw new ToolError("processId is required for the whole system");
     const metrics = ((await processRegistry.getPublicState(processId)).metrics ?? {}) as Record<string, unknown>;
-    return Object.fromEntries((input.keys as string[]).map((k) => [k, metrics[k] ?? null]));
+    const keys = input.keys as string[];
+    const values = Object.fromEntries(keys.map((k) => [k, metrics[k] ?? null]));
+    // a key the instance has no metric for - the model guessed it: the keys there are, so it asks again
+    const unknown = keys.filter((k) => !(k in metrics));
+    return unknown.length ? { ...values, unknownKeys: unknown, availableKeys: Object.keys(metrics) } : values;
   },
 });
 

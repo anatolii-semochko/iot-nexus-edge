@@ -170,6 +170,75 @@ function triggerDownload(url) {
 }
 
 // `may` - {apply, remove}: the person's rights (Service: View - the list only)
+// the server's nightly backups (api GET /service/database/backups): what a night's set holds, how long
+// each kind is kept - read only, restoring one is the operator's (the deployment's README)
+const KIND_LABEL = {
+  daily: () => t('nightly'),
+  weekly: () => t('weekly'),
+  monthly: () => t('monthly'),
+}
+const ServerBackups = () => {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
+  useEffect(() => {
+    api
+      .listDatabaseBackups()
+      .then(setData)
+      .catch((err) => setError(err.message))
+  }, [])
+  if (error) return <CAlert color="danger">{error}</CAlert>
+  if (!data) return <CSpinner size="sm" />
+  if (!data.enabled) return null
+  const { keep, backups } = data
+  return (
+    <>
+      <h6 className="mt-4 mb-2">{t('Server backups')}</h6>
+      <p className="small text-body-secondary mb-2">
+        {t(
+          'Every night the server saves the whole database (the configuration, the history, the AI conversations) and the uploaded photos. Kept: every night - {{days}} days, the first of a week - {{weeks}} weeks, the first of a month - {{months}} months. Read only here: a backup is restored on the server.',
+          { days: keep.days, weeks: keep.weeks, months: keep.months },
+        )}
+      </p>
+      {backups.length === 0 ? (
+        <CAlert color="info">{t('No backups yet.')}</CAlert>
+      ) : (
+        <CTable small responsive>
+          <CTableHead>
+            <CTableRow>
+              <CTableHeaderCell scope="col">{t('Made')}</CTableHeaderCell>
+              <CTableHeaderCell scope="col">{t('Kept as')}</CTableHeaderCell>
+              <CTableHeaderCell scope="col" className="text-end">
+                {t('Database')}
+              </CTableHeaderCell>
+              <CTableHeaderCell scope="col" className="text-end">
+                {t('Photos')}
+              </CTableHeaderCell>
+            </CTableRow>
+          </CTableHead>
+          <CTableBody>
+            {backups.map((b) => (
+              <CTableRow key={b.at}>
+                <CTableDataCell className="text-nowrap">{b.at.replace('T', ' ')}</CTableDataCell>
+                <CTableDataCell>
+                  {b.kinds.map((k) => KIND_LABEL[k]?.() ?? k).join(', ')}
+                </CTableDataCell>
+                <CTableDataCell className="text-end text-nowrap">
+                  {b.database != null ? formatBytes(b.database) : '-'}
+                </CTableDataCell>
+                <CTableDataCell className="text-end text-nowrap">
+                  {b.media != null || b.avatars != null
+                    ? formatBytes((b.media ?? 0) + (b.avatars ?? 0))
+                    : '-'}
+                </CTableDataCell>
+              </CTableRow>
+            ))}
+          </CTableBody>
+        </CTable>
+      )}
+    </>
+  )
+}
+
 const StampRow = ({ stamp, onApply, onDeleted, onError, may }) => {
   const [deleteArmed, setDeleteArmed] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -443,6 +512,8 @@ const DatabaseTab = () => {
           </CTableBody>
         </CTable>
       )}
+
+      <ServerBackups />
 
       {/* Save State */}
       <CModal visible={saveModalOpen} onClose={() => setSaveModalOpen(false)}>

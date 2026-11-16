@@ -55,7 +55,11 @@ export async function saveGuestSettings(settings: GuestSettings): Promise<void> 
 /** The guests' conversations past the kept days - removed (maintenance.ts); none set - none. */
 export async function removeOldGuestConversations(): Promise<number> {
   const { retentionDays } = await guestSettings();
-  if (!retentionDays) return 0;
+  // a guest conversation left empty (its turns were off-topic - ai/agent.ts) - a day after its last turn
+  const empty = await pool.query(
+    "DELETE FROM ai_conversations c WHERE guest_session IS NOT NULL AND updated_at < now() - interval '1 day' AND NOT EXISTS (SELECT 1 FROM ai_messages m WHERE m.conversation_id = c.id)",
+  );
+  if (!retentionDays) return empty.rowCount ?? 0;
   const r = await pool.query("DELETE FROM ai_conversations WHERE guest_session IS NOT NULL AND updated_at < now() - make_interval(days => $1)", [retentionDays]);
-  return r.rowCount ?? 0;
+  return (empty.rowCount ?? 0) + (r.rowCount ?? 0);
 }

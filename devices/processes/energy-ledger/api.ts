@@ -405,12 +405,14 @@ export default async function energyLedgerApi(app: any, ctx: any): Promise<void>
   const resolveProcess = async (input: Record<string, unknown>, toolCtx: { instance: { processId: number | null } }) => {
     const id = typeof input.processId === "number" ? input.processId : toolCtx.instance.processId;
     if (id !== null) return id;
-    const { rows } = await pool.query("SELECT id FROM processes WHERE kind = 'energy-ledger' ORDER BY id");
-    if (rows.length !== 1) throw new Error(`processId is required - an energy-ledger process (there are ${rows.length})`);
+    const { rows } = await pool.query("SELECT id, name FROM processes WHERE kind = 'energy-ledger' ORDER BY id");
+    if (rows.length !== 1)
+      throw new Error(`processId is required - an energy-ledger process: ${rows.map((r) => `${r.id} ${r.name}`).join(", ") || "none"}`);
     return rows[0].id as number;
   };
 
   registerAiTool?.({
+    processKind: "energy-ledger",
     name: "ledger.anomalies",
     description:
       "What looks wrong today across the site the Energy Ledger records (L5 - for its daily report): a PV block giving clearly less per kWp than its group's median (soiling, shading, a failed string -> maintenance), a turbine less per rated kW than its neighbours, the forecast's accuracy low, the batteries under their reserve, generation held back, rooms far from their setpoint. Each finding - the unit, the evidence (figures), a hint at the cause. Empty - nothing found.",
@@ -470,6 +472,7 @@ export default async function energyLedgerApi(app: any, ctx: any): Promise<void>
   });
 
   registerAiTool?.({
+    processKind: "energy-ledger",
     name: "ledger.notes",
     description:
       "The operational days' notes the Energy Ledger's plan weighs - its own, its energy field's and its heatings' (each with its process) - from .. to (default today and 14 days on): what is known about each day - outage (no grid in its window: the batteries charged ahead to carry the site), holiday / day-off (the consumption as a day off's), workday (a working weekend - as a working day's), maintenance (its nodes out in its window: no PV / wind from them, the batteries' power less), other (for people and you). Each day's type (working or not, and why). Source: auto (the country's holidays), ai, user. " +
@@ -502,6 +505,7 @@ export default async function energyLedgerApi(app: any, ctx: any): Promise<void>
   });
 
   registerAiTool?.({
+    processKind: "energy-ledger",
     name: "ledger.similarDays",
     description:
       "The recorded days most similar to a day (default today - its forecast: the sun, the wind, the temperature, working or not, the prices' level and spread, the season), the best-run ones first (the least left on the table by their review, then the largest saving): each one's features, distance, saving %, what it could have saved (regretEur), the strategy it ran and the best one in hindsight, its review's recommendation. And what they say - the strategy best on most of them (weighted by nearness; null - too few or they don't agree). With selection \"analog\" the ledger applies that strategy itself each morning. Use it before proposing a strategy for a day.",
@@ -536,6 +540,7 @@ export default async function energyLedgerApi(app: any, ctx: any): Promise<void>
   });
 
   registerAiTool?.({
+    processKind: "energy-ledger",
     name: "ledger.plan",
     description:
       "The Energy Ledger's plan (L2): for every 15-minute slot ahead (to the end of the day-ahead prices) the forecast (generation, consumption with the heating), the prices (buy / sell ct/kWh), the batteries' planned power (+ discharge / - charge), the grid, the SoC, the money and the same slot without the batteries; the steps (charge / discharge / hold, when, at what power, what each saves) and the sums. The energy field's Auto mode follows the slot now. `slots: true` - every slot too, else the steps and the sums.",
@@ -558,6 +563,7 @@ export default async function energyLedgerApi(app: any, ctx: any): Promise<void>
   });
 
   registerAiTool?.({
+    processKind: "energy-ledger",
     name: "ledger.history",
     description:
       "The Energy Ledger's journal for a period (day / month / year around a day): the sum - energy (consumption, the heating's electricity, PV, wind, import, export, charge / discharge, curtailed, the rooms' heat), money (cost, revenue, all the consumption at the slots' prices, the heating's baselines), the savings bridge (without the system - heat pumps - heat storage - own energy - sales = paid; EUR and kWh), the KPIs (saved EUR / %, self-sufficiency, own use of the generation, battery cycles, average purchase price); with `days: true` - every day's too, each with its type (weekday, working), its prices (min / avg / max ct/kWh) and, once closed, its review (what it could have saved at best - regretEur, split into the forecast's part and the strategy's part - every strategy's EUR with a perfect forecast, the forecast's PV / wind / consumption against the actual, and the system's recommendation for next time). A day marked partial was recorded only from the ledger's start.",

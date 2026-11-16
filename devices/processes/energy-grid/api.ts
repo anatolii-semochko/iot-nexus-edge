@@ -305,6 +305,7 @@ export default async function energyGridApi(app: any, ctx: any): Promise<void> {
   });
 
   registerAiTool?.({
+    processKind: "energy-grid",
     name: "energy.prices",
     description:
       "Electricity prices of an energy-grid process (the grid connection): per slot of the next `hours` - the day-ahead spot price (EUR/MWh), what a kWh costs bought (ct/kWh, by the purchase mode: a time-of-use tariff or the market plus surcharge) and earns sold (ct/kWh), the tariff zone; the current slot; the cheapest and dearest slots ahead; the market data's source and freshness.",
@@ -319,8 +320,9 @@ export default async function energyGridApi(app: any, ctx: any): Promise<void> {
     async run(input: Record<string, unknown>, toolCtx: { instance: { processId: number | null } }) {
       let processId = typeof input.processId === "number" ? input.processId : toolCtx.instance.processId;
       if (processId === null) {
-        const { rows } = await pool.query("SELECT id FROM processes WHERE kind = 'energy-grid' ORDER BY id");
-        if (rows.length !== 1) throw new Error(`processId is required - an energy-grid process (there are ${rows.length})`);
+        const { rows } = await pool.query("SELECT id, name FROM processes WHERE kind = 'energy-grid' ORDER BY id");
+        if (rows.length !== 1)
+          throw new Error(`processId is required - an energy-grid process: ${rows.map((r) => `${r.id} ${r.name}`).join(", ") || "none"}`);
         processId = rows[0].id as number;
       }
       const now = Date.now();

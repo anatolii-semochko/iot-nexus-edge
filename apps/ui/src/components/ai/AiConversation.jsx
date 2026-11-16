@@ -398,7 +398,8 @@ const AiConversation = ({
     >
       <style>{ANSWER_CSS + PAGE_CSS}</style>
       {header}
-      <div className="flex-grow-1 overflow-auto p-3">
+      {/* the scrolling turns take what is left - the About line and the composer keep their height */}
+      <div className="flex-grow-1 overflow-auto p-3" style={{ minHeight: 0 }}>
         {entities.length === 0 && (
           <CAlert color="info">
             The assistant is off everywhere - choose a connection for an instance in Service -&gt;
@@ -530,14 +531,14 @@ const AiConversation = ({
 
       {subjectShown && (
         <div
-          className="px-2 pt-2 small text-body-secondary text-truncate"
+          className="px-2 pt-2 small text-body-secondary text-truncate flex-shrink-0"
           title={subjectShown.label}
         >
           {tr('About:')} <span className="text-body fw-semibold">{subjectShown.label}</span>
         </div>
       )}
       {/* the composer: the topic's icon, the object and the work type, the message, Send */}
-      <div className="p-2 border-top ai-composer">
+      <div className="p-2 border-top ai-composer flex-shrink-0">
         <div
           className="ai-composer-icon"
           title={
