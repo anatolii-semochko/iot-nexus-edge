@@ -58,6 +58,9 @@ interface CardRow {
   user_fit: boolean;
   // a folder's cards drawn this many times larger (migration 103; 1 - as before)
   cards_scale: number;
+  // its page's title (migration 112): shown over the page; the title in other languages
+  show_title: boolean;
+  titles: Titles;
   created_at: string;
   updated_at: string;
 }
@@ -82,6 +85,29 @@ interface CardBody {
   >;
   userFit?: boolean;
   cardsScale?: number;
+  showTitle?: boolean;
+  titles?: Titles;
+}
+
+/** A title in other languages: a language's code -> its text (migration 112). */
+type Titles = Record<string, string>;
+const TITLE_MAX = 120;
+
+/** The titles from a request - the empty ones dropped - or a problem's text. */
+function titlesOf(input: unknown): Titles | string {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    return "titles must be { language: text }";
+  const out: Titles = {};
+  for (const [lang, text] of Object.entries(input as Record<string, unknown>)) {
+    if (!/^[a-z]{2,3}$/.test(lang))
+      return `titles: "${lang}" is not a language code`;
+    if (typeof text !== "string") return `titles.${lang} must be text`;
+    const v = text.trim();
+    if (v.length > TITLE_MAX)
+      return `titles.${lang}: at most ${TITLE_MAX} characters`;
+    if (v) out[lang] = v;
+  }
+  return out;
 }
 
 interface Picture {
@@ -154,6 +180,8 @@ const toCard = (row: CardRow) => ({
   picture: row.picture ?? {},
   userFit: row.user_fit,
   cardsScale: row.cards_scale,
+  showTitle: row.show_title,
+  titles: row.titles ?? {},
 });
 
 // a jsonb parameter: SQL NULL for null (not the JSON value null)
@@ -291,15 +319,29 @@ const problemOf = (body: CardBody, type: string | undefined): string | null => {
     )
   )
     return `cardsScale must be ${CARDS_SCALE.min} - ${CARDS_SCALE.max}`;
+  if (body.showTitle !== undefined && typeof body.showTitle !== "boolean")
+    return "showTitle must be true or false";
+  if (body.titles !== undefined) {
+    const titles = titlesOf(body.titles);
+    if (typeof titles === "string") return titles;
+  }
   return null;
 };
 
 // The Dashboard's own settings (system_settings 'dashboard', the user 2026-11-01 - Service -> Config ->
-// Dashboard -> Config): the top level's cards' scale (a folder's is its own `cards_scale`).
+// Dashboard -> Config): the top level's cards' scale (a folder's is its own `cards_scale`); the top level's
+// page title - shown or not, and its text in each language (migration 112 - a card's are its own columns;
+// none - the UI's "Dashboard").
 interface DashboardSettings {
   cardsScale: number;
+  showTitle: boolean;
+  titles: Titles;
 }
-const DASHBOARD_DEFAULTS: DashboardSettings = { cardsScale: 1 };
+const DASHBOARD_DEFAULTS: DashboardSettings = {
+  cardsScale: 1,
+  showTitle: true,
+  titles: {},
+};
 
 async function dashboardSettings(): Promise<DashboardSettings> {
   const row = (
@@ -326,6 +368,16 @@ function dashboardSettingsOf(
     )
       return `cardsScale must be ${CARDS_SCALE.min} - ${CARDS_SCALE.max}`;
     next.cardsScale = n;
+  }
+  if (v.showTitle !== undefined) {
+    if (typeof v.showTitle !== "boolean")
+      return "showTitle must be true or false";
+    next.showTitle = v.showTitle;
+  }
+  if (v.titles !== undefined) {
+    const titles = titlesOf(v.titles);
+    if (typeof titles === "string") return titles;
+    next.titles = titles;
   }
   return next;
 }
@@ -378,8 +430,8 @@ export async function dashboardCardRoutes(app: FastifyInstance): Promise<void> {
       // the new card goes last among its siblings (computed inside the INSERT)
       const row = (
         await pool.query<CardRow>(
-          `INSERT INTO dashboard_cards (parent_id, position, type, title, icon, layout, component_key, process_id, view, preview, params, frame, picture, user_fit, cards_scale)
-         SELECT $1, COALESCE(MAX(position) + 1, 0), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+          `INSERT INTO dashboard_cards (parent_id, position, type, title, icon, layout, component_key, process_id, view, preview, params, frame, picture, user_fit, cards_scale, show_title, titles)
+         SELECT $1, COALESCE(MAX(position) + 1, 0), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
          FROM dashboard_cards WHERE parent_id IS NOT DISTINCT FROM $1
          RETURNING *`,
           [
@@ -397,6 +449,10 @@ export async function dashboardCardRoutes(app: FastifyInstance): Promise<void> {
             JSON.stringify(pictureOf({}, body.picture)),
             type === "avatar" && body.userFit === true,
             type === "folder" ? (body.cardsScale ?? 1) : 1,
+            body.showTitle ?? true,
+            JSON.stringify(
+              body.titles !== undefined ? titlesOf(body.titles) : {},
+            ),
           ],
         )
       ).rows[0];
@@ -431,6 +487,7 @@ export async function dashboardCardRoutes(app: FastifyInstance): Promise<void> {
            parent_id = $2,
            position = CASE WHEN $3 THEN (SELECT COALESCE(MAX(position) + 1, 0) FROM dashboard_cards WHERE parent_id IS NOT DISTINCT FROM $2) ELSE position END,
            type = $4, title = $5, icon = $6, layout = $7, component_key = $8, process_id = $9, view = $10, preview = $11, params = $12, frame = $13, picture = $14, user_fit = $15, cards_scale = $16,
+           show_title = $17, titles = $18,
            updated_at = now()
          WHERE id = $1 RETURNING *`,
           [
@@ -462,6 +519,12 @@ export async function dashboardCardRoutes(app: FastifyInstance): Promise<void> {
             JSON.stringify(pictureOf(current.picture, body.picture)),
             type === "avatar" && (body.userFit ?? current.user_fit),
             type === "folder" ? (body.cardsScale ?? current.cards_scale) : 1,
+            body.showTitle ?? current.show_title,
+            JSON.stringify(
+              body.titles !== undefined
+                ? titlesOf(body.titles)
+                : (current.titles ?? {}),
+            ),
           ],
         )
       ).rows[0];

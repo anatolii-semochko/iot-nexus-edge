@@ -18,15 +18,11 @@ import { api } from '../../api/client'
 import DateRangeFilter from '../../components/table/DateRangeFilter'
 import IconButton from '../../components/IconButton'
 import ResetFiltersButton from '../../components/ResetFiltersButton'
+import { NARROW_ONLY, SmartDateTime, WIDE_ONLY, cx } from '../../components/table/narrow'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
-import {
-  formatSmartDateTime,
-  localDateTimeToIso,
-  userInitials,
-  userTitle,
-} from '../../utils/format'
+import { localDateTimeToIso, userInitials, userTitle } from '../../utils/format'
 import AiButton from '../../components/ai/AiButton'
 import { t } from 'src/i18n'
 
@@ -218,9 +214,15 @@ const CommandLogsTab = ({
               <CTableRow>
                 <CTableHeaderCell scope="col">{t('Time')}</CTableHeaderCell>
                 <CTableHeaderCell scope="col">{t('Target')}</CTableHeaderCell>
-                <CTableHeaderCell scope="col">{t('Action')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                  {t('Action')}
+                </CTableHeaderCell>
                 <CTableHeaderCell scope="col">{t('Value')}</CTableHeaderCell>
-                <CTableHeaderCell scope="col" title={t('The role the person acted in')}>
+                <CTableHeaderCell
+                  scope="col"
+                  className={WIDE_ONLY}
+                  title={t('The role the person acted in')}
+                >
                   {t('As')}
                 </CTableHeaderCell>
                 <CTableHeaderCell scope="col" />
@@ -233,7 +235,7 @@ const CommandLogsTab = ({
                     <span className="me-3">
                       <ActorCell actorUser={item.actor_user} />
                     </span>
-                    {formatSmartDateTime(item.created_at)}
+                    <SmartDateTime iso={item.created_at} />
                   </CTableDataCell>
                   <CTableDataCell>
                     {/* Service->Database's set-state/clear-logs (AGENTS_TO_DO.md,
@@ -244,11 +246,16 @@ const CommandLogsTab = ({
                       ((item.device_id ?? item.process_id)
                         ? `#${item.device_id ?? item.process_id}`
                         : t('System'))}
+                    {/* a phone: the action and the role under the target - no columns of their own */}
+                    <div className={cx(NARROW_ONLY, 'small text-body-secondary')}>
+                      {item.action}
+                      {item.acted_as ? ` - ${item.acted_as}` : ''}
+                    </div>
                   </CTableDataCell>
-                  <CTableDataCell>{item.action}</CTableDataCell>
-                  <CTableDataCell>{formatValue(item.value)}</CTableDataCell>
+                  <CTableDataCell className={WIDE_ONLY}>{item.action}</CTableDataCell>
+                  <CTableDataCell className="text-break">{formatValue(item.value)}</CTableDataCell>
                   {/* the role "Act as" chose then (2026-10-28); none - a service's or an older record */}
-                  <CTableDataCell className="small text-body-secondary">
+                  <CTableDataCell className={cx(WIDE_ONLY, 'small text-body-secondary')}>
                     {item.acted_as ?? '-'}
                   </CTableDataCell>
                   <CTableDataCell className="text-end text-nowrap">

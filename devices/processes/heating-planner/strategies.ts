@@ -7,6 +7,9 @@
 import { planHeating, type HeatPlan, type PlannerSlot, type PlannerSystem } from "./model.ts";
 
 export type HeatStrategyKey = "cost" | "gentle" | "comfort" | "sun";
+/** How the plan's strategy is chosen: the chosen key, the least electricity's, or the least all-in money's. */
+export type HeatSelection = "fixed" | "cheapest" | "balanced";
+export const HEAT_SELECTIONS: HeatSelection[] = ["fixed", "cheapest", "balanced"];
 
 export const HEAT_STRATEGIES: { key: HeatStrategyKey; name: string; text: string }[] = [
   { key: "cost", name: "Least cost", text: "The heat made when the energy is cheapest, the rooms' comfort margin used in the dear hours - the least money" },
@@ -49,6 +52,9 @@ export interface HeatStrategyResult {
   comfortKh: number; // the rooms off their setpoint, kelvin-hours
   maxOffsetK: number;
   sunKwh: number; // the electricity taken from the sun's surplus
+  // the electricity with the wear and the comfort at the system's own weights (its starts, unit-hours,
+  // the rooms' margin used) - what "balanced" compares
+  balancedEur: number;
 }
 
 /** The electricity's money of one slot at the real prices: the surplus first at the sale price. */
@@ -57,8 +63,11 @@ const realEur = (s: PlannerSlot, kw: number) => {
   return { eur: ((cheap * s.sellCtKwh + (kw - cheap) * s.buyCtKwh) * s.hours) / 100, sunKwh: cheap * s.hours };
 };
 
-/** A plan valued in the real money (its slots' energyEur re-valued too) and its figures. */
-export function evaluate(key: HeatStrategyKey, plan: HeatPlan, slots: PlannerSlot[]): { plan: HeatPlan; result: HeatStrategyResult } {
+/**
+ * A plan valued in the real money (its slots' energyEur re-valued too) and its figures. `sys` - the
+ * system's own weights (not a strategy's shaped ones) for balancedEur.
+ */
+export function evaluate(key: HeatStrategyKey, plan: HeatPlan, slots: PlannerSlot[], sys?: PlannerSystem): { plan: HeatPlan; result: HeatStrategyResult } {
   let energyEur = 0;
   let sunKwh = 0;
   let starts = 0;
@@ -82,24 +91,34 @@ export function evaluate(key: HeatStrategyKey, plan: HeatPlan, slots: PlannerSlo
     return { ...p, energyEur: m.eur, baselineEur: base };
   });
   const valued = { ...plan, slots: out, energyEur, baselineEur, savingEur: baselineEur - energyEur };
+  // the rooms' margin: its kWh per kelvin off the setpoint (the plan's margin over the system's comfortK)
+  const marginKwhPerK = sys && sys.comfortK > 0 ? plan.marginKwh / sys.comfortK : 0;
+  const balancedEur = sys
+    ? energyEur + starts * sys.startPenaltyEur + unitHours * sys.unitHourEur + (comfortKh * marginKwhPerK * sys.comfortCtKwhH) / 100
+    : energyEur;
   return {
     plan: valued,
-    result: { key, energyEur, baselineEur, savingEur: baselineEur - energyEur, starts, unitHours, comfortKh, maxOffsetK, sunKwh },
+    result: { key, energyEur, baselineEur, savingEur: baselineEur - energyEur, starts, unitHours, comfortKh, maxOffsetK, sunKwh, balancedEur },
   };
 }
 
-/** Every strategy planned and valued; the chosen one's plan (or, by `cheapest`, the least electricity's). */
-export function planAll(chosen: HeatStrategyKey, sys: PlannerSystem, slots: PlannerSlot[], cheapest = false) {
+/**
+ * Every strategy planned and valued; the plan of the chosen one ("fixed"), of the least electricity's
+ * ("cheapest") or of the least electricity with the wear and the rooms' comfort at the system's own
+ * weights ("balanced" - the cheapest that doesn't buy its cents with starts or cold rooms).
+ */
+export function planAll(chosen: HeatStrategyKey, sys: PlannerSystem, slots: PlannerSlot[], selection: HeatSelection = "fixed") {
   const results: HeatStrategyResult[] = [];
   const plans = new Map<HeatStrategyKey, HeatPlan>();
   // one baseline for all: the band control's tanks at the real store's middle
   const base = { ...sys, baselineTankC: sys.baselineTankC ?? (sys.store.minC + sys.store.maxC) / 2 };
   for (const st of HEAT_STRATEGIES) {
     const shaped = shape(st.key, base, slots);
-    const { plan, result } = evaluate(st.key, planHeating(shaped.sys, shaped.slots), slots);
+    const { plan, result } = evaluate(st.key, planHeating(shaped.sys, shaped.slots), slots, base);
     results.push(result);
     plans.set(st.key, plan);
   }
-  const key = cheapest ? results.reduce((a, r) => (r.energyEur < a.energyEur ? r : a)).key : chosen;
+  const by = (f: (r: HeatStrategyResult) => number) => results.reduce((a, r) => (f(r) < f(a) ? r : a)).key;
+  const key = selection === "cheapest" ? by((r) => r.energyEur) : selection === "balanced" ? by((r) => r.balancedEur) : chosen;
   return { key, plan: plans.get(key) ?? plans.get("cost")!, results };
 }

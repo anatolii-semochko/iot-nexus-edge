@@ -948,5 +948,12 @@
   "Made": "Erstellt",
   "Kept as": "Aufbewahrt als",
   "Photos": "Fotos",
-  "Every night the server saves the whole database (the configuration, the history, the AI conversations) and the uploaded photos. Kept: every night - {{days}} days, the first of a week - {{weeks}} weeks, the first of a month - {{months}} months. Read only here: a backup is restored on the server.": "Jede Nacht sichert der Server die ganze Datenbank (Konfiguration, Verlauf, KI-Gespräche) und die hochgeladenen Fotos. Nächtliche Sicherungen bleiben {{days}} Tage, die erste einer Woche {{weeks}} Wochen, die erste eines Monats {{months}} Monate. Hier nur zur Ansicht: Wiederhergestellt wird eine Sicherung auf dem Server."
+  "Every night the server saves the whole database (the configuration, the history, the AI conversations) and the uploaded photos. Kept: every night - {{days}} days, the first of a week - {{weeks}} weeks, the first of a month - {{months}} months. Read only here: a backup is restored on the server.": "Jede Nacht sichert der Server die ganze Datenbank (Konfiguration, Verlauf, KI-Gespräche) und die hochgeladenen Fotos. Nächtliche Sicherungen bleiben {{days}} Tage, die erste einer Woche {{weeks}} Wochen, die erste eines Monats {{months}} Monate. Hier nur zur Ansicht: Wiederhergestellt wird eine Sicherung auf dem Server.",
+  "Title in the languages": "Titel in den Sprachen",
+  "The card's title in each language of the interface; empty - the title above": "Der Titel der Karte in jeder Sprache der Oberfläche; leer - der Titel darüber",
+  "Page title": "Seitentitel",
+  "The title over its page when it is opened, with the AI button": "Der Titel über ihrer Seite, wenn sie geöffnet ist, mit der KI-Taste",
+  "The title over the Dashboard's top level, with the AI button": "Der Titel über der obersten Ebene des Dashboards, mit der KI-Taste",
+  "Empty - \"Dashboard\" in the viewer's language": "Leer - „Dashboard“ in der Sprache des Betrachters",
+  "Pulse - written every system tick": "Puls - bei jedem Systemtakt geschrieben"
 }

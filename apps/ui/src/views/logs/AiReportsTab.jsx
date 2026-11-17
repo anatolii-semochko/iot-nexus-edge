@@ -12,7 +12,7 @@ import {
 import { api } from '../../api/client'
 import TablePagination from '../../components/table/TablePagination'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
-import { formatSmartDateTime } from '../../utils/format'
+import { NARROW_ONLY, SmartDateTime, WIDE_ONLY, cx } from '../../components/table/narrow'
 import { t } from 'src/i18n'
 
 /**
@@ -48,8 +48,10 @@ const AiReportsTab = () => {
             <CTableRow>
               <CTableHeaderCell>{t('When')}</CTableHeaderCell>
               <CTableHeaderCell>{t('Report')}</CTableHeaderCell>
-              <CTableHeaderCell>{t('Instance')}</CTableHeaderCell>
-              <CTableHeaderCell className="text-end">{t('Conversation')}</CTableHeaderCell>
+              <CTableHeaderCell className={WIDE_ONLY}>{t('Instance')}</CTableHeaderCell>
+              <CTableHeaderCell className={cx(WIDE_ONLY, 'text-end')}>
+                {t('Conversation')}
+              </CTableHeaderCell>
             </CTableRow>
           </CTableHead>
           <CTableBody>
@@ -60,11 +62,19 @@ const AiReportsTab = () => {
                   onClick={() => setOpen(open === r.id ? null : r.id)}
                 >
                   <CTableDataCell className="small text-nowrap">
-                    {formatSmartDateTime(r.created_at)}
+                    <SmartDateTime iso={r.created_at} />
                   </CTableDataCell>
-                  <CTableDataCell className="fw-semibold">{r.title}</CTableDataCell>
-                  <CTableDataCell className="small">{r.instance_key}</CTableDataCell>
-                  <CTableDataCell className="text-end small">
+                  <CTableDataCell className="fw-semibold">
+                    {r.title}
+                    {/* a phone: the instance under the title - no column of its own */}
+                    <div className={cx(NARROW_ONLY, 'small fw-normal text-body-secondary')}>
+                      {r.instance_key}
+                    </div>
+                  </CTableDataCell>
+                  <CTableDataCell className={cx(WIDE_ONLY, 'small')}>
+                    {r.instance_key}
+                  </CTableDataCell>
+                  <CTableDataCell className={cx(WIDE_ONLY, 'text-end small')}>
                     {r.conversation_id ?? '-'}
                   </CTableDataCell>
                 </CTableRow>

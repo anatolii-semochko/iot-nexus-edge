@@ -23,10 +23,15 @@ ve su objeto; una carpeta, solo si contiene algo.
 Servicio -> Configuración -> Panel (para quien pueda configurarlo) muestra un
 nivel como el Panel: las tarjetas (carpetas y avatares, con su imagen y fondo)
 y, debajo, los componentes, cada lista con su propio orden. **Configuración**:
-los ajustes del Panel, la escala de las tarjetas del nivel superior. Añada una
+los ajustes del Panel, la escala de las tarjetas del nivel superior y su título. Añada una
 carpeta, un avatar o un componente; muévalos arriba y abajo; edite una
 tarjeta:
 
+- el **título** y sus traducciones: un campo por cada idioma de la interfaz
+  (vacío - el propio título); cada espectador ve el de su idioma;
+- el **título de la página** de una carpeta o un avatar: su título con el
+  botón de la IA sobre la página abierta (activado por defecto; las páginas de
+  energía, calefacción y tiempo mantienen sus cifras al lado);
 - la **imagen** - ninguna, el avatar del componente, un icono del conjunto o
   una imagen propia (de cualquier tamaño: una grande se reduce al subirla),
   con su tamaño;

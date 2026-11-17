@@ -75,8 +75,12 @@ price - no penalties), so they compare fairly:
 Each result: `energyEur`, `baselineEur`, `savingEur`, `starts` (each unit
 counted), `unitHours`, `comfortKh` (the rooms off their setpoint, K-h),
 `maxOffsetK`, `sunKwh` (the electricity from the surplus). Config
-`strategy: { key, selection }` - selection `fixed` (the key) or `cheapest`
-(the least electricity's at each plan). Commands (POST
+`strategy: { key, selection }` - selection `fixed` (the key), `cheapest`
+(the least electricity's at each plan) or `balanced` (the least
+`balancedEur` - the electricity plus the starts at `startPenaltyEur`, the
+unit-hours at `unitHourEur` and the rooms' margin used at `comfortCtKwhH`:
+the same weights the model plans with, so a strategy can't win by a few cents
+bought with starts or cold rooms). Commands (POST
 /processes/:id/commands, processes.control): `setStrategy` `{ key }`,
 `setSelection` `{ selection }` - each patches the config and plans at once.
 The plan carries `strategy`, `strategies` (the sums over the systems) and
@@ -152,7 +156,7 @@ setpoint, now; the plan in words (its runs: from, to, the units, the mean
 heat and price, the rooms' margin); the systems' table (a row opens its
 system); the strategies' cards (`Strategies` - each one's electricity,
 saving, starts, the rooms off, the sun's heat; "best"; a click follows it;
-the choice Fixed / Cheapest - the system's own figures when one is shown).
+the choice Fixed / Cheapest / Balanced - the system's own figures when one is shown).
 `HeatingPlanAvatar` (`summary`) - the card picture: the next 24 h's
 heat under the price, the saving, the heat now and the units. The data -
 `usePlan` (read again on a new plan - the live metrics' `madeAt` - and every

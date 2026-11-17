@@ -18,6 +18,7 @@ import { api } from '../../api/client'
 import { dashboardComponents, dashboardContent } from '../../dashboardRegistry'
 import { cardIcon } from '../../dashboardIcons'
 import { t } from 'src/i18n'
+import { DashboardPageTitle, cardTitle, rootTitle } from './pageTitle'
 
 /**
  * The Dashboard (Dashboard cards, 2026-10-16): the card tree built in
@@ -83,7 +84,7 @@ const resolve = (card, processes) => {
   return { def, process, problem }
 }
 
-const ComponentView = ({ card, processes, scale }) => {
+const ComponentView = ({ card, processes, scale, pageTitle }) => {
   const { def, process, problem } = resolve(card, processes)
   if (problem)
     return (
@@ -98,6 +99,7 @@ const ComponentView = ({ card, processes, scale }) => {
         process={process}
         params={card.params ?? {}}
         {...(scale ? { preview: true } : {})}
+        {...(pageTitle !== undefined ? { pageTitle } : {})}
       />
     </Suspense>
   )
@@ -403,7 +405,7 @@ export const BlockCard = ({ card, processes, linked = true }) => {
         style={captionStyle}
       >
         <CIcon icon={cardIcon(card)} className="text-body-secondary flex-shrink-0" />
-        <span className="fw-semibold fst-italic text-truncate">{card.title}</span>
+        <span className="fw-semibold fst-italic text-truncate">{cardTitle(card)}</span>
       </CCardBody>
     </CCard>
   )
@@ -421,8 +423,10 @@ export const BlockCard = ({ card, processes, linked = true }) => {
 // on the whole page is an avatar's)
 const InlineComponents = ({ items, processes }) =>
   items.map((c) => (
-    <section key={c.id} className="mt-4" aria-label={c.title}>
-      {c.frame?.title !== false && <div className="fw-semibold fst-italic mb-2">{c.title}</div>}
+    <section key={c.id} className="mt-4" aria-label={cardTitle(c)}>
+      {c.frame?.title !== false && (
+        <div className="fw-semibold fst-italic mb-2">{cardTitle(c)}</div>
+      )}
       <div style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
         <ComponentView card={c} processes={processes} />
       </div>
@@ -448,7 +452,7 @@ const Level = ({ cards, items, layout, scale = 1, processes }) => {
             className="list-group-item list-group-item-action d-flex align-items-center gap-2"
           >
             <CIcon icon={cardIcon(c)} className="text-body-secondary" />
-            <span className="fw-semibold fst-italic me-auto">{c.title}</span>
+            <span className="fw-semibold fst-italic me-auto">{cardTitle(c)}</span>
             {c.type === 'folder' && (
               <span className="small text-body-secondary">{childrenOf(cards, c.id).length}</span>
             )}
@@ -652,13 +656,21 @@ const Dashboard = () => {
     <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
       <CBreadcrumb className="mb-0 fw-semibold">
         {crumb('root', '/dashboard', t('Dashboard'), !card)}
-        {path.map((c, i) => crumb(c.id, `/dashboard/${c.id}`, c.title, i === path.length - 1))}
+        {path.map((c, i) => crumb(c.id, `/dashboard/${c.id}`, cardTitle(c), i === path.length - 1))}
       </CBreadcrumb>
       {fitSwitch}
     </div>
   )
 
+  // the page's title (pageTitle.jsx): the top's - the settings', a card's - its own
+  const title = card
+    ? { show: card.showTitle !== false, text: cardTitle(card) }
+    : rootTitle(settings)
+
   if (opened) {
+    // a component with its own title (its data beside it) draws it; any other - this one over it
+    const { def, process } = resolve(card, processes)
+    const own = Boolean(def?.ownTitle)
     // an avatar's component on the whole page (a component card opened by its address - the same);
     // fit-height - scaled to the visible height (FitHeight); fit-width - the visible width: the
     // component lays itself out in it (2026-10-16: was its natural width - a wide part, e.g. a table,
@@ -666,13 +678,22 @@ const Dashboard = () => {
     return (
       <div>
         {breadcrumb}
+        {title.show && !own && <DashboardPageTitle text={title.text} process={process} />}
         {view === 'fit-width' ? (
           <div style={{ width: '100%', overflowX: 'auto', overflowY: 'hidden' }}>
-            <ComponentView card={card} processes={processes} />
+            <ComponentView
+              card={card}
+              processes={processes}
+              pageTitle={own ? (title.show ? { text: title.text } : null) : undefined}
+            />
           </div>
         ) : (
           <FitHeight key={card.id}>
-            <ComponentView card={card} processes={processes} />
+            <ComponentView
+              card={card}
+              processes={processes}
+              pageTitle={own ? (title.show ? { text: title.text } : null) : undefined}
+            />
           </FitHeight>
         )}
       </div>
@@ -682,6 +703,7 @@ const Dashboard = () => {
   return (
     <div>
       {breadcrumb}
+      {title.show && <DashboardPageTitle text={title.text} />}
       <Level
         cards={cards}
         items={childrenOf(cards, card ? card.id : null)}

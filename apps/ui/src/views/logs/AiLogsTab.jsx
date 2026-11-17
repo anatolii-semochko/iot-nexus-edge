@@ -14,6 +14,7 @@ import { api } from '../../api/client'
 import TablePagination from '../../components/table/TablePagination'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
 import { formatSmartDateTime } from '../../utils/format'
+import { NarrowFields, SmartDateTime, WIDE_ONLY, cx } from '../../components/table/narrow'
 import { t } from 'src/i18n'
 
 /**
@@ -107,6 +108,12 @@ const AiLogsTab = () => {
       { pageSize: PAGE_SIZE_OPTIONS[0] },
     )
   if (error) return <CAlert color="danger">{error}</CAlert>
+  const model = (r) => (
+    <>
+      {r.connection_name}
+      <div className="text-body-secondary font-monospace">{r.model}</div>
+    </>
+  )
   return (
     <>
       {loading && items.length === 0 ? (
@@ -119,11 +126,15 @@ const AiLogsTab = () => {
             <CTableRow>
               <CTableHeaderCell>{t('Updated')}</CTableHeaderCell>
               <CTableHeaderCell>{t('Conversation')}</CTableHeaderCell>
-              <CTableHeaderCell>{t('Instance')}</CTableHeaderCell>
-              <CTableHeaderCell>{t('Who')}</CTableHeaderCell>
-              <CTableHeaderCell>{t('Model')}</CTableHeaderCell>
-              <CTableHeaderCell className="text-end">{t('Questions')}</CTableHeaderCell>
-              <CTableHeaderCell className="text-end">{t('Tool calls')}</CTableHeaderCell>
+              <CTableHeaderCell className={WIDE_ONLY}>{t('Instance')}</CTableHeaderCell>
+              <CTableHeaderCell className={WIDE_ONLY}>{t('Who')}</CTableHeaderCell>
+              <CTableHeaderCell className={WIDE_ONLY}>{t('Model')}</CTableHeaderCell>
+              <CTableHeaderCell className={cx(WIDE_ONLY, 'text-end')}>
+                {t('Questions')}
+              </CTableHeaderCell>
+              <CTableHeaderCell className={cx(WIDE_ONLY, 'text-end')}>
+                {t('Tool calls')}
+              </CTableHeaderCell>
               <CTableHeaderCell className="text-end">{t('Tokens in / out')}</CTableHeaderCell>
             </CTableRow>
           </CTableHead>
@@ -135,7 +146,7 @@ const AiLogsTab = () => {
                   onClick={() => setOpen(open === r.id ? null : r.id)}
                 >
                   <CTableDataCell className="small text-nowrap">
-                    {formatSmartDateTime(r.updated_at)}
+                    <SmartDateTime iso={r.updated_at} />
                   </CTableDataCell>
                   <CTableDataCell>
                     <div className="fw-semibold">
@@ -151,14 +162,19 @@ const AiLogsTab = () => {
                       {!r.logged && t('- not logged')}
                     </div>
                   </CTableDataCell>
-                  <CTableDataCell className="small">{r.instance_key}</CTableDataCell>
-                  <CTableDataCell className="small">{r.created_by ?? '-'}</CTableDataCell>
-                  <CTableDataCell className="small">
-                    {r.connection_name}
-                    <div className="text-body-secondary font-monospace">{r.model}</div>
+                  <CTableDataCell className={cx(WIDE_ONLY, 'small')}>
+                    {r.instance_key}
                   </CTableDataCell>
-                  <CTableDataCell className="text-end">{r.questions}</CTableDataCell>
-                  <CTableDataCell className="text-end">{r.tool_calls}</CTableDataCell>
+                  <CTableDataCell className={cx(WIDE_ONLY, 'small')}>
+                    {r.created_by ?? '-'}
+                  </CTableDataCell>
+                  <CTableDataCell className={cx(WIDE_ONLY, 'small')}>{model(r)}</CTableDataCell>
+                  <CTableDataCell className={cx(WIDE_ONLY, 'text-end')}>
+                    {r.questions}
+                  </CTableDataCell>
+                  <CTableDataCell className={cx(WIDE_ONLY, 'text-end')}>
+                    {r.tool_calls}
+                  </CTableDataCell>
                   <CTableDataCell className="text-end small text-nowrap">
                     {r.tokens_in} / {r.tokens_out}
                   </CTableDataCell>
@@ -166,6 +182,16 @@ const AiLogsTab = () => {
                 {open === r.id && (
                   <CTableRow>
                     <CTableDataCell colSpan={8}>
+                      <NarrowFields
+                        className="px-0"
+                        fields={[
+                          { label: t('Instance'), value: r.instance_key },
+                          { label: t('Who'), value: r.created_by },
+                          { label: t('Model'), value: model(r) },
+                          { label: t('Questions'), value: r.questions },
+                          { label: t('Tool calls'), value: r.tool_calls },
+                        ]}
+                      />
                       <Conversation id={r.id} />
                     </CTableDataCell>
                   </CTableRow>

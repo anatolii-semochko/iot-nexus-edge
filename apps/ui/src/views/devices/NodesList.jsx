@@ -25,6 +25,7 @@ import IconButton from '../../components/IconButton'
 import Switch from '../../components/Switch'
 import ResetFiltersButton from '../../components/ResetFiltersButton'
 import ExpandAllToggleButton from '../../components/table/ExpandAllToggleButton'
+import { NarrowFields, WIDE_ONLY, cx } from '../../components/table/narrow'
 import ExpandToggleButton from '../../components/table/ExpandToggleButton'
 import LibraryTypeLink from '../../components/table/LibraryTypeLink'
 import TablePagination from '../../components/table/TablePagination'
@@ -296,12 +297,20 @@ const NodesList = () => {
                   <CTableHead>
                     <CTableRow>
                       <CTableHeaderCell scope="col">{t('Status')}</CTableHeaderCell>
-                      <CTableHeaderCell scope="col"></CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}></CTableHeaderCell>
                       <CTableHeaderCell scope="col">{t('Name')}</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">{t('Group')}</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">{t('Location')}</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">{t('Type')}</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">{t('Last heartbeat')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                        {t('Group')}
+                      </CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                        {t('Location')}
+                      </CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                        {t('Type')}
+                      </CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                        {t('Last heartbeat')}
+                      </CTableHeaderCell>
                       <CTableHeaderCell scope="col" className="text-end">
                         <div className="d-flex justify-content-end align-items-center gap-2">
                           <span>{t('Actions')}</span>
@@ -324,13 +333,15 @@ const NodesList = () => {
                       const expandedRow = isExpanded(node.id)
                       const noBorderWhenExpanded = expandedRow ? 'border-bottom-0' : undefined
                       const rowColor = nodeRowColor(node, hideSimulation)
+                      const typeLink = <LibraryTypeLink kind="node" typeName={node.type} />
+                      const heartbeat = formatRelativeTime(node.last_heartbeat_at)
                       return (
                         <React.Fragment key={node.id}>
                           <CTableRow color={rowColor}>
                             <CTableDataCell className={noBorderWhenExpanded}>
                               <RowStatusBadge rowColor={rowColor} />
                             </CTableDataCell>
-                            <CTableDataCell className={noBorderWhenExpanded}>
+                            <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>
                               <NodeIcon iconPath={node.icon_path} />
                             </CTableDataCell>
                             <CTableDataCell className={noBorderWhenExpanded}>
@@ -341,20 +352,20 @@ const NodesList = () => {
                                 </div>
                               )}
                             </CTableDataCell>
-                            <CTableDataCell className={noBorderWhenExpanded}>
+                            <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>
                               {node.group_name ?? '-'}
                             </CTableDataCell>
-                            <CTableDataCell className={noBorderWhenExpanded}>
+                            <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>
                               {node.location ?? '-'}
                             </CTableDataCell>
-                            <CTableDataCell className={noBorderWhenExpanded}>
-                              <LibraryTypeLink kind="node" typeName={node.type} />
+                            <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>
+                              {typeLink}
                             </CTableDataCell>
-                            <CTableDataCell className={noBorderWhenExpanded}>
-                              {formatRelativeTime(node.last_heartbeat_at)}
+                            <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>
+                              {heartbeat}
                             </CTableDataCell>
                             <CTableDataCell className={`text-end ${noBorderWhenExpanded ?? ''}`}>
-                              <div className="d-flex justify-content-end align-items-center gap-1 flex-nowrap">
+                              <div className="d-flex justify-content-end align-items-center gap-1 flex-nowrap ne-row-actions">
                                 <AiButton
                                   action
                                   subject={{ type: 'node', id: node.id }}
@@ -405,6 +416,14 @@ const NodesList = () => {
                           {expandedRow && (
                             <CTableRow color={rowColor}>
                               <CTableDataCell colSpan={8} className="p-0">
+                                <NarrowFields
+                                  fields={[
+                                    { label: t('Group'), value: node.group_name },
+                                    { label: t('Location'), value: node.location },
+                                    { label: t('Type'), value: typeLink },
+                                    { label: t('Last heartbeat'), value: heartbeat },
+                                  ]}
+                                />
                                 <NodeDetailRow node={node} />
                               </CTableDataCell>
                             </CTableRow>

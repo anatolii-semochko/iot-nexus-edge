@@ -1181,6 +1181,28 @@ between them - reads as the whole expanded panel's own background
 flickering. Applies to any table built with this hook, not just the one
 it was first caught on.
 
+**Tables on a phone** (`components/table/narrow.jsx`, 2026-11-17): below
+Bootstrap's md (768 px) a table keeps the columns a person looks for first
+(the name, the main value, the actions) and hides the rest - no sideways
+scroll one has to know about. `WIDE_ONLY` on a header / data cell hides it
+on a phone; `NARROW_ONLY` shows something only there (a toggle, a short
+form of a value - the process under a message, the status under a name);
+`WIDE_ONLY_INLINE` for an inline label (a button's text - the icon stays).
+The hidden columns go into the row's expanded part as label - value lines:
+`<NarrowFields fields={[{ label, value }]} />` (seen only on a phone, empty
+values left out) before the expanded part's own content; a row with no
+expanded part of its own gets `<ExpandToggleButton className={NARROW_ONLY}>`
+and `<NarrowFieldsRow>` under it. `<SmartDateTime iso>` - "Today, 14:30" wide,
+the day in digits over the time on a phone. CSS (`scss/style.scss`):
+`ne-row-actions` wraps a row's icon buttons two a line on a phone
+(`ne-row-actions-wide` - text buttons of 4rem), `ne-table-preview` narrows a
+row's small picture to 5rem (an SVG one stretches -
+`preserveAspectRatio="none"`), `<pre>` in a table wraps. A grid that is a
+matrix (the aquarium's safety rules - conditions x services) becomes a card
+per row on a phone instead. Every core list (Nodes, Devices, Processes /
+Simulator, Users, Library, Live Events, the Logs tabs, Service -> Config ->
+Dashboard) and the aquarium's Service / History tables fit 390 px.
+
 **Persisted page state** (`hooks/usePersistedState.js` +
 `utils/cookies.js`): filters, search text, page size, and which rows are
 expanded are the kind of thing someone sets up while actually using a
@@ -7965,8 +7987,7 @@ subtree, POST `/:id/move {up|down}`).
   person sees together: the outdoor air, one heat pump, one tank, one fan
   coil, the heat's flows yellow while heating, blue while cooling; powers
   and energy summed, temperatures averaged, the COP the heat over the
-  electricity, the modes counted). The heating's one is a mockup until the
-  heating's logic is reworked.
+  electricity, the modes counted); its look accepted 2026-11-17.
 - Known limits: a folder of component cards draws every scaled copy live
   (e.g. ten aquarium scenes at once).
 
@@ -9233,6 +9254,17 @@ window's size.
   'dashboard' `{cardsScale}`, `GET / PATCH /dashboard-settings` -
   dashboard.view / dashboard.manage), set by **Config** beside the adds in
   Service -> Config -> Dashboard.
+- **Page titles and titles in languages** (migration 112, 2026-11-17 - the user's "hybrid"): every
+  page - the top, a folder, an opened avatar - shows its title with the AI button under the path
+  (`views/dashboard/pageTitle.jsx` `DashboardPageTitle`) unless its `show_title` is off (API
+  `showTitle`; the top - the settings' `showTitle`). The text: `titles[lang]` (a card's jsonb
+  `{ uk, de, es }`, API `titles`; the top - the settings' `titles`) else its `title` (the top - "Dashboard"
+  translated); `cardTitle(card)` is used for the captions, the list and the path too. A component that
+  draws its own title with its figures beside it registers `ownTitle: true` (the energy, ledger, heating,
+  heating plan, weather scenes) and gets `pageTitle` - `{ text }` shown, `null` hidden, absent (a preview,
+  its process page) - `process.name`; any other gets the generic title over it. Service -> Config ->
+  Dashboard: "Title in the languages" (a field per UI language) and "Page title" in the card's form and in
+  Config. The demo's cards' titles in uk / de / es - demo migration 060.
 - **The config list** (2026-11-01): a level as the Dashboard shows it - the
   cards (folders, avatars: the type's icon, the card's icon, the title -
   a folder's opens it, the picture's thumbnail - `CardPreview` at 48 px,

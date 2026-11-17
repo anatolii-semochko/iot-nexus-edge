@@ -13,8 +13,8 @@ import { packageT } from 'src/i18n'
 // the package's words (its own locales/, then the core's)
 const t = packageT('heating-control')
 
-// The heating's overview - a MOCKUP (iot AGENTS_TO_DO.md 2026-10-29: the heating's logic is to be
-// reworked, the overview finished in this package then): a Dashboard component (no process - every
+// The heating's overview (iot AGENTS_TO_DO.md 2026-10-29; its look accepted by the user 2026-11-17): a
+// Dashboard component (no process - every
 // heating system the person sees, together) drawn at a folder's full width under its blocks. One row on a
 // wide screen, a column on a narrow one: the outdoors in two floors (the user, 2026-10-30 - as the
 // energy's overview) - the weather (the air the heat pumps take the heat from / give it to) over the

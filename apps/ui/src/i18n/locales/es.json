@@ -948,5 +948,12 @@
   "Made": "Hecha",
   "Kept as": "Guardada como",
   "Photos": "Fotos",
-  "Every night the server saves the whole database (the configuration, the history, the AI conversations) and the uploaded photos. Kept: every night - {{days}} days, the first of a week - {{weeks}} weeks, the first of a month - {{months}} months. Read only here: a backup is restored on the server.": "Cada noche el servidor guarda toda la base de datos (la configuración, el historial, las conversaciones con la IA) y las fotos subidas. Se guardan: cada noche - {{days}} días, la primera de una semana - {{weeks}} semanas, la primera de un mes - {{months}} meses. Aquí solo se ven: una copia se restaura en el servidor."
+  "Every night the server saves the whole database (the configuration, the history, the AI conversations) and the uploaded photos. Kept: every night - {{days}} days, the first of a week - {{weeks}} weeks, the first of a month - {{months}} months. Read only here: a backup is restored on the server.": "Cada noche el servidor guarda toda la base de datos (la configuración, el historial, las conversaciones con la IA) y las fotos subidas. Se guardan: cada noche - {{days}} días, la primera de una semana - {{weeks}} semanas, la primera de un mes - {{months}} meses. Aquí solo se ven: una copia se restaura en el servidor.",
+  "Title in the languages": "Título en los idiomas",
+  "The card's title in each language of the interface; empty - the title above": "El título de la tarjeta en cada idioma de la interfaz; vacío - el título de arriba",
+  "Page title": "Título de la página",
+  "The title over its page when it is opened, with the AI button": "El título sobre su página cuando se abre, con el botón de la IA",
+  "The title over the Dashboard's top level, with the AI button": "El título sobre el nivel superior del panel, con el botón de la IA",
+  "Empty - \"Dashboard\" in the viewer's language": "Vacío - «Panel» en el idioma de quien mira",
+  "Pulse - written every system tick": "Pulso - se escribe en cada ciclo del sistema"
 }

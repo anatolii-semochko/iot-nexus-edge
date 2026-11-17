@@ -147,6 +147,8 @@ const SeriesChart = ({
   const W = fluid && boxPx ? Math.max(320, boxPx) : BASE_W
   const [series, setSeries] = useState(null)
   const [error, setError] = useState(null)
+  // the moment under the cursor (or a finger) - one for all the charts here, they share the time axis
+  const [hoverT, setHoverT] = useState(null)
   // "now" - when the data was read (a render stays pure)
   const [readAt, setReadAt] = useState(null)
   const entries = keys
@@ -229,6 +231,7 @@ const SeriesChart = ({
     const y = (v) => PAD.top + ((max - v) / (max - min)) * (H - PAD.top - PAD.bottom)
     return {
       key,
+      y,
       color: curves[0].color,
       label: labels[i],
       min,
@@ -273,6 +276,87 @@ const SeriesChart = ({
   })
   if (lines.every((l) => l.curves.every((c) => !c.path)))
     return <div className="small text-body-secondary">{tr('No points yet today.')}</div>
+  // the hover line (the user, 2026-11-17 - as the aquarium's History): the time under the pointer, the
+  // charts' values at it - the last point at or before it, none across a gap; only the day so far
+  const timeAt = (e) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const vx = ((e.clientX - r.left) / r.width) * W
+    if (vx < PAD.left || vx > W - PAD.right) return null
+    const t = t0 + ((vx - PAD.left) / (W - PAD.left - PAD.right)) * (t1 - t0)
+    return t > readAt ? null : t
+  }
+  const valueAt = (pts, t) => {
+    let found = null
+    for (const p of pts) {
+      if (p.t > t) break
+      found = p
+    }
+    return found && t - found.t <= gapMs ? found.v : null
+  }
+  const fmtValue = (v) => {
+    const a = Math.abs(v)
+    return v.toFixed(a >= 100 ? 0 : a >= 10 ? 1 : 2)
+  }
+  const hhmm = (t) =>
+    new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+  const hoverMarks = (l) => {
+    if (hoverT === null) return null
+    const hx = x(hoverT)
+    const rows = l.curves.map((c) => ({ c, v: valueAt(c.pts, hoverT) })).filter((r) => r.v !== null)
+    const texts = [
+      hhmm(hoverT),
+      ...rows.map((r) => `${r.c.legend ? `${r.c.legend}: ` : ''}${fmtValue(r.v)}`),
+    ]
+    const boxW = Math.max(...texts.map((tx) => tx.length)) * 6.4 + 14
+    const boxH = texts.length * 14 + 8
+    // the readout beside the line, flipped to its left near the right edge
+    const bx = hx + boxW + 10 > W - PAD.right ? hx - boxW - 6 : hx + 6
+    return (
+      <g pointerEvents="none">
+        <line
+          x1={hx}
+          x2={hx}
+          y1={PAD.top}
+          y2={H - PAD.bottom}
+          stroke="var(--cui-body-color)"
+          strokeOpacity="0.45"
+        />
+        {rows.map((r) => (
+          <circle
+            key={r.c.k}
+            cx={hx}
+            cy={l.y(r.v)}
+            r="3"
+            fill={r.c.color}
+            stroke="var(--cui-body-bg)"
+            strokeWidth="1"
+          />
+        ))}
+        <rect
+          x={bx}
+          y={PAD.top + 2}
+          width={boxW}
+          height={boxH}
+          rx="4"
+          fill="var(--cui-body-bg)"
+          stroke="var(--cui-border-color)"
+          opacity="0.95"
+        />
+        {texts.map((tx, i) => (
+          <text
+            key={i}
+            x={bx + 7}
+            y={PAD.top + 15 + i * 14}
+            fontSize="11"
+            fontWeight={i === 0 ? 600 : 400}
+            fill={i === 0 ? 'var(--cui-body-color)' : rows[i - 1].c.color}
+          >
+            {tx}
+          </text>
+        ))}
+      </g>
+    )
+  }
   // a popup's chart - drawn once its width is known
   if (fluid && !boxPx) return <div ref={setBox} style={{ height: lines.length * (H + LABEL_H) }} />
   return (
@@ -301,6 +385,8 @@ const SeriesChart = ({
             style={{ width: '100%', height: 'auto', display: 'block' }}
             role="img"
             aria-label={tr("Today's history{{v0}}", { v0: l.label ? ` - ${l.label}` : '' })}
+            onPointerMove={(e) => setHoverT(timeAt(e))}
+            onPointerLeave={() => setHoverT(null)}
           >
             {[PAD.top, H - PAD.bottom].map((ly) => (
               <line
@@ -405,6 +491,7 @@ const SeriesChart = ({
               stroke="var(--cui-danger)"
               strokeWidth="1.2"
             />
+            {hoverMarks(l)}
           </svg>
           {l.limits.some((lim) => !lim.far && lim.label) && (
             <div className="d-flex flex-wrap gap-3 small" style={{ fontSize: '0.75rem' }}>

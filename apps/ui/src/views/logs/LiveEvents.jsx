@@ -16,6 +16,8 @@ import {
   CTableHeaderCell,
   CTableRow,
 } from '@coreui/react'
+import { NARROW_ONLY, WIDE_ONLY, WIDE_ONLY_INLINE, cx } from '../../components/table/narrow'
+import { smartDateTimeParts } from '../../utils/format'
 import { subscribeToLiveEvents } from '../../api/liveSocket'
 import ResetFiltersButton from '../../components/ResetFiltersButton'
 import TableSearchInput from '../../components/table/TableSearchInput'
@@ -298,29 +300,43 @@ const LiveEvents = () => {
             <CTableHead>
               <CTableRow>
                 <CTableHeaderCell scope="col">{tr('Time')}</CTableHeaderCell>
-                <CTableHeaderCell scope="col">{tr('Routing key')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                  {tr('Routing key')}
+                </CTableHeaderCell>
                 <CTableHeaderCell scope="col">{tr('Entity')}</CTableHeaderCell>
                 <CTableHeaderCell scope="col">{tr('Value')}</CTableHeaderCell>
-                <CTableHeaderCell scope="col">{tr('Mode')}</CTableHeaderCell>
-                <CTableHeaderCell scope="col">{tr('Source')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                  {tr('Mode')}
+                </CTableHeaderCell>
+                <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                  {tr('Source')}
+                </CTableHeaderCell>
               </CTableRow>
             </CTableHead>
             <CTableBody>
               {filtered.map((row) => (
                 <CTableRow key={row.id}>
                   <CTableDataCell>
-                    <code>{row.event.timestamp ?? '-'}</code>
+                    <code className={WIDE_ONLY_INLINE}>{row.event.timestamp ?? '-'}</code>
+                    {/* a phone: the time alone (the day is today's - a live stream) */}
+                    <code className={NARROW_ONLY}>
+                      {smartDateTimeParts(row.event.timestamp)[1]}
+                    </code>
                   </CTableDataCell>
-                  <CTableDataCell>
+                  <CTableDataCell className={WIDE_ONLY}>
                     <code>{row.routingKey}</code>
                   </CTableDataCell>
-                  <CTableDataCell>
+                  <CTableDataCell className="text-break">
                     {row.event.domain}.{row.event.entityId}
+                    {/* a phone: the mode and the source under the entity - no columns of their own */}
+                    <div className={cx(NARROW_ONLY, 'small text-body-secondary')}>
+                      {[row.event.mode, row.event.source].filter(Boolean).join(' - ')}
+                    </div>
                   </CTableDataCell>
-                  <CTableDataCell>
+                  <CTableDataCell className="text-break">
                     {row.event.value !== undefined ? String(row.event.value) : '-'}
                   </CTableDataCell>
-                  <CTableDataCell>
+                  <CTableDataCell className={WIDE_ONLY}>
                     {row.event.mode ? (
                       <CBadge color={modeColor(row.event.mode)} className="mb-1">
                         {row.event.mode}
@@ -329,7 +345,7 @@ const LiveEvents = () => {
                       '-'
                     )}
                   </CTableDataCell>
-                  <CTableDataCell>{row.event.source ?? '-'}</CTableDataCell>
+                  <CTableDataCell className={WIDE_ONLY}>{row.event.source ?? '-'}</CTableDataCell>
                 </CTableRow>
               ))}
             </CTableBody>

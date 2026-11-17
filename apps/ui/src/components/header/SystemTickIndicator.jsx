@@ -1,5 +1,6 @@
 import React from 'react'
 import { useSystemTick } from '../../api/useSystemTick'
+import PulseDot from '../indicators/PulseDot'
 import { t } from 'src/i18n'
 
 /**
@@ -15,16 +16,7 @@ import { t } from 'src/i18n'
  */
 const SystemTickIndicator = () => {
   const tickCount = useSystemTick()
-
-  return (
-    <span
-      key={tickCount}
-      className="system-tick-dot system-tick-pulse"
-      role="status"
-      aria-label={t('System tick')}
-      title={t('System tick')}
-    />
-  )
+  return <PulseDot beat={tickCount} label={t('System tick')} />
 }
 
 export default SystemTickIndicator

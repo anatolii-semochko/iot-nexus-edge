@@ -45,6 +45,9 @@ the plain band control.
 | Comfort | The rooms always at their setpoint - the tanks alone carry the dear hours |
 | The sun | The sun's surplus stored as heat - the tanks filled higher while it shines |
 
-The strategy is **fixed** (you choose it) or **cheapest** - at each plan, the
-one with the least electricity. The AI can make the day's heating plan on a
-schedule.
+The strategy is **fixed** (you choose it), **cheapest** - at each plan, the
+one with the least electricity - or **balanced**: at each plan, the one whose
+electricity, heat pump wear (starts, running hours) and room comfort cost the
+least together, each at the system's own weights. Balanced won't save a few
+cents with extra starts or rooms below their setpoint. The AI can make the
+day's heating plan on a schedule.

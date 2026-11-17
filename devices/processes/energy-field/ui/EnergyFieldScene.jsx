@@ -156,7 +156,9 @@ const kwText = (kw, digits = 1) => (Math.abs(kw) >= 100 ? fmt(kw, 0) : fmt(kw, d
 
 const Stat = StatTile
 
-const EnergyFieldScene = ({ process }) => {
+// `pageTitle` - the Dashboard's page title (its pageTitle.jsx): { text } - shown, null - hidden by its
+// "Show title"; absent - the process's name (a preview, the process's own page)
+const EnergyFieldScene = ({ process, pageTitle }) => {
   const can = useCan()
   const { m, grid, gridMetrics, forecast, prices } = useFieldData(process)
   const [popup, setPopup] = useState(null)
@@ -455,7 +457,9 @@ const EnergyFieldScene = ({ process }) => {
       />
       <span
         className="ef-flowrow-side"
-        style={{ color: generation > 0.05 ? 'var(--ef-gain)' : 'var(--ef-off)' }}
+        style={{
+          color: generation > 0.05 ? 'var(--ef-gain)' : 'var(--ef-off)',
+        }}
       >
         <span className="ef-flow-word" title={flowTitles.generation}>
           {tr('generation')}
@@ -503,16 +507,18 @@ const EnergyFieldScene = ({ process }) => {
 
       <div className="d-flex align-items-baseline justify-content-between flex-wrap gap-2">
         <div className="d-flex align-items-baseline gap-3 flex-wrap">
-          <strong style={{ fontSize: '1.4rem' }}>
-            {/* the AI's mark before the page's title, larger (the user, 2026-10-25) */}
-            <AiButton
-              subject={{ type: 'process', id: process.id }}
-              label={process.name}
-              size={30}
-              className="me-2"
-            />
-            {process.name}
-          </strong>
+          {pageTitle !== null && (
+            <strong style={{ fontSize: '1.4rem' }}>
+              {/* the AI's mark before the page's title, larger (the user, 2026-10-25) */}
+              <AiButton
+                subject={{ type: 'process', id: process.id }}
+                label={process.name}
+                size={30}
+                className="me-2"
+              />
+              {pageTitle?.text ?? process.name}
+            </strong>
+          )}
           {/* the capacities as large as the summary lines' figures (the Generation line's - the user, 2026-10-25) */}
           <span className="sum-figures">
             <span className="sum-value" style={{ color: 'var(--ef-gen)' }}>

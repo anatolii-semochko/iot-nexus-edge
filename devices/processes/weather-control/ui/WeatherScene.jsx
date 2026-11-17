@@ -242,7 +242,9 @@ const Tile = ({ icon, title, children, hint }) => (
   </section>
 )
 
-const WeatherScene = ({ process, params }) => {
+// `pageTitle` - the Dashboard's page title (its pageTitle.jsx): { text } - shown, null - hidden by its
+// "Show title"; absent - the process's name (a preview, the process's own page)
+const WeatherScene = ({ process, params, pageTitle }) => {
   const can = useCan()
   const now = useNow(60_000)
   const { forecast, error, busy, refresh } = useForecast(process.id)
@@ -383,7 +385,7 @@ const WeatherScene = ({ process, params }) => {
       <style>{CSS}</style>
       <div className="d-flex align-items-baseline justify-content-between gap-2 flex-wrap">
         <div className="d-flex align-items-baseline gap-3 flex-wrap">
-          {params !== undefined && (
+          {params !== undefined && pageTitle !== null && (
             <strong style={{ fontSize: '1.4rem' }}>
               <AiButton
                 subject={{ type: 'process', id: process.id }}
@@ -391,7 +393,7 @@ const WeatherScene = ({ process, params }) => {
                 size={30}
                 className="me-2"
               />
-              {process.name}
+              {pageTitle?.text ?? process.name}
             </strong>
           )}
           <span className="ws-muted">

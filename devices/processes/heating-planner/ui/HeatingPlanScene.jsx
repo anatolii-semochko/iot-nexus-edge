@@ -38,7 +38,9 @@ const day = (t) =>
   })
 const eur = (v) => (v == null ? '-' : Number(v).toFixed(2))
 
-const HeatingPlanScene = ({ process, params }) => {
+// `pageTitle` - the Dashboard's page title (its pageTitle.jsx): { text } - shown, null - hidden by its
+// "Show title"; absent - the process's name (a preview, the process's own page)
+const HeatingPlanScene = ({ process, params, pageTitle }) => {
   const { m, plan, error } = usePlan(process)
   const now = useNow(60_000)
   const [pick, setPick] = usePersistedState(`nexusedge.heatingPlan.${process.id}`, {
@@ -75,7 +77,7 @@ const HeatingPlanScene = ({ process, params }) => {
   const horizonH = ahead.length ? (ahead[ahead.length - 1].end - now) / 3_600_000 : 0
   return (
     <div className="d-flex flex-column gap-3">
-      {params !== undefined && (
+      {params !== undefined && pageTitle !== null && (
         <strong style={{ fontSize: '1.4rem' }}>
           <AiButton
             subject={{ type: 'process', id: process.id }}
@@ -83,7 +85,7 @@ const HeatingPlanScene = ({ process, params }) => {
             size={30}
             className="me-2"
           />
-          {process.name}
+          {pageTitle?.text ?? process.name}
         </strong>
       )}
       <PlanSummary processId={process.id} madeAt={plan.madeAt} />

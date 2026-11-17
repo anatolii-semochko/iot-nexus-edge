@@ -29,6 +29,7 @@ import {
   cilSettings,
   cilTrash,
 } from '@coreui/icons'
+import { NARROW_ONLY, WIDE_ONLY, cx } from '../../components/table/narrow'
 import { api, request } from '../../api/client'
 import { availableComponents, dashboardComponents } from '../../dashboardRegistry'
 import { cardIcon, DASHBOARD_ICONS } from '../../dashboardIcons'
@@ -44,7 +45,7 @@ import {
   dashboardCardWidth,
   pictureSource,
 } from '../dashboard/Dashboard'
-import { t } from 'src/i18n'
+import { LANGUAGES, t } from 'src/i18n'
 
 /**
  * Service -> Config -> Dashboard (Dashboard cards, 2026-10-16): the
@@ -149,6 +150,8 @@ const EMPTY = {
   picture: {},
   userFit: false,
   cardsScale: 1,
+  showTitle: true,
+  titles: {},
 }
 
 // a folder's cards' scale - the API's range (dashboardCards.ts CARDS_SCALE, migration 103)
@@ -211,6 +214,30 @@ const Row = ({ label, hint, children }) => (
   <div className="dc-row">
     <CFormLabel title={hint}>{label}</CFormLabel>
     {children}
+  </div>
+)
+
+/**
+ * A title in the interface's languages (migration 112): a field per language, empty - the base title
+ * (`base`, shown as its placeholder). The Dashboard shows the viewer's language's.
+ */
+const TitlesInput = ({ value, base, onChange }) => (
+  <div className="d-grid gap-1" style={{ gridTemplateColumns: 'auto 1fr', alignItems: 'center' }}>
+    {LANGUAGES.map(({ code, name }) => (
+      <React.Fragment key={code}>
+        <span className="small text-body-secondary text-uppercase" title={name}>
+          {code}
+        </span>
+        <CFormInput
+          size="sm"
+          value={value?.[code] ?? ''}
+          placeholder={base}
+          maxLength={120}
+          aria-label={`${t('Title')} - ${name}`}
+          onChange={(e) => onChange({ ...(value ?? {}), [code]: e.target.value })}
+        />
+      </React.Fragment>
+    ))}
   </div>
 )
 
@@ -504,6 +531,30 @@ const CardModal = ({ draft, cards, options, processes = [], rootScale = 1, onClo
                 aria-label={t('Title')}
               />
             </Row>
+            <Row
+              label={t('Title in the languages')}
+              hint={t(
+                "The card's title in each language of the interface; empty - the title above",
+              )}
+            >
+              <TitlesInput
+                value={form.titles}
+                base={form.title}
+                onChange={(titles) => set({ titles })}
+              />
+            </Row>
+            {form.type !== 'component' && (
+              <Row
+                label={t('Page title')}
+                hint={t('The title over its page when it is opened, with the AI button')}
+              >
+                <Switch
+                  checked={form.showTitle !== false}
+                  ariaLabel={t('Page title')}
+                  onChange={(on) => set({ showTitle: on })}
+                />
+              </Row>
+            )}
             <Row label={t('In')}>
               <FolderCascade
                 cards={cards}
@@ -703,6 +754,28 @@ const SettingsModal = ({ visible, settings, onClose, onSave }) => {
         {error && <CAlert color="danger">{error}</CAlert>}
         <div className="dc-form">
           <Row
+            label={t('Page title')}
+            hint={t("The title over the Dashboard's top level, with the AI button")}
+          >
+            <Switch
+              checked={form.showTitle !== false}
+              ariaLabel={t('Page title')}
+              onChange={(on) => setForm({ ...form, showTitle: on })}
+            />
+          </Row>
+          {form.showTitle !== false && (
+            <Row
+              label={t('Title in the languages')}
+              hint={t('Empty - "Dashboard" in the viewer\'s language')}
+            >
+              <TitlesInput
+                value={form.titles}
+                base={t('Dashboard')}
+                onChange={(titles) => setForm({ ...form, titles })}
+              />
+            </Row>
+          )}
+          <Row
             label={t('Cards scale')}
             hint={t('The cards on the top level: 1.00 - as usual, 1.50 - half as large again')}
           >
@@ -792,6 +865,9 @@ const DashboardConfigTab = () => {
         : type === 'avatar'
           ? { title, icon: form.icon, view, preview, userFit: !!form.userFit, ...shown }
           : { title, ...shown }
+    // the title in the languages; the page's title - a folder's and an avatar's (an opened page)
+    fields.titles = form.titles ?? {}
+    if (type !== 'component') fields.showTitle = form.showTitle !== false
     if (type !== 'component') {
       fields.frame = form.frame ?? null
       // the pictures' settings (the images themselves - uploaded at once)
@@ -844,7 +920,7 @@ const DashboardConfigTab = () => {
     )
   // the row's actions - the order (within its group), edit, delete
   const actions = (card, i, count) => (
-    <span className="d-inline-flex gap-2">
+    <span className="d-inline-flex justify-content-end gap-2 ne-row-actions">
       {/* the order - up / down as one button group */}
       <span className="btn-group" role="group" aria-label={t('Order')}>
         <IconButton
@@ -983,10 +1059,14 @@ const DashboardConfigTab = () => {
                   <CTableHeaderCell className="small text-body-secondary fw-normal">
                     {t('Picture')}
                   </CTableHeaderCell>
-                  <CTableHeaderCell className="small text-body-secondary fw-normal">
+                  <CTableHeaderCell
+                    className={cx(WIDE_ONLY, 'small text-body-secondary fw-normal')}
+                  >
                     {t('Background')}
                   </CTableHeaderCell>
-                  <CTableHeaderCell className="small text-body-secondary fw-normal">
+                  <CTableHeaderCell
+                    className={cx(WIDE_ONLY, 'small text-body-secondary fw-normal')}
+                  >
                     {t('Info')}
                   </CTableHeaderCell>
                   <CTableHeaderCell />
@@ -1005,7 +1085,13 @@ const DashboardConfigTab = () => {
                     <CTableDataCell style={{ width: '2rem' }}>
                       <CIcon icon={cardIcon(card)} className="text-body-secondary" />
                     </CTableDataCell>
-                    <CTableDataCell>{titleOf(card)}</CTableDataCell>
+                    <CTableDataCell>
+                      {titleOf(card)}
+                      {/* a phone: the info under the title - no column of its own */}
+                      <div className={cx(NARROW_ONLY, 'small text-body-secondary')}>
+                        {what(card)}
+                      </div>
+                    </CTableDataCell>
                     <CTableDataCell style={{ width: THUMB.w + 16 }}>
                       <Thumb>
                         {/* the card's picture as on the Dashboard, its block the thumbnail's height */}
@@ -1014,7 +1100,7 @@ const DashboardConfigTab = () => {
                         </div>
                       </Thumb>
                     </CTableDataCell>
-                    <CTableDataCell style={{ width: THUMB.w + 16 }}>
+                    <CTableDataCell className={WIDE_ONLY} style={{ width: THUMB.w + 16 }}>
                       {cardImageUrl(card, 'background') ? (
                         <Thumb>
                           <img
@@ -1027,10 +1113,10 @@ const DashboardConfigTab = () => {
                         <span className="small text-body-secondary">-</span>
                       )}
                     </CTableDataCell>
-                    <CTableDataCell className="small text-body-secondary">
+                    <CTableDataCell className={cx(WIDE_ONLY, 'small text-body-secondary')}>
                       {what(card)}
                     </CTableDataCell>
-                    <CTableDataCell className="text-end text-nowrap" style={{ width: '1%' }}>
+                    <CTableDataCell className="text-end text-md-nowrap" style={{ width: '1%' }}>
                       {actions(card, i, blocks.length)}
                     </CTableDataCell>
                   </CTableRow>
@@ -1046,7 +1132,9 @@ const DashboardConfigTab = () => {
                   <CTableHeaderCell colSpan={3} className="small text-body-secondary fw-normal">
                     {t('Components - at the full width under the cards')}
                   </CTableHeaderCell>
-                  <CTableHeaderCell className="small text-body-secondary fw-normal">
+                  <CTableHeaderCell
+                    className={cx(WIDE_ONLY, 'small text-body-secondary fw-normal')}
+                  >
                     {t('Info')}
                   </CTableHeaderCell>
                   <CTableHeaderCell />
@@ -1065,11 +1153,17 @@ const DashboardConfigTab = () => {
                     <CTableDataCell style={{ width: '2rem' }}>
                       <CIcon icon={cardIcon(card)} className="text-body-secondary" />
                     </CTableDataCell>
-                    <CTableDataCell>{titleOf(card)}</CTableDataCell>
-                    <CTableDataCell className="small text-body-secondary">
+                    <CTableDataCell>
+                      {titleOf(card)}
+                      {/* a phone: the info under the title - no column of its own */}
+                      <div className={cx(NARROW_ONLY, 'small text-body-secondary')}>
+                        {what(card)}
+                      </div>
+                    </CTableDataCell>
+                    <CTableDataCell className={cx(WIDE_ONLY, 'small text-body-secondary')}>
                       {what(card)}
                     </CTableDataCell>
-                    <CTableDataCell className="text-end text-nowrap" style={{ width: '1%' }}>
+                    <CTableDataCell className="text-end text-md-nowrap" style={{ width: '1%' }}>
                       {actions(card, i, components.length)}
                     </CTableDataCell>
                   </CTableRow>

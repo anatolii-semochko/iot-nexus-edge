@@ -31,8 +31,10 @@ const IconButton = ({
   disabled,
   center,
   title,
+  className,
 }) => (
   <CButton
+    className={className}
     size={size}
     color={color}
     variant={variant}

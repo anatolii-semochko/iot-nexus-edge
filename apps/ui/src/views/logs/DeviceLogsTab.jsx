@@ -20,8 +20,9 @@ import ResetFiltersButton from '../../components/ResetFiltersButton'
 import TablePagination from '../../components/table/TablePagination'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
-import { formatSmartDateTime, localDateTimeToIso } from '../../utils/format'
+import { localDateTimeToIso } from '../../utils/format'
 import AiButton from '../../components/ai/AiButton'
+import { NARROW_ONLY, SmartDateTime, WIDE_ONLY, cx } from '../../components/table/narrow'
 import { t } from 'src/i18n'
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
@@ -124,7 +125,9 @@ const DeviceLogsTab = ({
                 <CTableHeaderCell scope="col">{t('Time')}</CTableHeaderCell>
                 <CTableHeaderCell scope="col">{t('Device')}</CTableHeaderCell>
                 <CTableHeaderCell scope="col">{t('Value')}</CTableHeaderCell>
-                <CTableHeaderCell scope="col">{t('Source')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                  {t('Source')}
+                </CTableHeaderCell>
                 <CTableHeaderCell scope="col" />
               </CTableRow>
             </CTableHead>
@@ -132,11 +135,17 @@ const DeviceLogsTab = ({
               {items.map((item) => (
                 <CTableRow key={item.id}>
                   <CTableDataCell className="text-body-secondary small text-nowrap">
-                    {formatSmartDateTime(item.created_at)}
+                    <SmartDateTime iso={item.created_at} />
                   </CTableDataCell>
-                  <CTableDataCell>{item.device_name ?? `#${item.device_id ?? '?'}`}</CTableDataCell>
-                  <CTableDataCell>{formatValue(item.value)}</CTableDataCell>
-                  <CTableDataCell>{item.source}</CTableDataCell>
+                  <CTableDataCell>
+                    {item.device_name ?? `#${item.device_id ?? '?'}`}
+                    {/* a phone: the source under the device - no column of its own */}
+                    <div className={cx(NARROW_ONLY, 'small text-body-secondary')}>
+                      {item.source}
+                    </div>
+                  </CTableDataCell>
+                  <CTableDataCell className="text-break">{formatValue(item.value)}</CTableDataCell>
+                  <CTableDataCell className={WIDE_ONLY}>{item.source}</CTableDataCell>
                   <CTableDataCell className="text-end text-nowrap">
                     {/* the AI on the device, the record itself told (the user, 2026-10-25) */}
                     {item.device_id && (

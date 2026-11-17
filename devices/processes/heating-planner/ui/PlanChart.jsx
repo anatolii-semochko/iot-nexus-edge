@@ -1,5 +1,6 @@
 import React from 'react'
 import { useNow } from 'src/hooks/useNow'
+import { HoverMarks, hoverTime, hoverValue, useChartHover } from 'src/components/charts/ChartHover'
 import { fmt, hhmm } from './usePlan'
 import { packageT } from 'src/i18n'
 // the package's words (its own locales/, then the core's)
@@ -49,6 +50,14 @@ const Tick = ({ y, children }) => (
 
 const PlanChart = ({ slots, mode, single }) => {
   const now = useNow(60_000)
+  // the hover line - the slot under the pointer and its figures (ChartHover)
+  const [hoverT, hoverProps] = useChartHover({
+    W,
+    left: LEFT,
+    right: RIGHT,
+    t0: slots?.[0]?.t ?? 0,
+    t1: slots?.[slots.length - 1]?.end ?? 1,
+  })
   if (!slots?.length) return null
   const cooling = mode === 'cooling'
   const t0 = slots[0].t
@@ -93,6 +102,7 @@ const PlanChart = ({ slots, mode, single }) => {
       aria-label={tr(
         'The heating plan: prices, the heat planned and needed, the units, the store, the rooms',
       )}
+      {...hoverProps}
     >
       {/* the Ledger's signal and the sun's surplus - behind the prices */}
       {runs((s) => (s.signal === 1 ? 'hold' : s.signal === 3 ? 'store' : null)).map((r) => (
@@ -282,6 +292,62 @@ const PlanChart = ({ slots, mode, single }) => {
           strokeWidth="1.2"
         />
       )}
+      {hoverT !== null &&
+        (() => {
+          const s = slots.find((sl) => hoverT >= sl.t && hoverT < sl.end)
+          if (!s) return null
+          const store = storeOf(s)
+          return (
+            <HoverMarks
+              x={x(hoverT)}
+              top={BANDS.price[0]}
+              bottom={BANDS.rooms[1]}
+              W={W}
+              right={RIGHT}
+              title={`${hhmm(s.t)}-${hhmm(s.end)}`}
+              rows={[
+                {
+                  label: tr('buy price'),
+                  value: `${hoverValue(s.buyCtKwh)} ct`,
+                  color: COLORS.buy,
+                },
+                s.sellCtKwh != null && {
+                  label: tr('sale price'),
+                  value: `${hoverValue(s.sellCtKwh)} ct`,
+                  color: COLORS.sell,
+                },
+                {
+                  label: tr('heat planned'),
+                  value: `${hoverValue(s.heatKw)} kW`,
+                  color: heatColor,
+                  y: yIn(BANDS.heat, s.heatKw, 0, kwHi),
+                },
+                {
+                  label: tr("the rooms' need"),
+                  value: `${hoverValue(s.needKw)} kW`,
+                  color: COLORS.need,
+                  y: yIn(BANDS.heat, s.needKw, 0, kwHi),
+                },
+                {
+                  label: tr('units'),
+                  value: String(s.units),
+                  color: COLORS.units,
+                },
+                store != null && {
+                  label: single ? '°C' : 'kWh',
+                  value: hoverValue(store),
+                  color: COLORS.store,
+                  y: yIn(BANDS.store, store, sLo, sHi),
+                },
+                s.roomOffsetK != null && {
+                  label: tr('rooms off setpoint'),
+                  value: `${hoverValue(s.roomOffsetK)} K`,
+                  color: COLORS.rooms,
+                },
+              ].filter(Boolean)}
+            />
+          )
+        })()}
     </svg>
   )
 }

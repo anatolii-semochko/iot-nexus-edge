@@ -948,5 +948,12 @@
   "Made": "Створено",
   "Kept as": "Зберігається як",
   "Photos": "Фото",
-  "Every night the server saves the whole database (the configuration, the history, the AI conversations) and the uploaded photos. Kept: every night - {{days}} days, the first of a week - {{weeks}} weeks, the first of a month - {{months}} months. Read only here: a backup is restored on the server.": "Щоночі сервер зберігає всю базу даних (конфігурацію, історію, розмови з ШІ) і завантажені фото. Щонічні копії зберігаються {{days}} днів, перша копія тижня - {{weeks}} тижнів, перша копія місяця - {{months}} місяців. Тут їх видно лише для перегляду: відновлюють копію на сервері."
+  "Every night the server saves the whole database (the configuration, the history, the AI conversations) and the uploaded photos. Kept: every night - {{days}} days, the first of a week - {{weeks}} weeks, the first of a month - {{months}} months. Read only here: a backup is restored on the server.": "Щоночі сервер зберігає всю базу даних (конфігурацію, історію, розмови з ШІ) і завантажені фото. Щонічні копії зберігаються {{days}} днів, перша копія тижня - {{weeks}} тижнів, перша копія місяця - {{months}} місяців. Тут їх видно лише для перегляду: відновлюють копію на сервері.",
+  "Title in the languages": "Назва мовами",
+  "The card's title in each language of the interface; empty - the title above": "Назва картки кожною мовою інтерфейсу; порожньо - назва вище",
+  "Page title": "Заголовок сторінки",
+  "The title over its page when it is opened, with the AI button": "Заголовок над сторінкою, коли її відкрито, з кнопкою ШІ",
+  "The title over the Dashboard's top level, with the AI button": "Заголовок над верхнім рівнем панелі, з кнопкою ШІ",
+  "Empty - \"Dashboard\" in the viewer's language": "Порожньо - «Панель» мовою глядача",
+  "Pulse - written every system tick": "Пульс - записується щотакту системи"
 }

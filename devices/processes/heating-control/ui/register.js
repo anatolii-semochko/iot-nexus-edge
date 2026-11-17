@@ -21,6 +21,8 @@ processTypeRegistry.registerSettingsSection(
 
 dashboardRegistry.registerComponent({
   key: "heatingControl.scene",
+  // draws the page's title itself, its data beside it (the Dashboard's pageTitle prop)
+  ownTitle: true,
   title: t("Heating"),
   description: t(
     "The heat pumps, the heat storage and the rooms - live, with the mode and the fan coils' valves",
@@ -37,7 +39,7 @@ dashboardRegistry.registerComponent({
 });
 
 // every heating system together, at a glance - made for a folder's full width under its blocks (a
-// component card); a mockup until the heating's rework (iot AGENTS_TO_DO.md 2026-10-29)
+// component card)
 dashboardRegistry.registerComponent({
   key: "heatingControl.overview",
   title: t("Heating - the overview"),

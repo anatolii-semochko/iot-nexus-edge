@@ -24,10 +24,15 @@ Service -> Konfiguration -> Dashboard (für alle, die es konfigurieren dürfen)
 zeigt eine Ebene wie das Dashboard: die Karten (Ordner und Avatare - mit Bild
 und Hintergrund), darunter die Komponenten - jede Liste mit eigener
 Reihenfolge. **Konfiguration** - die Einstellungen des Dashboards: die
-Kartengröße der obersten Ebene.
+Kartengröße der obersten Ebene und ihr Seitentitel.
 Fügen Sie einen Ordner, einen Avatar oder eine Komponente hinzu; verschieben
 Sie sie nach oben und unten; bearbeiten Sie eine Karte:
 
+- der **Titel** und seine Übersetzungen - ein Feld je Sprache der Oberfläche
+  (leer - der Titel selbst); jeder Betrachter sieht den in seiner Sprache;
+- der **Seitentitel** eines Ordners oder Avatars - sein Titel mit der KI-Taste
+  über der geöffneten Seite (standardmäßig an; die Seiten für Energie, Heizung
+  und Wetter behalten ihre Zahlen daneben);
 - das **Bild** - keins, der Avatar der Komponente, ein Symbol aus dem Satz
   oder ein eigenes Bild (jede Größe - ein großes Bild wird beim Hochladen
   verkleinert), mit seiner Größe;

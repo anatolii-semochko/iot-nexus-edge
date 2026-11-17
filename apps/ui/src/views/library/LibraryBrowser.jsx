@@ -31,6 +31,7 @@ import CIcon from '@coreui/icons-react'
 import { cilLibrary, cilReload } from '@coreui/icons'
 import { api } from '../../api/client'
 import { useCan } from '../../access'
+import { NARROW_ONLY, NarrowFields, WIDE_ONLY, cx } from '../../components/table/narrow'
 import ExpandToggleButton from '../../components/table/ExpandToggleButton'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { useExpandableRows } from '../../hooks/useExpandableRows'
@@ -445,9 +446,9 @@ const LibraryBrowser = () => {
               <CTableRow>
                 <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
                 <CTableHeaderCell>{t('Name')}</CTableHeaderCell>
-                <CTableHeaderCell>{t('Description')}</CTableHeaderCell>
-                <CTableHeaderCell>{t('Used in project')}</CTableHeaderCell>
-                <CTableHeaderCell></CTableHeaderCell>
+                <CTableHeaderCell className={WIDE_ONLY}>{t('Description')}</CTableHeaderCell>
+                <CTableHeaderCell className={WIDE_ONLY}>{t('Used in project')}</CTableHeaderCell>
+                <CTableHeaderCell className={WIDE_ONLY}></CTableHeaderCell>
                 <CTableHeaderCell style={{ width: 40 }}></CTableHeaderCell>
               </CTableRow>
             </CTableHead>
@@ -455,6 +456,32 @@ const LibraryBrowser = () => {
               {rows.map((row) => {
                 const expandedRow = row.type === 'item' && isExpanded(row.id)
                 const columnCount = 6
+                const noBorder = expandedRow ? 'border-bottom-0' : undefined
+                const used =
+                  row.type === 'category' ? (
+                    '-'
+                  ) : row.usedInProject ? (
+                    <CBadge color="success" className="mb-1">
+                      {t('Used')}
+                    </CBadge>
+                  ) : (
+                    <CBadge color="secondary" className="mb-1">
+                      {t('Not used')}
+                    </CBadge>
+                  )
+                const addButton = row.type === 'item' &&
+                  can(`${kind === 'process' ? 'processes' : `${kind}s`}.manage`) && (
+                    <CButton
+                      size="sm"
+                      color="primary"
+                      variant="outline"
+                      onClick={() =>
+                        kind === 'process' ? setAddProcessItem(row) : setAddRegistryItem(row)
+                      }
+                    >
+                      {ADD_LABEL[kind] ? t(ADD_LABEL[kind]) : `${t('Add')} ${kind}`}
+                    </CButton>
+                  )
                 return (
                   <React.Fragment key={`${row.type ?? 'item'}:${row.id}`}>
                     <CTableRow id={row.type === 'item' ? `library-row-${row.id}` : undefined}>
@@ -477,41 +504,19 @@ const LibraryBrowser = () => {
                         ) : (
                           <span className="fw-semibold">{row.name}</span>
                         )}
-                      </CTableDataCell>
-                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
-                        {row.description ?? '-'}
-                      </CTableDataCell>
-                      <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
-                        {row.type === 'category' ? (
-                          '-'
-                        ) : row.usedInProject ? (
-                          <CBadge color="success" className="mb-1">
-                            {t('Used')}
-                          </CBadge>
-                        ) : (
-                          <CBadge color="secondary" className="mb-1">
-                            {t('Not used')}
-                          </CBadge>
+                        {/* a phone: the description under the name - no column of its own */}
+                        {row.description && (
+                          <div className={cx(NARROW_ONLY, 'small text-body-secondary')}>
+                            {row.description}
+                          </div>
                         )}
                       </CTableDataCell>
-                      <CTableDataCell
-                        className={`text-nowrap ${expandedRow ? 'border-bottom-0' : ''}`}
-                      >
-                        {row.type === 'item' &&
-                          can(`${kind === 'process' ? 'processes' : `${kind}s`}.manage`) && (
-                            <CButton
-                              size="sm"
-                              color="primary"
-                              variant="outline"
-                              onClick={() =>
-                                kind === 'process'
-                                  ? setAddProcessItem(row)
-                                  : setAddRegistryItem(row)
-                              }
-                            >
-                              {ADD_LABEL[kind] ? t(ADD_LABEL[kind]) : `${t('Add')} ${kind}`}
-                            </CButton>
-                          )}
+                      <CTableDataCell className={cx(WIDE_ONLY, noBorder)}>
+                        {row.description ?? '-'}
+                      </CTableDataCell>
+                      <CTableDataCell className={cx(WIDE_ONLY, noBorder)}>{used}</CTableDataCell>
+                      <CTableDataCell className={cx(WIDE_ONLY, 'text-nowrap', noBorder)}>
+                        {addButton}
                       </CTableDataCell>
                       <CTableDataCell className={expandedRow ? 'border-bottom-0' : undefined}>
                         {row.type === 'item' && (
@@ -525,6 +530,12 @@ const LibraryBrowser = () => {
                     {expandedRow && (
                       <CTableRow>
                         <CTableDataCell colSpan={columnCount} className="p-0">
+                          <NarrowFields
+                            fields={[
+                              { label: t('Used in project'), value: used },
+                              { label: t('Add'), value: addButton || null },
+                            ]}
+                          />
                           <LibraryItemDetailRow
                             row={row}
                             kind={kind}

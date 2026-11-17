@@ -16,6 +16,8 @@ processTypeRegistry.registerSettingsSection('weather-control', WeatherSettingsSe
 
 dashboardRegistry.registerComponent({
   key: 'weatherControl.panel',
+  // draws the page's title itself, its data beside it (the Dashboard's pageTitle prop)
+  ownTitle: true,
   title: t('Weather'),
   description: t(
     "The weather now and ahead: the station's readings, the warnings, the next hours and days - the sun for the PV, the heating's need",

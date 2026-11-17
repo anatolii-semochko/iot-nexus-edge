@@ -13,7 +13,7 @@ import {
 import { api } from '../../api/client'
 import TablePagination from '../../components/table/TablePagination'
 import { useServerPaginatedList } from '../../hooks/useServerPaginatedList'
-import { formatSmartDateTime } from '../../utils/format'
+import { NarrowFields, SmartDateTime, WIDE_ONLY, cx } from '../../components/table/narrow'
 import { t } from 'src/i18n'
 
 /**
@@ -43,10 +43,10 @@ const McpCallsTab = () => {
           <CTableHead>
             <CTableRow>
               <CTableHeaderCell>{t('Time')}</CTableHeaderCell>
-              <CTableHeaderCell>{t('Token')}</CTableHeaderCell>
-              <CTableHeaderCell>{t('Account')}</CTableHeaderCell>
+              <CTableHeaderCell className={WIDE_ONLY}>{t('Token')}</CTableHeaderCell>
+              <CTableHeaderCell className={WIDE_ONLY}>{t('Account')}</CTableHeaderCell>
               <CTableHeaderCell>{t('Tool')}</CTableHeaderCell>
-              <CTableHeaderCell className="text-end">ms</CTableHeaderCell>
+              <CTableHeaderCell className={cx(WIDE_ONLY, 'text-end')}>ms</CTableHeaderCell>
               <CTableHeaderCell>{t('Result')}</CTableHeaderCell>
             </CTableRow>
           </CTableHead>
@@ -58,15 +58,21 @@ const McpCallsTab = () => {
                   onClick={() => setOpen(open === r.id ? null : r.id)}
                 >
                   <CTableDataCell className="small text-nowrap">
-                    {formatSmartDateTime(r.createdAt)}
+                    <SmartDateTime iso={r.createdAt} />
                   </CTableDataCell>
-                  <CTableDataCell className="small">{r.tokenName ?? '-'}</CTableDataCell>
-                  <CTableDataCell className="small font-monospace">
+                  <CTableDataCell className={cx(WIDE_ONLY, 'small')}>
+                    {r.tokenName ?? '-'}
+                  </CTableDataCell>
+                  <CTableDataCell className={cx(WIDE_ONLY, 'small font-monospace')}>
                     {r.username ?? '-'}
                   </CTableDataCell>
-                  <CTableDataCell className="font-monospace small">{r.tool}</CTableDataCell>
-                  <CTableDataCell className="small text-end">{r.ms ?? '-'}</CTableDataCell>
-                  <CTableDataCell className="small">
+                  <CTableDataCell className="font-monospace small text-break">
+                    {r.tool}
+                  </CTableDataCell>
+                  <CTableDataCell className={cx(WIDE_ONLY, 'small text-end')}>
+                    {r.ms ?? '-'}
+                  </CTableDataCell>
+                  <CTableDataCell className="small text-break">
                     {r.isError ? (
                       <>
                         <CBadge color="danger" className="me-2">
@@ -82,6 +88,14 @@ const McpCallsTab = () => {
                 {open === r.id && (
                   <CTableRow>
                     <CTableDataCell colSpan={6}>
+                      <NarrowFields
+                        className="px-0"
+                        fields={[
+                          { label: t('Token'), value: r.tokenName },
+                          { label: t('Account'), value: r.username },
+                          { label: 'ms', value: r.ms },
+                        ]}
+                      />
                       <pre
                         className="small mb-0 p-2 rounded bg-body-tertiary"
                         style={{

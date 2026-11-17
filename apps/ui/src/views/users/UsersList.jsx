@@ -16,6 +16,14 @@ import {
 } from '@coreui/react'
 import { api } from '../../api/client'
 import TablePagination from '../../components/table/TablePagination'
+import ExpandToggleButton from '../../components/table/ExpandToggleButton'
+import {
+  NARROW_ONLY,
+  NarrowFieldsRow,
+  WIDE_ONLY,
+  WIDE_ONLY_INLINE,
+  cx,
+} from '../../components/table/narrow'
 import TableSearchInput from '../../components/table/TableSearchInput'
 import { usePagination } from '../../hooks/usePagination'
 import { usePersistedState } from '../../hooks/usePersistedState'
@@ -94,6 +102,8 @@ const UsersList = ({ roles, onChanged }) => {
   const manage = useCan()('users.manage')
   const [users, setUsers] = useState(null)
   const [error, setError] = useState(null)
+  // the rows opened on a phone (their hidden columns and actions - components/table/narrow.jsx)
+  const [open, setOpen] = useState([])
   const [pageState, setPageState] = usePersistedState('nexusedge.usersPage', PERSISTED_DEFAULTS)
   const { search } = pageState
   const setSearch = (value) => setPageState({ search: value })
@@ -168,73 +178,117 @@ const UsersList = ({ roles, onChanged }) => {
                     <CTableRow>
                       <CTableHeaderCell scope="col" />
                       <CTableHeaderCell scope="col">{t('Username')}</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">{t('Display name')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                        {t('Display name')}
+                      </CTableHeaderCell>
                       <CTableHeaderCell scope="col">{t('Roles')}</CTableHeaderCell>
-                      <CTableHeaderCell scope="col" title={t("The AI's tokens a day")}>
+                      <CTableHeaderCell
+                        scope="col"
+                        className={WIDE_ONLY}
+                        title={t("The AI's tokens a day")}
+                      >
                         AI
                       </CTableHeaderCell>
-                      <CTableHeaderCell scope="col">{t('Status')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                        {t('Status')}
+                      </CTableHeaderCell>
                       <CTableHeaderCell scope="col" className="text-end">
-                        {t('Actions')}
+                        <span className={WIDE_ONLY_INLINE}>{t('Actions')}</span>
                       </CTableHeaderCell>
                     </CTableRow>
                   </CTableHead>
                   <CTableBody>
-                    {pageItems.map((user) => (
-                      <CTableRow key={user.id}>
-                        <CTableDataCell>
-                          <UserAvatar user={user} />
-                        </CTableDataCell>
-                        <CTableDataCell>{user.username}</CTableDataCell>
-                        <CTableDataCell>{user.display_name ?? '-'}</CTableDataCell>
-                        <CTableDataCell>
-                          <AvatarRow
-                            items={byStrength(
-                              (user.roleKeys ?? []).map(
-                                (k) => roles.find((r) => r.key === k) ?? { key: k, name: k },
-                              ),
-                            )}
-                            render={(r) => <RoleAvatar role={r} />}
-                            titleOf={(r) => r.name}
-                            max={4}
-                          />
-                        </CTableDataCell>
-                        <CTableDataCell>
-                          <AiTokensMark value={user.ai_daily_tokens} />
-                        </CTableDataCell>
-                        <CTableDataCell>
-                          <CBadge color={user.active ? 'success' : 'secondary'} className="mb-1">
-                            {user.active ? t('Active') : t('Inactive')}
-                          </CBadge>
-                        </CTableDataCell>
-                        <CTableDataCell className="text-end">
-                          {manage && (
-                            <>
-                              <CButton
-                                size="sm"
-                                color="secondary"
-                                variant="outline"
-                                className="me-1"
-                                onClick={() => setEditingUser(user)}
-                              >
-                                {t('Edit')}
-                              </CButton>
-                              <CButton
-                                size="sm"
-                                color="secondary"
-                                variant="outline"
-                                className="me-1"
-                                disabled={user.active && !user.deactivatable}
-                                onClick={() => handleToggleActive(user)}
-                              >
-                                {user.active ? t('Deactivate') : t('Activate')}
-                              </CButton>
-                              <DeleteButton user={user} onDeleted={reload} onError={setError} />
-                            </>
+                    {pageItems.map((user) => {
+                      const expanded = open.includes(user.id)
+                      const ai = <AiTokensMark value={user.ai_daily_tokens} />
+                      const status = (
+                        <CBadge color={user.active ? 'success' : 'secondary'} className="mb-1">
+                          {user.active ? t('Active') : t('Inactive')}
+                        </CBadge>
+                      )
+                      const actions = manage && (
+                        <>
+                          <CButton
+                            size="sm"
+                            color="secondary"
+                            variant="outline"
+                            className="me-1"
+                            onClick={() => setEditingUser(user)}
+                          >
+                            {t('Edit')}
+                          </CButton>
+                          <CButton
+                            size="sm"
+                            color="secondary"
+                            variant="outline"
+                            className="me-1"
+                            disabled={user.active && !user.deactivatable}
+                            onClick={() => handleToggleActive(user)}
+                          >
+                            {user.active ? t('Deactivate') : t('Activate')}
+                          </CButton>
+                          <DeleteButton user={user} onDeleted={reload} onError={setError} />
+                        </>
+                      )
+                      return (
+                        <React.Fragment key={user.id}>
+                          <CTableRow>
+                            <CTableDataCell>
+                              <UserAvatar user={user} />
+                            </CTableDataCell>
+                            <CTableDataCell>
+                              {user.username}
+                              {/* a phone: the name under the login - no column of its own */}
+                              {user.display_name && (
+                                <div className={cx(NARROW_ONLY, 'small text-body-secondary')}>
+                                  {user.display_name}
+                                </div>
+                              )}
+                            </CTableDataCell>
+                            <CTableDataCell className={WIDE_ONLY}>
+                              {user.display_name ?? '-'}
+                            </CTableDataCell>
+                            <CTableDataCell>
+                              <AvatarRow
+                                items={byStrength(
+                                  (user.roleKeys ?? []).map(
+                                    (k) => roles.find((r) => r.key === k) ?? { key: k, name: k },
+                                  ),
+                                )}
+                                render={(r) => <RoleAvatar role={r} />}
+                                titleOf={(r) => r.name}
+                                max={4}
+                              />
+                            </CTableDataCell>
+                            <CTableDataCell className={WIDE_ONLY}>{ai}</CTableDataCell>
+                            <CTableDataCell className={WIDE_ONLY}>{status}</CTableDataCell>
+                            <CTableDataCell className="text-end text-nowrap">
+                              <span className={WIDE_ONLY_INLINE}>{actions}</span>
+                              <ExpandToggleButton
+                                className={NARROW_ONLY}
+                                expanded={expanded}
+                                onClick={() =>
+                                  setOpen(
+                                    expanded
+                                      ? open.filter((id) => id !== user.id)
+                                      : [...open, user.id],
+                                  )
+                                }
+                              />
+                            </CTableDataCell>
+                          </CTableRow>
+                          {expanded && (
+                            <NarrowFieldsRow
+                              fields={[
+                                { label: 'AI', value: ai },
+                                { label: t('Status'), value: status },
+                                { label: t('Actions'), value: actions || null },
+                              ]}
+                            />
                           )}
-                        </CTableDataCell>
-                      </CTableRow>
-                    ))}
+                        </React.Fragment>
+                      )
+                    })}
                   </CTableBody>
                 </CTable>
                 <TablePagination

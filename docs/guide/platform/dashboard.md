@@ -24,9 +24,14 @@ Service -> Config -> Dashboard (for those allowed to configure it) lists a
 level as the Dashboard shows it: the cards (folders and avatars - with their
 picture and background) and, under them, the components - each list ordered
 by itself. **Config** - the Dashboard's own settings: the scale of the cards on
-the top level. Add a folder, an avatar or a component; move them up and down;
+the top level and its page title. Add a folder, an avatar or a component; move them up and down;
 edit a card:
 
+- the **title** and its translations - a field for each language of the
+  interface (empty - the title itself); a viewer sees their language's;
+- the **page title** of a folder or an avatar - its title with the AI button
+  over the opened page (on by default; the energy, heating and weather pages
+  keep their figures beside it);
 - the **picture** - none, the component's avatar, an icon from the set, or an
   own image (any size - a large image is shrunk on upload), with its size;
 - a **background** with its size and opacity;

@@ -80,5 +80,7 @@
   "{{units}} running": "{{units}} laufen",
   "{{units}} units running": "{{units}} Geräte laufen",
   "No Energy Ledger linked - nothing to plan on (the heatings keep their own band control)": "Kein Energy Ledger verknüpft - nichts zum Planen (die Heizungen behalten ihre eigene Bandregelung)",
-  "The Energy Ledger has no plan ahead - nothing planned (the heatings keep their own band control)": "Das Energy Ledger hat keinen Plan voraus - nichts geplant (die Heizungen behalten ihre eigene Bandregelung)"
+  "The Energy Ledger has no plan ahead - nothing planned (the heatings keep their own band control)": "Das Energy Ledger hat keinen Plan voraus - nichts geplant (die Heizungen behalten ihre eigene Bandregelung)",
+  "Balanced": "Ausgewogen",
+  "At each plan the strategy with the least electricity, the heat pumps’ wear and the rooms’ comfort counted at their weights": "Bei jedem Plan die Strategie mit der kleinsten Summe aus Strom, Verschleiß der Wärmepumpen und Raumkomfort, jedes nach seinem Gewicht"
 }

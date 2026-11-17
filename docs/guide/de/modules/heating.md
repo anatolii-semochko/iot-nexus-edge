@@ -54,6 +54,9 @@ der einfachen Bandregelung spart.
 | Komfort | Die Räume immer am Sollwert - die teuren Stunden tragen allein die Speicher |
 | Die Sonne | Der Sonnenüberschuss als Wärme gespeichert - die Speicher höher gefüllt, solange sie scheint |
 
-Die Strategie ist **fest** (Sie wählen sie) oder **am günstigsten** - bei
-jedem Plan die mit dem geringsten Strom. Die KI kann den Heizplan des Tages
-nach Zeitplan erstellen.
+Die Strategie ist **fest** (Sie wählen sie), **am günstigsten** - bei jedem
+Plan die mit dem geringsten Strom - oder **ausgewogen**: bei jedem Plan die,
+bei der Strom, Verschleiß der Wärmepumpen (Starts, Betriebsstunden) und
+Raumkomfort zusammen am wenigsten kosten, jedes nach den Gewichten der Anlage.
+Ausgewogen spart keine paar Cent mit zusätzlichen Starts oder zu kühlen
+Räumen. Die KI kann den Heizplan des Tages nach Zeitplan erstellen.

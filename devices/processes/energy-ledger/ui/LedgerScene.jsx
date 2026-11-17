@@ -536,7 +536,9 @@ const VIEWS = [
   ['tenants', tr('Tenants'), tr('The let units - what each consumed and is to pay')],
 ]
 
-const LedgerScene = ({ process, params }) => {
+// `pageTitle` - the Dashboard's page title (its pageTitle.jsx): { text } - shown, null - hidden by its
+// "Show title"; absent - the process's name (a preview, the process's own page)
+const LedgerScene = ({ process, params, pageTitle }) => {
   // a Dashboard page (its params given) - its own title; the process row's panel has the row's
   const [view, setView] = useState('journal')
   // the day's description in words (the ledger's own, or its AI's day plan) - over its notes
@@ -553,7 +555,7 @@ const LedgerScene = ({ process, params }) => {
   return (
     <div className="p-2 d-flex flex-column gap-3">
       {/* the page's title with the AI's mark (the user, 2026-10-25) */}
-      {params !== undefined && (
+      {params !== undefined && pageTitle !== null && (
         <strong style={{ fontSize: '1.4rem' }}>
           <AiButton
             subject={{ type: 'process', id: process.id }}
@@ -561,7 +563,7 @@ const LedgerScene = ({ process, params }) => {
             size={30}
             className="me-2"
           />
-          {process.name}
+          {pageTitle?.text ?? process.name}
         </strong>
       )}
       {/* the logic's notes (holidays, days off, a working weekend) and the day's description - first */}

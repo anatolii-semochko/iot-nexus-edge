@@ -11,7 +11,7 @@ const t = packageT('heating-planner')
 // one, valued in the real money - the electricity, the saving against the band, the heat pumps'
 // starts, the rooms off their setpoint, the sun's heat; the one the plan follows framed; a click - the
 // plan follows it (the planner's command setStrategy, processes.control); the choice - fixed or the
-// cheapest at each plan (setSelection).
+// cheapest / the balanced one at each plan (setSelection).
 
 const NAMES = {
   cost: [
@@ -36,6 +36,13 @@ const NAMES = {
 const CHOICES = [
   ['fixed', t('Fixed'), t('The plan keeps the chosen strategy')],
   ['cheapest', t('Cheapest'), t('At each plan the strategy with the least electricity')],
+  [
+    'balanced',
+    t('Balanced'),
+    t(
+      'At each plan the strategy with the least electricity, the heat pumps’ wear and the rooms’ comfort counted at their weights',
+    ),
+  ],
 ]
 
 const Strategies = ({ process, results, strategy, followed }) => {

@@ -267,7 +267,9 @@ const Groups = ({ rows, render }) =>
     </div>
   ))
 
-const HeatingScene = ({ process, params }) => {
+// `pageTitle` - the Dashboard's page title (its pageTitle.jsx): { text } - shown, null - hidden by its
+// "Show title"; absent - the process's name (a preview, the process's own page)
+const HeatingScene = ({ process, params, pageTitle }) => {
   // a Dashboard page (its params given) - its own title; the process row's panel has the row's
   const can = useCan()
   const { m, forecast } = useHeatingData(process)
@@ -319,7 +321,7 @@ const HeatingScene = ({ process, params }) => {
     <div className="ht-scene d-flex flex-column gap-0">
       <style>{SCENE_CSS}</style>
       {/* the page's title with the AI's mark (the user, 2026-10-25) */}
-      {params !== undefined && (
+      {params !== undefined && pageTitle !== null && (
         <strong className="mb-3" style={{ fontSize: '1.4rem' }}>
           <AiButton
             subject={{ type: 'process', id: process.id }}
@@ -327,7 +329,7 @@ const HeatingScene = ({ process, params }) => {
             size={30}
             className="me-2"
           />
-          {process.name}
+          {pageTitle?.text ?? process.name}
         </strong>
       )}
       {/* the heating's notes (maintenance of its plant, rooms closed) - first, above the weather */}

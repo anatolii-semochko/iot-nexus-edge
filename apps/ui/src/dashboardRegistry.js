@@ -11,6 +11,7 @@
 //       { key: 'photo', title: 'The newest photo', Component },   // fills the block itself
 //       { key: 'scene', title: 'The scene', Component, fit: true }, // a full view, scaled into it
 //     ],
+//     ownTitle: true,                  // optional - it draws the page's title itself (its `pageTitle` prop)
 //     params: (process) => [            // optional - the card's own parameters: one part of the process
 //       { key: 'nodeId', label: 'Room', required: true, hint: '...', options: [{ value: 71, label: 'Office 21' }] },
 //     ],                                // the component gets them as `params` ({ process, params })

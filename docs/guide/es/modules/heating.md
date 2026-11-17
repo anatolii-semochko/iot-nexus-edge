@@ -53,6 +53,10 @@ muestra lo que ahorra frente al control simple por banda.
 | Confort | Las salas siempre en su consigna: solo los depósitos cubren las horas caras |
 | El sol | El excedente solar se acumula como calor: los depósitos se llenan más mientras brilla |
 
-La estrategia es **fija** (la elige usted) o **la más barata**: en cada plan,
-la que menos electricidad usa. La IA puede hacer el plan de calefacción del
-día según un horario.
+La estrategia es **fija** (la elige usted), **la más barata** (en cada plan,
+la que menos electricidad usa) o **equilibrada**: en cada plan, aquella en la
+que la electricidad, el desgaste de las bombas de calor (arranques, horas de
+marcha) y el confort de las salas suman menos, cada uno con los pesos del
+propio sistema. La equilibrada no ahorra unos céntimos a costa de más
+arranques o de salas frías. La IA puede hacer el plan de calefacción del día
+según un horario.

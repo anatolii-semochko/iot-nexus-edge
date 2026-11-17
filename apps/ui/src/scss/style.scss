@@ -600,3 +600,56 @@ html:has(.sidebar-backdrop.show) .app-scroll {
   animation: none !important;
 }
 
+
+// A table row's columns hidden on a phone, shown in its expanded part (components/table/narrow.jsx):
+// label - value lines, the label muted, both wrapping
+.ne-narrow-fields {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  padding: 0.25rem 0.5rem 0.5rem;
+  font-size: 0.875rem;
+  dt {
+    font-weight: normal;
+    color: var(--cui-secondary-color);
+  }
+  dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+// On a phone (components/table/narrow.jsx): a small picture in a table row (a profile's preview) gets
+// narrower - an SVG one stretches (preserveAspectRatio="none"); a row's action buttons wrap into two
+// columns instead of one long line
+@media (max-width: 767.98px) {
+  .ne-table-preview {
+    width: 5rem !important;
+  }
+  .ne-row-actions {
+    flex-wrap: wrap !important;
+    max-width: calc(2 * 2.25rem + 0.5rem);
+    margin-left: auto;
+  }
+  // with text buttons (a process's modes, 4rem each): two of them a line
+  .ne-row-actions-wide {
+    max-width: calc(2 * 4rem + 0.5rem);
+  }
+  // a row's expanded editor (the light's templates, a form): its rows of fields and buttons wrap, a field
+  // no wider than its cell - a row that must stay on one line says so (flex-nowrap)
+  .table td .d-flex:not(.flex-nowrap) {
+    flex-wrap: wrap;
+  }
+  .table td .form-control,
+  .table td .form-select {
+    max-width: 100%;
+    min-width: 0;
+  }
+  // a row's raw details (a node's JSON) wrap instead of widening the table past the screen
+  .table pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}

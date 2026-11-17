@@ -1,5 +1,6 @@
 import React from 'react'
 import { useNow } from 'src/hooks/useNow'
+import { HoverMarks, hoverTime, hoverValue, useChartHover } from 'src/components/charts/ChartHover'
 import { packageT } from 'src/i18n'
 // the package's words (its own locales/, then the core's)
 const tr = packageT('energy-grid')
@@ -16,6 +17,16 @@ const ZONE_COLORS = ['#3b82f6', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#64
 const PriceChart = ({ slots, now: nowGiven }) => {
   const clock = useNow(60_000)
   const now = nowGiven ?? clock
+  // the hover line - the slot under the pointer, its prices (ChartHover)
+  const first = slots?.[0]
+  const lastSlot = slots?.[slots.length - 1]
+  const [hoverT, hoverProps] = useChartHover({
+    W,
+    left: PAD.left,
+    right: PAD.right,
+    t0: first?.t ?? 0,
+    t1: lastSlot ? lastSlot.t + lastSlot.minutes * 60_000 : 1,
+  })
   if (!slots?.length)
     return <div className="text-body-secondary small">{tr('No prices for this period.')}</div>
   const t0 = slots[0].t
@@ -43,6 +54,7 @@ const PriceChart = ({ slots, now: nowGiven }) => {
       style={{ width: '100%', height: 'auto', display: 'block' }}
       role="img"
       aria-label={tr('Electricity prices')}
+      {...hoverProps}
     >
       {ticks.map((v) => (
         <g key={v}>
@@ -135,6 +147,34 @@ const PriceChart = ({ slots, now: nowGiven }) => {
           strokeWidth={1.2}
         />
       )}
+      {hoverT !== null &&
+        (() => {
+          const s = slots.find((x) => hoverT >= x.t && hoverT < x.t + x.minutes * 60_000)
+          if (!s) return null
+          return (
+            <HoverMarks
+              x={x(hoverT)}
+              top={PAD.top}
+              bottom={H - PAD.bottom}
+              W={W}
+              right={PAD.right}
+              title={`${hoverTime(s.t, t1 - t0 > 86_400_000)}${s.zone ? ` - ${s.zone}` : ''}`}
+              rows={[
+                s.buyCtKwh !== null && {
+                  label: tr('buy, ct/kWh'),
+                  value: hoverValue(s.buyCtKwh),
+                  color: 'var(--cui-primary)',
+                },
+                s.sellCtKwh !== null && {
+                  label: tr('sell'),
+                  value: hoverValue(s.sellCtKwh),
+                  color: 'var(--cui-success)',
+                  y: y(s.sellCtKwh),
+                },
+              ].filter(Boolean)}
+            />
+          )
+        })()}
       <g fontSize={9} fill="var(--cui-secondary-color)">
         <rect
           x={PAD.left}

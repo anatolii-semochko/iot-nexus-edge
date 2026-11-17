@@ -32,6 +32,13 @@ import {
 } from '../../utils/format'
 import AiButton from '../../components/ai/AiButton'
 import { t, messageText } from 'src/i18n'
+import {
+  NARROW_ONLY,
+  SmartDateTime,
+  WIDE_ONLY,
+  WIDE_ONLY_INLINE,
+  cx,
+} from '../../components/table/narrow'
 
 const TYPE_OPTIONS = [
   { key: 'all', label: t('All types') },
@@ -142,11 +149,15 @@ const ProcessMessageLogsTab = ({
             <CTableHead>
               <CTableRow>
                 <CTableHeaderCell scope="col">{t('Time')}</CTableHeaderCell>
-                <CTableHeaderCell scope="col">{t('Group')}</CTableHeaderCell>
-                <CTableHeaderCell scope="col">{t('Process')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                  {t('Group')}
+                </CTableHeaderCell>
+                <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                  {t('Process')}
+                </CTableHeaderCell>
                 <CTableHeaderCell scope="col">{t('Message')}</CTableHeaderCell>
                 <CTableHeaderCell scope="col" className="text-end">
-                  {t('Status')}
+                  <span className={WIDE_ONLY_INLINE}>{t('Status')}</span>
                 </CTableHeaderCell>
               </CTableRow>
             </CTableHead>
@@ -154,18 +165,22 @@ const ProcessMessageLogsTab = ({
               {items.map((item) => (
                 <CTableRow key={item.id}>
                   <CTableDataCell className="text-body-secondary small text-nowrap">
-                    {formatSmartDateTime(item.created_at)}
+                    <SmartDateTime iso={item.created_at} />
                   </CTableDataCell>
-                  <CTableDataCell>{item.group_name}</CTableDataCell>
-                  <CTableDataCell>{item.process_name}</CTableDataCell>
-                  <CTableDataCell className={`text-${WEM_TYPE_META[item.type].color}`}>
+                  <CTableDataCell className={WIDE_ONLY}>{item.group_name}</CTableDataCell>
+                  <CTableDataCell className={WIDE_ONLY}>{item.process_name}</CTableDataCell>
+                  <CTableDataCell className={`text-break text-${WEM_TYPE_META[item.type].color}`}>
                     {messageText(item)}
                     <MessageLink link={item.link} />
+                    {/* a phone: the process under the message - no column of its own */}
+                    <div className={cx(NARROW_ONLY, 'small text-body-secondary')}>
+                      {item.process_name}
+                    </div>
                   </CTableDataCell>
-                  <CTableDataCell className="text-end text-nowrap">
+                  <CTableDataCell className="text-end text-md-nowrap">
                     <AiButton
                       action
-                      className="me-2 align-middle"
+                      className="me-md-2 align-middle"
                       subject={{ type: 'message', id: item.id, processId: item.process_id }}
                       label={t('this message')}
                     />

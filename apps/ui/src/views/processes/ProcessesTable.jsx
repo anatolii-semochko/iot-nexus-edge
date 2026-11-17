@@ -23,6 +23,13 @@ import ResetFiltersButton from '../../components/ResetFiltersButton'
 import RowStatusBadge from '../../components/table/RowStatusBadge'
 import Switch from '../../components/Switch'
 import ExpandAllToggleButton from '../../components/table/ExpandAllToggleButton'
+import {
+  NARROW_ONLY,
+  NarrowFields,
+  NarrowFieldsRow,
+  WIDE_ONLY,
+  cx,
+} from '../../components/table/narrow'
 import ExpandToggleButton from '../../components/table/ExpandToggleButton'
 import LibraryTypeLink from '../../components/table/LibraryTypeLink'
 import TablePagination from '../../components/table/TablePagination'
@@ -166,6 +173,21 @@ const ProcessRow = ({
   // table jump when they appear/disappear, and the only row that can ever
   // follow the plain row is the panel row.
   const noBorderWhenExpanded = expanded && Panel ? 'border-bottom-0' : undefined
+  const typeLink = <LibraryTypeLink kind="process" typeName={process.kind} />
+  const power = status ? (
+    <CBadge color={statusColor(status)} className="mb-1">
+      {status.toUpperCase()}
+    </CBadge>
+  ) : (
+    <CBadge color="info" className="mb-1">
+      {t('Running')}
+    </CBadge>
+  )
+  // the columns a phone hides (components/table/narrow.jsx) - in the expanded part
+  const narrowFields = [
+    { label: t('Group'), value: process.group_name },
+    { label: t('Type'), value: typeLink },
+  ]
 
   return (
     <>
@@ -188,23 +210,17 @@ const ProcessRow = ({
           )}
         </CTableDataCell>
         {showPower && (
-          <CTableDataCell className={noBorderWhenExpanded}>
-            {status ? (
-              <CBadge color={statusColor(status)} className="mb-1">
-                {status.toUpperCase()}
-              </CBadge>
-            ) : (
-              <CBadge color="info" className="mb-1">
-                {t('Running')}
-              </CBadge>
-            )}
-          </CTableDataCell>
+          <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>{power}</CTableDataCell>
         )}
-        <CTableDataCell className={noBorderWhenExpanded}>{process.name}</CTableDataCell>
-        <CTableDataCell className={noBorderWhenExpanded}>{process.group_name}</CTableDataCell>
         <CTableDataCell className={noBorderWhenExpanded}>
-          <LibraryTypeLink kind="process" typeName={process.kind} />
+          {process.name}
+          {/* a phone: the power under the name - no column of its own */}
+          {showPower && <div className={NARROW_ONLY}>{power}</div>}
         </CTableDataCell>
+        <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>
+          {process.group_name}
+        </CTableDataCell>
+        <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>{typeLink}</CTableDataCell>
         <CTableDataCell className={`text-end ${noBorderWhenExpanded ?? ''}`}>
           {/* Single row, right-aligned, left-to-right: on/off, settings,
               remove-from-dashboard, expand toggle - i.e. right-to-left
@@ -212,7 +228,7 @@ const ProcessRow = ({
               the order the user actually reads it in. `flex-nowrap` keeps
               every control on one line instead of wrapping under a narrow
               column. */}
-          <div className="d-flex justify-content-end align-items-center gap-1 flex-nowrap">
+          <div className="d-flex justify-content-end align-items-center gap-1 flex-nowrap ne-row-actions ne-row-actions-wide">
             {isOnOffActions(process.actions) ? (
               <Switch
                 checked={status === 'on'}
@@ -259,13 +275,23 @@ const ProcessRow = ({
               />
             )}
             {extraAction?.(process)}
-            {Panel && <ExpandToggleButton expanded={expanded} onClick={onToggleExpand} />}
+            {Panel ? (
+              <ExpandToggleButton expanded={expanded} onClick={onToggleExpand} />
+            ) : (
+              <ExpandToggleButton
+                className={NARROW_ONLY}
+                expanded={expanded}
+                onClick={onToggleExpand}
+              />
+            )}
           </div>
         </CTableDataCell>
       </CTableRow>
+      {expanded && !Panel && <NarrowFieldsRow fields={narrowFields} colSpan={showPower ? 6 : 5} />}
       {expanded && Panel && (
         <CTableRow color={effectiveRowColor}>
           <CTableDataCell colSpan={showPower ? 6 : 5} className="p-0">
+            <NarrowFields fields={narrowFields} />
             {/* `display: grid; grid-template-columns: minmax(0, 1fr)` -
                 not decorative, load-bearing sizing (nexus-edge-aquarium's
                 own AGENTS.md, "Power Curves polish: Viewer gridlines +
@@ -496,10 +522,18 @@ const ProcessesTable = ({
                     into Off/Sleep/Active/Error, making the separate ON/OFF
                     badge redundant there. */}
                 <CTableHeaderCell scope="col">{t('Status')}</CTableHeaderCell>
-                {showPower && <CTableHeaderCell scope="col">{t('Power')}</CTableHeaderCell>}
+                {showPower && (
+                  <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                    {t('Power')}
+                  </CTableHeaderCell>
+                )}
                 <CTableHeaderCell scope="col">{t('Name')}</CTableHeaderCell>
-                <CTableHeaderCell scope="col">{t('Group')}</CTableHeaderCell>
-                <CTableHeaderCell scope="col">{t('Type')}</CTableHeaderCell>
+                <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                  {t('Group')}
+                </CTableHeaderCell>
+                <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                  {t('Type')}
+                </CTableHeaderCell>
                 <CTableHeaderCell scope="col" className="text-end">
                   <div className="d-flex justify-content-end align-items-center gap-2">
                     <span>{t('Actions')}</span>

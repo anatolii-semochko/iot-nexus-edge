@@ -80,5 +80,7 @@
   "{{units}} running": "працює {{units}}",
   "{{units}} units running": "працює агрегатів: {{units}}",
   "No Energy Ledger linked - nothing to plan on (the heatings keep their own band control)": "Не під'єднано Energy Ledger - нема на чому планувати (опалення тримають власне керування в межах)",
-  "The Energy Ledger has no plan ahead - nothing planned (the heatings keep their own band control)": "Energy Ledger не має плану наперед - нічого не сплановано (опалення тримають власне керування в межах)"
+  "The Energy Ledger has no plan ahead - nothing planned (the heatings keep their own band control)": "Energy Ledger не має плану наперед - нічого не сплановано (опалення тримають власне керування в межах)",
+  "Balanced": "Збалансована",
+  "At each plan the strategy with the least electricity, the heat pumps’ wear and the rooms’ comfort counted at their weights": "Щоразу стратегія з найменшою сумою: електрика, знос теплових насосів і комфорт кімнат, кожне за своєю вагою"
 }

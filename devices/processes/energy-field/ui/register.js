@@ -21,6 +21,8 @@ processTypeRegistry.registerSettingsSection(
 
 dashboardRegistry.registerComponent({
   key: "energyField.scene",
+  // draws the page's title itself, its data beside it (the Dashboard's pageTitle prop)
+  ownTitle: true,
   title: t("Energy"),
   description: t(
     "The site's generation, batteries, grid and consumption - live, with the basic controls",

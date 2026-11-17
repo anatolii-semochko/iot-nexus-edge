@@ -17,6 +17,8 @@ processTypeRegistry.registerSettingsSection('energy-ledger', LedgerSettingsSecti
 
 dashboardRegistry.registerComponent({
   key: 'energyLedger.scene',
+  // draws the page's title itself, its data beside it (the Dashboard's pageTitle prop)
+  ownTitle: true,
   title: t('Energy Ledger'),
   description: t(
     'What the energy system saved - a day, a month, a year: the savings bridge, the calendar, the key figures',

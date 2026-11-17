@@ -14,6 +14,8 @@ processTypeRegistry.registerPanel('heating-planner', HeatingPlanScene)
 
 dashboardRegistry.registerComponent({
   key: 'heatingPlanner.plan',
+  // draws the page's title itself, its data beside it (the Dashboard's pageTitle prop)
+  ownTitle: true,
   title: t('Heating plan'),
   description: t(
     "The heat pumps' plan ahead for every heating system: the heat, the units, the store, the rooms' comfort margin - against the prices, the sun and the Energy Ledger's signal; what it saves",

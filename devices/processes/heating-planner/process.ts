@@ -12,13 +12,14 @@
  * Ledger plan - nothing planned (the heating keeps its own band control).
  *
  * The strategies (P3, strategies.ts): every one planned and valued in the real money for each system;
- * the plan follows `strategy.key` (selection "fixed") or the least electricity's (selection
- * "cheapest"). Commands (POST /processes/:id/commands - processes.control): `setStrategy` { key },
+ * the plan follows `strategy.key` (selection "fixed"), the least electricity's (selection
+ * "cheapest") or the least electricity with the wear and the rooms' comfort at the system's weights
+ * (selection "balanced"). Commands (POST /processes/:id/commands - processes.control): `setStrategy` { key },
  * `setSelection` { selection } - each patches the config (kept) and is planned at once.
  */
 import type { Mode } from "../heating-control/model.ts";
 import { WATER_KWH_PER_L_K, type PlannerRoom, type PlannerSlot } from "./model.ts";
-import { HEAT_STRATEGIES, planAll, type HeatStrategyKey, type HeatStrategyResult } from "./strategies.ts";
+import { HEAT_SELECTIONS, HEAT_STRATEGIES, planAll, type HeatSelection, type HeatStrategyKey, type HeatStrategyResult } from "./strategies.ts";
 import { localParts } from "../../lib/localTime.ts";
 import { wem } from "../../lib/wem.ts";
 
@@ -51,10 +52,12 @@ interface PlannerConfig {
   boostCtKwh?: number;
   comfortCtKwhH?: number;
   store?: { heating?: { minC: number; maxC: number }; cooling?: { minC: number; maxC: number } };
-  strategy?: { key?: HeatStrategyKey; selection?: "fixed" | "cheapest" };
+  strategy?: { key?: HeatStrategyKey; selection?: HeatSelection };
 }
 
 const r = (x: number, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
+const selectionOf = (config: PlannerConfig): HeatSelection =>
+  HEAT_SELECTIONS.includes(config.strategy?.selection as HeatSelection) ? (config.strategy!.selection as HeatSelection) : "fixed";
 const roundResult = (x: HeatStrategyResult) => ({
   ...x,
   energyEur: r(x.energyEur, 2),
@@ -64,6 +67,7 @@ const roundResult = (x: HeatStrategyResult) => ({
   comfortKh: r(x.comfortKh, 1),
   maxOffsetK: r(x.maxOffsetK, 2),
   sunKwh: r(x.sunKwh, 1),
+  balancedEur: r(x.balancedEur, 2),
 });
 
 const valueAt = (rows: Record<string, number | null>[], at: number, key: string): number | null => {
@@ -137,7 +141,7 @@ export default function registerHeatingPlanner(register: any, { apiClient, logge
       const p = cmd.params ?? {};
       let patch: Partial<PlannerConfig> | null = null;
       if (cmd.action === "setStrategy" && HEAT_STRATEGIES.some((x) => x.key === p.key)) patch = { strategy: { ...(next.strategy ?? {}), key: p.key } };
-      else if (cmd.action === "setSelection" && ["fixed", "cheapest"].includes(p.selection)) patch = { strategy: { ...(next.strategy ?? {}), selection: p.selection } };
+      else if (cmd.action === "setSelection" && HEAT_SELECTIONS.includes(p.selection)) patch = { strategy: { ...(next.strategy ?? {}), selection: p.selection } };
       if (patch) {
         await apiClient.request(`/processes/${process.id}/config`, { method: "PATCH", body: JSON.stringify(patch) });
         next = { ...next, ...patch };
@@ -204,7 +208,7 @@ export default function registerHeatingPlanner(register: any, { apiClient, logge
       const cheap = ledgerSlots.map((s) => (s.gridKw <= 0 ? Math.max(0, -s.gridKw) + (Number(s.heatKw) || 0) : 0));
       const systems: any[] = [];
       const strategyChosen: HeatStrategyKey = HEAT_STRATEGIES.some((x) => x.key === config.strategy?.key) ? config.strategy!.key! : "cost";
-      const selection = config.strategy?.selection === "cheapest" ? "cheapest" : "fixed";
+      const selection = selectionOf(config);
       // every strategy's sums over the systems - the page's comparison
       const totals = new Map<HeatStrategyKey, HeatStrategyResult>();
       // the day notes ahead - each heating's own (closed rooms) and the Ledger's (holidays, days off, working weekends)
@@ -300,12 +304,12 @@ export default function registerHeatingPlanner(register: any, { apiClient, logge
             comfortCtKwhH: config.comfortCtKwhH ?? DEFAULTS.comfortCtKwhH,
           },
           slots,
-          selection === "cheapest",
+          selection,
         ]);
         plan.slots.forEach((p, i) => (cheap[i] = Math.max(0, cheap[i] - p.electricKw)));
         for (const x of results) {
-          const sum = totals.get(x.key) ?? { ...x, energyEur: 0, baselineEur: 0, savingEur: 0, starts: 0, unitHours: 0, comfortKh: 0, maxOffsetK: 0, sunKwh: 0 };
-          for (const k of ["energyEur", "baselineEur", "savingEur", "starts", "unitHours", "comfortKh", "sunKwh"] as const) sum[k] += x[k];
+          const sum = totals.get(x.key) ?? { ...x, energyEur: 0, baselineEur: 0, savingEur: 0, starts: 0, unitHours: 0, comfortKh: 0, maxOffsetK: 0, sunKwh: 0, balancedEur: 0 };
+          for (const k of ["energyEur", "baselineEur", "savingEur", "starts", "unitHours", "comfortKh", "sunKwh", "balancedEur"] as const) sum[k] += x[k];
           sum.maxOffsetK = Math.max(sum.maxOffsetK, x.maxOffsetK);
           totals.set(x.key, sum);
         }
@@ -345,7 +349,7 @@ export default function registerHeatingPlanner(register: any, { apiClient, logge
           })),
         });
       }
-      // the strategy followed - the systems' own (the same unless "cheapest" picked each its own)
+      // the strategy followed - the systems' own (the same unless "cheapest" / "balanced" picked each its own)
       const followed: HeatStrategyKey = (systems.find((x) => x.strategy)?.strategy as HeatStrategyKey) ?? strategyChosen;
       // the heating's electricity per slot - for the Ledger's own plan
       const electricity = ledgerSlots.map((s, i) => ({ t: s.t, kw: r(systems.reduce((a, x) => a + (x.slots[i]?.electricKw ?? 0), 0)) }));
@@ -356,7 +360,7 @@ export default function registerHeatingPlanner(register: any, { apiClient, logge
             madeAt: now,
             ledgerMadeAt: ledgerPlan.madeAt,
             strategy: { key: strategyChosen, selection },
-            // the strategy followed (the chosen one, or the cheapest's)
+            // the strategy followed (the chosen one, or the one "cheapest" / "balanced" picked)
             followed,
             strategies: HEAT_STRATEGIES.map((x) => totals.get(x.key)).filter(Boolean).map((x) => roundResult(x!)),
             systems,
@@ -391,7 +395,7 @@ export default function registerHeatingPlanner(register: any, { apiClient, logge
         ledgerSlots.length ? (ledgerSlots[ledgerSlots.length - 1].end - now) / 3_600_000 : 0,
         st.lastPlanTotals,
       ),
-      strategy: { key: HEAT_STRATEGIES.some((x) => x.key === config.strategy?.key) ? config.strategy!.key : "cost", selection: config.strategy?.selection === "cheapest" ? "cheapest" : "fixed" },
+      strategy: { key: HEAT_STRATEGIES.some((x) => x.key === config.strategy?.key) ? config.strategy!.key : "cost", selection: selectionOf(config) },
       horizonH: ledgerSlots.length ? r((ledgerSlots[ledgerSlots.length - 1].end - now) / 3_600_000, 1) : 0,
       systems: systems.map((x: any) => {
         const s = nowOf(x);

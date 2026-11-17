@@ -28,8 +28,9 @@ const CONFIG_SCHEMA = {
     comfortCtKwhH: { type: "number", minimum: 0, maximum: 50, description: "the rooms held off their setpoint: this much per kWh of the margin used and hour" },
     strategy: {
       type: "object",
-      description: "the strategy the plan follows (key) and how it is chosen: fixed - the key, cheapest - the least electricity's at each plan",
-      properties: { key: { enum: ["cost", "gentle", "comfort", "sun"] }, selection: { enum: ["fixed", "cheapest"] } },
+      description:
+        "the strategy the plan follows (key) and how it is chosen: fixed - the key, cheapest - the least electricity's at each plan, balanced - the least electricity with the wear (starts, unit-hours) and the rooms' comfort at the system's weights",
+      properties: { key: { enum: ["cost", "gentle", "comfort", "sun"] }, selection: { enum: ["fixed", "cheapest", "balanced"] } },
       additionalProperties: false,
     },
     store: {
@@ -140,7 +141,7 @@ export default async function heatingPlannerApi(app: any, ctx: any): Promise<voi
     processKind: "heating-planner",
     name: "heatingPlanner.plan",
     description:
-      "The heating planner's plan (heating-planner): for every 15-minute slot of the Energy Ledger's plan and each heating system - the rooms' need, the heat pumps' heat and units, their electricity, the store (the tanks and the rooms' comfort margin), the tanks' temperature, the rooms off their setpoint, the price and the Ledger's signal. Its sums - the electricity against the band control (the same need made when needed), the saving; every strategy compared the same hours ahead (Least cost `cost`, Gentle `gentle` - few starts and low power, Comfort `comfort` - no comfort margin, The sun `sun` - the surplus stored as heat): the electricity, the saving, the starts, the rooms' K-h off, the sun's kWh; the strategy followed and the choice (fixed / cheapest); each system's steps (runs of the same units: from, to, the heat, the price, the rooms). The heatings follow their slot (else their tanks' band). Change the strategy with config.propose on this planner's `strategy` ({ key, selection }); the comfort margin `comfortK` (K), the comfortable modulation `comfortModulation` too. `slots: true` - every slot too.",
+      "The heating planner's plan (heating-planner): for every 15-minute slot of the Energy Ledger's plan and each heating system - the rooms' need, the heat pumps' heat and units, their electricity, the store (the tanks and the rooms' comfort margin), the tanks' temperature, the rooms off their setpoint, the price and the Ledger's signal. Its sums - the electricity against the band control (the same need made when needed), the saving; every strategy compared the same hours ahead (Least cost `cost`, Gentle `gentle` - few starts and low power, Comfort `comfort` - no comfort margin, The sun `sun` - the surplus stored as heat): the electricity, the saving, the starts, the rooms' K-h off, the sun's kWh; the strategy followed and the choice (fixed / cheapest / balanced; each strategy's balancedEur - its electricity with the wear and the comfort at the system's weights); each system's steps (runs of the same units: from, to, the heat, the price, the rooms). The heatings follow their slot (else their tanks' band). Change the strategy with config.propose on this planner's `strategy` ({ key, selection }); the comfort margin `comfortK` (K), the comfortable modulation `comfortModulation` too. `slots: true` - every slot too.",
     input: {
       type: "object",
       properties: {

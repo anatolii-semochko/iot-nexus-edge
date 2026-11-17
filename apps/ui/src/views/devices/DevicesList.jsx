@@ -33,6 +33,8 @@ import IconButton from '../../components/IconButton'
 import ResetFiltersButton from '../../components/ResetFiltersButton'
 import Switch from '../../components/Switch'
 import ExpandAllToggleButton from '../../components/table/ExpandAllToggleButton'
+import { NARROW_ONLY, NarrowFields, WIDE_ONLY, cx } from '../../components/table/narrow'
+import PulseDot from '../../components/indicators/PulseDot'
 import ExpandToggleButton from '../../components/table/ExpandToggleButton'
 import LibraryTypeLink from '../../components/table/LibraryTypeLink'
 import { useExpandableRows } from '../../hooks/useExpandableRows'
@@ -597,35 +599,49 @@ const DeviceRow = ({
   const hideSimulation = useHideSimulation()
   const rowColor = isOverdue ? 'danger' : simulationTint(effectivelySimulated, hideSimulation)
   const noBorderWhenExpanded = expanded ? 'border-bottom-0' : undefined
+  const backend = (
+    <CBadge color={backendColor(device.backend)} className="mb-1">
+      {device.backend}
+    </CBadge>
+  )
+  const typeLink = <LibraryTypeLink kind="device" typeName={device.type} />
 
   return (
     <React.Fragment>
       <CTableRow color={rowColor}>
-        <CTableDataCell className={noBorderWhenExpanded}>
+        <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>
           <RowStatusBadge rowColor={rowColor} />
         </CTableDataCell>
-        <CTableDataCell className={noBorderWhenExpanded}>
-          <CBadge color={backendColor(device.backend)} className="mb-1">
-            {device.backend}
-          </CBadge>
-        </CTableDataCell>
-        <CTableDataCell className={noBorderWhenExpanded}>
+        <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>{backend}</CTableDataCell>
+        <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>
           <DeviceIcon
             iconPath={device.icon_path}
             activeColor={device.capabilities?.color}
             active={value === true}
           />
         </CTableDataCell>
-        <CTableDataCell className={noBorderWhenExpanded}>
-          <ValueCell value={value} />
+        <CTableDataCell className={cx('text-break', noBorderWhenExpanded)}>
+          {/* the control node's Pulse: written every orchestrator tick, its value never changes - only
+              its arrival matters; it pulses on every write, as the header's tick dot (PulseDot) */}
+          {device.type === 'pulse' ? (
+            <PulseDot beat={live.timestamp} label={t('Pulse - written every system tick')} />
+          ) : (
+            <ValueCell value={value} />
+          )}
         </CTableDataCell>
-        <CTableDataCell className={noBorderWhenExpanded}>{device.name}</CTableDataCell>
-        <CTableDataCell className={noBorderWhenExpanded}>{device.node_name ?? '-'}</CTableDataCell>
         <CTableDataCell className={noBorderWhenExpanded}>
-          <LibraryTypeLink kind="device" typeName={device.type} />
+          {device.name}
+          {/* a phone: the status under the name - no column of its own (the row's tint shows it too) */}
+          <div className={NARROW_ONLY}>
+            <RowStatusBadge rowColor={rowColor} />
+          </div>
         </CTableDataCell>
+        <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>
+          {device.node_name ?? '-'}
+        </CTableDataCell>
+        <CTableDataCell className={cx(WIDE_ONLY, noBorderWhenExpanded)}>{typeLink}</CTableDataCell>
         <CTableDataCell className={`text-end ${noBorderWhenExpanded ?? ''}`}>
-          <div className="d-flex justify-content-end align-items-center gap-1 flex-nowrap">
+          <div className="d-flex justify-content-end align-items-center gap-1 flex-nowrap ne-row-actions">
             <AiButton action subject={{ type: 'device', id: device.id }} label={device.name} />
             {can('devices.manage', { device: device.id }) && (
               <IconButton
@@ -663,6 +679,13 @@ const DeviceRow = ({
       {expanded && (
         <CTableRow color={rowColor}>
           <CTableDataCell colSpan={8} className="p-0">
+            <NarrowFields
+              fields={[
+                { label: t('Backend'), value: backend },
+                { label: t('Node'), value: device.node_name },
+                { label: t('Type'), value: typeLink },
+              ]}
+            />
             <DeviceDetailRow
               device={device}
               fetched={fetched}
@@ -934,13 +957,21 @@ const DevicesList = () => {
                 <CTable responsive>
                   <CTableHead>
                     <CTableRow>
-                      <CTableHeaderCell scope="col">{t('Status')}</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">{t('Backend')}</CTableHeaderCell>
-                      <CTableHeaderCell scope="col"></CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                        {t('Status')}
+                      </CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                        {t('Backend')}
+                      </CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}></CTableHeaderCell>
                       <CTableHeaderCell scope="col">{t('Value')}</CTableHeaderCell>
                       <CTableHeaderCell scope="col">{t('Name')}</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">{t('Node')}</CTableHeaderCell>
-                      <CTableHeaderCell scope="col">{t('Type')}</CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                        {t('Node')}
+                      </CTableHeaderCell>
+                      <CTableHeaderCell scope="col" className={WIDE_ONLY}>
+                        {t('Type')}
+                      </CTableHeaderCell>
                       <CTableHeaderCell scope="col" className="text-end">
                         <div className="d-flex justify-content-end align-items-center gap-2">
                           <span>{t('Actions')}</span>

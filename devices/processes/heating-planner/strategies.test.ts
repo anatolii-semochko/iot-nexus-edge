@@ -72,7 +72,14 @@ describe("the strategies", () => {
   });
 
   it("cheapest - the least electricity picked", () => {
-    const { key, results } = planAll("comfort", system, slots(peaky), true);
+    const { key, results } = planAll("comfort", system, slots(peaky), "cheapest");
     expect(results.find((r) => r.key === key)!.energyEur).toBe(Math.min(...results.map((r) => r.energyEur)));
+  });
+
+  it("balanced - the least electricity with the wear and the comfort picked", () => {
+    const { key, results } = planAll("sun", system, slots(peaky), "balanced");
+    expect(results.find((r) => r.key === key)!.balancedEur).toBe(Math.min(...results.map((r) => r.balancedEur)));
+    // the wear and the comfort only add to the electricity
+    for (const r of results) expect(r.balancedEur).toBeGreaterThanOrEqual(r.energyEur - 1e-9);
   });
 });

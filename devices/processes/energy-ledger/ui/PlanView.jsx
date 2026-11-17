@@ -10,6 +10,7 @@ import {
 } from '@coreui/react'
 import { useCan } from 'src/access'
 import { useNow } from 'src/hooks/useNow'
+import { HoverMarks, hoverValue, useChartHover } from 'src/components/charts/ChartHover'
 import { api, request } from 'src/api/client'
 import { useProcessLiveState } from 'src/api/useLiveProcess'
 import { packageT } from 'src/i18n'
@@ -59,6 +60,14 @@ const PlanChart = ({ slots }) => {
   const now = useNow(60_000)
   const t0 = slots[0].t
   const t1 = slots[slots.length - 1].end
+  // the hover line - the slot under the pointer and its figures (ChartHover)
+  const [hoverT, hoverProps] = useChartHover({
+    W,
+    left: LEFT,
+    right: RIGHT,
+    t0,
+    t1,
+  })
   const x = (t) => LEFT + ((t - t0) / (t1 - t0)) * (W - LEFT - RIGHT)
   const band = (b, v, lo, hi) => b[1] - ((v - lo) / (hi - lo || 1)) * (b[1] - b[0])
   const prices = slots.flatMap((s) => [s.buyCtKwh, s.sellCtKwh])
@@ -97,6 +106,7 @@ const PlanChart = ({ slots }) => {
       width="100%"
       role="img"
       aria-label={tr('The plan: prices, forecast, batteries, state of charge')}
+      {...hoverProps}
     >
       {hours
         .filter((t) => new Date(t).getHours() % 6 === 0)
@@ -314,6 +324,56 @@ const PlanChart = ({ slots }) => {
           <title>{tr('Now')}</title>
         </line>
       )}
+      {hoverT !== null &&
+        (() => {
+          const s = slots.find((sl) => hoverT >= sl.t && hoverT < sl.end)
+          if (!s) return null
+          return (
+            <HoverMarks
+              x={x(hoverT)}
+              top={BANDS.price[0]}
+              bottom={BANDS.soc[1]}
+              W={W}
+              right={RIGHT}
+              title={`${dayHhmm(s.t)}-${hhmm(s.end)}`}
+              rows={[
+                {
+                  label: tr('buy'),
+                  value: `${hoverValue(s.buyCtKwh)} ct`,
+                  color: '#d93b3b',
+                },
+                {
+                  label: tr('sell'),
+                  value: `${hoverValue(s.sellCtKwh)} ct`,
+                  color: '#1d6fd8',
+                },
+                {
+                  label: tr('generation'),
+                  value: `${hoverValue(s.generationKw)} kW`,
+                  color: '#1f9d63',
+                  y: band(BANDS.power, s.generationKw, kwLo, kwHi),
+                },
+                {
+                  label: tr('consumption'),
+                  value: `${hoverValue(s.loadKw)} kW`,
+                  color: '#e8760a',
+                  y: band(BANDS.power, s.loadKw, kwLo, kwHi),
+                },
+                Math.abs(s.batteryKw) > 0.05 && {
+                  label: s.batteryKw < 0 ? tr('charge') : tr('discharge'),
+                  value: `${hoverValue(Math.abs(s.batteryKw))} kW`,
+                  color: s.batteryKw < 0 ? '#0f9a96' : '#7a5af8',
+                },
+                s.socPct != null && {
+                  label: tr('state of charge'),
+                  value: `${hoverValue(s.socPct)} %`,
+                  color: '#0f9a96',
+                  y: band(BANDS.soc, s.socPct, 0, 100),
+                },
+              ].filter(Boolean)}
+            />
+          )
+        })()}
     </svg>
   )
 }
