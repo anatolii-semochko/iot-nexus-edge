@@ -1,0 +1,12 @@
+nodeType: hoist
+description: >
+  An automatic hoist of a surface-treatment line: a gantry carriage
+  running along the baths, lifting the flight bars of parts out of one
+  bath and lowering them into the next. Reports its position along the
+  line; its lift up / down. Driven by the `anodizing-line` process
+  (simulated - travel and lift times).
+bus:
+  type: modbus-tcp
+supports:
+  - position
+  - relay

@@ -1,0 +1,5 @@
+{
+  "id": "process-anodizing-line",
+  "name": "Anodizing Line",
+  "description": "A surface-treatment line on flight bars: the baths (process-bath - heaters, cooling coils, temperatures, levels) held at their set points, the hoist (hoist) carrying the bars through the recipe one bath after another, the rectifier (rectifier) of the anodize bath - its current ramped to the current density, the coating counted; the bars, the parts and the electricity of the day. The metal shop of the demo."
+}

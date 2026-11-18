@@ -1,0 +1,14 @@
+nodeType: drying-oven
+description: >
+  A batch drying / curing oven of a metal shop: an insulated chamber with
+  its electric heater bank and circulation fan, a temperature probe in the
+  air stream and the heater's power meter. Reports the chamber
+  temperature and the heaters' electric power; its heaters switched on /
+  off. Driven by the `drying-oven` process (simulated - the chamber's
+  heat balance, the door opened for every load).
+bus:
+  type: modbus-tcp
+supports:
+  - temperature
+  - heater
+  - power

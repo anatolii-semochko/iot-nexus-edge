@@ -1,0 +1,5 @@
+{
+  "id": "node-coating-gauge",
+  "name": "Coating Thickness Gauge",
+  "description": "A coating thickness gauge at a QC station: an eddy-current probe for anodic coatings on aluminium; reports each measured point's thickness in µm. Driven by the `quality-control` process (simulated - the points around the batch's coating)."
+}

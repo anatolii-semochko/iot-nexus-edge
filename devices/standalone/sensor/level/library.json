@@ -1,0 +1,5 @@
+{
+  "id": "device-level",
+  "name": "Level",
+  "description": "Level sensor - a tank's or a bath's filling, single Float32 reading (0-100 %), read-only."
+}

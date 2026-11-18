@@ -9991,3 +9991,15 @@ the same on a Raspberry Pi. Rules since then:
   (`rotate`), so it is never the same ones. The tick stats count it per kind
   - `turns.overran` (past the budget), `turns.busy` (a turn skipped, still
   running), `turns.deferred` (put off to the next tick).
+
+## Metal shop (the demo's complex, 2026-11-18 - step 1: the panel as a mockup)
+
+`devices/processes/metal-shop/` - the small metalworking factory, built step by step (iot AGENTS_TO_DO.md
+2026-11-17: the whole shop, the panels first, then the nodes / simulation / processes zone by zone). Now a
+UI-only package: a system Dashboard component `metalShop.panel` (no process yet; `ui/register.js`) - the
+shop's cartoon 3D plan (`ui/factory-shop.webp`, rendered by iot `images/dashboard/v2` scene `factory-shop`,
+PICTURES.md 14) with each zone's card over its floor (`ui/factory-shop.json` - the zones' and machines'
+outlines in the picture's shares, from the render), the shop's sums over it, the batches in work under it;
+a phone - the zones as a list. Its figures - `ui/mockData.js`, fixed, in the shape the live process will
+publish. The demo: a "Factory" folder with the shop's card (demo migration 061). No library.json yet - the
+package joins the Library with its process.

@@ -1,0 +1,11 @@
+nodeType: coating-gauge
+description: >
+  A coating thickness gauge at a QC station: an eddy-current probe for
+  anodic coatings on aluminium (non-conductive coatings on a non-ferrous
+  base), its readings over a network interface. Reports each measured
+  point's thickness in µm. Driven by the `quality-control` process
+  (simulated - the points around the batch's coating).
+bus:
+  type: modbus-tcp
+supports:
+  - thickness

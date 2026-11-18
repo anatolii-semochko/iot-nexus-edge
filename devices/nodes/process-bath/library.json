@@ -1,0 +1,5 @@
+{
+  "id": "node-process-bath",
+  "name": "Process Bath (surface treatment)",
+  "description": "A process bath of a surface-treatment line (degreasing, etching, anodizing, dyeing, sealing, rinsing): a polypropylene tank with its electric immersion heater and / or a cooling coil, a temperature probe and a level sensor. Driven by the `anodizing-line` process (simulated - the heat balance of the bath)."
+}

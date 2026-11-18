@@ -1,0 +1,5 @@
+{
+  "id": "node-rectifier",
+  "name": "Rectifier (anodizing / plating)",
+  "description": "A DC rectifier for anodizing or plating: a thyristor or switch-mode power supply, current-controlled, a few thousand amperes at up to 20-30 V. Reports its output voltage and current; switched on / off, its current set by the line. Driven by the `anodizing-line` process (simulated - the bath's voltage from the current density)."
+}

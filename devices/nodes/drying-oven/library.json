@@ -1,0 +1,5 @@
+{
+  "id": "node-drying-oven",
+  "name": "Drying Oven (batch)",
+  "description": "A batch drying / curing oven: an insulated chamber with its heater bank and circulation fan, a temperature probe, the heaters' power meter; the heaters switched on / off. Driven by the `drying-oven` process (simulated - the chamber's heat balance, the door opened for every load)."
+}

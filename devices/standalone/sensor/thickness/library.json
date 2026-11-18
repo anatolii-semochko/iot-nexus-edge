@@ -1,0 +1,5 @@
+{
+  "id": "device-thickness",
+  "name": "Thickness",
+  "description": "Coating thickness gauge - a coating's thickness at the probe, single Float32 reading in µm, read-only."
+}

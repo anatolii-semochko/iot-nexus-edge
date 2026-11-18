@@ -1,0 +1,5 @@
+{
+  "id": "device-position",
+  "name": "Position",
+  "description": "Position sensor - a carriage's place along its travel (a hoist, an axis), single Float32 reading in mm, read-only."
+}

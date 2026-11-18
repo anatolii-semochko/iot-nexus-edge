@@ -1,0 +1,5 @@
+{
+  "id": "process-drying-oven",
+  "name": "Drying Oven",
+  "description": "A batch drying / curing oven (drying-oven) after a surface-treatment line: the line's finished bars queue at it, it dries them a few at a time at its set point - the heaters by their band, the drying counted while the chamber is hot, the door's and the cold parts' heat; the batches and the electricity of the day. The metal shop of the demo."
+}

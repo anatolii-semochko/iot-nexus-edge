@@ -1,0 +1,5 @@
+{
+  "id": "process-quality-control",
+  "name": "Quality Control and Packing",
+  "description": "QC and packing after a drying oven (quality-control): the oven's dried batches queue at the station, each inspected at its coating gauge (coating-gauge) point by point, passed or to check, the rejected parts counted, the passed ones packed onto pallets; the day's batches, parts, rejects and pallets. The metal shop of the demo."
+}
