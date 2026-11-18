@@ -3,11 +3,7 @@ import { request } from 'src/api/client'
 import { useNow } from 'src/hooks/useNow'
 import SummaryLine from 'src/components/SummaryLine'
 import { packageT } from 'src/i18n'
-import {
-  HourCurve,
-  WeatherCard,
-  WIDGET_CSS,
-} from '../../weather-control/ui/WeatherWidgets'
+import { HourCurve, WeatherCard, WIDGET_CSS } from '../../weather-control/ui/WeatherWidgets'
 import { GridIcon, SCENE_CSS as ENERGY_CSS } from '../../energy-field/ui/fieldIcons'
 
 const tr = packageT('heating-control')
@@ -41,7 +37,11 @@ const GridSupply = ({ process, kw, cardClass }) => {
     request(
       `/series/data?keys=${encodeURIComponent(seriesKey)}&from=${now - DAY_MS}&to=${now}&points=${PAST_POINTS}`,
     )
-      .then((d) => !cancelled && setPast((d.series?.[seriesKey] ?? []).map((p) => ({ t: p.t, v: Math.abs(p.v) }))))
+      .then(
+        (d) =>
+          !cancelled &&
+          setPast((d.series?.[seriesKey] ?? []).map((p) => ({ t: p.t, v: Math.abs(p.v) }))),
+      )
       .catch(() => !cancelled && setPast([]))
     if (plannerId)
       request(`/heating-planner/${plannerId}/plan`)
@@ -59,7 +59,9 @@ const GridSupply = ({ process, kw, cardClass }) => {
       cancelled = true
     }
   }, [seriesKey, plannerId, process.id, now])
-  const hours = [...past, ...(kw !== null ? [{ t: now, v: kw }] : []), ...plan].sort((a, b) => a.t - b.t)
+  const hours = [...past, ...(kw !== null ? [{ t: now, v: kw }] : []), ...plan].sort(
+    (a, b) => a.t - b.t,
+  )
   const top = niceTop(Math.max(0, ...hours.map((h) => h.v)))
   const on = kw > 0.05
   return (
@@ -85,6 +87,7 @@ const GridSupply = ({ process, kw, cardClass }) => {
           hours={hours}
           now={now}
           value={(h) => h.v}
+          unit="kW"
           min={0}
           max={top}
           color="var(--ef-cost)"

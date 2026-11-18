@@ -123,7 +123,6 @@
   "Supply {{kwText}} kW": "Живлення {{kwText}} kW",
   "Switch": "Перемикач",
   "Switch this unit on or off": "Увімкнути чи вимкнути цей пристрій",
-  "The array - power, kW (+ discharge / - charge)": "Масив - потужність, kW (+ розряд / - заряд)",
   "The array - state of charge, %": "Масив - рівень заряду, %",
   "The batteries at the power you set": "Батареї на заданій вами потужності",
   "The batteries charging {{kwText}} kW - for us (stored)": "Батареї заряджаються {{kwText}} kW - на нашу користь (накопичено)",
@@ -250,5 +249,6 @@
   "Batteries at {{socPct}} % - below the {{reservePct}} % outage reserve": "Батареї на {{socPct}} % - нижче резерву на відключення {{reservePct}} %",
   "{{name}}: braked - the wind is over its cut-out speed": "{{name}}: загальмовано - вітер понад швидкість вимкнення",
   "{{curtailedKw}} kW of generation held back - no room in the batteries{{v}}": "Стримано {{curtailedKw}} kW генерації - у батареях немає місця{{v}}",
-  "No weather forecast - the simulated generation is 0": "Немає прогнозу погоди - симульована генерація 0"
+  "No weather forecast - the simulated generation is 0": "Немає прогнозу погоди - симульована генерація 0",
+  "The array - power, kW (+ charge / - discharge)": "Масив - потужність, kW (+ заряд / - розряд)"
 }

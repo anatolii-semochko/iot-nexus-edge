@@ -247,5 +247,6 @@
   "{{what}} to the rooms, kW": "{{what}} a las salas, kW",
   "{{what}} to the tanks and the heating's electricity, kW": "{{what}} a los depósitos y la electricidad de la calefacción, kW",
   "· holding off": "· en espera",
-  "· storing heat": "· acumulando calor"
+  "· storing heat": "· acumulando calor",
+  "{{label}} - open the charts": "{{label}} - abrir los gráficos"
 }

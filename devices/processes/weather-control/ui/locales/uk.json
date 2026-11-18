@@ -159,5 +159,9 @@
   "°C · rain, mm · wind, m/s and where it blows": "°C · дощ, mm · вітер, m/s і звідки дме",
   "°C, rain": "°C, дощ",
   "· high": "· макс.",
-  "· low": "· мін."
+  "· low": "· мін.",
+  "radiation": "сонце",
+  "temperature": "температура",
+  "humidity": "вологість",
+  "wind": "вітер"
 }

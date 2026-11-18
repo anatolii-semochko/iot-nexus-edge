@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { CButton, CButtonGroup } from '@coreui/react'
 import { request } from 'src/api/client'
 import { useNow } from 'src/hooks/useNow'
+import { hoverTime, hoverValue } from 'src/components/charts/ChartHover'
 import { packageT } from 'src/i18n'
 // the package's words (its own locales/, then the core's)
 const tr = packageT('heating-control')
@@ -41,6 +42,12 @@ const TREND_CSS = `
   background: color-mix(in srgb, var(--cui-body-color) 3%, transparent);
   border-top: 1px solid var(--ht-line); border-bottom: 1px solid var(--ht-line) }
 .ht-trend-body > svg { position: absolute; inset: 0; width: 100%; height: 100% }
+.ht-trend-open { cursor: pointer }
+.ht-trend-open:hover { background: color-mix(in srgb, var(--cui-body-color) 6%, transparent) }
+.ht-trend-hover { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--cui-body-color); opacity: .45;
+  pointer-events: none }
+.ht-trend-readout { position: absolute; top: 2px; margin: 0 6px; padding: 1px 6px; font-size: .75rem; white-space: nowrap;
+  background: var(--cui-body-bg); border: 1px solid var(--cui-border-color); border-radius: 4px; pointer-events: none }
 .ht-trend-times { position: relative; height: 1.4em; font-size: .8rem; color: var(--ht-muted) }
 .ht-trend-times > span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap }
 `
@@ -77,13 +84,16 @@ const timesOf = (t0, t1, span) => {
  * `seriesKey` - the series (kW), `label` - what it is, `color` - the curve's. Fills its
  * container's height.
  */
-const HeatTrend = ({ seriesKey, label, color }) => {
+// `onOpen` - a click on the curve opens its flow's popup (the charts - the user, 2026-11-18)
+const HeatTrend = ({ seriesKey, label, color, onOpen }) => {
   const [span, setSpan] = useState(SPANS[0])
   const [points, setPoints] = useState(null)
   const [readAt, setReadAt] = useState(null)
   const tick = useNow(RELOAD_MS)
   const bodyRef = useRef(null)
   const [width, setWidth] = useState(0)
+  // the hover line (the user, 2026-11-17): the share of the width under the pointer, null - none
+  const [hoverAt, setHoverAt] = useState(null)
   useLayoutEffect(() => {
     const el = bodyRef.current
     if (!el) return undefined
@@ -122,6 +132,22 @@ const HeatTrend = ({ seriesKey, label, color }) => {
         `${i && p.t - all[i - 1].t <= gapMs ? 'L' : 'M'}${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`,
     )
     .join(' ')
+  // the hover line's point - the last reading at or before the moment, none across a gap
+  const hoverPoint = (() => {
+    if (hoverAt === null || !points?.length) return null
+    const t = t0 + hoverAt * (t1 - t0)
+    let found = null
+    for (const p of points) {
+      if (p.t > t) break
+      found = p
+    }
+    return found && t - found.t <= gapMs ? found : null
+  })()
+  const onMove = (e) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const at = (e.clientX - r.left) / r.width
+    setHoverAt(at >= 0 && at <= 1 ? at : null)
+  }
   return (
     <div className="ht-trend" title={`${label} - ${span.hint.toLowerCase()}`}>
       <style>{TREND_CSS}</style>
@@ -147,7 +173,26 @@ const HeatTrend = ({ seriesKey, label, color }) => {
           ))}
         </CButtonGroup>
       </div>
-      <div ref={bodyRef} className="ht-trend-body">
+      <div
+        ref={bodyRef}
+        className={`ht-trend-body${onOpen ? ' ht-trend-open' : ''}`}
+        onPointerMove={onMove}
+        onPointerLeave={() => setHoverAt(null)}
+        {...(onOpen
+          ? {
+              role: 'button',
+              tabIndex: 0,
+              'aria-label': tr('{{label}} - open the charts', { label }),
+              onClick: onOpen,
+              onKeyDown: (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onOpen()
+                }
+              },
+            }
+          : {})}
+      >
         <svg
           viewBox="0 0 1000 100"
           preserveAspectRatio="none"
@@ -165,6 +210,22 @@ const HeatTrend = ({ seriesKey, label, color }) => {
             />
           )}
         </svg>
+        {hoverPoint && (
+          <>
+            <span className="ht-trend-hover" style={{ left: `${x(hoverPoint.t) / 10}%` }} />
+            <span
+              className="ht-trend-readout"
+              style={
+                x(hoverPoint.t) > 600
+                  ? { right: `${100 - x(hoverPoint.t) / 10}%` }
+                  : { left: `${x(hoverPoint.t) / 10}%` }
+              }
+            >
+              <b>{hoverTime(hoverPoint.t, span.ms > 86_400_000)}</b>{' '}
+              <span style={{ color }}>{hoverValue(Math.abs(hoverPoint.v))} kW</span>
+            </span>
+          </>
+        )}
         {points && points.length === 0 && (
           <span className="position-absolute top-50 start-50 translate-middle small text-body-secondary">
             {tr('No history yet')}

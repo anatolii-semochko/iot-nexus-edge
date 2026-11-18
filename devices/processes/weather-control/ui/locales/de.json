@@ -159,5 +159,9 @@
   "°C · rain, mm · wind, m/s and where it blows": "°C · Regen, mm · Wind, m/s und woher er weht",
   "°C, rain": "°C, Regen",
   "· high": "· Höchst",
-  "· low": "· Tiefst"
+  "· low": "· Tiefst",
+  "radiation": "Sonne",
+  "temperature": "Temperatur",
+  "humidity": "Feuchte",
+  "wind": "Wind"
 }

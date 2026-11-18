@@ -123,7 +123,6 @@
   "Supply {{kwText}} kW": "Suministro {{kwText}} kW",
   "Switch": "Interruptor",
   "Switch this unit on or off": "Encender o apagar esta unidad",
-  "The array - power, kW (+ discharge / - charge)": "El conjunto: potencia, kW (+ descarga / - carga)",
   "The array - state of charge, %": "El conjunto: estado de carga, %",
   "The batteries at the power you set": "Las baterías a la potencia que fije",
   "The batteries charging {{kwText}} kW - for us (stored)": "Las baterías cargan {{kwText}} kW: a nuestro favor (almacenado)",
@@ -250,5 +249,6 @@
   "Batteries at {{socPct}} % - below the {{reservePct}} % outage reserve": "Baterías al {{socPct}} % - por debajo de la reserva para cortes del {{reservePct}} %",
   "{{name}}: braked - the wind is over its cut-out speed": "{{name}}: frenado - el viento supera su velocidad de parada",
   "{{curtailedKw}} kW of generation held back - no room in the batteries{{v}}": "{{curtailedKw}} kW de generación retenidos - no hay sitio en las baterías{{v}}",
-  "No weather forecast - the simulated generation is 0": "Sin previsión meteorológica - la generación simulada es 0"
+  "No weather forecast - the simulated generation is 0": "Sin previsión meteorológica - la generación simulada es 0",
+  "The array - power, kW (+ charge / - discharge)": "El conjunto: potencia, kW (+ carga / - descarga)"
 }

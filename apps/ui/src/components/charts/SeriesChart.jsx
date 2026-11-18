@@ -15,6 +15,7 @@ import { t as tr } from 'src/i18n'
 // drawn (the user, 2026-10-24). `limits` - per key the lines a person should know (the user, 2026-10-25):
 // [{ value | points: [{ t, v }], level: 'warning' (yellow) | 'critical' (red), label }] - dashed, light;
 // one far above the day's values is named at the chart's edge instead of flattening the curve.
+// `negate` - the keys drawn with their sign turned (a battery's + discharge shown down, its charge up).
 // `absolute` - the keys drawn by their size (a power one way, its sign only the direction).
 // A `keys` entry may be an array - its series on one chart, one axis (2026-10-29: a tank's heat in and
 // out); its label - a string (the chart's) and the legend from `legends[i]`. `colors[i]` - the entry's
@@ -108,6 +109,9 @@ const SeriesChart = ({
   signed = [],
   limits = {},
   absolute = [],
+  // the keys drawn with their sign turned (the user, 2026-11-18: the batteries' charge up, the discharge
+  // down - their series is + discharge)
+  negate = [],
   combine = {},
   height,
 }) => {
@@ -210,7 +214,9 @@ const SeriesChart = ({
     const curves = ks.map((k, n) => {
       const pts = absolute.includes(k)
         ? (series[k] ?? []).map((p) => ({ ...p, v: Math.abs(p.v) }))
-        : (series[k] ?? [])
+        : negate.includes(k)
+          ? (series[k] ?? []).map((p) => ({ ...p, v: -p.v }))
+          : (series[k] ?? [])
       const own = Array.isArray(colors[i]) ? colors[i][n] : n === 0 ? colors[i] : undefined
       const color = own ?? COLORS[(firstColor[e] + n) % COLORS.length]
       return { k, pts, color, legend: legends[i]?.[n] }

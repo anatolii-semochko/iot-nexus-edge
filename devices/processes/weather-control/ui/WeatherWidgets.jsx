@@ -5,6 +5,7 @@ import AiButton from 'src/components/ai/AiButton'
 import { useRoomBelow } from 'src/components/nodeInfo/UnitPopup'
 import SummaryLine from 'src/components/SummaryLine'
 import { useNow } from 'src/hooks/useNow'
+import { HoverMarks, hoverTime, hoverValue, useChartHover } from 'src/components/charts/ChartHover'
 import AnemometerIcon from './anemometer/AnemometerIcon'
 import { SkyIcon, skyAspect } from './SkyIcon'
 import { packageT } from 'src/i18n'
@@ -68,6 +69,11 @@ export const WIDGET_CSS = `
 .wx-curve-body { position: relative; flex: 1 1 auto; min-height: 24px; background: var(--wx-chart-bg);
   border-top: 1px solid var(--wx-line); border-bottom: 1px solid var(--wx-line) }
 .wx-curve-body > svg { position: absolute; inset: 0; width: 100%; height: 100% }
+.wx-hover { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--cui-body-color); opacity: .45;
+  pointer-events: none; z-index: 1 }
+.wx-readout { position: absolute; top: 2px; margin: 0 6px; padding: 1px 6px; font-size: .75rem; white-space: nowrap;
+  background: var(--cui-body-bg); border: 1px solid var(--cui-border-color); border-radius: 4px; pointer-events: none;
+  z-index: 1 }
 .wx-curve-hours { position: relative; height: 1.5em; flex: none; color: var(--wx-muted); font-size: 0.8em }
 .wx-curve-hours > span { position: absolute; top: 2px; transform: translateX(-50%) }
 .wx-curve:hover .wx-curve-body { background: var(--wx-chart-hover) }
@@ -126,7 +132,9 @@ export const dayAround = (forecast, now) =>
  * detailed charts.
  */
 // `onOpen` absent - a picture only (no button: a scene's curve with no detailed chart - the heating's grid)
-export const HourCurve = ({ hours, now, value, min, max, color, label, onOpen }) => {
+// `unit` - the hover readout's (the user, 2026-11-18: the hover line on every chart but the cards' avatars)
+export const HourCurve = ({ hours, now, value, min, max, color, label, onOpen, unit = '' }) => {
+  const [hoverAt, setHoverAt] = useState(null)
   if (hours.length < 2) return null
   const t0 = now - CURVE_HALF_MS
   const t1 = now + CURVE_HALF_MS
@@ -142,6 +150,16 @@ export const HourCurve = ({ hours, now, value, min, max, color, label, onOpen })
     ticks.push({ t: c.getTime(), h: c.getHours() })
   // the curve runs edge to edge; a label at an edge is moved in, never out of the curve's width
   const half = (h) => (String(h).length * LABEL_DIGIT_EM) / 2
+  // the hover line: the hour nearest the pointer (the past and the forecast alike)
+  const hoverHour =
+    hoverAt === null
+      ? null
+      : hours.reduce((a, h) => (Math.abs(xs(h.t) - hoverAt) < Math.abs(xs(a.t) - hoverAt) ? h : a))
+  const onMove = (e) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const at = (e.clientX - r.left) / r.width
+    setHoverAt(at >= 0 && at <= 1 ? at : null)
+  }
   return (
     <div
       className="wx-curve"
@@ -161,7 +179,25 @@ export const HourCurve = ({ hours, now, value, min, max, color, label, onOpen })
           }
         : { title: label, role: 'img', 'aria-label': label })}
     >
-      <div className="wx-curve-body">
+      <div className="wx-curve-body" onPointerMove={onMove} onPointerLeave={() => setHoverAt(null)}>
+        {hoverHour && (
+          <>
+            <span className="wx-hover" style={{ left: `${xs(hoverHour.t) * 100}%` }} />
+            <span
+              className="wx-readout"
+              style={
+                xs(hoverHour.t) > 0.6
+                  ? { right: `${100 - xs(hoverHour.t) * 100}%` }
+                  : { left: `${xs(hoverHour.t) * 100}%` }
+              }
+            >
+              <b>{hoverTime(hoverHour.t, true)}</b>{' '}
+              <span style={{ color }}>
+                {hoverValue(value(hoverHour))} {unit}
+              </span>
+            </span>
+          </>
+        )}
         <svg viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
           <line
             x1={xs(now) * 1000}
@@ -331,6 +367,12 @@ const TimeChart = ({ title, unit, rows, lines, t0, t1, now, min, max, height = C
   const x = (t) => PAD.left + ((t - t0) / (t1 - t0)) * (W - PAD.left - PAD.right)
   const y = (v) => PAD.top + ((hi - v) / (hi - lo || 1)) * (H - PAD.top - PAD.bottom)
   const nowX = x(now)
+  // the hover line - the hour under the pointer, the past and the forecast alike (ChartHover)
+  const [hoverT, hoverProps] = useChartHover({ W, left: PAD.left, right: PAD.right, t0, t1 })
+  const hoverRow =
+    hoverT === null || !rows.length
+      ? null
+      : rows.reduce((a, r) => (Math.abs(r.t - hoverT) < Math.abs(a.t - hoverT) ? r : a))
   return (
     <div>
       <div className="d-flex gap-3 small flex-wrap">
@@ -339,13 +381,13 @@ const TimeChart = ({ title, unit, rows, lines, t0, t1, now, min, max, height = C
           lines.map((l) => (
             <span key={l.key} style={{ color: l.color }}>
               {l.dashed ? '- - ' : '— '}
-              {l.label}
+              {tr(l.label)}
             </span>
           ))}
       </div>
       <div ref={ref}>
         {width > 0 && (
-          <svg width={W} height={H} role="img" aria-label={`${title}, ${unit}`}>
+          <svg width={W} height={H} role="img" aria-label={`${title}, ${unit}`} {...hoverProps}>
             <rect
               x={nowX}
               y={PAD.top}
@@ -431,6 +473,25 @@ const TimeChart = ({ title, unit, rows, lines, t0, t1, now, min, max, height = C
               <text x={nowX + 4} y={PAD.top + 12} fontSize="11" fill="var(--wx-muted)">
                 {tr('forecast')}
               </text>
+            )}
+            {hoverRow && (
+              <HoverMarks
+                x={x(hoverRow.t)}
+                top={PAD.top}
+                bottom={H - PAD.bottom}
+                W={W}
+                right={PAD.right}
+                title={`${hoverTime(hoverRow.t, t1 - t0 > DAY_MS)}${hoverRow.t > now ? ` - ${tr('forecast')}` : ''}`}
+                rows={lines
+                  .filter((l) => typeof hoverRow[l.key] === 'number')
+                  .map((l) => ({
+                    // one line - the chart's title names it; several - each its own (translated)
+                    label: lines.length > 1 ? tr(l.label) : null,
+                    value: `${hoverValue(hoverRow[l.key])} ${unit}`,
+                    color: l.color,
+                    y: y(hoverRow[l.key]),
+                  }))}
+              />
             )}
           </svg>
         )}
@@ -697,6 +758,7 @@ export const SunWidget = ({ m, forecast, weatherId, cardClass }) => {
           hours={hours}
           now={now}
           value={(h) => h.radiationWm2 ?? 0}
+          unit="W/m²"
           min={0}
           max={Math.max(200, ...hours.map((h) => h.radiationWm2 ?? 0))}
           color="var(--wx-sun-line)"
@@ -736,6 +798,7 @@ export const WindWidget = ({ m, forecast, weatherId, cardClass }) => {
           hours={hours}
           now={now}
           value={(h) => h.windSpeedMs ?? 0}
+          unit="m/s"
           min={0}
           max={Math.max(5, ...hours.map((h) => h.windGustsMs ?? h.windSpeedMs ?? 0))}
           color="var(--wx-wind-line)"
@@ -799,6 +862,7 @@ export const TemperatureWidget = ({ forecast, outdoor, weatherId, cardClass, ext
           hours={hours}
           now={now}
           value={(h) => h.temperatureC ?? 0}
+          unit="°C"
           min={temps.length ? Math.floor(Math.min(...temps)) - 1 : 0}
           max={temps.length ? Math.ceil(Math.max(...temps)) + 1 : 1}
           color="var(--wx-temp-line)"

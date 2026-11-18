@@ -247,5 +247,6 @@
   "{{what}} to the rooms, kW": "{{what}} до кімнат, kW",
   "{{what}} to the tanks and the heating's electricity, kW": "{{what}} до баків і електрика опалення, kW",
   "· holding off": "· утримується",
-  "· storing heat": "· накопичує тепло"
+  "· storing heat": "· накопичує тепло",
+  "{{label}} - open the charts": "{{label}} - відкрити графіки"
 }

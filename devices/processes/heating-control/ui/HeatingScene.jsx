@@ -517,6 +517,7 @@ const HeatingScene = ({ process, params, pageTitle }) => {
         </button>
         <HeatTrend
           seriesKey={`process:${process.id}:heat.heatKw`}
+          onOpen={() => setPopup({ kind: 'flow', flow: 'pumpsTanks' })}
           label={cooling ? tr('Cold produced') : tr('Heat produced')}
           color="var(--ht-warm)"
         />
@@ -572,6 +573,7 @@ const HeatingScene = ({ process, params, pageTitle }) => {
         </button>
         <HeatTrend
           seriesKey={`process:${process.id}:heat.consumersKw`}
+          onOpen={() => setPopup({ kind: 'flow', flow: 'tanksConsumers' })}
           label={cooling ? tr('Cold used') : tr('Heat used')}
           color="var(--ht-warm)"
         />

@@ -938,6 +938,8 @@ export const DevicePopup = ({
             [seriesKey('loadKw')]: kind === 'consumer' ? flowLimits.load : [],
           }}
           signed={[seriesKey('batteryKw'), seriesKey('gridKw'), gridSeries]}
+          // the charge up, the discharge down (the series is + discharge)
+          negate={[seriesKey('batteryKw')]}
           keys={
             kind === 'pv'
               ? [seriesKey('pvKw')]
@@ -961,7 +963,7 @@ export const DevicePopup = ({
                   : kind === 'battery' || kind === 'batteries'
                     ? [
                         tr('The array - state of charge, %'),
-                        tr('The array - power, kW (+ discharge / - charge)'),
+                        tr('The array - power, kW (+ charge / - discharge)'),
                       ]
                     : kind === 'grid'
                       ? [tr('The grid today, kW (+ import / - export)')]
