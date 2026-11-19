@@ -36,6 +36,7 @@ export interface LineSpec {
   speedMmS: number; // the hoist's travel speed
   liftS: number; // a lift up or down
   dripS: number; // a bar drips over the bath it left
+  leadS: number; // the hoist stands over a bar's bath this long before its time there ends (when free)
   loadEveryMin: number; // a new bar no more often than this
   barAreaDm2: number; // the parts' surface of one bar
   partsPerBar: number;
@@ -88,7 +89,8 @@ export interface Bar {
   ah: number; // the charge it took in the anodize bath
 }
 
-export type HoistState = "idle" | "to-pick" | "lift-up" | "carry" | "drip" | "lift-down";
+// "wait" - over the bar's bath, the bar's time there not done yet (it came `leadS` ahead)
+export type HoistState = "idle" | "to-pick" | "wait" | "lift-up" | "carry" | "drip" | "lift-down";
 
 export interface Hoist {
   posMm: number;
@@ -121,14 +123,22 @@ export const emptyLine = (): Line => ({
 /** The bar's bath now (the station), or null while it is carried. */
 const stationOfBar = (spec: LineSpec, b: Bar) => stationOf(spec.recipe[b.step].bath);
 
-/** The next move: the bar waiting longest whose next station is free; else a new bar into the first bath. */
+/** When the bar's time in its bath ends (ms). */
+export const doneAt = (spec: LineSpec, b: Bar) => b.inSince + spec.recipe[b.step].minutes * 60_000;
+
+/**
+ * The next move: the bar waiting longest whose next station is free - or the one due soonest, if the hoist
+ * gets to it no earlier than `leadS` before its time ends (it comes ahead and waits over the bath); else a new
+ * bar into the first bath.
+ */
 export function nextMove(spec: LineSpec, line: Line, now: number): Hoist["move"] {
   const occupied = new Set(line.bars.filter((b) => b.id !== line.hoist.carrying).map((b) => stationOfBar(spec, b)));
   const unload = spec.baths.length + 1;
+  const ahead = (b: Bar) => (travelS(spec, line.hoist.posMm, stationOfBar(spec, b) * spec.pitchMm) + spec.leadS) * 1000;
   const waiting = line.bars
     .filter((b) => b.id !== line.hoist.carrying)
-    .map((b) => ({ b, overMs: now - (b.inSince + spec.recipe[b.step].minutes * 60_000) }))
-    .filter((x) => x.overMs >= 0)
+    .map((b) => ({ b, overMs: now - doneAt(spec, b) }))
+    .filter((x) => x.overMs >= -ahead(x.b))
     .sort((a, z) => z.overMs - a.overMs);
   for (const { b } of waiting) {
     const from = stationOfBar(spec, b);
@@ -172,7 +182,15 @@ export function lineStep(spec: LineSpec, line: Line, now: number, seconds: numbe
     if (h.phaseLeftS > 1e-6) break;
     const m = h.move!;
     switch (h.state) {
-      case "to-pick":
+      case "to-pick": {
+        // came ahead - waits over the bath for the bar's time to end
+        const bar = m.bar === null ? undefined : line.bars.find((b) => b.id === m.bar);
+        const waitS = bar ? (doneAt(spec, bar) - t) / 1000 : 0;
+        h.state = waitS > 1e-3 ? "wait" : "lift-up";
+        h.phaseLeftS = waitS > 1e-3 ? waitS : spec.liftS;
+        break;
+      }
+      case "wait":
         h.state = "lift-up";
         h.phaseLeftS = spec.liftS;
         break;
@@ -217,6 +235,52 @@ export function lineStep(spec: LineSpec, line: Line, now: number, seconds: numbe
     }
   }
   return finished;
+}
+
+export interface HoistPhase {
+  state: HoistState;
+  endAt: number; // ms
+  fromMm: number; // the carriage at the phase's start and end
+  toMm: number;
+}
+
+/**
+ * The hoist's current move as a timeline from `now`: this phase (what is left of it) and the ones after, each
+ * with its end and the carriage's travel - the panel plays it on its own clock, so no phase is skipped between
+ * two updates. Empty while idle.
+ */
+export function hoistPlan(spec: LineSpec, line: Line, now: number): HoistPhase[] {
+  const h = line.hoist;
+  const m = h.move;
+  if (!m || h.state === "idle") return [];
+  const fromMm = m.from * spec.pitchMm;
+  const toMm = m.to * spec.pitchMm;
+  const order: HoistState[] = ["to-pick", "wait", "lift-up", "drip", "carry", "lift-down"];
+  const out: HoistPhase[] = [];
+  let t = now;
+  let at = h.posMm;
+  const bar = m.bar === null ? undefined : line.bars.find((b) => b.id === m.bar);
+  for (const state of order.slice(order.indexOf(h.state))) {
+    const current = state === h.state;
+    let secs: number;
+    let end = at;
+    if (state === "to-pick") {
+      secs = h.phaseLeftS;
+      end = fromMm;
+    } else if (state === "wait") {
+      secs = current ? h.phaseLeftS : bar ? Math.max(0, (doneAt(spec, bar) - t) / 1000) : 0;
+    } else if (state === "drip") {
+      secs = m.from === 0 ? 0 : current ? h.phaseLeftS : spec.dripS;
+    } else if (state === "carry") {
+      secs = current ? h.phaseLeftS : travelS(spec, at, toMm);
+      end = toMm;
+    } else secs = current ? h.phaseLeftS : spec.liftS;
+    if (secs <= 1e-3 && !current) continue;
+    t += secs * 1000;
+    out.push({ state, endAt: Math.round(t), fromMm: Math.round(at), toMm: Math.round(end) });
+    at = end;
+  }
+  return out;
 }
 
 /** The bar in the anodize bath now (lowered, not carried), with its time there so far. */

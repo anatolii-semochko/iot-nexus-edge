@@ -182,9 +182,18 @@ export default function registerMachining(register: any, { apiClient, logger, st
     await apiClient.setMetrics(process.id, {
       onShift,
       powerKw: r(powerKw, 2),
-      saw: { cutting: st.saw.cutting, cuts: st.saw.cuts, powerKw: r(sawKw, 2) },
+      // the cut's end (ms) and its whole time (s) - the panel plays the feed, the cut and the blank's way out on its clock
+      saw: {
+        cutting: st.saw.cutting,
+        cuts: st.saw.cuts,
+        powerKw: r(sawKw, 2),
+        endAt: st.saw.cutting ? Math.round(now + st.saw.cutLeftS * 1000) : null,
+        spanS: spec.cutS,
+      },
       stock: st.stock.map((s) => ({ key: s.key, name: s.name, stockM: r(s.stockM, 2), minM: s.minM })),
       delivered,
+      // this update's time (ms) - a panel whose clock is far off corrects its timers by it
+      at: now,
       machines: st.machines.map((m, k) => {
         const job = jobs[m.job];
         return {
@@ -198,6 +207,14 @@ export default function registerMachining(register: any, { apiClient, logger, st
           cycleS: job?.cycleS,
           cycleLeftS: m.state === "run" ? Math.max(0, Math.round(m.cycleLeftS)) : null,
           setupLeftMin: m.state === "setup" ? r(m.setupLeftS / 60, 1) : null,
+          // when the state's time ends (ms) - the panel's timers count to it on its clock (not from each update)
+          endAt:
+            m.state === "run" ? Math.round(now + m.cycleLeftS * 1000)
+            : m.state === "setup" ? Math.round(now + m.setupLeftS * 1000)
+            : m.state === "alarm" ? Math.round(now + m.alarmLeftS * 1000)
+            : null,
+          // the state's whole time, s (the timer's ring)
+          spanS: m.state === "run" ? job?.cycleS : m.state === "setup" ? (job?.setupMin ?? 0) * 60 : m.state === "alarm" ? spec.toolChangeMin * 60 : null,
           toolLeftMin: Math.round(m.toolLeftMin),
           powerKw: r(machineKw[k], 2),
           parts: m.parts,

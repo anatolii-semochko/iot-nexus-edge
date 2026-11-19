@@ -25,7 +25,9 @@ import {
   barInAnodize,
   bathStep,
   coatingUm,
+  doneAt,
   emptyLine,
+  hoistPlan,
   levelStep,
   lineStep,
   stationOf,
@@ -69,6 +71,7 @@ const LINE_DEFAULTS: Omit<LineSpec, "baths" | "recipe"> = {
   speedMmS: 250,
   liftS: 20,
   dripS: 15,
+  leadS: 10,
   loadEveryMin: 14,
   barAreaDm2: 1900,
   partsPerBar: 40,
@@ -312,6 +315,16 @@ export default function registerAnodizingLine(register: any, { apiClient, logger
         // the station it heads for / stands at (0 - load, 1..n - the baths, n + 1 - unload)
         to: h.move?.to ?? null,
         from: h.move?.from ?? null,
+        // the panel's moving hoist: the time left in this phase, the stations' pitch, a lift's time, the stations
+        phaseLeftS: r(h.phaseLeftS, 1),
+        // the move's timeline (ms; the panel plays it on its clock - model.ts hoistPlan), `at` - this update's time
+        plan: hoistPlan(spec, st.line, now),
+        at: now,
+        // the bar of this move (lifted, carried, lowered; null - a new one from the load station, not yet taken)
+        bar: h.move?.bar ?? null,
+        pitchMm: spec.pitchMm,
+        liftS: spec.liftS,
+        stations: baths.length + 2,
       },
       rectifier: { on: st.rect.on, currentA: r(st.rect.currentA, 0), voltageV: r(st.rect.voltageV, 2), densityAdm2: r(st.rect.densityAdm2, 2), barId: inAnodize?.id ?? null },
       bars: st.line.bars.map((b) => {
@@ -320,8 +333,13 @@ export default function registerAnodizingLine(register: any, { apiClient, logger
           id: b.id,
           step: b.step,
           bath: b.step >= 0 ? baths[step.bath].name : null,
+          station: b.step >= 0 ? stationOf(step.bath) : null,
           elapsedMin: b.step >= 0 ? r((now - b.inSince) / 60_000, 1) : 0,
           needMin: b.step >= 0 ? step.minutes : 0,
+          // the step's seconds left (the panel's step timer; 0 - done, waiting for the hoist)
+          leftS: b.step >= 0 ? Math.max(0, r(step.minutes * 60 - (now - b.inSince) / 1000, 0)) : 0,
+          // when it ends (ms) - the timer counts to it on the panel's clock, not from each update's arrival
+          doneAt: b.step >= 0 ? Math.round(doneAt(spec, b)) : null,
           coatingUm: r(b.coatingUm, 1),
           carried: b.id === h.carrying,
           steps: recipe.length,

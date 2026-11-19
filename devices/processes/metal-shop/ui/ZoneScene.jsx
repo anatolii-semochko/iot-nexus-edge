@@ -34,7 +34,8 @@ const topOf = (poly) => {
   return [(Math.min(...xs) + Math.max(...xs)) / 2, Math.min(...poly.map((p) => p[1]))]
 }
 
-const ZoneScene = ({ zone, title, labels = {} }) => {
+// `children` - drawn over the picture, under the labels (the line's moving hoist)
+const ZoneScene = ({ zone, title, labels = {}, children }) => {
   const pic = zonePicture(zone)
   if (!pic) return null
   const places = new Map((pic.spots.items ?? []).map((it) => [it.kind, topOf(it.poly)]))
@@ -42,6 +43,7 @@ const ZoneScene = ({ zone, title, labels = {} }) => {
     <div className="ms-zone-scene">
       <style>{CSS}</style>
       <img src={pic.src} alt={tr(title)} />
+      {children}
       {Object.entries(labels).map(([kind, content]) => {
         const at = places.get(kind)
         if (!at || !content) return null

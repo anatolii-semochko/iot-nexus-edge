@@ -4,6 +4,7 @@ import { NARROW_ONLY, WIDE_ONLY, cx } from 'src/components/table/narrow'
 import picture from './factory-shop.webp'
 import spots from './factory-shop.json'
 import { MOCK } from './mockData'
+import LineHoist from './LineHoist'
 import ZonePopup from './ZonePopup'
 import {
   blanksZone,
@@ -169,6 +170,7 @@ const MetalShopScene = () => {
             'The shop: the blanks, the CNC machines, the anodizing line, the oven, QC, the utilities',
           )}
         />
+        {live.line && <LineHoist m={live.line.m} view="shop" />}
         {data.zones.map((z, i) => {
           const room = spots.rooms[i]
           if (!room) return null

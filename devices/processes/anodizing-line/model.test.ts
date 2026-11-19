@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bathStep, coatingUm, emptyLine, lineStep, thermostat, type BathSpec, type LineSpec } from "./model.ts";
+import { bathStep, coatingUm, doneAt, emptyLine, hoistPlan, lineStep, thermostat, type BathSpec, type LineSpec } from "./model.ts";
 
 const bath = (role: BathSpec["role"], setpointC: number | null, heaterKw = 6, coolerKw = 0): BathSpec => ({
   nodeId: 1,
@@ -25,6 +25,7 @@ const spec: LineSpec = {
   speedMmS: 250,
   liftS: 20,
   dripS: 10,
+  leadS: 10,
   loadEveryMin: 12,
   barAreaDm2: 2000,
   partsPerBar: 40,
@@ -72,5 +73,30 @@ describe("the anodizing line's model", () => {
     // never two bars in one bath
     const stations = line.bars.filter((b) => b.id !== line.hoist.carrying && b.step >= 0).map((b) => spec.recipe[b.step].bath);
     expect(new Set(stations).size).toBe(stations.length);
+  });
+  it("the hoist comes to a bar ahead of its time, waits over the bath, lifts it when the time is done", () => {
+    const line = emptyLine();
+    const t0 = 1_000_000_000;
+    // one bar in the degrease bath (station 1), 5 min there; the hoist idle at the load station
+    line.bars.push({ id: "L-0001", step: 0, inSince: t0, coatingUm: 0, ah: 0 });
+    line.lastLoad = t0;
+    let now = t0 + 5 * 60_000 - 20_000; // 20 s before the end: travel 3.6 s + lead 10 s not yet reached
+    lineStep(spec, line, now, 1, () => {});
+    expect(line.hoist.state).toBe("idle");
+    now = t0 + 5 * 60_000 - 12_000; // within travel + lead - it goes
+    lineStep(spec, line, now, 1, () => {});
+    expect(line.hoist.state).toBe("to-pick");
+    now += 5_000;
+    lineStep(spec, line, now, 5, () => {});
+    expect(line.hoist.state).toBe("wait");
+    const plan = hoistPlan(spec, line, now);
+    expect(plan.map((p) => p.state)).toEqual(["wait", "lift-up", "drip", "carry", "lift-down"]);
+    expect(plan[0].endAt).toBe(doneAt(spec, line.bars[0]));
+    // the carriage stands while it lifts, travels only in the carry
+    expect(plan[1].fromMm).toBe(plan[1].toMm);
+    expect(plan[3].toMm).toBe(2 * spec.pitchMm);
+    now = doneAt(spec, line.bars[0]) + 1_000;
+    lineStep(spec, line, now, 9, () => {});
+    expect(line.hoist.state).toBe("lift-up");
   });
 });

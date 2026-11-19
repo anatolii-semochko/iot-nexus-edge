@@ -9,6 +9,7 @@ import MockChart from './MockChart'
 import { daySeries, SERIES } from './mockSeries'
 import { barStep, MACHINE_STATE, machineLine, STATE_OF, useLineSeries } from './useLine'
 import ZoneScene, { zonePicture } from './ZoneScene'
+import LineHoist from './LineHoist'
 // the package's words (its own locales/, then the core's)
 const tr = packageT('metal-shop')
 
@@ -571,7 +572,9 @@ const ZonePopup = ({ index, live, onClose }) => {
           labels={Object.fromEntries(
             Object.entries(z.labels ?? {}).map(([k, v]) => [k, typeof v === 'string' ? tr(v) : v]),
           )}
-        />
+        >
+          {z.live && z.key === 'line' && <LineHoist m={live.line.m} />}
+        </ZoneScene>
         <div>
           <Stats items={z.stats} />
           {z.table?.rows.length > 0 && <Table head={z.table.head} rows={z.table.rows} />}
