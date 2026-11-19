@@ -1,0 +1,5 @@
+{
+  "id": "device-ph",
+  "name": "pH",
+  "description": "pH sensor - a liquid's acidity (wastewater, a process bath), single Float32 reading 0-14, read-only."
+}

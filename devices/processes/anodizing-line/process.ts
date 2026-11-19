@@ -205,6 +205,8 @@ export default function registerAnodizingLine(register: any, { apiClient, logger
     const writes: { id: number; value: unknown }[] = [];
     let heatersKw = 0;
     let chillerKw = 0;
+    // the heat the cooling coils take now - the chiller's load (the shop-utilities process)
+    let coolingKw = 0;
     const bathView = baths.map((b, i) => {
       const spec_ = b as BathSpec;
       const tempC = st!.temps.get(b.nodeId) ?? (b.setpointC ?? spec.ambientC);
@@ -213,7 +215,10 @@ export default function registerAnodizingLine(register: any, { apiClient, logger
       const ctl = thermostat(spec_, tempC, was);
       st!.thermo.set(b.nodeId, ctl);
       if (ctl.heating) heatersKw += b.heaterKw;
-      if (ctl.cooling) chillerKw += b.coolerKw / CHILLER_COP;
+      if (ctl.cooling) {
+        chillerKw += b.coolerKw / CHILLER_COP;
+        coolingKw += b.coolerKw;
+      }
       if (simulated(b.nodeId)) {
         const joule = i === anodizeIdx ? st!.rect.currentA * st!.rect.voltageV * 0.001 * 0.9 : 0;
         const t = bathStep(spec_, tempC, hours, ctl.heating, ctl.cooling, joule, spec.ambientC);
@@ -296,6 +301,9 @@ export default function registerAnodizingLine(register: any, { apiClient, logger
     for (const b of bathView) values[`line.bath.${b.nodeId}.tempC`] = b.tempC;
     await apiClient.setMetrics(process.id, {
       powerKw: r(powerKw, 2),
+      coolingKw: r(coolingKw, 1),
+      // the chiller's electricity within powerKw (a shop's sum with its own chiller takes it out)
+      chillerKw: r(chillerKw, 2),
       baths: bathView,
       hoist: {
         posMm: r(h.posMm, 0),

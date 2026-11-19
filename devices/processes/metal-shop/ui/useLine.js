@@ -10,6 +10,9 @@ const KINDS = {
   line: ['anodizing-line', (m) => m?.baths],
   oven: ['drying-oven', (m) => m?.tempC !== undefined],
   qc: ['quality-control', (m) => m?.today?.passed !== undefined],
+  utilities: ['shop-utilities', (m) => m?.compressor !== undefined],
+  machining: ['machining', (m) => Array.isArray(m?.machines)],
+  shop: ['metal-shop', (m) => Array.isArray(m?.flow)],
 }
 
 export const useShopProcesses = () => {
@@ -121,3 +124,78 @@ export const qcZone = (m, tr) => ({
     [`${tr('Pallet')} ${m.today.pallets + 1}`, `${m.pallets?.filling ?? 0} / ${m.spec?.perPallet}`],
   ],
 })
+
+/** The utilities' zone card from their metrics. */
+export const utilitiesZone = (m, tr) => ({
+  key: 'utilities',
+  state:
+    m.wastewater.ph < m.wastewater.discharge.minPh || m.wastewater.ph > m.wastewater.discharge.maxPh
+      ? 'warn'
+      : 'run',
+  lines: [
+    [
+      'Compressed air',
+      `${m.compressor.bar.toFixed(1)} bar - ${m.compressor.powerKw.toFixed(1)} kW`,
+    ],
+    ['Chiller', `${m.chiller.supplyC.toFixed(1)} °C - ${m.chiller.loadKw.toFixed(0)} kW`],
+    [
+      'Wastewater',
+      `pH ${m.wastewater.ph.toFixed(1)}${m.wastewater.naoh ? ` - ${tr('dosing')}` : ''}`,
+    ],
+    ['DI water', `${m.di.uScm.toFixed(1)} µS/cm`],
+  ],
+})
+
+const STATE_OF = { run: 'run', setup: 'warn', idle: 'warn', alarm: 'stop', off: 'stop' }
+const MACHINE_STATE = {
+  run: 'running',
+  setup: 'setup',
+  idle: 'waiting',
+  alarm: 'tool change',
+  off: 'off',
+}
+
+/** A machine's line: "running - 14 / 40", "setup - 12 min". */
+export const machineLine = (x, tr) =>
+  x.state === 'run'
+    ? `${tr('running')} - ${x.done} / ${x.qty}`
+    : x.state === 'setup'
+      ? `${tr('setup')} - ${Math.ceil(x.setupLeftMin)} ${tr('min')}`
+      : tr(MACHINE_STATE[x.state])
+
+/** The blanks' zone card from the machining's metrics. */
+export const blanksZone = (m, tr) => {
+  const low = m.stock.filter((s) => s.stockM < s.minM)
+  return {
+    key: 'blanks',
+    state: low.length ? 'warn' : 'run',
+    lines: [
+      [
+        'Saw',
+        m.saw.cutting
+          ? `${tr('cutting')} - ${tr(m.saw.cutting)}`
+          : tr(m.onShift ? 'waiting' : 'off'),
+      ],
+      ...(low.length
+        ? low.map((s) => [s.name, `${s.stockM.toFixed(1)} / ${s.minM} m`])
+        : [['Stock in metres', `${Math.round(m.stock.reduce((a, s) => a + s.stockM, 0))} m`]]),
+      ['Cuts today', String(m.saw.cuts)],
+    ],
+  }
+}
+
+/** The CNC zone's card from the machining's metrics. */
+export const cncZone = (m, tr) => ({
+  key: 'cnc',
+  state: m.machines.some((x) => x.state === 'alarm')
+    ? 'stop'
+    : m.machines.every((x) => x.state === 'run')
+      ? 'run'
+      : 'warn',
+  lines: [
+    ...m.machines.map((x) => [tr(x.name), machineLine(x, tr)]),
+    ['OEE today', `${m.today.oeePct} %`],
+  ],
+})
+
+export { STATE_OF, MACHINE_STATE }

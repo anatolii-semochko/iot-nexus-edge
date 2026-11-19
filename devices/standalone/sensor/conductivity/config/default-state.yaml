@@ -1,0 +1,3 @@
+# Initial value for a `backend: virtual` instance of this device type
+# ("initial.Conductivity" protocol property) - not meaningful for a physical one.
+Conductivity: 1.5

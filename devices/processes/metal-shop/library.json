@@ -1,0 +1,5 @@
+{
+  "id": "process-metal-shop",
+  "name": "Metal Shop",
+  "description": "A metal shop's summary (metal-shop): the electricity of its processes now (the machining, the anodizing line, the drying oven, QC, the utilities - the chiller counted once), today's kWh and € at the grid's price, the bars in work with their part, their progress over the route and the time they are ready; with its panel - the shop on one plan, each zone's figures and popup. The metal shop of the demo."
+}

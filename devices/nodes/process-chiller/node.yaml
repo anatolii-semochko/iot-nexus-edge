@@ -1,0 +1,13 @@
+nodeType: process-chiller
+description: >
+  An air-cooled process chiller: it cools the water / glycol loop of
+  process baths' cooling coils (the anodize bath). Reports the supply and
+  the return temperatures and the electric power; switched on / off.
+  Driven by the `shop-utilities` process (simulated - the heat it takes
+  from the coils, its COP).
+bus:
+  type: modbus-tcp
+supports:
+  - temperature
+  - power
+  - relay

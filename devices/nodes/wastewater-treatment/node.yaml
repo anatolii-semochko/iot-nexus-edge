@@ -1,0 +1,13 @@
+nodeType: wastewater-treatment
+description: >
+  The wastewater neutralization of a surface-treatment shop: a mixed tank
+  taking the rinses' overflow, its pH probe and flow meter, the acid and
+  the caustic dosing pumps. Reports the pH and the flow; its dosing pumps
+  switched on / off. Driven by the `shop-utilities` process (simulated -
+  the rinses' acid drag-out, the dosing).
+bus:
+  type: modbus-tcp
+supports:
+  - ph
+  - flow-rate
+  - relay

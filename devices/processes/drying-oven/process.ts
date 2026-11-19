@@ -4,8 +4,8 @@
  * `drying-oven` - its chamber temperature, its heaters, their power) after the anodizing line.
  *
  * Every `simulation.intervalSeconds` (default 10):
- *  1. the line's finished bars (its process `lineProcessId` - the growth of its `today.bars`) queue at the
- *     oven, named as the line names them;
+ *  1. the line's finished bars (its process `lineProcessId` - its `recent` list, newer than the last taken)
+ *     queue at the oven by their own numbers;
  *  2. the oven (model.ts ovenTick): the queue loaded while there is room, the heaters by the set point's
  *     band, the drying counted while the chamber is hot, the dried batches out (to QC - counted);
  *  3. a simulated oven gets its readings from the model (the temperature, the heaters' power); a physical
@@ -48,7 +48,7 @@ export default function registerDryingOven(register: any, { apiClient, logger, s
   const systemTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const states = new Map<
     number,
-    { lastRun: number; oven: Oven; lineBars: number | null; today: { date: string; batches: number; kwh: number }; declared: boolean; dried: { id: string; at: number }[] }
+    { lastRun: number; oven: Oven; takenAt: number; today: { date: string; batches: number; kwh: number }; declared: boolean; dried: { id: string; at: number }[] }
   >();
 
   register("drying-oven", async (process: any) => {
@@ -73,8 +73,8 @@ export default function registerDryingOven(register: any, { apiClient, logger, s
             .map((b: any) => ({ id: b.id, dryS: Math.max(0, spec.dryMin - (Number(b.leftMin) || 0)) * 60, inSince: now })),
           queue: (m.queue ?? []).filter((id: unknown) => typeof id === "string"),
         },
-        // a fresh oven takes the line's bars of today it has not seen yet (it starts with nothing dried)
-        lineBars: m.today?.date === local.date && Number.isFinite(m.lineBars) ? m.lineBars : 0,
+        // the newest line's bar taken (its finishing time) - a fresh oven takes only the bars finished from now
+        takenAt: Number.isFinite(m.takenAt) ? m.takenAt : now,
         today: m.today?.date === local.date ? m.today : { date: local.date, batches: 0, kwh: 0 },
         declared: false,
         // the last dried batches (QC takes them from here)
@@ -86,18 +86,16 @@ export default function registerDryingOven(register: any, { apiClient, logger, s
     st.lastRun = now;
     if (st.today.date !== local.date) {
       st.today = { date: local.date, batches: 0, kwh: 0 };
-      st.lineBars = 0;
     }
 
     // 1. the line's finished bars
     const processes = config.lineProcessId ? await apiClient.listProcesses() : [];
     const line = processes.find((p: any) => p.id === config.lineProcessId);
-    const lineBars = Number(line?.metrics?.today?.bars);
-    if (Number.isFinite(lineBars)) {
-      if (st.lineBars !== null && lineBars > st.lineBars)
-        for (let n = st.lineBars + 1; n <= lineBars; n++) st.oven.queue.push(`L-${String(n).padStart(4, "0")}`);
-      // a new day or the line restarted - its count starts again (lower than ours)
-      st.lineBars = lineBars;
+    // the bars by the line's own numbers (its `recent` - each finished bar with its time)
+    for (const b of line?.metrics?.recent ?? []) {
+      if (typeof b?.id !== "string" || !(b.at > st.takenAt)) continue;
+      st.oven.queue.push(b.id);
+      st.takenAt = b.at;
     }
 
     // the physical oven's reading
@@ -155,7 +153,7 @@ export default function registerDryingOven(register: any, { apiClient, logger, s
       drying: st.oven.drying.map((b) => ({ id: b.id, leftMin: r(Math.max(0, spec.dryMin - b.dryS / 60), 1), dryMin: spec.dryMin })),
       queue: st.oven.queue,
       capacity: spec.capacity,
-      lineBars: st.lineBars,
+      takenAt: st.takenAt,
       dried: st.dried,
       today: { date: st.today.date, batches: st.today.batches, kwh: r(st.today.kwh, 2) },
       values: { "oven.tempC": r(st.oven.tempC, 1), "oven.powerKw": r(powerKw, 2) },

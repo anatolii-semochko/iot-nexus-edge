@@ -1,0 +1,5 @@
+{
+  "id": "process-machining",
+  "name": "Machining (saw and CNC)",
+  "description": "The blanks and the CNC machining of a job shop (machining): the band saw (band-saw) cuts the bar stock into blanks for the machine with the fewest, the CNC machining centres (cnc-machine) run their jobs in turn - the setups, the cycles, the tools' changes - by the shift; the stock delivered under its minimum; the parts, the cuts, the kWh and the OEE of the day. The metal shop of the demo."
+}

@@ -7,7 +7,7 @@ import picture from './factory-shop.webp'
 import spots from './factory-shop.json'
 import MockChart from './MockChart'
 import { daySeries, SERIES } from './mockSeries'
-import { barStep, useLineSeries } from './useLine'
+import { barStep, MACHINE_STATE, machineLine, STATE_OF, useLineSeries } from './useLine'
 import ZoneScene, { zonePicture } from './ZoneScene'
 // the package's words (its own locales/, then the core's)
 const tr = packageT('metal-shop')
@@ -389,18 +389,153 @@ const liveQc = (m) => ({
   ],
 })
 
+/** The utilities' zone from their live metrics (step 6). */
+const liveUtilities = (m) => {
+  const STATES = { loaded: 'loaded', unloaded: 'unloaded', off: 'off' }
+  return {
+    key: 'utilities',
+    title: 'Utilities',
+    live: true,
+    labels: {
+      compressor: `${m.compressor.bar.toFixed(1)} bar`,
+      chiller: `${m.chiller.supplyC.toFixed(1)} / ${m.chiller.returnC.toFixed(1)} °C`,
+      wastewater: `pH ${m.wastewater.ph.toFixed(2)}`,
+      'di-water': `${m.di.uScm.toFixed(1)} µS/cm`,
+    },
+    stats: [
+      ['Compressed air', m.compressor.bar, 'bar'],
+      ['Compressor', m.compressor.powerKw, 'kW'],
+      ['Chiller', m.chiller.powerKw, 'kW'],
+      ['Wastewater', m.wastewater.ph, 'pH'],
+      ['DI water', m.di.uScm, 'µS/cm'],
+      ['Energy today', r1(m.today.compressorKwh + m.today.chillerKwh), 'kWh'],
+    ],
+    table: {
+      head: ['Unit', 'State', 'Reading', 'Today'],
+      rows: [
+        [
+          'Compressor',
+          STATES[m.compressor.state],
+          `${m.compressor.demandM3Min} m³/min`,
+          `${m.today.compressorKwh} kWh`,
+        ],
+        [
+          'Chiller',
+          m.chiller.running ? 'running' : 'off',
+          `${m.chiller.loadKw} kW ${tr('of heat')}`,
+          `${m.today.chillerKwh} kWh`,
+        ],
+        [
+          'Wastewater',
+          m.wastewater.naoh ? 'dosing' : m.wastewater.acid ? 'acid dosing' : 'neutral',
+          `${m.wastewater.inflowLMin} l/min`,
+          `NaOH ${m.today.naohL} l`,
+        ],
+        [
+          'DI water',
+          m.di.regenLeftMin > 0 ? 'regenerating' : 'in service',
+          `${tr('column')} ${m.di.column}`,
+          `${m.today.diM3} m³`,
+        ],
+      ],
+    },
+    charts: [
+      { title: 'Compressed air, bar', unit: 'bar', lines: [['air', 'util.airBar', C.a]] },
+      { title: 'Wastewater, pH', unit: 'pH', lines: [['pH', 'util.wastewaterPh', C.b]] },
+      { title: 'Utilities, kW', unit: 'kW', lines: [['power', 'util.powerKw', C.c]] },
+    ],
+  }
+}
+const r1 = (x) => Math.round(x * 10) / 10
+
+/** The blanks' zone from the machining's live metrics (step 7). */
+const liveBlanks = (m) => ({
+  key: 'blanks',
+  title: 'Blanks and saw',
+  live: true,
+  labels: {
+    saw: m.saw.cutting ? `${tr('cutting')} - ${tr(m.saw.cutting)}` : m.onShift ? 'waiting' : 'off',
+    blanks: `${Math.round(m.stock.reduce((a, s) => a + s.stockM, 0))} m`,
+  },
+  stats: [
+    ['Saw', tr(m.saw.cutting ? 'cutting' : m.onShift ? 'waiting' : 'off')],
+    ['Cuts today', m.saw.cuts],
+    ['Stock in metres', Math.round(m.stock.reduce((a, s) => a + s.stockM, 0)), 'm'],
+    ['Power', m.saw.powerKw, 'kW'],
+  ],
+  table: {
+    head: ['Material', 'In stock', 'Minimum'],
+    rows: m.stock.map((s) => [
+      s.name,
+      STATE(s.stockM < s.minM ? 'warn' : 'run', `${s.stockM.toFixed(1)} m`),
+      `${s.minM} m`,
+    ]),
+  },
+  charts: [{ title: 'Machining, kW', unit: 'kW', lines: [['power', 'mach.powerKw', C.a]] }],
+})
+
+/** The CNC zone from the machining's live metrics (step 7). */
+const liveCnc = (m) => ({
+  key: 'cnc',
+  title: 'CNC machining',
+  live: true,
+  labels: Object.fromEntries(
+    m.machines.map((x, k) => [`cnc${k + 1}`, `${tr(x.name)} - ${machineLine(x, tr)}`]),
+  ),
+  stats: [
+    ['Running', `${m.machines.filter((x) => x.state === 'run').length} / ${m.machines.length}`],
+    ['Parts today', m.today.parts],
+    ['OEE today', m.today.oeePct, '%'],
+    [
+      'Energy per part',
+      m.today.parts ? Math.round((m.today.kwh / m.today.parts) * 100) / 100 : '-',
+      m.today.parts ? 'kWh' : undefined,
+    ],
+  ],
+  table: {
+    head: ['Machine', 'State', 'Program', 'Parts', 'Cycle', 'Tool', 'OEE'],
+    rows: m.machines.map((x) => [
+      x.name,
+      STATE(STATE_OF[x.state], MACHINE_STATE[x.state]),
+      x.part,
+      `${x.done} / ${x.qty}`,
+      x.cycleLeftS !== null
+        ? `${Math.floor(x.cycleLeftS / 60)}:${String(x.cycleLeftS % 60).padStart(2, '0')}`
+        : '-',
+      mins(x.toolLeftMin),
+      `${x.oeePct} %`,
+    ]),
+  },
+  charts: [
+    {
+      title: 'Power, kW',
+      unit: 'kW',
+      lines: m.machines.map((x, k) => [x.name, `mach.m${k}.powerKw`, [C.a, C.b, C.c][k % 3]]),
+    },
+    { title: 'Parts today', unit: '', lines: [['parts', 'mach.parts', C.c]] },
+  ],
+})
+
 const ZonePopup = ({ index, live, onClose }) => {
   // "now" when the popup opened - the curves run to it (a render stays pure)
   const [now] = useState(() => Date.now())
   const z =
-    index === 2 && live.line
-      ? liveLine(live.line.m)
-      : index === 3 && live.oven
-        ? liveOven(live.oven.m)
-        : index === 4 && live.qc
-          ? liveQc(live.qc.m)
-          : ZONES[index]
-  const source = index === 3 ? live.oven : index === 4 ? live.qc : live.line
+    index === 0 && live.machining
+      ? liveBlanks(live.machining.m)
+      : index === 1 && live.machining
+        ? liveCnc(live.machining.m)
+        : index === 2 && live.line
+          ? liveLine(live.line.m)
+          : index === 3 && live.oven
+            ? liveOven(live.oven.m)
+            : index === 4 && live.qc
+              ? liveQc(live.qc.m)
+              : index === 5 && live.utilities
+                ? liveUtilities(live.utilities.m)
+                : ZONES[index]
+  const source = [live.machining, live.machining, live.line, live.oven, live.qc, live.utilities][
+    index
+  ]
   const keys = z?.live ? z.charts.flatMap((c) => c.lines.map((l) => l[1])) : []
   const series = useLineSeries(z?.live ? source?.process.id : null, keys, now)
   if (!z) return null

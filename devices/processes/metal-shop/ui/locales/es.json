@@ -1,6 +1,5 @@
 {
   "Metal shop": "Taller de metal",
-  "The whole shop on one plan: the blanks, the CNC machines, the anodizing line, the oven, QC and the utilities - each with its figures; the batches in work (a mockup)": "Todo el taller en un plano: la materia prima, las máquinas CNC, la línea de anodizado, el horno, el control y los servicios - cada zona con sus cifras; los lotes en curso (una maqueta)",
   "The shop": "El taller",
   "running": "en marcha",
   "attention": "atención",
@@ -138,5 +137,23 @@
   "rejected": "rechazadas",
   "Pallets": "Palés",
   "measuring": "midiendo",
-  "Pallet": "Palé"
+  "Pallet": "Palé",
+  "dosing": "dosificación",
+  "loaded": "en carga",
+  "unloaded": "en vacío",
+  "of heat": "de calor",
+  "acid dosing": "dosificación de ácido",
+  "neutral": "neutro",
+  "regenerating": "regeneración",
+  "in service": "en servicio",
+  "column": "columna",
+  "Unit": "Equipo",
+  "Reading": "Lectura",
+  "Today": "Hoy",
+  "Utilities, kW": "Servicios, kW",
+  "tool change": "cambio de herramienta",
+  "Tool": "Herramienta",
+  "Machining, kW": "Mecanizado, kW",
+  "kWh today": "kWh hoy",
+  "The whole shop on one plan: the blanks, the CNC machines, the anodizing line, the oven, QC and the utilities - each with its live figures; the bars in work": "Todo el taller en un plano: el corte, las máquinas CNC, la línea de anodizado, el horno, el control y los servicios, cada zona con sus cifras en vivo; los bastidores en curso"
 }

@@ -5,7 +5,15 @@ import picture from './factory-shop.webp'
 import spots from './factory-shop.json'
 import { MOCK } from './mockData'
 import ZonePopup from './ZonePopup'
-import { lineZone, ovenZone, qcZone, useShopProcesses } from './useLine'
+import {
+  blanksZone,
+  cncZone,
+  lineZone,
+  ovenZone,
+  qcZone,
+  useShopProcesses,
+  utilitiesZone,
+} from './useLine'
 // the package's words (its own locales/, then the core's)
 const tr = packageT('metal-shop')
 
@@ -90,15 +98,43 @@ const ZoneCard = ({ zone, title, style, onOpen }) => (
 const MetalShopScene = () => {
   // the zone whose popup is open (its index in the plan's zones), null - none
   const [open, setOpen] = useState(null)
-  // the anodizing line - live once its process runs (step 3), the other zones still the mockup's
+  // each zone live once its process runs (steps 3-7), the mockup's figures until then
   const live = useShopProcesses()
   const liveZone = {
     line: live.line && lineZone(live.line.m, tr),
     oven: live.oven && ovenZone(live.oven.m, tr),
     qc: live.qc && qcZone(live.qc.m, tr),
+    utilities: live.utilities && utilitiesZone(live.utilities.m, tr),
+    blanks: live.machining && blanksZone(live.machining.m, tr),
+    cnc: live.machining && cncZone(live.machining.m, tr),
   }
-  const data = { ...MOCK, zones: MOCK.zones.map((z) => liveZone[z.key] ?? z) }
-  const s = data.summary
+  const shop = live.shop?.m
+  // the sums and the bars in work - the summary process's (step 8), the mockup's until it runs
+  const s = shop
+    ? {
+        powerKw: shop.powerKw,
+        todayEur: shop.today.eur,
+        todayKwh: shop.today.kwh,
+        batches: shop.inWork,
+        oee: shop.oeePct ?? '-',
+      }
+    : MOCK.summary
+  const batches = shop
+    ? shop.flow.map((b) => ({
+        id: b.id,
+        part: b.part ?? '-',
+        qty: b.qty,
+        stage: b.stage,
+        where: b.where,
+        pct: b.pct,
+        eta: new Date(b.readyAt).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }),
+      }))
+    : MOCK.batches
+  const data = { zones: MOCK.zones.map((z) => liveZone[z.key] ?? z), batches }
   return (
     <div className="ms-scene">
       <style>{CSS}</style>
@@ -108,8 +144,9 @@ const MetalShopScene = () => {
           <span>{tr('kW the shop now')}</span>
         </span>
         <span className="ms-sum">
-          <b>{s.todayEur.toFixed(2)}</b>
-          <span>{tr('€ energy today')}</span>
+          {/* no grid price yet - the kWh instead of the euros */}
+          <b>{s.todayEur !== null ? s.todayEur.toFixed(2) : s.todayKwh.toFixed(1)}</b>
+          <span>{tr(s.todayEur !== null ? '€ energy today' : 'kWh today')}</span>
         </span>
         <span className="ms-sum">
           <b>{s.batches}</b>
@@ -119,7 +156,11 @@ const MetalShopScene = () => {
           <b>{s.oee}</b>
           <span>{tr('% OEE today')}</span>
         </span>
-        <span className="small text-body-secondary ms-auto">{tr('A mockup - fixed figures')}</span>
+        {!shop && (
+          <span className="small text-body-secondary ms-auto">
+            {tr('A mockup - fixed figures')}
+          </span>
+        )}
       </div>
       <div className="ms-plan">
         <img
@@ -168,12 +209,15 @@ const MetalShopScene = () => {
                   {b.id}
                   {/* a phone: the part and the quantity under the batch - no columns of their own */}
                   <div className={cx(NARROW_ONLY, 'small fw-normal text-body-secondary')}>
-                    {b.part} x {b.qty}
+                    {tr(b.part)} x {b.qty}
                   </div>
                 </td>
-                <td className={WIDE_ONLY}>{b.part}</td>
+                <td className={WIDE_ONLY}>{tr(b.part)}</td>
                 <td className={WIDE_ONLY}>{b.qty}</td>
-                <td>{tr(b.stage)}</td>
+                <td>
+                  {tr(b.stage)}
+                  {b.where && <span className="text-body-secondary"> - {tr(b.where)}</span>}
+                </td>
                 <td>
                   <div className="ms-bar" title={`${b.pct} %`}>
                     <div style={{ width: `${b.pct}%` }} />

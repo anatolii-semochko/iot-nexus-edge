@@ -1,0 +1,5 @@
+{
+  "id": "node-band-saw",
+  "name": "Band Saw (bar stock)",
+  "description": "An automatic band saw cutting bar stock into blanks for the machining: a feed vise, the blade's drive, its power meter. Reports the electric power and the blade's speed; its cutting switched on / off. Driven by the `machining` process (simulated - the cuts, the blade's wear)."
+}

@@ -3,8 +3,9 @@
 A batch drying / curing oven of the metal shop (the demo's factory, 2026-11-18, step 4), after the anodizing
 line.
 
-- **The batches:** the line's finished bars (`lineProcessId` - the growth of its `today.bars`) queue at the
-  oven; `oven.capacity` of them dry together, each for `oven.dryMin` counted only while the chamber is within
+- **The batches:** the line's finished bars (`lineProcessId` - its `recent` list) queue at the oven by their own
+  numbers;
+  `oven.capacity` of them dry together, each for `oven.dryMin` counted only while the chamber is within
   `oven.readyBelowK` of its set point; a dried batch goes on to QC (counted).
 - **The chamber** (`oven` - node type `drying-oven`): the heaters (`heaterKw`) by the band (`setpointC`,
   `tolC`); every load and unload opens the door (`doorLossKwh`), the cold parts take their heat (`partsKwh`).

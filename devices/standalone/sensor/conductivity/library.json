@@ -1,0 +1,5 @@
+{
+  "id": "device-conductivity",
+  "name": "Conductivity",
+  "description": "Conductivity sensor - a water's electrical conductivity (DI water, rinses), single Float32 reading in µS/cm, read-only."
+}

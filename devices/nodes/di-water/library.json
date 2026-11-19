@@ -1,0 +1,5 @@
+{
+  "id": "node-di-water",
+  "name": "DI Water (ion exchange)",
+  "description": "A deionized water unit of a surface-treatment line: two ion-exchange columns feeding the final rinse and the make-up of the baths, its conductivity probe; regenerated when the conductivity rises. Reports the conductivity; its regeneration switched on / off. Driven by the `shop-utilities` process (simulated - the columns loaded by the water drawn, the regeneration)."
+}

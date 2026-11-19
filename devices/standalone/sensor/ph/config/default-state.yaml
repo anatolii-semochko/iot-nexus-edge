@@ -1,0 +1,3 @@
+# Initial value for a `backend: virtual` instance of this device type
+# ("initial.Ph" protocol property) - not meaningful for a physical one.
+Ph: 7.2

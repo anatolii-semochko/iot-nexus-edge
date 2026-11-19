@@ -12,7 +12,7 @@ dashboardRegistry.registerComponent({
   key: 'metalShop.panel',
   title: t('Metal shop'),
   description: t(
-    'The whole shop on one plan: the blanks, the CNC machines, the anodizing line, the oven, QC and the utilities - each with its figures; the batches in work (a mockup)',
+    'The whole shop on one plan: the blanks, the CNC machines, the anodizing line, the oven, QC and the utilities - each with its live figures; the bars in work',
   ),
   Component: React.lazy(() => import('./MetalShopScene')),
   avatars: [

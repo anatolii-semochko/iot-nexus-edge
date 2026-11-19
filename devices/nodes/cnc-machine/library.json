@@ -1,0 +1,5 @@
+{
+  "id": "node-cnc-machine",
+  "name": "CNC Machining Centre",
+  "description": "A CNC machining centre (a vertical milling centre with its tool changer) of a job shop: its controller reports the spindle's electric power and speed and whether its cycle runs (its signal tower's green). Driven by the `machining` process (simulated - the programs' cycles, the setups, the tools' life)."
+}
