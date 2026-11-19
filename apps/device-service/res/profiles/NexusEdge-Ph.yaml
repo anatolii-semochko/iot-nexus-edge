@@ -10,7 +10,9 @@ labels:
 description: "pH - atomic device, one Float32 value"
 
 deviceResources:
-  - name: "Ph"
+  # "PH", not "Ph": the aquarium's devices were registered with it first
+  # (its own copy of this type, 2026-10-09; merged into this one 2026-11-19).
+  - name: "PH"
     isHidden: false
     description: "pH reading"
     properties:

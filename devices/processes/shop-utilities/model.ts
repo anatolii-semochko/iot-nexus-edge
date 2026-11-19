@@ -3,8 +3,6 @@
  *  - the compressor and its receiver: loaded below the band's bottom, unloaded above its top, an idle
  *    run-on, then off; the receiver filled by its free air delivery, emptied by the shop's demand;
  *  - the chiller: the heat the baths' cooling coils take (the anodize bath), its supply / return and COP;
- *  - the wastewater neutralization: the rinses' acid inflow (and each bar's drag-out) pulls the tank's pH
- *    down, the caustic dosing pump lifts it, the acid one brings an overshoot back;
  *  - the DI water: its conductivity grows with the water drawn, the column regenerated over the limit (the
  *    second column takes over meanwhile).
  */
@@ -51,31 +49,6 @@ export interface ChillerSpec {
 export function chiller(s: ChillerSpec, loadKw: number, running: boolean) {
   if (!running) return { supplyC: s.supplyC + 6, returnC: s.supplyC + 6, powerKw: 0 };
   return { supplyC: s.supplyC, returnC: s.supplyC + loadKw / (4.186 * s.flowLs), powerKw: loadKw / s.cop + s.auxKw };
-}
-
-export interface WastewaterSpec {
-  tankM3: number;
-  inflowPh: number;
-  lowPh: number; // the caustic pump on below
-  highPh: number; // the acid pump on above
-  dosePhMin: number; // one pump's lift per minute
-  dragOutPh: number; // one bar's drag-out - the pH drop
-}
-
-export interface Wastewater {
-  ph: number;
-  naoh: boolean;
-  acid: boolean;
-}
-
-/** The tank over `seconds`: the inflow mixes it towards the rinses' pH, the pumps by the band. */
-export function wastewaterStep(s: WastewaterSpec, w: Wastewater, inflowLMin: number, bars: number, seconds: number) {
-  const mix = Math.min(1, (inflowLMin * (seconds / 60)) / (s.tankM3 * 1000));
-  w.ph += (s.inflowPh - w.ph) * mix * 4 - bars * s.dragOutPh;
-  w.naoh = w.ph < s.lowPh || (w.naoh && w.ph < (s.lowPh + s.highPh) / 2);
-  w.acid = w.ph > s.highPh || (w.acid && w.ph > (s.lowPh + s.highPh) / 2);
-  w.ph += ((w.naoh ? 1 : 0) - (w.acid ? 1 : 0)) * s.dosePhMin * (seconds / 60);
-  w.ph = Math.min(14, Math.max(0, w.ph));
 }
 
 export interface DiSpec {

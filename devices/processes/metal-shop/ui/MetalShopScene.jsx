@@ -5,6 +5,8 @@ import picture from './factory-shop.webp'
 import spots from './factory-shop.json'
 import { MOCK } from './mockData'
 import LineHoist from './LineHoist'
+import CncMachines from './CncMachines'
+import BandSaw from './BandSaw'
 import ZonePopup from './ZonePopup'
 import {
   blanksZone,
@@ -14,6 +16,7 @@ import {
   qcZone,
   useShopProcesses,
   utilitiesZone,
+  chemZone,
 } from './useLine'
 // the package's words (its own locales/, then the core's)
 const tr = packageT('metal-shop')
@@ -36,6 +39,7 @@ const ZONE_TITLES = [
   'Drying oven',
   'QC and packing',
   'Utilities',
+  'Chemistry and wastewater',
 ]
 
 const CSS = `
@@ -65,10 +69,25 @@ const CSS = `
 `
 
 /** A zone's outline's middle, in the picture's shares. */
-const middleOf = (poly) => {
+// each zone's card on the plan - its middle in the room's box (shares; the plan's zone order): over the room's free
+// floor, so it covers no machine, or only a little of an unimportant one (the user, 2026-11-19 - the places from
+// the user's mock-up Downloads/factory-panel-2.png)
+const CARD_AT = [
+  [0.69, 0.04], // blanks and saw - over the rack's right end, by the back wall
+  [0.64, 0.76], // CNC machining - in front of the machines
+  [0.79, 0.58], // the line - the hall's right part, in front of the baths
+  [0.5, 0.82], // the oven - in front of the oven (the hall between the line and QC since 2026-11-19)
+  [0.78, 0.55], // QC and packing - right, over the pallets' tops (the chemistry's card above it)
+  [0.6, 0.71], // the utilities - near the viewer, in front of the units
+  [0.5, 0.95], // the chemistry and wastewater - the room's front edge (the shop's top right since 2026-11-19)
+]
+
+/** A point in the room's box: `at` - shares of its width and height. */
+const placeIn = (poly, at = [0.5, 0.5]) => {
   const xs = poly.map((p) => p[0])
   const ys = poly.map((p) => p[1])
-  return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2]
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+  return [x0 + (x1 - x0) * at[0], y0 + (y1 - y0) * at[1]]
 }
 
 const ZoneCard = ({ zone, title, style, onOpen }) => (
@@ -105,7 +124,8 @@ const MetalShopScene = () => {
     line: live.line && lineZone(live.line.m, tr),
     oven: live.oven && ovenZone(live.oven.m, tr),
     qc: live.qc && qcZone(live.qc.m, tr),
-    utilities: live.utilities && utilitiesZone(live.utilities.m, tr),
+    utilities: live.utilities && utilitiesZone(live.utilities.m),
+    chem: live.chem && chemZone(live.chem.m, tr),
     blanks: live.machining && blanksZone(live.machining.m, tr),
     cnc: live.machining && cncZone(live.machining.m, tr),
   }
@@ -171,10 +191,12 @@ const MetalShopScene = () => {
           )}
         />
         {live.line && <LineHoist m={live.line.m} view="shop" />}
+        {live.machining && <CncMachines m={live.machining.m} view="shop" />}
+        {live.machining && <BandSaw m={live.machining.m} view="shop" />}
         {data.zones.map((z, i) => {
           const room = spots.rooms[i]
           if (!room) return null
-          const [x, y] = middleOf(room.poly)
+          const [x, y] = placeIn(room.poly, CARD_AT[i])
           return (
             <ZoneCard
               onOpen={() => setOpen(i)}

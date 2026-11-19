@@ -10,6 +10,9 @@ import { daySeries, SERIES } from './mockSeries'
 import { barStep, MACHINE_STATE, machineLine, STATE_OF, useLineSeries } from './useLine'
 import ZoneScene, { zonePicture } from './ZoneScene'
 import LineHoist from './LineHoist'
+import CncMachines from './CncMachines'
+import BandSaw from './BandSaw'
+import ChemFlows from './ChemFlows'
 // the package's words (its own locales/, then the core's)
 const tr = packageT('metal-shop')
 
@@ -243,21 +246,36 @@ const ZONES = [
     labels: {
       compressor: '7.1 bar',
       chiller: '9.0 °C',
-      wastewater: 'pH 7.4',
       'di-water': '2.1 µS/cm',
     },
     stats: [
       ['Compressed air', 7.1, 'bar'],
       ['Compressor', 11, 'kW'],
       ['Chiller', 9.0, '°C'],
-      ['Wastewater', 7.4, 'pH'],
-      ['Dosing', tr('acid')],
       ['DI water', 2.1, 'µS/cm'],
     ],
-    charts: [
-      { title: 'Compressed air, bar', unit: 'bar', lines: [['air', 'airBar', C.a]] },
-      { title: 'Wastewater, pH', unit: 'pH', lines: [['pH', 'wastewaterPh', C.b]] },
+    charts: [{ title: 'Compressed air, bar', unit: 'bar', lines: [['air', 'airBar', C.a]] }],
+  },
+  {
+    key: 'chem',
+    title: 'Chemistry and wastewater',
+    labels: {
+      'tank:acid': '64 %',
+      'tank:caustic': '41 %',
+      'tank:degreaser': '78 %',
+      'tank:dye': '22 %',
+      'tank:seal': '55 %',
+      collection: '46 %',
+      neutralization: 'pH 7.4',
+      settler: '35 %',
+      press: '0.0 bar',
+    },
+    stats: [
+      ['Collection tank', 46, '%'],
+      ['Wastewater', 7.4, 'pH'],
+      ['Treated today', 6.2, 'm³'],
     ],
+    charts: [{ title: 'Wastewater, pH', unit: 'pH', lines: [['pH', 'wastewaterPh', C.b]] }],
   },
 ]
 
@@ -400,14 +418,12 @@ const liveUtilities = (m) => {
     labels: {
       compressor: `${m.compressor.bar.toFixed(1)} bar`,
       chiller: `${m.chiller.supplyC.toFixed(1)} / ${m.chiller.returnC.toFixed(1)} °C`,
-      wastewater: `pH ${m.wastewater.ph.toFixed(2)}`,
       'di-water': `${m.di.uScm.toFixed(1)} µS/cm`,
     },
     stats: [
       ['Compressed air', m.compressor.bar, 'bar'],
       ['Compressor', m.compressor.powerKw, 'kW'],
       ['Chiller', m.chiller.powerKw, 'kW'],
-      ['Wastewater', m.wastewater.ph, 'pH'],
       ['DI water', m.di.uScm, 'µS/cm'],
       ['Energy today', r1(m.today.compressorKwh + m.today.chillerKwh), 'kWh'],
     ],
@@ -427,12 +443,6 @@ const liveUtilities = (m) => {
           `${m.today.chillerKwh} kWh`,
         ],
         [
-          'Wastewater',
-          m.wastewater.naoh ? 'dosing' : m.wastewater.acid ? 'acid dosing' : 'neutral',
-          `${m.wastewater.inflowLMin} l/min`,
-          `NaOH ${m.today.naohL} l`,
-        ],
-        [
           'DI water',
           m.di.regenLeftMin > 0 ? 'regenerating' : 'in service',
           `${tr('column')} ${m.di.column}`,
@@ -442,8 +452,76 @@ const liveUtilities = (m) => {
     },
     charts: [
       { title: 'Compressed air, bar', unit: 'bar', lines: [['air', 'util.airBar', C.a]] },
-      { title: 'Wastewater, pH', unit: 'pH', lines: [['pH', 'util.wastewaterPh', C.b]] },
       { title: 'Utilities, kW', unit: 'kW', lines: [['power', 'util.powerKw', C.c]] },
+    ],
+  }
+}
+
+/** The chemistry and wastewater zone from its live metrics: the tanks, the dosed baths, the treatment line. */
+const liveChem = (m) => {
+  const w = m.wastewater
+  const TANK_STATE = { ok: 'run', reorder: 'warn', critical: 'stop' }
+  const TANK_TEXT = { ok: 'ok', reorder: 'order a delivery', critical: 'almost empty' }
+  const bathOf = new Map(m.dosing.map((d) => [d.tank, d]))
+  return {
+    key: 'chem',
+    title: 'Chemistry and wastewater',
+    live: true,
+    labels: {
+      ...Object.fromEntries(
+        m.tanks.map((t) => [
+          `tank:${t.key}`,
+          <>
+            <b>{Math.round(t.levelPct)} %</b>
+            {t.dosing && <div className="ms-tag-sub">{tr('dosing')}</div>}
+          </>,
+        ]),
+      ),
+      collection: (
+        <>
+          <b>{Math.round(w.collectionPct)} %</b>
+          {w.pump && <div className="ms-tag-sub">{tr('pumping')}</div>}
+        </>
+      ),
+      neutralization: (
+        <>
+          <b>pH {w.ph.toFixed(2)}</b>
+          {(w.naoh || w.acid) && <div className="ms-tag-sub">{tr(w.naoh ? 'NaOH' : 'acid')}</div>}
+        </>
+      ),
+      settler: `${tr('Sludge')} ${Math.round(w.sludgePct)} %`,
+      press: (
+        <>
+          <b>{w.dpBar.toFixed(2)} bar</b>
+          {w.press && <div className="ms-tag-sub">{tr('pressing')}</div>}
+        </>
+      ),
+    },
+    stats: [
+      ['Collection tank', w.collectionPct, '%'],
+      ['Wastewater', w.ph, 'pH'],
+      ['Discharge', w.dischargeLMin, 'l/min'],
+      ['Treated today', m.today.treatedM3, 'm³'],
+      ['Dosed today', m.today.dosedL, 'l'],
+      ['Press cycles', m.today.pressCycles],
+    ],
+    table: {
+      head: ['Tank', 'Level', 'Lasts', 'Bath', 'Concentration', 'State'],
+      rows: m.tanks.map((t) => {
+        const d = bathOf.get(t.key)
+        return [
+          t.name,
+          `${Math.round(t.levelPct)} % - ${Math.round(t.levelL)} l`,
+          t.daysLeft === null ? '-' : `${Math.round(t.daysLeft)} ${tr('d')}`,
+          d ? d.bath : '-',
+          d ? `${d.gl} / ${d.targetGl} g/l` : '-',
+          STATE(TANK_STATE[t.state], d?.pump ? 'dosing' : TANK_TEXT[t.state]),
+        ]
+      }),
+    },
+    charts: [
+      { title: 'Wastewater, pH', unit: 'pH', lines: [['pH', 'chem.wastewaterPh', C.b]] },
+      { title: 'Collection tank, %', unit: '%', lines: [['level', 'chem.collectionPct', C.a]] },
     ],
   }
 }
@@ -533,10 +611,18 @@ const ZonePopup = ({ index, live, onClose }) => {
               ? liveQc(live.qc.m)
               : index === 5 && live.utilities
                 ? liveUtilities(live.utilities.m)
-                : ZONES[index]
-  const source = [live.machining, live.machining, live.line, live.oven, live.qc, live.utilities][
-    index
-  ]
+                : index === 6 && live.chem
+                  ? liveChem(live.chem.m)
+                  : ZONES[index]
+  const source = [
+    live.machining,
+    live.machining,
+    live.line,
+    live.oven,
+    live.qc,
+    live.utilities,
+    live.chem,
+  ][index]
   const keys = z?.live ? z.charts.flatMap((c) => c.lines.map((l) => l[1])) : []
   const series = useLineSeries(z?.live ? source?.process.id : null, keys, now)
   if (!z) return null
@@ -574,6 +660,9 @@ const ZonePopup = ({ index, live, onClose }) => {
           )}
         >
           {z.live && z.key === 'line' && <LineHoist m={live.line.m} />}
+          {z.live && z.key === 'cnc' && <CncMachines m={live.machining.m} />}
+          {z.live && z.key === 'blanks' && <BandSaw m={live.machining.m} />}
+          {z.live && z.key === 'chem' && <ChemFlows m={live.chem.m} />}
         </ZoneScene>
         <div>
           <Stats items={z.stats} />

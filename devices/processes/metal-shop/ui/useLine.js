@@ -12,6 +12,7 @@ const KINDS = {
   qc: ['quality-control', (m) => m?.today?.passed !== undefined],
   utilities: ['shop-utilities', (m) => m?.compressor !== undefined],
   machining: ['machining', (m) => Array.isArray(m?.machines)],
+  chem: ['chem-wastewater', (m) => Array.isArray(m?.tanks) && m?.wastewater !== undefined],
   shop: ['metal-shop', (m) => Array.isArray(m?.flow)],
 }
 
@@ -126,25 +127,43 @@ export const qcZone = (m, tr) => ({
 })
 
 /** The utilities' zone card from their metrics. */
-export const utilitiesZone = (m, tr) => ({
+export const utilitiesZone = (m) => ({
   key: 'utilities',
-  state:
-    m.wastewater.ph < m.wastewater.discharge.minPh || m.wastewater.ph > m.wastewater.discharge.maxPh
-      ? 'warn'
-      : 'run',
+  state: m.di.uScm > m.di.limit ? 'warn' : 'run',
   lines: [
     [
       'Compressed air',
       `${m.compressor.bar.toFixed(1)} bar - ${m.compressor.powerKw.toFixed(1)} kW`,
     ],
     ['Chiller', `${m.chiller.supplyC.toFixed(1)} °C - ${m.chiller.loadKw.toFixed(0)} kW`],
-    [
-      'Wastewater',
-      `pH ${m.wastewater.ph.toFixed(1)}${m.wastewater.naoh ? ` - ${tr('dosing')}` : ''}`,
-    ],
     ['DI water', `${m.di.uScm.toFixed(1)} µS/cm`],
   ],
 })
+
+/** The chemistry and wastewater zone's card from its metrics: the lowest tank, the dosing, the wastewater. */
+export const chemZone = (m, tr) => {
+  const low = [...m.tanks].sort((a, b) => a.levelPct - b.levelPct)[0]
+  const w = m.wastewater
+  const phOut = w.ph < w.discharge.minPh || w.ph > w.discharge.maxPh
+  const dosing = m.dosing.filter((d) => d.pump).map((d) => tr(d.bath))
+  return {
+    key: 'chem',
+    state: m.tanks.some((t) => t.state === 'critical')
+      ? 'stop'
+      : m.tanks.some((t) => t.state !== 'ok') || phOut || w.collectionPct > w.highPct
+        ? 'warn'
+        : 'run',
+    lines: [
+      low && [
+        tr(low.name),
+        `${Math.round(low.levelPct)} %${low.daysLeft !== null ? ` - ${Math.round(low.daysLeft)} ${tr('d')}` : ''}`,
+      ],
+      ['Dosing', dosing.length ? dosing.join(', ') : tr('none')],
+      ['Collection tank', `${Math.round(w.collectionPct)} %${w.pump ? ` - ${tr('pumping')}` : ''}`],
+      ['Discharge', `pH ${w.ph.toFixed(1)}${w.press ? ` - ${tr('press running')}` : ''}`],
+    ].filter(Boolean),
+  }
+}
 
 const STATE_OF = { run: 'run', setup: 'warn', idle: 'warn', alarm: 'stop', off: 'stop' }
 const MACHINE_STATE = {

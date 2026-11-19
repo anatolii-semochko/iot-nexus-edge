@@ -1,5 +1,5 @@
 {
   "id": "node-wastewater-treatment",
-  "name": "Wastewater Treatment (neutralization)",
-  "description": "The wastewater neutralization of a surface-treatment shop: a mixed tank taking the rinses' overflow, its pH probe and flow meter, the acid and the caustic dosing pumps. Reports the pH and the flow; its dosing pumps switched on / off. Driven by the `shop-utilities` process (simulated - the rinses' acid drag-out, the dosing)."
+  "name": "Wastewater Treatment",
+  "description": "The wastewater treatment of a surface-treatment shop: the collection tank taking the rinses' overflow (its level, the transfer pump), the neutralization (its pH probe, the acid and the caustic dosing pumps), the settler (its sludge level), the filter press, the discharge's flow meter. Reports the levels, the pH and the flow; its pumps and the press switched on / off. Driven by the `chem-wastewater` process (simulated - the rinses' acid drag-out, the dosing, the sludge)."
 }

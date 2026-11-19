@@ -1,0 +1,5 @@
+{
+  "id": "process-chem-wastewater",
+  "name": "Chemistry and Wastewater",
+  "description": "A metal shop's chemistry and wastewater (chem-wastewater): the concentrates' tanks (their levels, the litres dosed, the days they last, the deliveries under the reorder level), the baths' dosing pumps (each bar's drag-out dilutes its bath, the pump doses its band back), the wastewater treatment (the collection tank and its transfer pump, the neutralization's caustic / acid dosing, the flocculant, the settler's sludge, the filter press and its cloth); by the line and the shift. The metal shop of the demo."
+}

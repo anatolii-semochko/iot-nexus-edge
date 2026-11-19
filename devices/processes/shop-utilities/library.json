@@ -1,5 +1,5 @@
 {
   "id": "process-shop-utilities",
   "name": "Shop Utilities",
-  "description": "A metal shop's utilities (shop-utilities): the compressed air (air-compressor - load / unload by its band, the receiver), the process chiller (process-chiller - the baths' cooling coils' heat), the wastewater neutralization (wastewater-treatment - the rinses' acid, the caustic / acid dosing), the DI water (di-water - its conductivity, the columns' regeneration); by the shift and the line; their electricity of the day. The metal shop of the demo."
+  "description": "A metal shop's utilities (shop-utilities): the compressed air (air-compressor - load / unload by its band, the receiver), the process chiller (process-chiller - the baths' cooling coils' heat), the DI water (di-water - its conductivity, the columns' regeneration); by the shift and the line; their electricity of the day. The wastewater - chem-wastewater. The metal shop of the demo."
 }

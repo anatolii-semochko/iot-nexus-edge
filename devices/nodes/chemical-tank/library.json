@@ -1,0 +1,5 @@
+{
+  "id": "node-chemical-tank",
+  "name": "Chemical Tank (with a dosing pump)",
+  "description": "A concentrate's storage tank of a surface-treatment shop (an IBC of sulphuric acid, caustic soda, a degreaser, a dye or a sealing additive): its level probe and the dosing pump that feeds a bath from it. Reports the level; its dosing pump switched on / off. Driven by the `chem-wastewater` process (simulated - the baths' drag-out, the dosing, the deliveries)."
+}

@@ -55,8 +55,17 @@ export const MOCK = {
       lines: [
         ['Compressed air', '7.1 bar - 11 kW'],
         ['Chiller', '9.0 °C'],
-        ['Wastewater', 'pH 7.4'],
         ['DI water', '2.1 µS/cm'],
+      ],
+    },
+    {
+      key: 'chem',
+      state: 'warn',
+      lines: [
+        ['Dye concentrate', '22 % - 9 d'],
+        ['Dosing', 'Anodize'],
+        ['Collection tank', '46 %'],
+        ['Discharge', 'pH 7.4'],
       ],
     },
   ],
