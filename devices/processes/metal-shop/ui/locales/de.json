@@ -180,5 +180,12 @@
   "Caustic soda": "Natronlauge",
   "Degreaser": "Entfetter",
   "Dye concentrate": "Farbstoffkonzentrat",
-  "Sealing additive": "Verdichtungszusatz"
+  "Sealing additive": "Verdichtungszusatz",
+  "Passed / rejected": "Gut / Ausschuss",
+  "baths": "Bäder",
+  "kW the day's peak (15 min)": "kW Tagesspitze (15 Min.)",
+  "Heat by the price": "Wärme nach Preis",
+  "storing heat": "speichert Wärme",
+  "as set": "nach Sollwert",
+  "saving": "spart"
 }

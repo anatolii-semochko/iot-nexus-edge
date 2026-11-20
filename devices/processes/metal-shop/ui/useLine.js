@@ -119,8 +119,16 @@ export const qcZone = (m, tr) => ({
   key: 'qc',
   state: m.results?.at(-1)?.verdict === 'check' ? 'warn' : 'run',
   lines: [
-    ['In QC', m.current ? `${m.current.id} - ${m.current.reading ?? '-'} µm` : tr('waiting')],
-    ['Passed today', `${m.today.passed} / ${m.today.rejected} ${tr('rejected')}`],
+    [
+      'In QC',
+      m.current
+        ? m.current.reading != null
+          ? `${m.current.id} - ${m.current.reading} µm`
+          : m.current.id
+        : tr('waiting'),
+    ],
+    // short - a card's value never wraps (the user, 2026-11-19)
+    ['Passed / rejected', `${m.today.passed} / ${m.today.rejected}`],
     ['Pallets packed', String(m.today.pallets)],
     [`${tr('Pallet')} ${m.today.pallets + 1}`, `${m.pallets?.filling ?? 0} / ${m.spec?.perPallet}`],
   ],
@@ -140,6 +148,10 @@ export const utilitiesZone = (m) => ({
   ],
 })
 
+/** The days a tank lasts - over a year as "> 365 d" (the first days' estimate runs far). */
+export const daysText = (days, tr) =>
+  days > 365 ? `> 365 ${tr('d')}` : `${Math.round(days)} ${tr('d')}`
+
 /** The chemistry and wastewater zone's card from its metrics: the lowest tank, the dosing, the wastewater. */
 export const chemZone = (m, tr) => {
   const low = [...m.tanks].sort((a, b) => a.levelPct - b.levelPct)[0]
@@ -156,9 +168,10 @@ export const chemZone = (m, tr) => {
     lines: [
       low && [
         tr(low.name),
-        `${Math.round(low.levelPct)} %${low.daysLeft !== null ? ` - ${Math.round(low.daysLeft)} ${tr('d')}` : ''}`,
+        `${Math.round(low.levelPct)} %${low.daysLeft !== null ? ` - ${daysText(low.daysLeft, tr)}` : ''}`,
       ],
-      ['Dosing', dosing.length ? dosing.join(', ') : tr('none')],
+      // one bath by its name, more - their count (a card's value never wraps)
+      ['Dosing', dosing.length > 1 ? `${dosing.length} ${tr('baths')}` : (dosing[0] ?? tr('none'))],
       ['Collection tank', `${Math.round(w.collectionPct)} %${w.pump ? ` - ${tr('pumping')}` : ''}`],
       ['Discharge', `pH ${w.ph.toFixed(1)}${w.press ? ` - ${tr('press running')}` : ''}`],
     ].filter(Boolean),

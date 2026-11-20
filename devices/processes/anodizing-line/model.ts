@@ -51,12 +51,29 @@ export const capacityKwhK = (volumeL: number) => (volumeL * 4.186) / 3600;
 export const lossKwK = (b: BathSpec, tempC: number) => 0.012 + (b.volumeL / 1000) * 0.02 + (tempC > 50 ? 0.04 : 0);
 
 /** The thermostat: the heater and the cooler by the bath's set point and band (held last state in the band). */
-export function thermostat(b: BathSpec, tempC: number, was: { heating: boolean; cooling: boolean }) {
+// the electricity's price now for the baths' heat (2026-11-20, the factory's energy): "cheap" - the bath stores heat
+// (a cooled one - cold) up to its band's edge, "dear" - it rides its band's other edge, "normal" - as set
+export type PriceMode = "cheap" | "normal" | "dear";
+
+/** The price's mode from its rank among the day's prices (0 - the cheapest, 1 - the dearest; null - none known). */
+export const priceMode = (rank: number | null, cheapRank = 0.3, dearRank = 0.7): PriceMode =>
+  rank === null ? "normal" : rank <= cheapRank ? "cheap" : rank >= dearRank ? "dear" : "normal";
+
+/**
+ * The thermostat: the heater on under the band's bottom, off at the set point (held last state in between); the
+ * cooler the other way. By the price (`mode`) the same band is used differently - never left: cheap - heated to
+ * its top (cooled to its bottom), the heat stored; dear - held just over its bottom (under its top), the heater
+ * (the cooler) on as little as the band allows.
+ */
+export function thermostat(b: BathSpec, tempC: number, was: { heating: boolean; cooling: boolean }, mode: PriceMode = "normal") {
   if (b.setpointC === null) return { heating: false, cooling: false };
   const lo = b.setpointC - b.tolC / 2;
   const hi = b.setpointC + b.tolC / 2;
-  const heating = b.heaterKw > 0 && (tempC < lo || (was.heating && tempC < b.setpointC));
-  const cooling = b.coolerKw > 0 && (tempC > hi || (was.cooling && tempC > b.setpointC));
+  const edge = b.tolC * 0.15;
+  const [hOn, hOff] = mode === "cheap" ? [b.setpointC, hi] : mode === "dear" ? [lo, lo + edge] : [lo, b.setpointC];
+  const [cOn, cOff] = mode === "cheap" ? [b.setpointC, lo] : mode === "dear" ? [hi, hi - edge] : [hi, b.setpointC];
+  const heating = b.heaterKw > 0 && (tempC < hOn || (was.heating && tempC < hOff));
+  const cooling = b.coolerKw > 0 && (tempC > cOn || (was.cooling && tempC > cOff));
   return { heating, cooling };
 }
 

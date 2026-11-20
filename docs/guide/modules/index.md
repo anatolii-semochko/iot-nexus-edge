@@ -1,11 +1,12 @@
 ---
 title: "Modules"
-description: "The packages built on the platform - energy, heating, weather, aquarium."
+description: "The packages built on the platform - energy, heating, weather, the factory, aquarium."
 order: 6
 ---
 
 Each module is a set of packages - its devices, nodes and processes, their
 scenes on the Dashboard, settings and AI support. Green energy and heating run
 the whole site's resources; the aquarium shows low-level, precise control of
-one specialised system. More modules come to the demo: a paint shop with
-pneumatics, an open farm field, a greenhouse.
+one specialised system; the factory - a whole metal shop with its anodizing
+line, CNC, chemistry and wastewater. More modules come to the demo: a paint
+shop with pneumatics, an open farm field, a greenhouse.

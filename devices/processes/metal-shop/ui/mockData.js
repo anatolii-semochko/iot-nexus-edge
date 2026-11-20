@@ -44,7 +44,7 @@ export const MOCK = {
       key: 'qc',
       state: 'run',
       lines: [
-        ['Passed today', '312'],
+        ['Passed / rejected', '312 / 4'],
         ['Rejected', '2'],
         ['Pallet 2', 'packing'],
       ],

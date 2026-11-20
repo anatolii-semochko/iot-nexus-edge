@@ -7,7 +7,7 @@ import picture from './factory-shop.webp'
 import spots from './factory-shop.json'
 import MockChart from './MockChart'
 import { daySeries, SERIES } from './mockSeries'
-import { barStep, MACHINE_STATE, machineLine, STATE_OF, useLineSeries } from './useLine'
+import { barStep, daysText, MACHINE_STATE, machineLine, STATE_OF, useLineSeries } from './useLine'
 import ZoneScene, { zonePicture } from './ZoneScene'
 import LineHoist from './LineHoist'
 import CncMachines from './CncMachines'
@@ -279,6 +279,9 @@ const ZONES = [
   },
 ]
 
+// the baths' heat by the price: cheap - the heat stored to the band's top, dear - the band's bottom
+const PRICE_MODE = { cheap: 'storing heat', normal: 'as set', dear: 'saving' }
+
 /** The anodizing line's zone from its live metrics (step 3): the same parts, its series for the charts. */
 const liveLine = (m) => {
   const anodize = m.baths.find((b) => b.role === 'anodize')
@@ -311,6 +314,10 @@ const liveLine = (m) => {
       ['Bars today', m.today?.bars ?? 0],
       ['Parts today', m.today?.parts ?? 0],
       ['Energy today', m.today?.kwh ?? 0, 'kWh'],
+      // the baths' heat by the electricity's price now (the Energy Field's rank)
+      ...(m.price?.rank != null
+        ? [['Heat by the price', tr(PRICE_MODE[m.price.mode] ?? 'as set')]]
+        : []),
     ],
     table: {
       head: ['Bath', 'Temperature', 'Set', 'Level', 'Bar', 'Time'],
@@ -512,7 +519,7 @@ const liveChem = (m) => {
         return [
           t.name,
           `${Math.round(t.levelPct)} % - ${Math.round(t.levelL)} l`,
-          t.daysLeft === null ? '-' : `${Math.round(t.daysLeft)} ${tr('d')}`,
+          t.daysLeft === null ? '-' : daysText(t.daysLeft, tr),
           d ? d.bath : '-',
           d ? `${d.gl} / ${d.targetGl} g/l` : '-',
           STATE(TANK_STATE[t.state], d?.pump ? 'dosing' : TANK_TEXT[t.state]),

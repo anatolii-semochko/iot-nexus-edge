@@ -3,8 +3,8 @@
 The metal shop's chemistry and wastewater (the demo's factory, 2026-11-19 - the "Chemistry and wastewater" zone of
 the shop's plan).
 
-- **The demand:** the line (`lineProcessId`) - each finished bar went through every bath of the recipe: its
-  drag-out out of each dosed bath and into the wastewater; the shift (`shift` - `fromH`, `toH`, `days`; default
+- **The demand:** the line (`lineProcessId`) - each bar lifted out of a bath (its bath in the line's metrics changed): its
+  drag-out out of that bath and into the wastewater, when it happens; the shift (`shift` - `fromH`, `toH`, `days`; default
   weekdays 6-22) - the rinses' overflow (`demand.rinseShiftLMin`, `rinseNightLMin`).
 - **Tanks** (`tanks[]` - node type `chemical-tank`, device `level`): `key`, `name`, `capacityL`, `reorderPct` (a
   warning; ordered that day, the simulation's delivery of `lotL` the next morning from 8:00), `criticalPct` (a critical message). The

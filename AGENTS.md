@@ -9992,14 +9992,50 @@ the same on a Raspberry Pi. Rules since then:
   - `turns.overran` (past the budget), `turns.busy` (a turn skipped, still
   running), `turns.deferred` (put off to the next tick).
 
-## Metal shop (the demo's complex, 2026-11-18 - step 1: the panel as a mockup)
+## Metal shop (the demo's factory, 2026-11-18 - 11-20)
 
-`devices/processes/metal-shop/` - the small metalworking factory, built step by step (iot AGENTS_TO_DO.md
-2026-11-17: the whole shop, the panels first, then the nodes / simulation / processes zone by zone). Now a
-UI-only package: a system Dashboard component `metalShop.panel` (no process yet; `ui/register.js`) - the
-shop's cartoon 3D plan (`ui/factory-shop.webp`, rendered by iot `images/dashboard/v2` scene `factory-shop`,
-PICTURES.md 14) with each zone's card over its floor (`ui/factory-shop.json` - the zones' and machines'
-outlines in the picture's shares, from the render), the shop's sums over it, the batches in work under it;
-a phone - the zones as a list. Its figures - `ui/mockData.js`, fixed, in the shape the live process will
-publish. The demo: a "Factory" folder with the shop's card (demo migration 061). No library.json yet - the
-package joins the Library with its process.
+A small metalworking factory from the bar stock to the pallet, built zone by zone (iot AGENTS_TO_DO.md 2026-11-17
+plan; archive AGENTS_DEV_<the factory section>): seven zones - blanks and saw, CNC machining, the anodizing line,
+the drying oven, QC and packing, chemistry and wastewater, utilities. Each zone is a CORE Library package with its
+node types and a simulation process; `metal-shop` is the shop's panel and summary.
+
+**Processes** (`devices/processes/<kind>/`, each `model.ts` pure + tests, `process.ts`, docs):
+- `anodizing-line` - the baths (process-bath nodes: temperature, level, heater / cooler; thermostat models), the
+  recipe, the hoist (`lineStep`: to-pick -> `wait` -> lift-up -> drip -> carry -> lift-down; it comes `leadS`
+  ahead of a bar's end and waits over the bath), the rectifier (density, Ah -> the coating by the 720 rule), the
+  baths' heat by the price (`price.energyProcessId` - an Energy Field's `price.rank`: cheap - stored to the band's
+  top, dear - its bottom, the band never left; `thermostat(..., mode)`, `priceMode`). Its
+  metrics carry the move's timeline `hoist.plan` (`hoistPlan` - each phase's end and the carriage's travel) and
+  each bar's `doneAt` - the panel plays them on its own clock.
+- `drying-oven`, `quality-control` (coating-gauge readings into the batch, rejects, pallets).
+- `machining` - the band saw (cuts for the neediest machine; the stock's metres, deliveries) and the CNC machines
+  (setup / run / idle / alarm, tool life, OEE); metrics `endAt` / `spanS` for the machines' states and the saw's cut.
+- `shop-utilities` - the compressor, the chiller (the line's cooling load), the DI water.
+- `chem-wastewater` - the concentrates' tanks (chemical-tank nodes; level, the days they last, reorder / critical,
+  the next morning's delivery), the baths' dosing (a bar lifted out of a bath - read from the line's metrics - is
+  a drag-out; the pump doses back into the band), the wastewater treatment (collection tank and transfer pump,
+  neutralization, settler, filter press and its cloth). It took the wastewater over from `shop-utilities`.
+- `metal-shop` - the shop's summary (its electricity at the grid's price, the batches in work, the day's peak - the
+  highest 15-minute average; `electricKw` - an Energy Field's load), the panel and the AI (`api.ts` - tools
+  `metalShop.shift` - the shop now and the shift ahead, `metalShop.batch` - a bar's whole way, `metalShop.anomalies`
+  - what is off now, each with its figures).
+
+**Node types:** process-bath, hoist, rectifier, drying-oven, coating-gauge, air-compressor, process-chiller, di-water,
+wastewater-treatment, band-saw, cnc-machine, chemical-tank; device types ph and conductivity (the aquarium uses
+the same since 2026-11-20 - its copies removed; the EdgeX resource of ph is `PH`).
+
+**The panel** (`metal-shop/ui/`, system component `metalShop.panel`): the shop's cartoon 3D plan
+(`factory-shop.webp` + `.json` - rooms, items, hoist stations, `cnc`, `saw` spots from the render) with each zone's
+card (`MetalShopScene.jsx` `CARD_AT` - its place in the room's box; a value never wraps), the zone's popup
+(`ZonePopup.jsx` - its own picture `factory-<zone>.webp`, labels on the hot spots, stats, table, charts; live per
+process via `useLine.js`, the mockup's figures otherwise). The moving pictures - sprites rendered with the same
+camera, moved by transforms only: `LineHoist.jsx` (the hoist's timeline, per-station sprites switched half-way,
+the bar cut at the liquid's surface, the front rail over it), `CncMachines.jsx` (doors, heads, status lights, the
+operator's sprite over the doors), `BandSaw.jsx` (feed, cut, the blank into the bin), `ChemFlows.jsx` (dots along
+the pipes while their pumps run, the press's timer), `StepTimer.jsx` (the ring timers, the highest layer; a
+client clock off the server's by over 60 s is corrected by the update's `at`). The pictures' pipeline - iot
+`images/dashboard/PICTURES.md` (`make_folder_renders.py` layers, `line_layers.py`, `crop_wide.py`, `trim_shop.py`).
+
+**The guide:** `docs/guide/modules/factory.md` (4 languages), screenshots `factory-shop`, `-line`, `-cnc`,
+`-chem`. **The demo:** nexus-edge-tech `demo/scripts/gen-factory.py` and migrations 061-072 (072 - the dosing seen
+often, hand-written); the site's Factory section - nexus-edge-tech AGENTS.md.

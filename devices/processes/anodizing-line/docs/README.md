@@ -6,7 +6,11 @@ A surface-treatment line on flight bars - the first zone of the metal shop (the 
   rinse), its volume, its set point and band, its heater and / or cooling coil. A thermostat holds each
   heated or cooled bath in its band; the anodize bath's cooling coil (from the chiller) takes the current's
   heat away.
-- **The hoist** (`hoist`): runs the bars through the recipe (`recipe` - `{ bath, minutes }` in order): the
+- **The heat by the price** (`price` - `energyProcessId`: the Energy Field whose metrics' `price.rank` - 0 the
+  day's cheapest, 1 the dearest; `cheapRank` 0.3, `dearRank` 0.7): cheap - each heated bath stored to its band's
+  top (a cooled one cooled to its bottom), dear - it rides its band's other edge, the heater on as little as the
+  band allows; the band is never left. Metrics `price` - `{ mode, rank }`.
+- **The hoist** (`hoist`): runs the bars through the recipe (2026-11-20: it comes `leadS` - 10 s - ahead of a bar's end and waits over the bath; the move's timeline `hoist.plan`, each bar's `doneAt` - for the panel) (`recipe` - `{ bath, minutes }` in order): the
   bar that has waited longest for its next bath goes first, one bar a bath; a new bar comes from the load
   station every `line.loadEveryMin` while the first bath is free; a finished bar goes to the unload station
   and its parts are counted. Its travel (`speedMmS`, `pitchMm` between stations), its lift (`liftS`) and the

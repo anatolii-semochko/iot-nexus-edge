@@ -305,5 +305,70 @@
     ],
     "clip": ".modal-content",
     "clipLast": true
+  },
+  {
+    "name": "factory-shop",
+    "path": "/dashboard/320",
+    "width": 1600,
+    "height": 1000,
+    "waitMs": 5000,
+    "clip": ".ms-plan"
+  },
+  {
+    "name": "factory-line",
+    "path": "/dashboard/320",
+    "width": 1600,
+    "height": 1000,
+    "steps": [
+      {
+        "wait": 4000
+      },
+      {
+        "js": "(()=>{const c=document.querySelectorAll('.ms-plan .ms-zone')[2];c&&c.click()})()"
+      },
+      {
+        "wait": 4000
+      }
+    ],
+    "clip": ".modal-content",
+    "clipLast": true
+  },
+  {
+    "name": "factory-cnc",
+    "path": "/dashboard/320",
+    "width": 1600,
+    "height": 1000,
+    "steps": [
+      {
+        "wait": 4000
+      },
+      {
+        "js": "(()=>{const c=document.querySelectorAll('.ms-plan .ms-zone')[1];c&&c.click()})()"
+      },
+      {
+        "wait": 4000
+      }
+    ],
+    "clip": ".modal-content",
+    "clipLast": true
+  },
+  {
+    "name": "factory-chem",
+    "path": "/dashboard/320",
+    "width": 1600,
+    "height": 1000,
+    "steps": [
+      {
+        "wait": 4000
+      },
+      {
+        "js": "(()=>{const c=document.querySelectorAll('.ms-plan .ms-zone')[6];c&&c.click()})()"
+      },
+      {
+        "wait": 4000
+      }
+    ],
+    "clip": ".modal-content",
+    "clipLast": true
   }
 ]

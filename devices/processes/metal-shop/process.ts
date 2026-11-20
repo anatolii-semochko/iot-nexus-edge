@@ -36,7 +36,9 @@ const r = (x: number, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
 
 export default function registerMetalShop(register: any, { apiClient, stepDue }: any): void {
   const systemTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const states = new Map<number, { lastRun: number; today: { date: string; kwh: number; eur: number }; parts: [string, string][]; declared: boolean }>();
+  // `window` - the last 15 minutes' power (the grid bills its peak as a 15-minute average)
+  type Today = { date: string; kwh: number; eur: number; peakKw: number; peakAt: number | null };
+  const states = new Map<number, { lastRun: number; today: Today; parts: [string, string][]; window: [number, number][]; declared: boolean }>();
 
   register("metal-shop", async (process: any) => {
     const now = Date.now();
@@ -49,15 +51,19 @@ export default function registerMetalShop(register: any, { apiClient, stepDue }:
       const m = process.metrics ?? {};
       st = {
         lastRun: 0,
-        today: m.today?.date === local.date ? { date: local.date, kwh: Number(m.today.kwh) || 0, eur: Number(m.today.eur) || 0 } : { date: local.date, kwh: 0, eur: 0 },
+        today:
+          m.today?.date === local.date
+            ? { date: local.date, kwh: Number(m.today.kwh) || 0, eur: Number(m.today.eur) || 0, peakKw: Number(m.today.peakKw) || 0, peakAt: Number(m.today.peakAt) || null }
+            : { date: local.date, kwh: 0, eur: 0, peakKw: 0, peakAt: null },
         parts: Array.isArray(m.parts) ? m.parts : [],
+        window: [],
         declared: false,
       };
       states.set(process.id, st);
     }
     const seconds = st.lastRun ? Math.min(intervalMs * 3, now - st.lastRun) / 1000 : intervalMs / 1000;
     st.lastRun = now;
-    if (st.today.date !== local.date) st.today = { date: local.date, kwh: 0, eur: 0 };
+    if (st.today.date !== local.date) st.today = { date: local.date, kwh: 0, eur: 0, peakKw: 0, peakAt: null };
 
     const all = await apiClient.listProcesses();
     const get = (id?: number) => (id ? all.find((p: any) => p.id === id) : undefined);
@@ -82,6 +88,14 @@ export default function registerMetalShop(register: any, { apiClient, stepDue }:
     const kwh = (powerKw * seconds) / 3600;
     st.today.kwh += kwh;
     if (priceCt !== null) st.today.eur += (kwh * priceCt) / 100;
+    // the day's peak - the highest 15-minute average (counted once the window is full)
+    st.window.push([now, powerKw]);
+    st.window = st.window.filter(([t]) => t > now - 15 * 60_000);
+    const avg15Kw = st.window.reduce((a, [, kw]) => a + kw, 0) / st.window.length;
+    if (st.window[0][0] <= now - 14 * 60_000 && avg15Kw > st.today.peakKw) {
+      st.today.peakKw = avg15Kw;
+      st.today.peakAt = now;
+    }
 
     // 3. the bars in work
     const parts = new Map(st.parts);
@@ -131,6 +145,9 @@ export default function registerMetalShop(register: any, { apiClient, stepDue }:
     }
     await apiClient.setMetrics(process.id, {
       powerKw: r(powerKw, 2),
+      // the shop's electricity for the site's balance (an Energy Field's loadProcessIds read `electricKw`)
+      electricKw: r(powerKw, 2),
+      avg15Kw: r(avg15Kw, 2),
       zonesKw: Object.fromEntries(Object.entries(zonesKw).map(([k, v]) => [k, r(v, 2)])),
       priceCtKwh: priceCt,
       inWork: flow.length,
@@ -141,6 +158,8 @@ export default function registerMetalShop(register: any, { apiClient, stepDue }:
         date: st.today.date,
         kwh: r(st.today.kwh, 2),
         eur: priceCt === null && !st.today.eur ? null : r(st.today.eur, 2),
+        peakKw: r(st.today.peakKw, 1),
+        peakAt: st.today.peakAt,
         madeParts: mach?.today?.parts ?? null,
         passedParts: qc?.today?.passed ?? null,
       },

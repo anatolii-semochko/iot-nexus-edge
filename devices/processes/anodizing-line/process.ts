@@ -31,7 +31,9 @@ import {
   levelStep,
   lineStep,
   stationOf,
+  priceMode,
   thermostat,
+  type PriceMode,
   type BathRole,
   type BathSpec,
   type Line,
@@ -58,6 +60,10 @@ interface BathConfig extends Omit<BathSpec, "nodeId"> {
 
 interface LineConfig {
   timeZone?: string;
+  // the baths' heat by the electricity's price (2026-11-20): the Energy Field process whose metrics' `price.rank`
+  // (0 - the day's cheapest, 1 - the dearest) sets the mode - cheap (<= cheapRank) stores heat to the band's top,
+  // dear (>= dearRank) rides its bottom; the band itself is never left
+  price?: { energyProcessId?: number; cheapRank?: number; dearRank?: number };
   line?: Partial<Omit<LineSpec, "baths" | "recipe">>;
   baths?: BathConfig[];
   recipe?: RecipeStep[];
@@ -203,6 +209,13 @@ export default function registerAnodizingLine(register: any, { apiClient, logger
     } else st.rect = { on: false, densityAdm2: 0, currentA: 0, voltageV: 0 };
     const rectKw = (st.rect.currentA * st.rect.voltageV) / 1000 / RECTIFIER_EFF;
 
+    // the electricity's price now - the baths' mode
+    const energy = config.price?.energyProcessId
+      ? (await apiClient.listProcesses()).find((p: any) => p.id === config.price!.energyProcessId)?.metrics
+      : null;
+    const rank = Number.isFinite(Number(energy?.price?.rank)) ? Number(energy.price.rank) : null;
+    const mode: PriceMode = priceMode(rank, config.price?.cheapRank, config.price?.dearRank);
+
     // 1. + 4. the baths: the thermostat, the simulated heat balance and level
     const hours = seconds / 3600;
     const writes: { id: number; value: unknown }[] = [];
@@ -215,7 +228,7 @@ export default function registerAnodizingLine(register: any, { apiClient, logger
       const tempC = st!.temps.get(b.nodeId) ?? (b.setpointC ?? spec.ambientC);
       const levelPct = st!.levels.get(b.nodeId) ?? 92;
       const was = st!.thermo.get(b.nodeId) ?? { heating: false, cooling: false };
-      const ctl = thermostat(spec_, tempC, was);
+      const ctl = thermostat(spec_, tempC, was, mode);
       st!.thermo.set(b.nodeId, ctl);
       if (ctl.heating) heatersKw += b.heaterKw;
       if (ctl.cooling) {
@@ -304,6 +317,8 @@ export default function registerAnodizingLine(register: any, { apiClient, logger
     for (const b of bathView) values[`line.bath.${b.nodeId}.tempC`] = b.tempC;
     await apiClient.setMetrics(process.id, {
       powerKw: r(powerKw, 2),
+      // the baths' heat by the price now: the mode and the price's rank (null - no Energy Field)
+      price: { mode, rank },
       coolingKw: r(coolingKw, 1),
       // the chiller's electricity within powerKw (a shop's sum with its own chiller takes it out)
       chillerKw: r(chillerKw, 2),

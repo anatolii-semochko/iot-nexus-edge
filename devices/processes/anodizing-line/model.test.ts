@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bathStep, coatingUm, doneAt, emptyLine, hoistPlan, lineStep, thermostat, type BathSpec, type LineSpec } from "./model.ts";
+import { bathStep, coatingUm, doneAt, emptyLine, hoistPlan, lineStep, priceMode, thermostat, type BathSpec, type LineSpec } from "./model.ts";
 
 const bath = (role: BathSpec["role"], setpointC: number | null, heaterKw = 6, coolerKw = 0): BathSpec => ({
   nodeId: 1,
@@ -98,5 +98,30 @@ describe("the anodizing line's model", () => {
     now = doneAt(spec, line.bars[0]) + 1_000;
     lineStep(spec, line, now, 9, () => {});
     expect(line.hoist.state).toBe("lift-up");
+  });
+  it("by the price the band is used differently, never left: cheap - stored to its top, dear - its bottom", () => {
+    expect(priceMode(0.1)).toBe("cheap");
+    expect(priceMode(0.5)).toBe("normal");
+    expect(priceMode(0.9)).toBe("dear");
+    expect(priceMode(null)).toBe("normal");
+    const b = bath("degrease", 60); // tolC 2 - the band 59..61
+    for (const mode of ["cheap", "normal", "dear"] as const) {
+      let t = 59.5;
+      let st = { heating: false, cooling: false };
+      let max = -Infinity;
+      let min = Infinity;
+      for (let k = 0; k < 2000; k++) {
+        st = thermostat(b, t, st, mode);
+        t = bathStep(b, t, 10 / 3600, st.heating, st.cooling, 0, 18);
+        if (k > 200) {
+          max = Math.max(max, t);
+          min = Math.min(min, t);
+        }
+      }
+      expect(min).toBeGreaterThan(58.8);
+      expect(max).toBeLessThan(61.3);
+      if (mode === "cheap") expect(max).toBeGreaterThan(60.6);
+      if (mode === "dear") expect(max).toBeLessThan(59.6);
+    }
   });
 });

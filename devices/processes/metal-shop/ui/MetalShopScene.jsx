@@ -57,7 +57,8 @@ const CSS = `
 .ms-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto }
 .ms-line { display: flex; justify-content: space-between; gap: 8px }
 .ms-line span:first-child { color: var(--cui-secondary-color) }
-.ms-line span:last-child { font-weight: 600; text-align: right }
+.ms-line span:first-child { min-width: 0 }
+.ms-line span:last-child { font-weight: 600; text-align: right; white-space: nowrap }
 .ms-list { display: none; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) }
 .ms-list .ms-zone { position: static; transform: none; max-width: none }
 @media (max-width: 991.98px) { .ms-plan .ms-zone { display: none } .ms-list { display: grid } }
@@ -138,6 +139,8 @@ const MetalShopScene = () => {
         todayKwh: shop.today.kwh,
         batches: shop.inWork,
         oee: shop.oeePct ?? '-',
+        // the day's peak - the highest 15-minute average (the grid's billing peak)
+        peakKw: shop.today.peakKw || null,
       }
     : MOCK.summary
   const batches = shop
@@ -169,6 +172,12 @@ const MetalShopScene = () => {
           <b>{s.todayEur !== null ? s.todayEur.toFixed(2) : s.todayKwh.toFixed(1)}</b>
           <span>{tr(s.todayEur !== null ? '€ energy today' : 'kWh today')}</span>
         </span>
+        {s.peakKw ? (
+          <span className="ms-sum">
+            <b>{s.peakKw.toFixed(0)}</b>
+            <span>{tr("kW the day's peak (15 min)")}</span>
+          </span>
+        ) : null}
         <span className="ms-sum">
           <b>{s.batches}</b>
           <span>{tr('batches in work')}</span>

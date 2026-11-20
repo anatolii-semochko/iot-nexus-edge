@@ -5,9 +5,10 @@
  * (`wastewater-treatment` - the collection tank, the neutralization, the settler, the filter press).
  *
  * Every `simulation.intervalSeconds` (default 10):
- *  1. the line (`lineProcessId`): its bars finished since the last run - each went through every bath of the
- *     recipe, its drag-out out of each dosed bath and into the wastewater; the shift (`shift`) - the rinses'
- *     overflow;
+ *  1. the line (`lineProcessId`): each bar lifted out of a bath since the last run (its bath in the line's
+ *     metrics changed, or it left the line) - its drag-out out of that bath and into the wastewater, at the
+ *     moment it happens (2026-11-20: the baths dosed one after another, not all at a finished bar); the shift
+ *     (`shift`) - the rinses' overflow;
  *  2. the models (model.ts): each dosed bath's concentration and its pump, the tanks' levels, the wastewater's
  *     collection tank, transfer pump, pH and its pumps, sludge and filter press;
  *  3. a simulated unit gets its readings (the levels, the pH, the flow); the switches written (AUTO): the dosing
@@ -84,6 +85,8 @@ interface State {
   dosing: Map<string, Dosing>;
   ww: Wastewater;
   lineBars: number | null;
+  // each bar on the line - its bath now (the line's metrics), null - not seen yet (no lifts counted on the first run)
+  barBath: Map<string, string | null> | null;
   date: string;
   deliveries: string[]; // today's
   orders: Record<string, string>; // a tank's key - the date it was ordered (under its reorder level)
@@ -141,6 +144,7 @@ export default function registerChemWastewater(register: any, { apiClient, logge
         dosing: new Map(dosing.map((d) => [d.bath, { gl: Number.isFinite(md.get(d.bath)?.gl) ? md.get(d.bath).gl : d.targetGl, pump: false }])),
         ww: { ...freshWw(), ...(m.wastewater?.state && typeof m.wastewater.state === "object" ? m.wastewater.state : {}) },
         lineBars: today && Number.isFinite(m.lineBars) ? m.lineBars : null,
+        barBath: null,
         date: local.date,
         deliveries: today && Array.isArray(m.deliveries) ? m.deliveries : [],
         orders: m.orders && typeof m.orders === "object" ? { ...m.orders } : {},
@@ -163,23 +167,28 @@ export default function registerChemWastewater(register: any, { apiClient, logge
       st.lineBars = 0;
     }
 
-    // 1. the line's finished bars, the shift
+    // 1. the line's bars lifted out of their baths, the shift
     const shift = config.shift ?? { fromH: 6, toH: 22, days: [1, 2, 3, 4, 5] };
     const onShift = shift.days.includes(local.weekday) && local.hour >= shift.fromH && local.hour < shift.toH;
     const line = config.lineProcessId ? (await apiClient.listProcesses()).find((p: any) => p.id === config.lineProcessId)?.metrics : null;
     const lineBars = Number(line?.today?.bars);
-    let bars = 0;
-    if (Number.isFinite(lineBars)) {
-      if (st.lineBars !== null && lineBars > st.lineBars) bars = lineBars - st.lineBars;
-      st.lineBars = lineBars;
+    if (Number.isFinite(lineBars)) st.lineBars = lineBars;
+    const lifts = new Map<string, number>();
+    if (Array.isArray(line?.bars)) {
+      const now = new Map<string, string | null>(line.bars.filter((b: any) => typeof b.id === "string").map((b: any) => [b.id, b.bath ?? null]));
+      if (st.barBath)
+        for (const [id, was] of st.barBath)
+          if (was && now.get(id) !== was) lifts.set(was, (lifts.get(was) ?? 0) + 1);
+      st.barBath = now;
     }
     const inflowLMin = onShift ? demand.rinseShiftLMin : demand.rinseNightLMin;
 
     // 2. the models
     let dragOutL = 0;
     for (const d of dosing) {
-      dosingStep(d, st.dosing.get(d.bath)!, st.tanks.get(d.tank)!, bars, seconds);
-      dragOutL += bars * d.dragOutL;
+      const out = lifts.get(d.bath) ?? 0;
+      dosingStep(d, st.dosing.get(d.bath)!, st.tanks.get(d.tank)!, out, seconds);
+      dragOutL += out * d.dragOutL;
     }
     const dischargeLMin = wastewaterStep(wws, st.ww, inflowLMin, dragOutL, seconds);
     // a tank under its reorder level - ordered today, delivered the next morning

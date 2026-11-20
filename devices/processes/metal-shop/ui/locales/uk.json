@@ -180,5 +180,12 @@
   "Caustic soda": "Їдкий натр",
   "Degreaser": "Знежирювач",
   "Dye concentrate": "Концентрат барвника",
-  "Sealing additive": "Добавка для наповнення"
+  "Sealing additive": "Добавка для наповнення",
+  "Passed / rejected": "Прийнято / брак",
+  "baths": "ванн",
+  "kW the day's peak (15 min)": "кВт пік доби (15 хв)",
+  "Heat by the price": "Нагрів за ціною",
+  "storing heat": "запасає тепло",
+  "as set": "за уставкою",
+  "saving": "економить"
 }
