@@ -68,8 +68,8 @@ export const useLineSeries = (processId, keys, now) => {
 /** The bar's step as "3 / 8" (a bar loaded, not yet in a bath - 0). */
 export const barStep = (b) => `${Math.max(0, b.step + 1)} / ${b.steps}`
 
-/** The zone card's lines and state from the line's metrics. */
-export const lineZone = (m, tr) => {
+/** The zone card's lines and state from the line's metrics; `cfg` - the line's config (the baths' bands). */
+export const lineZone = (m, tr, cfg) => {
   const anodize = m.baths.find((b) => b.role === 'anodize')
   const h = m.hoist ?? {}
   const carried = m.bars?.find((b) => b.carried)
@@ -87,9 +87,27 @@ export const lineZone = (m, tr) => {
         ? `${tr(target)} - ${carried.id}`
         : `${tr('to')} ${tr(target)}`
   const r = m.rectifier ?? {}
+  const tol = cfg?.baths?.find((b) => b.role === 'anodize')?.tolC ?? 1
+  const set = anodize?.setC
   return {
     key: 'line',
     state: 'run',
+    // the plan's gauges (2026-11-20): the anodize bath's temperature in its band
+    gauges:
+      anodize && set != null
+        ? [
+            {
+              name: tr('Anodize'),
+              value: anodize.tempC,
+              min: set - 5 * tol,
+              max: set + 5 * tol,
+              lo: set - tol,
+              hi: set + tol,
+              unit: '°C',
+              digits: 1,
+            },
+          ]
+        : [],
     lines: [
       ['Hoist', hoist],
       [
@@ -103,9 +121,20 @@ export const lineZone = (m, tr) => {
 }
 
 /** The oven's zone card from its metrics. */
-export const ovenZone = (m, tr) => ({
+export const ovenZone = (m, tr, cfg) => ({
   key: 'oven',
   state: 'run',
+  gauges: [
+    {
+      name: tr('Oven'),
+      value: m.tempC,
+      min: 0,
+      max: Math.max(120, Math.ceil((m.setC * 1.4) / 10) * 10),
+      lo: m.setC - (cfg?.oven?.tolC ?? 4),
+      hi: m.setC + (cfg?.oven?.tolC ?? 4),
+      unit: '°C',
+    },
+  ],
   lines: [
     ['Oven', `${m.tempC.toFixed(1)} °C${m.heating ? ' ▲' : ''}`],
     ...(m.drying ?? []).map((b) => [b.id, `${tr('left')} ${Math.ceil(b.leftMin)} ${tr('min')}`]),
@@ -118,6 +147,20 @@ export const ovenZone = (m, tr) => ({
 export const qcZone = (m, tr) => ({
   key: 'qc',
   state: m.results?.at(-1)?.verdict === 'check' ? 'warn' : 'run',
+  // the day's passed share - yellow on any rejected
+  gauges: [
+    {
+      name: tr('Passed'),
+      value:
+        m.today.passed + m.today.rejected > 0
+          ? (100 * m.today.passed) / (m.today.passed + m.today.rejected)
+          : NaN,
+      min: 0,
+      max: 100,
+      state: m.today.rejected > 0 ? 'warn' : 'ok',
+      unit: '%',
+    },
+  ],
   lines: [
     [
       'In QC',
@@ -135,9 +178,31 @@ export const qcZone = (m, tr) => ({
 })
 
 /** The utilities' zone card from their metrics. */
-export const utilitiesZone = (m) => ({
+export const utilitiesZone = (m, tr) => ({
   key: 'utilities',
   state: m.di.uScm > m.di.limit ? 'warn' : 'run',
+  // the air in the compressor's band, the chiller's supply near its set point
+  gauges: [
+    {
+      name: tr('Air'),
+      value: m.compressor.bar,
+      min: 0,
+      max: 10,
+      lo: m.compressor.loadBar,
+      hi: m.compressor.unloadBar,
+      unit: 'bar',
+      digits: 1,
+    },
+    {
+      name: tr('Chiller'),
+      value: m.chiller.supplyC,
+      min: 0,
+      max: 20,
+      lo: m.chiller.setC != null ? m.chiller.setC - 3 : undefined,
+      hi: m.chiller.setC != null ? m.chiller.setC + 3 : undefined,
+      unit: '°C',
+    },
+  ],
   lines: [
     [
       'Compressed air',
@@ -160,6 +225,25 @@ export const chemZone = (m, tr) => {
   const dosing = m.dosing.filter((d) => d.pump).map((d) => tr(d.bath))
   return {
     key: 'chem',
+    // the lowest concentrate's tank, the wastewater's collection tank
+    gauges: [
+      low && {
+        name: tr('Chemicals'),
+        value: low.levelPct,
+        min: 0,
+        max: 100,
+        state: low.state === 'critical' ? 'alarm' : low.state !== 'ok' ? 'warn' : 'ok',
+        unit: '%',
+      },
+      {
+        name: tr('Wastewater'),
+        value: w.collectionPct,
+        min: 0,
+        max: 100,
+        hi: w.highPct,
+        unit: '%',
+      },
+    ].filter(Boolean),
     state: m.tanks.some((t) => t.state === 'critical')
       ? 'stop'
       : m.tanks.some((t) => t.state !== 'ok') || phOut || w.collectionPct > w.highPct
@@ -198,9 +282,22 @@ export const machineLine = (x, tr) =>
 /** The blanks' zone card from the machining's metrics. */
 export const blanksZone = (m, tr) => {
   const low = m.stock.filter((s) => s.stockM < s.minM)
+  const total = m.stock.reduce((a, s) => a + s.stockM, 0)
+  const min = m.stock.reduce((a, s) => a + s.minM, 0)
   return {
     key: 'blanks',
     state: low.length ? 'warn' : 'run',
+    // the bar stock's metres against twice the materials' minimums - yellow while any one is under its own
+    gauges: [
+      {
+        name: tr('Bar stock'),
+        value: total,
+        min: 0,
+        max: Math.max(2 * min, Math.ceil(total / 10) * 10),
+        state: low.length ? 'warn' : 'ok',
+        unit: 'm',
+      },
+    ],
     lines: [
       [
         'Saw',
@@ -219,6 +316,7 @@ export const blanksZone = (m, tr) => {
 /** The CNC zone's card from the machining's metrics. */
 export const cncZone = (m, tr) => ({
   key: 'cnc',
+  gauges: [{ name: 'OEE', value: m.today.oeePct, min: 0, max: 100, unit: '%', state: 'ok' }],
   state: m.machines.some((x) => x.state === 'alarm')
     ? 'stop'
     : m.machines.every((x) => x.state === 'run')

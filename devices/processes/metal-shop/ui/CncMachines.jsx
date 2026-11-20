@@ -98,6 +98,9 @@ const CncMachines = ({ m, view = 'cnc' }) => {
                 '--hy': pct(sp.headX[1]),
                 '--zx': pct(sp.headZ[0]),
                 '--zy': pct(sp.headZ[1]),
+                // each machine its own pace and phase - two heads in step looked staged (the user, 2026-11-20)
+                animationDuration: `${RUN_S * (1 + 0.23 * k)}s`,
+                animationDelay: `${-RUN_S * 0.41 * k}s`,
               }}
             />
           </div>

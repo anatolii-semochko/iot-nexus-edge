@@ -9,6 +9,8 @@ import MockChart from './MockChart'
 import { daySeries, SERIES } from './mockSeries'
 import { barStep, daysText, MACHINE_STATE, machineLine, STATE_OF, useLineSeries } from './useLine'
 import ZoneScene, { zonePicture } from './ZoneScene'
+import BathFronts from './BathFronts'
+import UnitLights, { LIGHTS_CSS, ovenLight, utilityLights } from './UnitLights'
 import LineHoist from './LineHoist'
 import CncMachines from './CncMachines'
 import BandSaw from './BandSaw'
@@ -666,10 +668,26 @@ const ZonePopup = ({ index, live, onClose }) => {
             Object.entries(z.labels ?? {}).map(([k, v]) => [k, typeof v === 'string' ? tr(v) : v]),
           )}
         >
+          {z.live && z.key === 'line' && (
+            <BathFronts m={live.line.m} cfg={live.line.process.config} chem={live.chem?.m} />
+          )}
           {z.live && z.key === 'line' && <LineHoist m={live.line.m} />}
           {z.live && z.key === 'cnc' && <CncMachines m={live.machining.m} />}
           {z.live && z.key === 'blanks' && <BandSaw m={live.machining.m} />}
           {z.live && z.key === 'chem' && <ChemFlows m={live.chem.m} />}
+          {z.live && (z.key === 'utilities' || z.key === 'oven') && (
+            <>
+              <style>{LIGHTS_CSS}</style>
+              <UnitLights
+                spots={zonePicture(z.key)?.spots}
+                states={
+                  z.key === 'oven'
+                    ? ovenLight(live.oven.m, live.oven.process.config)
+                    : utilityLights(live.utilities.m)
+                }
+              />
+            </>
+          )}
         </ZoneScene>
         <div>
           <Stats items={z.stats} />

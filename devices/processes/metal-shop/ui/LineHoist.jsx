@@ -46,7 +46,8 @@ const geometry = (view, spots) => {
 // the step timers: at a station's point `kind` moved by `dy` (the picture's shares), `size` - a bath's pitch share.
 // The line's popup tags each bath over its back edge, so the timers go on the baths' front walls there.
 const TIMERS = {
-  line: { kind: 'down', dy: 0.12, size: 0.42 },
+  // the front's middle, between the heater's coil and the service marks (BathFronts.jsx)
+  line: { kind: 'down', dy: 0.131, size: 0.32 },
   shop: { kind: 'up', dy: 0, size: 0.5 },
 }
 const VIEWS = {
@@ -63,9 +64,10 @@ const CSS = `
 .ms-hoist .ms-cable { position: absolute; width: 2px; background: #5c636a; transform-origin: top center; will-change: transform }
 `
 
-// the liquid's surface between a station's bar-down (0) and raised-bar (1) points: the render's bath top 0.412 m,
-// the bar's 0.45 m down and 0.8 m up (images/dashboard/v2/make_folder_renders.py bath, BAR_*_Z)
-const SURFACE = -(0.45 - 0.412) / (0.8 - 0.45)
+// the cut under the liquid between a station's bar-down (0) and raised-bar (1) points: just under the bar's end
+// hooks resting on the rims (their bottom 0.40 m; the bath's top 0.412 m) - the bar's ends look the same moving
+// and resting (the user, 2026-11-20); the bar 0.45 m down, 1.05 m up (images/dashboard/v2/make_folder_renders.py)
+const SURFACE = -(0.45 - 0.395) / (1.05 - 0.45)
 // a client clock further off the server's than this is corrected by the update's own time (`hoist.at`)
 const SKEW_MS = 60_000
 

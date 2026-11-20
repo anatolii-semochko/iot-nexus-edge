@@ -177,8 +177,8 @@ export default function registerShopUtilities(register: any, { apiClient, logger
     await apiClient.setMetrics(process.id, {
       onShift,
       powerKw: r(powerKw, 2),
-      compressor: { bar: r(st.comp.bar, 2), state: st.comp.state, powerKw: r(compKw, 2), demandM3Min: r(airM3Min, 2) },
-      chiller: { running: chillerRunning, loadKw: r(loadKw, 1), supplyC: r(ch.supplyC, 1), returnC: r(ch.returnC, 1), powerKw: r(ch.powerKw, 2) },
+      compressor: { bar: r(st.comp.bar, 2), state: st.comp.state, powerKw: r(compKw, 2), demandM3Min: r(airM3Min, 2), loadBar: comp.loadBar, unloadBar: comp.unloadBar },
+      chiller: { running: chillerRunning, loadKw: r(loadKw, 1), supplyC: r(ch.supplyC, 1), setC: chil.supplyC, returnC: r(ch.returnC, 1), powerKw: r(ch.powerKw, 2) },
       di: { uScm: r(st.di.uScm, 2), limit: dis.limitUScm, column: st.di.column, regenLeftMin: r(st.di.regenLeftS / 60, 1) },
       lineBars: st.lineBars,
       today: {

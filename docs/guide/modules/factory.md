@@ -9,16 +9,26 @@ order: 4
 The factory module runs a small metal shop that makes aluminium parts from the
 bar stock to the pallet: the blanks are sawn, machined on CNC, anodized on a
 line with an automatic hoist, dried, checked and packed. Its panel - Dashboard
--> Factory -> Metal shop - is the shop's plan: seven zones, each with its card
-(a coloured dot for its state, the figures that matter now). A card opens the
-zone's window - its own picture, the figures, a table, the day's charts. Why a
-shop is automated this way and what it is worth - the site's
+-> Factory -> Metal shop - is the shop's plan with its seven zones. Each zone's
+main figures stand on its floor as gauges: the anodize bath's and the oven's
+temperatures, the compressed air, the bar stock, the OEE, the passed share, the
+chemicals' and the wastewater's levels. A gauge is green in its band and
+yellow out of it. A zone's outline lights up under the pointer, and a click
+opens the zone's window - its own picture, the figures, a table, the day's
+charts. Under the plan each zone has its card (a coloured dot for its state,
+the figures that matter now) that opens the same window. Why a shop is
+automated this way and what it is worth - the site's
 [Factory](/solutions/factory/) section.
 
 The pictures move with the shop: the hoist carries the bars, over each bar a
 ring counts its step down; the CNC doors rise for a setup, the head works
 behind the glass, the status light shows the state; the saw feeds the bar and
-cuts; in the chemistry dots run along the pipes while their pumps work.
+cuts, sparks flying from the cut; in the chemistry dots run along the pipes
+while their pumps work. On each bath's front its heater's coil glows while it
+heats (the anodize bath's cooling coil glows blue), a tube shows its level and
+a drop its concentration (a plus while the dosing pump adds). The compressor,
+the chiller and the oven have a status light: green blinking at work, yellow
+standing by, red blinking on a fault.
 
 ## The anodizing line
 

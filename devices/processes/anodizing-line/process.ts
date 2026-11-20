@@ -323,6 +323,8 @@ export default function registerAnodizingLine(register: any, { apiClient, logger
       // the chiller's electricity within powerKw (a shop's sum with its own chiller takes it out)
       chillerKw: r(chillerKw, 2),
       baths: bathView,
+      // the level a warning starts under (the panel marks it on the baths' level gauges)
+      lowLevelPct: LOW_LEVEL_PCT,
       hoist: {
         posMm: r(h.posMm, 0),
         state: h.state,

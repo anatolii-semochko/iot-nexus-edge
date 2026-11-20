@@ -5,9 +5,12 @@ import picture from './factory-shop.webp'
 import spots from './factory-shop.json'
 import { MOCK } from './mockData'
 import LineHoist from './LineHoist'
+import BathFronts from './BathFronts'
 import CncMachines from './CncMachines'
 import BandSaw from './BandSaw'
 import ZonePopup from './ZonePopup'
+import ZoneGauge, { GAUGE_CSS } from './ZoneGauge'
+import UnitLights, { LIGHTS_CSS, ovenLight, utilityLights } from './UnitLights'
 import {
   blanksZone,
   cncZone,
@@ -22,9 +25,11 @@ import {
 const tr = packageT('metal-shop')
 
 // The small metal shop's panel (iot AGENTS_TO_DO.md 2026-11-17/18 - step 1, a mockup on fixed figures):
-// the whole shop as one cartoon 3D plan (images/dashboard/v2 `factory-shop`), each zone's card over its
-// floor (the picture's hot spots - factory-shop.json, the zones' outlines in its shares), the shop's sums
-// over it, the batches in work under it. A phone - the picture, then the zones' cards as a list.
+// the whole shop as one cartoon 3D plan (images/dashboard/v2 `factory-shop`), the shop's sums over it, the
+// zones' cards and the batches in work under it. On the plan (2026-11-20 - the user: the cards over the plan
+// never fitted every width): each zone's outline (the picture's hot spots - factory-shop.json) lights up under the
+// pointer and opens the zone's window, like the Dashboard's map; each zone's main figures - gauges between its
+// machines (ZoneGauge, GAUGE_AT); the rest - the zone's card under the plan (a link to the window too).
 
 const STATE_COLORS = {
   run: 'var(--cui-success)',
@@ -59,9 +64,16 @@ const CSS = `
 .ms-line span:first-child { color: var(--cui-secondary-color) }
 .ms-line span:first-child { min-width: 0 }
 .ms-line span:last-child { font-weight: 600; text-align: right; white-space: nowrap }
-.ms-list { display: none; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) }
+.ms-list { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) }
 .ms-list .ms-zone { position: static; transform: none; max-width: none }
-@media (max-width: 991.98px) { .ms-plan .ms-zone { display: none } .ms-list { display: grid } }
+.ms-rooms { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3 }
+.ms-room { cursor: pointer; pointer-events: all; fill: var(--cui-primary); fill-opacity: 0; stroke: var(--cui-primary);
+  stroke-opacity: 0; stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linejoin: round }
+.ms-room:hover, .ms-room:focus-visible { fill-opacity: .1; stroke-opacity: .95; outline: none }
+.ms-gauges { position: absolute; inset: 0; pointer-events: none; z-index: 4 }
+.ms-tip { position: absolute; transform: translate(-50%, calc(-100% - 6px)); z-index: 5; pointer-events: none; white-space: nowrap;
+  display: flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 6px; font-size: .82rem; font-weight: 600;
+  background: var(--cui-body-bg); border: 1px solid var(--cui-border-color); box-shadow: 0 2px 6px rgba(0,0,0,.15) }
 .ms-batches { width: 100%; font-size: .85rem }
 .ms-batches th { font-weight: 600; color: var(--cui-secondary-color); padding: 4px 8px 4px 0 }
 .ms-batches td { padding: 4px 8px 4px 0; border-top: 1px solid var(--cui-border-color) }
@@ -69,27 +81,25 @@ const CSS = `
 .ms-bar > div { height: 100%; border-radius: 3px; background: var(--cui-primary) }
 `
 
-/** A zone's outline's middle, in the picture's shares. */
-// each zone's card on the plan - its middle in the room's box (shares; the plan's zone order): over the room's free
-// floor, so it covers no machine, or only a little of an unimportant one (the user, 2026-11-19 - the places from
-// the user's mock-up Downloads/factory-panel-2.png)
-const CARD_AT = [
-  [0.69, 0.04], // blanks and saw - over the rack's right end, by the back wall
-  [0.64, 0.76], // CNC machining - in front of the machines
-  [0.79, 0.58], // the line - the hall's right part, in front of the baths
-  [0.5, 0.82], // the oven - in front of the oven (the hall between the line and QC since 2026-11-19)
-  [0.78, 0.55], // QC and packing - right, over the pallets' tops (the chemistry's card above it)
-  [0.6, 0.71], // the utilities - near the viewer, in front of the units
-  [0.5, 0.95], // the chemistry and wastewater - the room's front edge (the shop's top right since 2026-11-19)
-]
-
-/** A point in the room's box: `at` - shares of its width and height. */
-const placeIn = (poly, at = [0.5, 0.5]) => {
-  const xs = poly.map((p) => p[0])
-  const ys = poly.map((p) => p[1])
-  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
-  return [x0 + (x1 - x0) * at[0], y0 + (y1 - y0) * at[1]]
+// each zone's gauges on the plan (the picture's shares, the gauges' order - useLine.js): over the zone's free floor,
+// between its machines (2026-11-20)
+const GAUGE_AT = {
+  blanks: [[0.229, 0.3]], // right of the rack and the saw
+  cnc: [[0.17, 0.85]], // in front of the machines
+  line: [[0.532, 0.43]], // the walkway, in front of the anodize bath
+  oven: [[0.67, 0.86]], // in front of the oven
+  qc: [[0.93, 0.62]], // right of the QC table
+  utilities: [
+    [0.298, 0.86], // the compressor's
+    [0.41, 0.86], // the chiller's
+  ],
+  chem: [
+    [0.8, 0.45], // the concentrates - in front of the collection tank
+    [0.88, 0.45], // the wastewater - in front of the settler
+  ],
 }
+// a gauge's width - a share of the plan's (ZoneGauge clamps it)
+const GAUGE_SIZE = 0.05
 
 const ZoneCard = ({ zone, title, style, onOpen }) => (
   <button
@@ -119,13 +129,15 @@ const ZoneCard = ({ zone, title, style, onOpen }) => (
 const MetalShopScene = () => {
   // the zone whose popup is open (its index in the plan's zones), null - none
   const [open, setOpen] = useState(null)
+  // the zone under the pointer (its index) - its name over its outline
+  const [tip, setTip] = useState(null)
   // each zone live once its process runs (steps 3-7), the mockup's figures until then
   const live = useShopProcesses()
   const liveZone = {
-    line: live.line && lineZone(live.line.m, tr),
-    oven: live.oven && ovenZone(live.oven.m, tr),
+    line: live.line && lineZone(live.line.m, tr, live.line.process.config),
+    oven: live.oven && ovenZone(live.oven.m, tr, live.oven.process.config),
     qc: live.qc && qcZone(live.qc.m, tr),
-    utilities: live.utilities && utilitiesZone(live.utilities.m),
+    utilities: live.utilities && utilitiesZone(live.utilities.m, tr),
     chem: live.chem && chemZone(live.chem.m, tr),
     blanks: live.machining && blanksZone(live.machining.m, tr),
     cnc: live.machining && cncZone(live.machining.m, tr),
@@ -161,7 +173,7 @@ const MetalShopScene = () => {
   const data = { zones: MOCK.zones.map((z) => liveZone[z.key] ?? z), batches }
   return (
     <div className="ms-scene">
-      <style>{CSS}</style>
+      <style>{CSS + GAUGE_CSS + LIGHTS_CSS}</style>
       <div className="ms-sums">
         <span className="ms-sum">
           <b>{s.powerKw.toFixed(1)}</b>
@@ -199,23 +211,71 @@ const MetalShopScene = () => {
             'The shop: the blanks, the CNC machines, the anodizing line, the oven, QC, the utilities',
           )}
         />
+        {live.line && (
+          <BathFronts
+            m={live.line.m}
+            cfg={live.line.process.config}
+            chem={live.chem?.m}
+            view="shop"
+          />
+        )}
         {live.line && <LineHoist m={live.line.m} view="shop" />}
         {live.machining && <CncMachines m={live.machining.m} view="shop" />}
         {live.machining && <BandSaw m={live.machining.m} view="shop" />}
-        {data.zones.map((z, i) => {
-          const room = spots.rooms[i]
-          if (!room) return null
-          const [x, y] = placeIn(room.poly, CARD_AT[i])
-          return (
-            <ZoneCard
-              onOpen={() => setOpen(i)}
-              key={z.key}
-              zone={z}
-              title={ZONE_TITLES[i]}
-              style={{ left: `${x * 100}%`, top: `${y * 100}%` }}
-            />
-          )
-        })}
+        <UnitLights
+          spots={spots}
+          states={{
+            ...(live.utilities ? utilityLights(live.utilities.m) : {}),
+            ...(live.oven ? ovenLight(live.oven.m, live.oven.process.config) : {}),
+          }}
+        />
+        <svg className="ms-rooms" viewBox="0 0 1 1" preserveAspectRatio="none">
+          {data.zones.map((z, i) => {
+            const room = spots.rooms[i]
+            if (!room) return null
+            const title = tr(ZONE_TITLES[i])
+            return (
+              <polygon
+                key={z.key}
+                className="ms-room"
+                points={room.poly.map((p) => p.join(',')).join(' ')}
+                tabIndex={0}
+                role="link"
+                aria-label={title}
+                onMouseEnter={() => setTip(i)}
+                onMouseLeave={() => setTip((x) => (x === i ? null : x))}
+                onFocus={() => setTip(i)}
+                onBlur={() => setTip(null)}
+                onClick={() => setOpen(i)}
+                onKeyDown={(e) => e.key === 'Enter' && setOpen(i)}
+              />
+            )
+          })}
+        </svg>
+        <div className="ms-gauges" aria-hidden="true">
+          {data.zones.flatMap((z) =>
+            (z.gauges ?? []).map((g, k) =>
+              GAUGE_AT[z.key]?.[k] ? (
+                <ZoneGauge key={`${z.key}${k}`} at={GAUGE_AT[z.key][k]} size={GAUGE_SIZE} g={g} />
+              ) : null,
+            ),
+          )}
+        </div>
+        {tip !== null && spots.rooms[tip] && (
+          <span
+            className="ms-tip"
+            style={{
+              left: `${(Math.min(...spots.rooms[tip].poly.map((p) => p[0])) + Math.max(...spots.rooms[tip].poly.map((p) => p[0]))) * 50}%`,
+              top: `${Math.min(...spots.rooms[tip].poly.map((p) => p[1])) * 100}%`,
+            }}
+          >
+            <span className="ms-dot" style={{ background: STATE_COLORS[data.zones[tip].state] }} />
+            {tr(ZONE_TITLES[tip])}
+            <span className="fw-normal text-body-secondary">
+              · {tr(STATE_LABELS[data.zones[tip].state])}
+            </span>
+          </span>
+        )}
       </div>
       <div className="ms-list">
         {data.zones.map((z, i) => (

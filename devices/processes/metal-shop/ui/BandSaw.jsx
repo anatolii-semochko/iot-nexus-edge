@@ -11,7 +11,9 @@ import shopSpots from './factory-shop.json'
 // (the machining process's `saw.endAt`, `saw.spanS`) plays on the panel's clock: the bar fed by a blank's length,
 // the arm down through it, the arm up; then the blank slides along the outfeed table and drops into the bin while
 // the next cut starts. Over the saw - the cut's timer. Two views: the blanks zone's popup ("blanks") and the shop's
-// plan ("shop").
+// plan ("shop"). While the blade is in the bar, sparks fly from the cut (2026-11-20, the user): small glowing dots,
+// each one's wrapper (the picture's full frame) moved by a transform along the hot spots' `spark` way, bent by a
+// mid-way point, fading out - transforms and opacity only.
 
 const SPRITES = import.meta.glob('./factory-*-saw-{arm,bar,blank}.webp', {
   eager: true,
@@ -43,8 +45,59 @@ const CSS = `
   85% { transform: translate(var(--dx), var(--dy)); opacity: 1 }
   100% { transform: translate(var(--dx), var(--dy)); opacity: 0 }
 }
-@media (prefers-reduced-motion: reduce) { .ms-saw .ms-saw-out { animation: none; opacity: 0 } }
+.ms-spark { position: absolute; inset: 0; will-change: transform, opacity; animation: ms-spark var(--d) linear infinite;
+  animation-delay: var(--t); opacity: 0 }
+.ms-spark i { position: absolute; width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
+  border-radius: 50%; background: #fff1b8; box-shadow: 0 0 3px 1px #ffb02e, 0 0 6px 2px rgba(255, 106, 0, .55) }
+@keyframes ms-spark {
+  0% { transform: none; opacity: 1 }
+  35% { transform: translate(var(--mx), var(--my)); opacity: 1 }
+  100% { transform: translate(var(--ex), var(--ey)); opacity: 0 }
+}
+@media (prefers-reduced-motion: reduce) { .ms-saw .ms-saw-out { animation: none; opacity: 0 } .ms-spark { display: none } }
 `
+// the sparks: each one's share of the way, its side-ways spread (a share of the way's length), its time, its size
+const SPARKS = [
+  [1, 0, 0.55, 1],
+  [0.75, 0.35, 0.45, 0.8],
+  [0.9, -0.3, 0.6, 0.9],
+  [0.6, 0.15, 0.4, 0.7],
+  [1.1, 0.2, 0.65, 1],
+  [0.8, -0.15, 0.5, 0.8],
+  [0.55, -0.4, 0.4, 0.7],
+  [0.95, 0.45, 0.6, 0.9],
+]
+// a spark's size (px) by the view
+const SPARK_PX = { blanks: 4, shop: 2.5 }
+
+/** The sparks from the cut along `way` (a vector in the picture's shares) while the blade cuts. */
+const Sparks = ({ at, way, view }) => {
+  const len = Math.hypot(way[0], way[1]) || 1
+  // the side-ways direction - across the way
+  const side = [-way[1] / len, way[0] / len]
+  return SPARKS.map(([f, sp, d, s], k) => {
+    const end = [way[0] * f + side[0] * sp * len * 0.6, way[1] * f + side[1] * sp * len * 0.6]
+    // the mid-way point: out first, the fall later (a spark's arc)
+    const mid = [end[0] * 0.45, end[1] * 0.2 - Math.abs(end[1]) * 0.12]
+    return (
+      <div
+        key={k}
+        className="ms-spark"
+        style={{
+          '--d': `${d}s`,
+          '--t': `${(-k * d) / SPARKS.length}s`,
+          '--mx': pct(mid[0]),
+          '--my': pct(mid[1]),
+          '--ex': pct(end[0]),
+          '--ey': pct(end[1]),
+          '--s': `${(SPARK_PX[view] ?? 3) * s}px`,
+        }}
+      >
+        <i style={{ left: pct(at[0]), top: pct(at[1]) }} />
+      </div>
+    )
+  })
+}
 
 /** The cut at `t`: the bar's feed and the arm's travel (0..1) now and at the phase's end, the phase's end. */
 const cutAt = (saw, t) => {
@@ -117,6 +170,9 @@ const BandSaw = ({ m, view = 'blanks' }) => {
       {sprite('blank') &&
         out.map((e) => <Blank key={e} src={sprite('blank')} sp={sp} since={t - e} />)}
       <img src={sprite('arm')} alt="" style={{ transform: shift(sp.arm, arm), transition: move }} />
+      {c && c.armEnd === 1 && c.arm < 1 && sp.cut && sp.spark && (
+        <Sparks at={sp.cut} way={sp.spark} view={view} />
+      )}
       {c && (
         <StepTimer
           at={[

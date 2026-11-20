@@ -10025,13 +10025,22 @@ wastewater-treatment, band-saw, cnc-machine, chemical-tank; device types ph and 
 the same since 2026-11-20 - its copies removed; the EdgeX resource of ph is `PH`).
 
 **The panel** (`metal-shop/ui/`, system component `metalShop.panel`): the shop's cartoon 3D plan
-(`factory-shop.webp` + `.json` - rooms, items, hoist stations, `cnc`, `saw` spots from the render) with each zone's
-card (`MetalShopScene.jsx` `CARD_AT` - its place in the room's box; a value never wraps), the zone's popup
+(`factory-shop.webp` + `.json` - rooms, items, hoist stations, the baths' `fronts`, `cnc`, `saw` spots from the
+render). On the plan (2026-11-20 - the cards over it never fitted every width): each zone's outline lights up under
+the pointer and opens its popup, like the navigator's map; each zone's main figures as gauges between its machines
+(`ZoneGauge.jsx` - an open ring in the step timer's style, green in the band, yellow out of it; the gauges from
+`useLine.js` `<zone>Zone().gauges`, their places `MetalShopScene.jsx` `GAUGE_AT`); the zones' cards always under the
+plan (a value never wraps). `BathFronts.jsx` - on each bath's front the heater's coil (the aquarium panel's, glowing
+while it heats; the anodize bath's cooling coil blue), the level's tube (its tick - the line's `lowLevelPct`) and
+the dosed bath's drop (a plus while its pump doses); `UnitLights.jsx` - the compressor's, the chiller's and the
+oven's status LED (green blinking at work, yellow standing by, red blinking on a fault; the utilities' metrics carry
+`loadBar` / `unloadBar` and the chiller's `setC` for it). The zone's popup
 (`ZonePopup.jsx` - its own picture `factory-<zone>.webp`, labels on the hot spots, stats, table, charts; live per
 process via `useLine.js`, the mockup's figures otherwise). The moving pictures - sprites rendered with the same
 camera, moved by transforms only: `LineHoist.jsx` (the hoist's timeline, per-station sprites switched half-way,
 the bar cut at the liquid's surface, the front rail over it), `CncMachines.jsx` (doors, heads, status lights, the
-operator's sprite over the doors), `BandSaw.jsx` (feed, cut, the blank into the bin), `ChemFlows.jsx` (dots along
+operator's sprite over the doors; each machine its own head pace and phase), `BandSaw.jsx` (feed, cut, sparks from
+the `saw.cut` point along `saw.spark` while the blade is in the bar, the blank into the bin), `ChemFlows.jsx` (dots along
 the pipes while their pumps run, the press's timer), `StepTimer.jsx` (the ring timers, the highest layer; a
 client clock off the server's by over 60 s is corrected by the update's `at`). The pictures' pipeline - iot
 `images/dashboard/PICTURES.md` (`make_folder_renders.py` layers, `line_layers.py`, `crop_wide.py`, `trim_shop.py`).

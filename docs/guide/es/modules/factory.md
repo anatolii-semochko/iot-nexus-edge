@@ -10,17 +10,29 @@ El módulo de fábrica gestiona un pequeño taller de metal que fabrica piezas d
 aluminio de la barra al palé: las piezas en bruto se cortan, se mecanizan en
 CNC, se anodizan en una línea con carro automático, se secan, se controlan y
 se embalan. Su panel (Panel -> Fábrica -> Taller de metal) es el plano del
-taller con siete zonas. Cada zona tiene su tarjeta: un punto de color muestra
-el estado y al lado están las cifras que importan en ese momento. La tarjeta
-abre la ventana de la zona con su imagen, sus cifras, una tabla y las curvas
-del día. Por qué un taller se automatiza así y cuánto vale: la sección
+taller con siete zonas. Las cifras principales de cada zona están sobre su
+suelo como indicadores circulares: la temperatura del baño de anodizado y la
+del horno, la presión del aire comprimido, la reserva de barras, el OEE, la
+parte de piezas aceptadas, los niveles de química y de aguas residuales. Un
+indicador está en verde dentro de su rango y en amarillo fuera de él. Al
+pasar el puntero sobre una zona se ilumina su contorno, y un clic abre su
+ventana con su imagen, sus cifras, una tabla y las curvas del día. Bajo el
+plano cada zona tiene su tarjeta: un punto de color muestra el estado y al
+lado están las cifras que importan en ese momento; la tarjeta abre la misma
+ventana. Por qué un taller se automatiza así y cuánto vale: la sección
 [Fábrica](/es/solutions/factory/) del sitio.
 
 Las imágenes se mueven con el taller. El carro traslada los bastidores y
 sobre cada bastidor un anillo cuenta su paso. Las puertas del CNC se levantan
 para la preparación, el cabezal trabaja tras el cristal y la baliza muestra
-el estado. La sierra avanza la barra y corta, y en la química unos puntos
-recorren las tuberías mientras trabajan las bombas.
+el estado. La sierra avanza la barra y corta, y del corte saltan chispas. En
+la química unos puntos recorren las tuberías mientras trabajan las bombas. En
+la pared frontal de cada baño brilla la espiral de la resistencia mientras
+calienta (en el baño de anodizado, el serpentín de refrigeración en azul), un
+tubo muestra el nivel y una gota la concentración, con un signo más mientras
+dosifica la bomba. El compresor, la enfriadora y el horno tienen una luz de
+estado: verde intermitente en marcha, amarilla en espera y roja intermitente
+ante un fallo.
 
 ## La línea de anodizado
 

@@ -187,5 +187,11 @@
   "Heat by the price": "Wärme nach Preis",
   "storing heat": "speichert Wärme",
   "as set": "nach Sollwert",
-  "saving": "spart"
+  "saving": "spart",
+  "Passed": "Gut",
+  "Air": "Druckluft",
+  "Bar stock": "Stangen",
+  "Chemicals": "Chemie",
+  "standing by": "Bereitschaft",
+  "fault": "Störung"
 }

@@ -10,10 +10,16 @@ Das Fabrikmodul führt eine kleine Metallwerkstatt, die Aluminiumteile von der
 Stange bis zur Palette fertigt: Die Rohlinge werden gesägt, auf CNC-Maschinen
 bearbeitet, auf einer Linie mit automatischem Transportwagen eloxiert,
 getrocknet, geprüft und verpackt. Ihr Panel (Dashboard -> Fabrik ->
-Metallwerkstatt) ist der Plan der Werkstatt mit sieben Bereichen. Jeder
-Bereich hat seine Karte: Ein farbiger Punkt zeigt den Zustand, daneben stehen
-die Zahlen, auf die es gerade ankommt. Die Karte öffnet das Fenster des
-Bereichs mit seinem Bild, den Zahlen, einer Tabelle und den Kurven des Tages.
+Metallwerkstatt) ist der Plan der Werkstatt mit sieben Bereichen. Die
+wichtigsten Zahlen jedes Bereichs stehen als Rundanzeigen direkt auf seinem
+Boden: die Temperatur des Eloxalbads und des Ofens, der Druckluftdruck, der
+Stangenvorrat, die OEE, der Anteil guter Teile, die Füllstände von Chemie und
+Abwasser. Im Sollbereich ist eine Anzeige grün, außerhalb gelb. Fährt man mit
+der Maus über einen Bereich, leuchtet sein Umriss auf, und ein Klick öffnet
+das Fenster des Bereichs mit seinem Bild, den Zahlen, einer Tabelle und den
+Kurven des Tages. Unter dem Plan hat jeder Bereich seine Karte: Ein farbiger
+Punkt zeigt den Zustand, daneben stehen die Zahlen, auf die es gerade
+ankommt. Auch die Karte öffnet das Fenster.
 Warum eine Werkstatt so automatisiert wird und was es wert ist, steht im
 Abschnitt [Fabrik](/de/solutions/factory/) der Website.
 
@@ -21,8 +27,13 @@ Die Bilder bewegen sich mit der Werkstatt. Der Transportwagen setzt die
 Warenträger um, und über jedem Warenträger zählt ein Ring seinen Schritt
 herunter. Die Türen der CNC-Maschinen öffnen sich zum Rüsten, hinter dem Glas
 arbeitet der Spindelkopf, die Signalleuchte zeigt den Zustand. Die Säge
-schiebt die Stange vor und sägt, und in der Chemie laufen Punkte durch die
-Rohre, solange die Pumpen arbeiten.
+schiebt die Stange vor und sägt, dabei sprühen am Schnitt Funken. In der
+Chemie laufen Punkte durch die Rohre, solange die Pumpen arbeiten. Auf der
+Vorderwand jedes Bads glüht die Heizspirale, solange sie heizt (beim
+Eloxalbad die blaue Kühlschlange), ein Röhrchen zeigt den Füllstand und ein
+Tropfen die Konzentration, mit einem Plus, solange die Dosierpumpe läuft.
+Kompressor, Kühler und Ofen haben eine Betriebsleuchte: Grün blinkt sie im
+Betrieb, gelb leuchtet sie in Bereitschaft, rot blinkt sie bei einer Störung.
 
 ## Die Eloxallinie
 
