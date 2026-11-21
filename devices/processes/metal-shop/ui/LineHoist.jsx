@@ -57,11 +57,11 @@ const VIEWS = {
 
 const CSS = `
 .ms-hoist { position: absolute; inset: 0; pointer-events: none; overflow: hidden }
-.ms-hoist img, .ms-hoist .ms-layer { position: absolute; left: 0; top: 0; width: 100%; will-change: transform }
+.ms-hoist img, .ms-hoist .ms-layer { position: absolute; left: 0; top: 0; width: 100% }
 .ms-hoist img { height: auto }
 .ms-hoist .ms-layer { height: 100% }
 .ms-hoist .ms-clip { position: absolute; inset: 0 }
-.ms-hoist .ms-cable { position: absolute; width: 2px; background: #5c636a; transform-origin: top center; will-change: transform }
+.ms-hoist .ms-cable { position: absolute; width: 2px; background: #5c636a; transform-origin: top center }
 `
 
 // the cut under the liquid between a station's bar-down (0) and raised-bar (1) points: just under the bar's end
@@ -83,9 +83,32 @@ const point = (stations, f, kind) => {
 /** A full-frame layer's transform: from its home point to `to` (both in the picture's shares). */
 const shift = (home, to) => `translate(${(to[0] - home[0]) * 100}%, ${(to[1] - home[1]) * 100}%)`
 
-/** A sprite moved to `to` (a station's point of `kind`) over `move` (a CSS transition): when each station has its
- * own sprite, only station `near`'s one is shown (switched, not faded); else the one rendered at the home one. */
-const Moving = ({ g, name, kind, to, near, move }) => {
+/** One station's sprite: mounted where the piece is now (`from`), moved to `to` over `move` from the next frame. */
+const Sprite = ({ src, home, from, to, move, shown }) => {
+  const [started, setStarted] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setStarted(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
+  return (
+    <img
+      src={src}
+      alt=""
+      style={{
+        transform: shift(home, started ? to : from),
+        opacity: shown ? 1 : 0,
+        transition: started ? move : 'none',
+      }}
+    />
+  )
+}
+
+/** A sprite moved from `from` to `to` (a station's points of `kind`) over `move` (a CSS transition): when each station
+ * has its own sprite, only station `near`'s one is shown (switched, not faded); else the one rendered at the home one.
+ * Only the stations this phase passes (`span` - the lowest and the highest) are mounted (2026-11-21: all ten stations'
+ * full-frame sprites of each piece, on the plan and in the line's popup, ran a GPU out of its layers' memory - the
+ * plan went blank). */
+const Moving = ({ g, name, kind, from, to, near, span, move }) => {
   if (!g.perStation(name))
     return (
       <img
@@ -94,14 +117,19 @@ const Moving = ({ g, name, kind, to, near, move }) => {
         style={{ transform: shift(g.stations[g.home][kind], to), transition: move }}
       />
     )
-  return g.stations.map((st, k) => (
-    <img
-      key={k}
-      src={g.sprite(name, k)}
-      alt=""
-      style={{ transform: shift(st[kind], to), opacity: k === near ? 1 : 0, transition: move }}
-    />
-  ))
+  return g.stations.map((st, k) =>
+    k >= span[0] && k <= span[1] ? (
+      <Sprite
+        key={k}
+        src={g.sprite(name, k)}
+        home={st[kind]}
+        from={from}
+        to={to}
+        move={move}
+        shown={k === near}
+      />
+    ) : null,
+  )
 }
 
 /**
@@ -174,6 +202,18 @@ const LineHoist = ({ m, view = 'line' }) => {
   const up = point(STATIONS, fTo, 'up')
   const dn = point(STATIONS, fTo, 'down')
   const barAt = [dn[0] + (up[0] - dn[0]) * lTo, dn[1] + (up[1] - dn[1]) * lTo]
+  // where the pieces are now - a sprite mounted mid-phase starts there; the stations this phase passes
+  const carNow = point(STATIONS, s.f, 'car')
+  const upNow = point(STATIONS, s.f, 'up')
+  const dnNow = point(STATIONS, s.f, 'down')
+  const barNow = [
+    dnNow[0] + (upNow[0] - dnNow[0]) * s.lift,
+    dnNow[1] + (upNow[1] - dnNow[1]) * s.lift,
+  ]
+  const span = [
+    Math.max(0, Math.round(Math.min(s.f, s.fEnd))),
+    Math.min(STATIONS.length - 1, Math.round(Math.max(s.f, s.fEnd))),
+  ]
   const H = STATIONS[HOME]
   // the cable: from under the carriage to the bar - its full length (the bar down), scaled to the bar's height
   const full = Math.max(0.001, H.down[1] - H.car[1] - 0.012)
@@ -228,11 +268,29 @@ const LineHoist = ({ m, view = 'line' }) => {
           />
         </div>
         <div className="ms-layer">
-          <Moving g={g} name="bar-up" kind="up" to={barAt} near={near} move={move} />
+          <Moving
+            g={g}
+            name="bar-up"
+            kind="up"
+            from={barNow}
+            to={barAt}
+            near={near}
+            span={span}
+            move={move}
+          />
         </div>
       </div>
       {sprite('rail') && <img src={sprite('rail')} alt="" />}
-      <Moving g={g} name="carriage" kind="car" to={car} near={near} move={move} />
+      <Moving
+        g={g}
+        name="carriage"
+        kind="car"
+        from={carNow}
+        to={car}
+        near={near}
+        span={span}
+        move={move}
+      />
       {/* the step timers - over everything (the carriage passes over the baths' points) */}
       {resting.map((b) => {
         const at0 = STATIONS[b.station]

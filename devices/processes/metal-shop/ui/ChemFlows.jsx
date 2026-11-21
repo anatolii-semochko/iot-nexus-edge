@@ -37,16 +37,20 @@ const keyframes = (name, line) => {
   let run = 0
   const steps = line.map((p, k) => {
     if (k > 0) run += Math.hypot(p[0] - line[k - 1][0], p[1] - line[k - 1][1])
-    return `  ${((run / total) * 100).toFixed(2)}% { transform: translate(${pct(p[0])}, ${pct(p[1])}) }`
+    return `  ${((run / total) * 100).toFixed(2)}% { transform: translate(${cq(p[0], 'w')}, ${cq(p[1], 'h')}) }`
   })
   return `@keyframes ms-flow-${name} {\n${steps.join('\n')}\n}`
 }
 
+// a share of the picture in its container's units - each dot's wrapper is a point moved over the picture, not a
+// full-frame layer (2026-11-21: full-frame layers per dot ran a GPU out of its layers' memory)
+const cq = (v, axis) => `${(v * 100).toFixed(3)}cq${axis}`
+
 const CSS = `
-.ms-flows { position: absolute; inset: 0; pointer-events: none; overflow: hidden }
-.ms-flows .ms-flow { position: absolute; inset: 0; will-change: transform; animation-timing-function: linear;
+.ms-flows { position: absolute; inset: 0; pointer-events: none; overflow: hidden; container-type: size }
+.ms-flows .ms-flow { position: absolute; left: 0; top: 0; width: 0; height: 0; animation-timing-function: linear;
   animation-iteration-count: infinite }
-.ms-flows .ms-flow i { position: absolute; left: 0; top: 0; width: 0.9%; aspect-ratio: 1; border-radius: 50%;
+.ms-flows .ms-flow i { position: absolute; left: 0; top: 0; width: 0.9cqw; aspect-ratio: 1; border-radius: 50%;
   transform: translate(-50%, -50%); box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85) }
 @media (prefers-reduced-motion: reduce) { .ms-flows .ms-flow { display: none } }
 ${Object.entries(FLOWS)

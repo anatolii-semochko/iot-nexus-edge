@@ -12,8 +12,8 @@ import shopSpots from './factory-shop.json'
 // the arm down through it, the arm up; then the blank slides along the outfeed table and drops into the bin while
 // the next cut starts. Over the saw - the cut's timer. Two views: the blanks zone's popup ("blanks") and the shop's
 // plan ("shop"). While the blade is in the bar, sparks fly from the cut (2026-11-20, the user): small glowing dots,
-// each one's wrapper (the picture's full frame) moved by a transform along the hot spots' `spark` way, bent by a
-// mid-way point, fading out - transforms and opacity only.
+// each one a point at the cut moved by a transform (in the layer's container units) along the hot spots' `spark`
+// way, bent by a mid-way point, fading out - transforms and opacity only.
 
 const SPRITES = import.meta.glob('./factory-*-saw-{arm,bar,blank}.webp', {
   eager: true,
@@ -34,10 +34,13 @@ const TIMER = { blanks: 0.09, shop: 0.028 }
 const TIMER_SHIFT = { blanks: 1.6, shop: 0 }
 
 const pct = (v) => `${(v * 100).toFixed(3)}%`
+// a share of the picture in the saw layer's container units - a spark is a point moved over the picture, not a
+// full-frame layer (2026-11-21, the GPU's layers' memory)
+const cq = (v, axis) => `${(v * 100).toFixed(3)}cq${axis}`
 const shift = (v, k) => (k ? `translate(${pct(v[0] * k)}, ${pct(v[1] * k)})` : 'none')
 const CSS = `
-.ms-saw { position: absolute; inset: 0; pointer-events: none; overflow: hidden }
-.ms-saw img { position: absolute; left: 0; top: 0; width: 100%; height: auto; will-change: transform }
+.ms-saw { position: absolute; inset: 0; pointer-events: none; overflow: hidden; container-type: size }
+.ms-saw img { position: absolute; left: 0; top: 0; width: 100%; height: auto }
 .ms-saw .ms-saw-out { animation: ms-saw-out ${OUT_S}s linear both }
 @keyframes ms-saw-out {
   0% { transform: none; opacity: 1 }
@@ -45,9 +48,9 @@ const CSS = `
   85% { transform: translate(var(--dx), var(--dy)); opacity: 1 }
   100% { transform: translate(var(--dx), var(--dy)); opacity: 0 }
 }
-.ms-spark { position: absolute; inset: 0; will-change: transform, opacity; animation: ms-spark var(--d) linear infinite;
+.ms-spark { position: absolute; width: 0; height: 0; animation: ms-spark var(--d) linear infinite;
   animation-delay: var(--t); opacity: 0 }
-.ms-spark i { position: absolute; width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
+.ms-spark i { position: absolute; left: 0; top: 0; width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
   border-radius: 50%; background: #fff1b8; box-shadow: 0 0 3px 1px #ffb02e, 0 0 6px 2px rgba(255, 106, 0, .55) }
 @keyframes ms-spark {
   0% { transform: none; opacity: 1 }
@@ -86,14 +89,16 @@ const Sparks = ({ at, way, view }) => {
         style={{
           '--d': `${d}s`,
           '--t': `${(-k * d) / SPARKS.length}s`,
-          '--mx': pct(mid[0]),
-          '--my': pct(mid[1]),
-          '--ex': pct(end[0]),
-          '--ey': pct(end[1]),
+          left: pct(at[0]),
+          top: pct(at[1]),
+          '--mx': cq(mid[0], 'w'),
+          '--my': cq(mid[1], 'h'),
+          '--ex': cq(end[0], 'w'),
+          '--ey': cq(end[1], 'h'),
           '--s': `${(SPARK_PX[view] ?? 3) * s}px`,
         }}
       >
-        <i style={{ left: pct(at[0]), top: pct(at[1]) }} />
+        <i />
       </div>
     )
   })

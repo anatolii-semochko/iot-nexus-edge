@@ -51,7 +51,8 @@ const RUN_PATH = [
 const pct = (v) => `${(v * 100).toFixed(3)}%`
 const CSS = `
 .ms-cnc { position: absolute; inset: 0; pointer-events: none; overflow: hidden }
-.ms-cnc img { position: absolute; left: 0; top: 0; width: 100%; height: auto; will-change: transform }
+/* no will-change: a full-frame sprite gets its GPU layer only while it moves (2026-11-21 - the layers' memory) */
+.ms-cnc img { position: absolute; left: 0; top: 0; width: 100%; height: auto }
 .ms-cnc .ms-cnc-window { position: absolute; inset: 0 }
 .ms-cnc .ms-cnc-door { transition: transform ${DOOR_S}s ease-in-out }
 .ms-cnc .ms-cnc-run { animation: ms-cnc-run ${RUN_S}s linear infinite }
