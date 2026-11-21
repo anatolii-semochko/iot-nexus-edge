@@ -67,9 +67,11 @@ const CSS = `
 .ms-list { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) }
 .ms-list .ms-zone { position: static; transform: none; max-width: none }
 .ms-rooms { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3 }
+/* never an outline: the outlines' SVG is 1 x 1 stretched over the plan - a focus ring (the focus a closed window
+   gives back) grew into an ellipse over the whole plan (2026-11-21); the focus shows as the hover's light */
 .ms-room { cursor: pointer; pointer-events: all; fill: var(--cui-primary); fill-opacity: 0; stroke: var(--cui-primary);
-  stroke-opacity: 0; stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linejoin: round }
-.ms-room:hover, .ms-room:focus-visible { fill-opacity: .1; stroke-opacity: .95; outline: none }
+  stroke-opacity: 0; stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; outline: none }
+.ms-room:hover, .ms-room:focus-visible { fill-opacity: .1; stroke-opacity: .95 }
 .ms-gauges { position: absolute; inset: 0; pointer-events: none; z-index: 4 }
 .ms-tip { position: absolute; transform: translate(-50%, calc(-100% - 6px)); z-index: 5; pointer-events: none; white-space: nowrap;
   display: flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 6px; font-size: .82rem; font-weight: 600;
@@ -244,9 +246,13 @@ const MetalShopScene = () => {
                 aria-label={title}
                 onMouseEnter={() => setTip(i)}
                 onMouseLeave={() => setTip((x) => (x === i ? null : x))}
-                onFocus={() => setTip(i)}
+                // the name on a keyboard's focus only - not on the focus a closed window gives back
+                onFocus={(e) => e.target.matches(':focus-visible') && setTip(i)}
                 onBlur={() => setTip(null)}
-                onClick={() => setOpen(i)}
+                onClick={() => {
+                  setTip(null)
+                  setOpen(i)
+                }}
                 onKeyDown={(e) => e.key === 'Enter' && setOpen(i)}
               />
             )
